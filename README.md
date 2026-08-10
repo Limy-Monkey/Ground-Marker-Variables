@@ -27,7 +27,7 @@ Supported variables:
 - `{lvl_agility < 87 ? Bring Summer Pie! : }`
   - Reminder to bring summer pie to boost for Hallowed Sepulcher!
   - Empty if you're already level 87.
-- `You have: {varbit72}/128} Miscellania Favour!`
+- `You have: {varbit72}/128 Miscellania Favour!`
   - Inform the user about what their current Managing Miscellania favour is at.
 - `{hasFreeze && weapon == staff of the dead ? Gigachad : Noob}`
   - Remind yourself what it takes to be a gigachad
