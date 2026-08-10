@@ -22,11 +22,13 @@ class VariableRegistry
 		HasFreezeLabelVariable hasFreeze,
 		HasEntangleLabelVariable hasEntangle,
 		BoostedSkillLevelLabelVariable boostedSkillLevel,
-		AttackStyleLabelVariable attackStyle)
+		AttackStyleLabelVariable attackStyle,
+		VarbitLabelVariable varbit,
+		HasItemLabelVariable hasItem)
 	{
 		this.variables = List.of(
 			rsn, spellbook, metronome, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle);
+			attackStyle, varbit, hasItem);
 	}
 
 	List<LabelVariable> all()

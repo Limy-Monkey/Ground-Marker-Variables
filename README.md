@@ -8,14 +8,16 @@ Supported variables:
 |------------------------------------------|----------------------------------------------------------------------------------------------------------|
 | {rsn}                                    | Current player's display name                                                                            |
 | {spellbook}                              | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                   |
-| {metronomeN} / {metronomeN_M}            | Counts down N → 1 and repeats, advancing every M ticks (default 1)                                       |
+| {metronome\<N>} / {metronome\<N>_\<M>}   | Counts down N → 1 and repeats, advancing every M ticks (default 1)                                       |
 | {weapon}                                 | Equipped weapon's item name, or Unarmed                                                                  |
 | {attackStyle}                            | Current combat style name, e.g. Accurate, Aggressive, Casting                                            |
 | {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
 | {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
+| {varbit\<N>}                             | Current value of varbit N, e.g. \{varbit4070}                                                            |
 | {hasThralls}                             | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                |
 | {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
 | {hasEntangle}                            | true if Entangle is castable (Level not checked)                                                         |
+| {hasItem \<name>}                        | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}        |
 | {\<cond1> \[&& / \|\| \<cond2>] ? A : B} | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B |
 
 ## Examples:
