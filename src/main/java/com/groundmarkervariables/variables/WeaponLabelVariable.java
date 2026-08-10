@@ -11,8 +11,7 @@ import net.runelite.api.InventoryID;
 import net.runelite.client.game.ItemManager;
 
 // {weapon} -> the equipped weapon's item name (e.g. "Abyssal whip"), or "Unarmed" if the
-// weapon slot is empty. Unresolvable (not "Unarmed") while not logged in, same convention
-// every other variable here uses for "don't know yet" vs. a real answer.
+// weapon slot is empty.
 class WeaponLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{weapon\\}", Pattern.CASE_INSENSITIVE);
@@ -48,13 +47,12 @@ class WeaponLabelVariable implements LabelVariable
 			return UNARMED;
 		}
 
-		Item[] items = equipment.getItems();
-		int weaponSlot = EquipmentInventorySlot.WEAPON.getSlotIdx();
-		if (weaponSlot >= items.length || items[weaponSlot] == null)
+		Item weapon = equipment.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
+		if (weapon == null || weapon.getId() <= 0)
 		{
 			return UNARMED;
 		}
 
-		return itemManager.getItemComposition(items[weaponSlot].getId()).getName();
+		return itemManager.getItemComposition(weapon.getId()).getName();
 	}
 }

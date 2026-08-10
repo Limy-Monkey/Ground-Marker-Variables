@@ -35,11 +35,6 @@ final class RuneCounter
 		VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_TYPE_5, VarbitID.RUNE_POUCH_TYPE_6,
 	};
 
-	// Every item that provides a given elemental rune infinitely while equipped as the
-	// weapon: the basic/battlestaff/mystic trio for that element, plus every combination
-	// elemental staff that includes it (e.g. Mud battlestaff covers both water and earth).
-	// No entry for non-elemental runes (blood/death/cosmic/nature/...) — there's no infinite
-	// source for any of those in the game.
 	private static final Map<Integer, int[]> INFINITE_RUNE_WEAPONS = Map.of(
 		ItemID.FIRERUNE, new int[] {
 			ItemID.STAFF_OF_FIRE, ItemID.FIRE_BATTLESTAFF, ItemID.MYSTIC_FIRE_STAFF,
@@ -60,9 +55,6 @@ final class RuneCounter
 			ItemID.MUD_BATTLESTAFF, ItemID.MYSTIC_MUD_STAFF,
 		});
 
-	// Whether at least "required" of a rune is available: an infinite source (see
-	// INFINITE_RUNE_WEAPONS) always satisfies any quantity, otherwise inventory + rune pouch
-	// must add up to enough on their own.
 	static boolean hasAtLeast(Client client, int runeId, int required)
 	{
 		return hasInfiniteSource(client, runeId) || count(client, runeId) >= required;
@@ -88,9 +80,7 @@ final class RuneCounter
 		return false;
 	}
 
-	// Total quantity of a rune available: inventory + rune pouch contents, the same two
-	// places the game itself draws runes from for a cast. Doesn't account for an infinite
-	// source on its own — see hasAtLeast(), which is what callers should normally use.
+	// Total quantity of a rune available: inventory + rune pouch contents
 	static int count(Client client, int runeId)
 	{
 		return itemCount(client, InventoryID.INVENTORY, runeId) + runePouchCount(client, runeId);
@@ -117,7 +107,6 @@ final class RuneCounter
 	}
 
 	// The equipped weapon's item id, or -1 if there's no equipment or nothing in that slot
-	// (a value that will never match a real candidate id in a caller's own comparison).
 	static int equippedWeaponId(Client client)
 	{
 		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
@@ -126,14 +115,8 @@ final class RuneCounter
 			return -1;
 		}
 
-		Item[] items = equipment.getItems();
-		int weaponSlot = EquipmentInventorySlot.WEAPON.getSlotIdx();
-		if (weaponSlot >= items.length || items[weaponSlot] == null)
-		{
-			return -1;
-		}
-
-		return items[weaponSlot].getId();
+		Item weapon = equipment.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
+		return weapon == null || weapon.getId() <= 0 ? -1 : weapon.getId();
 	}
 
 	private static int runePouchCount(Client client, int runeId)
