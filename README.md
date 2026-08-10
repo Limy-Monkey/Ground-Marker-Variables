@@ -1,7 +1,5 @@
 # Ground Marker Variables
 
--------------------------
-
 Overrides the default Ground Marker plugin with a version that supports variables in labels.
 
 Supported variables:
@@ -27,7 +25,13 @@ Supported variables:
 - `{lvl_agility < 87 ? Bring Summer Pie! : }`
   - Reminder to bring summer pie to boost for Hallowed Sepulcher!
   - Empty if you're already level 87.
-- `{hasFreeze || hasEntangle ? : Get freezes!}`
-  - Reminder to get freezes if you don't have them!
-- `{metronome16 <= 8 ? {metronome4} : }`
+- `{hasFreeze && weapon == staff of the dead ? Gigachad : Noob}`
+  - Remind yourself what it takes to be a gigachad
+- `{metronome16 > 8 ? {metronome4} : }`
   - 16 tick cycle, showing a 4-tick metronome for 8 ticks then hiding it for 8 ticks.
+ 
+## Note:
+
+The Runescape Quill font used for the `Tile label` chat box renders squiggly bracket `{ }` symbols similarly to parentheses `( )`. Only squiggly brackets are supported.
+ 
+<img width="568" height="603" alt="java_1hdlq8BOsb" src="https://github.com/user-attachments/assets/4b81bb86-ea82-45a7-bd39-0c600bfdf7bc" />
