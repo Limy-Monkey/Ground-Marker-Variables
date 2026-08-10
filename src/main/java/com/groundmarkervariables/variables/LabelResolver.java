@@ -10,15 +10,19 @@ import javax.inject.Inject;
 // LabelVariable implementation and add it to VariableRegistry — nothing here needs to
 // change. ConditionalVariable itself is listed separately since it depends on that same
 // registry (see VariableRegistry's comment for why).
+//
+// MetronomeLabelVariable is listed separately too, deliberately LAST (after conditional)
+// Per Plugin Hub review, metronomes inside of conditionals are too risky for abuse.
 public class LabelResolver
 {
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private LabelResolver(VariableRegistry registry, ConditionalVariable conditional)
+	private LabelResolver(VariableRegistry registry, ConditionalVariable conditional, MetronomeLabelVariable metronome)
 	{
 		List<LabelVariable> all = new ArrayList<>(registry.all());
 		all.add(conditional);
+		all.add(metronome);
 		this.variables = List.copyOf(all);
 	}
 

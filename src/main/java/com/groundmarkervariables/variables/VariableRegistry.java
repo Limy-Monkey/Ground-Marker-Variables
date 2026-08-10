@@ -7,6 +7,9 @@ import javax.inject.Inject;
 // left-hand side of a comparison against. Kept separate from LabelResolver's own list
 // (which also includes ConditionalVariable itself) so ConditionalVariable can depend on
 // this registry instead of on LabelResolver, avoiding a circular dependency.
+//
+// MetronomeLabelVariable is deliberately NOT here — see LabelResolver's comment for why it's
+// excluded from conditional support entirely (both as <expr> and inside A/B branches).
 class VariableRegistry
 {
 	private final List<LabelVariable> variables;
@@ -15,7 +18,6 @@ class VariableRegistry
 	private VariableRegistry(
 		RsnLabelVariable rsn,
 		SpellbookLabelVariable spellbook,
-		MetronomeLabelVariable metronome,
 		HasThrallsLabelVariable hasThralls,
 		WeaponLabelVariable weapon,
 		SkillLevelLabelVariable skillLevel,
@@ -26,7 +28,7 @@ class VariableRegistry
 		HasItemLabelVariable hasItem)
 	{
 		this.variables = List.of(
-			rsn, spellbook, metronome, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
+			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, hasItem);
 	}
 
