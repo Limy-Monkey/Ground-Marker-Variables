@@ -10,8 +10,8 @@ import net.runelite.client.ui.overlay.OverlayManager;
 
 @PluginDescriptor(
 	name = "Ground Marker Variables",
-	description = "Replaces {rsn} in Ground Markers tile labels with your current username",
-	tags = {"ground", "markers", "tile", "overlay", "labels", "variables", "rsn"}
+	description = "Ground Markers with variables support, e.g. {spellbook} and {metronome4}",
+	tags = {"ground", "markers", "tile", "overlay", "labels", "variables", "metronome"}
 )
 @PluginDependency(GroundMarkerPlugin.class)
 public class GroundMarkerVariablesPlugin extends Plugin
