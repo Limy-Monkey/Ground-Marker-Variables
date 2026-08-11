@@ -96,13 +96,26 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 	private void drawTile(Graphics2D graphics, WorldView wv, GroundMarkerPointData point, Stroke borderStroke)
 	{
-		WorldPoint worldPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+		if (client.getLocalPlayer() == null)
+		{
+			return;
+		}
+
+		WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+		for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
+		{
+			drawTileAt(graphics, wv, worldPoint, point, borderStroke);
+		}
+	}
+
+	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, GroundMarkerPointData point, Stroke borderStroke)
+	{
 		if (worldPoint.getPlane() != wv.getPlane())
 		{
 			return;
 		}
 
-		if (client.getLocalPlayer() == null || worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) > MAX_DRAW_DISTANCE)
+		if (worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) > MAX_DRAW_DISTANCE)
 		{
 			return;
 		}
