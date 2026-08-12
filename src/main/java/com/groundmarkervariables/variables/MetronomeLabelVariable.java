@@ -3,23 +3,39 @@ package com.groundmarkervariables.variables;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 
 // {metronomeN} counts down from N to 1, then restarts at N, advancing once per game tick.
 // {metronomeN_M} is the same, but only advances once every M ticks (default M = 1). Driven
 // by Client.getTickCount() rather than our own counter so it stays exact regardless of how
-// often the overlay redraws, and so every {metronomeN_M} with the same N and M stays in sync.
-class MetronomeLabelVariable implements LabelVariable
+// often the overlay redraws, and so every {metronomeN_M} with the same N and M stays in sync
+// — offset by the "Reset metronome" hotkey's tick (see offset()) so every metronome can be
+// re-synced to a moment the player chooses, e.g. the start of a boss fight.
+//
+// @Singleton because this is injected at two separate points (LabelResolver and the reset
+// hotkey listener, in the main com.groundmarkervariables package) that must share the same
+// offset state — Guice hands out a fresh instance per injection point otherwise. Public (unlike
+// every other LabelVariable) for the same reason: the hotkey listener outside this package
+// needs to call offset().
+@Singleton
+public class MetronomeLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN =
 		Pattern.compile("\\{metronome(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private volatile int offsetTick;
 
 	@Inject
 	private MetronomeLabelVariable(Client client)
 	{
 		this.client = client;
+	}
+
+	public void offset()
+	{
+		offsetTick = client.getTickCount();
 	}
 
 	@Override
@@ -43,7 +59,7 @@ class MetronomeLabelVariable implements LabelVariable
 			return null;
 		}
 
-		int step = client.getTickCount() / ticksPerStep;
+		int step = (client.getTickCount() - offsetTick) / ticksPerStep;
 		return String.valueOf(max - (step % max));
 	}
 

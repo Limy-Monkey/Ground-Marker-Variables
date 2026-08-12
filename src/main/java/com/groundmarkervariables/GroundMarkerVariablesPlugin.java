@@ -1,6 +1,9 @@
 package com.groundmarkervariables;
 
+import com.google.inject.Provides;
 import javax.inject.Inject;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -30,6 +33,18 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private GroundMarkerVariablesOverlay overlay;
 
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
+	private MetronomeResetHotkeyListener metronomeResetHotkeyListener;
+
+	@Provides
+	GroundMarkerVariablesConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(GroundMarkerVariablesConfig.class);
+	}
+
 	@Override
 	protected void startUp()
 	{
@@ -37,11 +52,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		// added its overlay by now.
 		overlayManager.removeIf(o -> o instanceof GroundMarkerOverlay);
 		overlayManager.add(overlay);
+		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
 		overlayManager.add(coreOverlay);
 	}

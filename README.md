@@ -31,7 +31,11 @@ Supported variables:
 - `{metronome4}`
   - 4 tick metronome on the tile
   - Cannot be used inside of a \<cond\>.
- 
+
+## Options:
+
+- **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
+
 ## Note:
 
 The Runescape Quill font used for the `Tile label` chat box renders squiggly bracket `{ }` symbols similarly to parentheses `( )`. Only squiggly brackets are supported.
