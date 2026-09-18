@@ -1,17 +1,11 @@
 package com.groundmarkervariables;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.groundmarkervariables.variables.LabelResolver;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -20,7 +14,6 @@ import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.plugins.groundmarkers.GroundMarkerConfig;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -30,25 +23,19 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 public class GroundMarkerVariablesOverlay extends Overlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
-	private static final String CORE_CONFIG_GROUP = "groundMarker";
-	private static final String REGION_PREFIX = "region_";
 
 	private final Client client;
-	private final ConfigManager configManager;
-	private final Gson gson;
+	private final GroundMarkerVariablesPlugin plugin;
 	// Ground Markers' own config, so a marker saved without an explicit color falls back
 	// to whatever "Tile color" the user has set in Ground Markers, not a color we invent.
 	private final GroundMarkerConfig groundMarkerConfig;
-	private final LabelResolver labelResolver;
 
 	@Inject
-	private GroundMarkerVariablesOverlay(Client client, ConfigManager configManager, Gson gson, GroundMarkerConfig groundMarkerConfig, LabelResolver labelResolver)
+	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerConfig groundMarkerConfig)
 	{
 		this.client = client;
-		this.configManager = configManager;
-		this.gson = gson;
+		this.plugin = plugin;
 		this.groundMarkerConfig = groundMarkerConfig;
-		this.labelResolver = labelResolver;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
 		setLayer(OverlayLayer.ABOVE_SCENE);
@@ -71,9 +58,8 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		// Built once per frame, same as the core overlay, rather than once per tile.
 		Stroke borderStroke = new BasicStroke((float) groundMarkerConfig.borderWidth());
 
-		// Markers are stored by region, not by worldview, so the same stored point can
-		// apply inside multiple worldviews at once — the top-level one and any world
-		// entity's own (e.g. a ship), each with its own scene to translate the point into.
+		// The same stored region can apply to multiple worldviews at once (top-level plus
+		// any world entity's own, e.g. a ship), each needing its own translation.
 		drawWorldView(graphics, topLevelWv, borderStroke);
 		for (WorldEntity worldEntity : topLevelWv.worldEntities())
 		{
@@ -93,50 +79,34 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 		for (int regionId : regions)
 		{
-			for (GroundMarkerPointData point : getPoints(regionId))
+			for (CachedMarker marker : plugin.getMarkers(regionId))
 			{
-				drawTile(graphics, wv, point, borderStroke);
+				drawTile(graphics, wv, marker, borderStroke);
 			}
 		}
 	}
 
-	private Collection<GroundMarkerPointData> getPoints(int regionId)
+	private void drawTile(Graphics2D graphics, WorldView wv, CachedMarker marker, Stroke borderStroke)
 	{
-		String json = configManager.getConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
-		if (json == null || json.isEmpty())
-		{
-			return Collections.emptyList();
-		}
-
-		List<GroundMarkerPointData> points = gson.fromJson(json, new TypeToken<List<GroundMarkerPointData>>()
-		{
-		}.getType());
-		return points == null ? Collections.emptyList() : points;
-	}
-
-	private void drawTile(Graphics2D graphics, WorldView wv, GroundMarkerPointData point, Stroke borderStroke)
-	{
+		GroundMarkerPointData point = marker.source;
 		WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-		// Inside an instance, the stored (template) point doesn't map to on-screen coordinates
-		// directly — it has to be translated to wherever the instance actually placed that
-		// template chunk, and (per toLocalInstance's own docs) the same template chunk can
-		// appear more than once on the scene, so this can yield 0, 1, or several tiles to draw.
+		// toLocalInstance translates the stored point into the instance's actual scene;
+		// it can yield 0, 1, or several tiles since a template chunk may repeat.
 		for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
 		{
-			drawTileAt(graphics, wv, worldPoint, point, borderStroke);
+			drawTileAt(graphics, wv, worldPoint, marker, borderStroke);
 		}
 	}
 
-	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, GroundMarkerPointData point, Stroke borderStroke)
+	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke)
 	{
 		if (worldPoint.getPlane() != wv.getPlane())
 		{
 			return;
 		}
 
-		// Distance-cull against the player's own position only when they're on the top-level
-		// worldview — that position isn't meaningful for culling tiles in a world entity's own
-		// (e.g. a ship's) worldview, so those are never distance-culled, same as core.
+		// Only distance-cull on the top-level worldview — the player's position isn't
+		// meaningful for culling a world entity's own (e.g. a ship's) worldview.
 		if (client.getLocalPlayer().getWorldView().isTopLevel()
 			&& worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) >= MAX_DRAW_DISTANCE)
 		{
@@ -149,7 +119,7 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			return;
 		}
 
-		Color color = point.getColor() != null ? point.getColor() : groundMarkerConfig.markerColor();
+		Color color = marker.source.getColor() != null ? marker.source.getColor() : groundMarkerConfig.markerColor();
 
 		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
 		if (poly != null)
@@ -161,7 +131,7 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 		// Label rendering doesn't depend on the tile poly resolving — a missing poly only
 		// means we can't draw an outline, not that the label's canvas location is unavailable.
-		String label = labelResolver.resolve(point.getLabel());
+		String label = marker.getResolvedLabel();
 		if (label != null && !label.isEmpty())
 		{
 			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, label, 0);
