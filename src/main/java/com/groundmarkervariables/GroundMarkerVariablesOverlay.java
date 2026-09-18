@@ -20,6 +20,7 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
+import net.runelite.client.util.ColorUtil;
 
 public class GroundMarkerVariablesOverlay extends Overlay
 {
@@ -108,9 +109,11 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, visibleLabel, 0);
 			if (textLocation != null)
 			{
+				// Full opacity regardless of the marker's own (possibly transparent) color —
+				// only the tile fill/outline should ever be see-through, never the label text.
 				TextComponent textComponent = new TextComponent();
 				textComponent.setText(label);
-				textComponent.setColor(color);
+				textComponent.setColor(ColorUtil.colorWithAlpha(color, 0xFF));
 				textComponent.setPosition(textLocation.getX(), textLocation.getY());
 				textComponent.render(graphics);
 			}
