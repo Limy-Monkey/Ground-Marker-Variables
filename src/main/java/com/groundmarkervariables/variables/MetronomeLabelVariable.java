@@ -38,6 +38,19 @@ public class MetronomeLabelVariable implements LabelVariable
 		offsetTick = client.getTickCount();
 	}
 
+	// Ticks elapsed since offsetTick — the one value every marker's countdown is derived
+	// from, sent to party members as a MetronomeSyncResponse.
+	public int elapsedTicks()
+	{
+		return client.getTickCount() - offsetTick;
+	}
+
+	// Applies a party member's elapsedTicks so this client's countdown matches theirs.
+	public void syncTo(int remoteElapsedTicks)
+	{
+		offsetTick = client.getTickCount() - remoteElapsedTicks;
+	}
+
 	@Override
 	public Pattern pattern()
 	{

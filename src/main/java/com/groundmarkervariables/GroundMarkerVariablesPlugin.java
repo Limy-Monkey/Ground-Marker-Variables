@@ -3,7 +3,10 @@ package com.groundmarkervariables;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
+import com.groundmarkervariables.party.MetronomeSyncRequest;
+import com.groundmarkervariables.party.MetronomeSyncResponse;
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.MetronomeLabelVariable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
@@ -26,6 +30,9 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
+import net.runelite.client.party.PartyMember;
+import net.runelite.client.party.PartyService;
+import net.runelite.client.party.WSClient;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -33,6 +40,7 @@ import net.runelite.client.plugins.groundmarkers.GroundMarkerOverlay;
 import net.runelite.client.plugins.groundmarkers.GroundMarkerPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
 
+@Slf4j
 @PluginDescriptor(
 	name = "Ground Marker Variables",
 	description = "Ground Markers with variables support, e.g. {spellbook} and {metronome4}",
@@ -54,13 +62,25 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private ConfigManager configManager;
 
 	@Inject
+	private GroundMarkerVariablesConfig config;
+
+	@Inject
 	private Gson gson;
 
 	@Inject
 	private LabelResolver labelResolver;
 
 	@Inject
+	private MetronomeLabelVariable metronomeLabelVariable;
+
+	@Inject
 	private OverlayManager overlayManager;
+
+	@Inject
+	private PartyService partyService;
+
+	@Inject
+	private WSClient wsClient;
 
 	// GroundMarkerOverlay isn't @Singleton; removeIf() below finds the real registered
 	// overlay by type, and this fresh instance is handed back to the manager on shutDown().
@@ -84,6 +104,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// ListMultimap<WorldView, ColorTileMarker> — avoids WorldPoint.toLocalInstance() in render().
 	private final Map<WorldView, List<TranslatedMarker>> markersByWorldView = new HashMap<>();
 
+	// Guards against replying twice in the same tick if multiple party members target us.
+	private boolean hasRespondedThisTick;
+
 	@Provides
 	GroundMarkerVariablesConfig provideConfig(ConfigManager configManager)
 	{
@@ -99,6 +122,18 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.add(overlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		loadPoints();
+
+		// A collision (another plugin already claiming these message names) throws here;
+		// party sync is simply unavailable in that case rather than failing the whole plugin.
+		try
+		{
+			wsClient.registerMessage(MetronomeSyncRequest.class);
+			wsClient.registerMessage(MetronomeSyncResponse.class);
+		}
+		catch (IllegalArgumentException e)
+		{
+			log.warn("Party sync unavailable due to a message type collision with another plugin", e);
+		}
 	}
 
 	@Override
@@ -109,6 +144,16 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.add(coreOverlay);
 		markersByRegion.clear();
 		markersByWorldView.clear();
+
+		try
+		{
+			wsClient.unregisterMessage(MetronomeSyncRequest.class);
+			wsClient.unregisterMessage(MetronomeSyncResponse.class);
+		}
+		catch (IllegalArgumentException e)
+		{
+			// Never registered successfully; nothing to unregister.
+		}
 	}
 
 	@Subscribe
@@ -174,6 +219,50 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				marker.refresh(labelResolver);
 			}
 		}
+
+		hasRespondedThisTick = false;
+		if (config.enablePartySync() && !config.syncTarget().isEmpty() && !partyService.getMembers().isEmpty())
+		{
+			partyService.send(new MetronomeSyncRequest(config.syncTarget()));
+		}
+	}
+
+	// Answers a request if we're the named target, regardless of our own Party Sync setting —
+	// being a sync source doesn't require opting into following anyone yourself.
+	@Subscribe
+	public void onMetronomeSyncRequest(MetronomeSyncRequest request)
+	{
+		PartyMember localMember = partyService.getLocalMember();
+		if (localMember == null || !localMember.getDisplayName().equalsIgnoreCase(request.getTarget()))
+		{
+			return;
+		}
+
+		if (hasRespondedThisTick)
+		{
+			return;
+		}
+		hasRespondedThisTick = true;
+
+		partyService.send(new MetronomeSyncResponse(metronomeLabelVariable.elapsedTicks()));
+	}
+
+	// Applies a response only if it's actually from our configured sync target.
+	@Subscribe
+	public void onMetronomeSyncResponse(MetronomeSyncResponse response)
+	{
+		if (!config.enablePartySync())
+		{
+			return;
+		}
+
+		PartyMember sender = partyService.getMemberById(response.getMemberId());
+		if (sender == null || !sender.getDisplayName().equalsIgnoreCase(config.syncTarget()))
+		{
+			return;
+		}
+
+		metronomeLabelVariable.syncTo(response.getElapsedTicks());
 	}
 
 	Collection<CachedMarker> getMarkers(int regionId)
