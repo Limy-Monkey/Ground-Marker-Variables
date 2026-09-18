@@ -6,6 +6,7 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
+import java.util.regex.Pattern;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -18,10 +19,14 @@ import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
+import net.runelite.client.ui.overlay.components.TextComponent;
 
 public class GroundMarkerVariablesOverlay extends Overlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
+	// Matches TextComponent's own tag format, so a label can color individual runs of text
+	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
+	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=[0-9a-fA-F]{2,6}>");
 
 	private final Client client;
 	private final GroundMarkerVariablesPlugin plugin;
@@ -98,10 +103,16 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		String label = marker.getResolvedLabel();
 		if (label != null && !label.isEmpty())
 		{
-			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, label, 0);
+			// Center against the visible text width, not the raw string with <col=> tags in it.
+			String visibleLabel = COLOR_TAG_PATTERN.matcher(label).replaceAll("");
+			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, visibleLabel, 0);
 			if (textLocation != null)
 			{
-				OverlayUtil.renderTextLocation(graphics, textLocation, label, color);
+				TextComponent textComponent = new TextComponent();
+				textComponent.setText(label);
+				textComponent.setColor(color);
+				textComponent.setPosition(textLocation.getX(), textLocation.getY());
+				textComponent.render(graphics);
 			}
 		}
 	}
