@@ -10,7 +10,6 @@ import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
-import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
@@ -49,53 +48,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			return null;
 		}
 
-		WorldView topLevelWv = client.getTopLevelWorldView();
-		if (topLevelWv == null)
-		{
-			return null;
-		}
-
 		// Built once per frame, same as the core overlay, rather than once per tile.
 		Stroke borderStroke = new BasicStroke((float) groundMarkerConfig.borderWidth());
 
-		// The same stored region can apply to multiple worldviews at once (top-level plus
-		// any world entity's own, e.g. a ship), each needing its own translation.
-		drawWorldView(graphics, topLevelWv, borderStroke);
-		for (WorldEntity worldEntity : topLevelWv.worldEntities())
+		for (WorldView wv : plugin.getTrackedWorldViews())
 		{
-			drawWorldView(graphics, worldEntity.getWorldView(), borderStroke);
+			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
+			{
+				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke);
+			}
 		}
 
 		return null;
-	}
-
-	private void drawWorldView(Graphics2D graphics, WorldView wv, Stroke borderStroke)
-	{
-		int[] regions = wv.getMapRegions();
-		if (regions == null)
-		{
-			return;
-		}
-
-		for (int regionId : regions)
-		{
-			for (CachedMarker marker : plugin.getMarkers(regionId))
-			{
-				drawTile(graphics, wv, marker, borderStroke);
-			}
-		}
-	}
-
-	private void drawTile(Graphics2D graphics, WorldView wv, CachedMarker marker, Stroke borderStroke)
-	{
-		GroundMarkerPointData point = marker.source;
-		WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-		// toLocalInstance translates the stored point into the instance's actual scene;
-		// it can yield 0, 1, or several tiles since a template chunk may repeat.
-		for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
-		{
-			drawTileAt(graphics, wv, worldPoint, marker, borderStroke);
-		}
 	}
 
 	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke)
