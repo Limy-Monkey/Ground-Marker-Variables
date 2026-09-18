@@ -16,6 +16,7 @@ import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
+import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
@@ -49,26 +50,47 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		this.groundMarkerConfig = groundMarkerConfig;
 		this.labelResolver = labelResolver;
 		setPosition(OverlayPosition.DYNAMIC);
+		setPriority(PRIORITY_LOW);
 		setLayer(OverlayLayer.ABOVE_SCENE);
 	}
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		WorldView wv = client.getTopLevelWorldView();
-		if (wv == null)
+		if (client.getLocalPlayer() == null)
 		{
 			return null;
 		}
 
-		int[] regions = wv.getMapRegions();
-		if (regions == null)
+		WorldView topLevelWv = client.getTopLevelWorldView();
+		if (topLevelWv == null)
 		{
 			return null;
 		}
 
 		// Built once per frame, same as the core overlay, rather than once per tile.
 		Stroke borderStroke = new BasicStroke((float) groundMarkerConfig.borderWidth());
+
+		// Markers are stored by region, not by worldview, so the same stored point can
+		// apply inside multiple worldviews at once — the top-level one and any world
+		// entity's own (e.g. a ship), each with its own scene to translate the point into.
+		drawWorldView(graphics, topLevelWv, borderStroke);
+		for (WorldEntity worldEntity : topLevelWv.worldEntities())
+		{
+			drawWorldView(graphics, worldEntity.getWorldView(), borderStroke);
+		}
+
+		return null;
+	}
+
+	private void drawWorldView(Graphics2D graphics, WorldView wv, Stroke borderStroke)
+	{
+		int[] regions = wv.getMapRegions();
+		if (regions == null)
+		{
+			return;
+		}
+
 		for (int regionId : regions)
 		{
 			for (GroundMarkerPointData point : getPoints(regionId))
@@ -76,8 +98,6 @@ public class GroundMarkerVariablesOverlay extends Overlay
 				drawTile(graphics, wv, point, borderStroke);
 			}
 		}
-
-		return null;
 	}
 
 	private Collection<GroundMarkerPointData> getPoints(int regionId)
@@ -96,12 +116,11 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 	private void drawTile(Graphics2D graphics, WorldView wv, GroundMarkerPointData point, Stroke borderStroke)
 	{
-		if (client.getLocalPlayer() == null)
-		{
-			return;
-		}
-
 		WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+		// Inside an instance, the stored (template) point doesn't map to on-screen coordinates
+		// directly — it has to be translated to wherever the instance actually placed that
+		// template chunk, and (per toLocalInstance's own docs) the same template chunk can
+		// appear more than once on the scene, so this can yield 0, 1, or several tiles to draw.
 		for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
 		{
 			drawTileAt(graphics, wv, worldPoint, point, borderStroke);
@@ -115,7 +134,11 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			return;
 		}
 
-		if (worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) > MAX_DRAW_DISTANCE)
+		// Distance-cull against the player's own position only when they're on the top-level
+		// worldview — that position isn't meaningful for culling tiles in a world entity's own
+		// (e.g. a ship's) worldview, so those are never distance-culled, same as core.
+		if (client.getLocalPlayer().getWorldView().isTopLevel()
+			&& worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) >= MAX_DRAW_DISTANCE)
 		{
 			return;
 		}
@@ -126,17 +149,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			return;
 		}
 
+		Color color = point.getColor() != null ? point.getColor() : groundMarkerConfig.markerColor();
+
 		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
-		if (poly == null)
+		if (poly != null)
 		{
-			return;
+			// Fill is a flat black overlay at the configured opacity, not the marker's own color
+			// at reduced alpha — matches the core overlay's own drawTile() exactly.
+			OverlayUtil.renderPolygon(graphics, poly, color, new Color(0, 0, 0, groundMarkerConfig.fillOpacity()), borderStroke);
 		}
 
-		Color color = point.getColor() != null ? point.getColor() : groundMarkerConfig.markerColor();
-		// Fill is a flat black overlay at the configured opacity, not the marker's own color
-		// at reduced alpha — matches the core overlay's own drawTile() exactly.
-		OverlayUtil.renderPolygon(graphics, poly, color, new Color(0, 0, 0, groundMarkerConfig.fillOpacity()), borderStroke);
-
+		// Label rendering doesn't depend on the tile poly resolving — a missing poly only
+		// means we can't draw an outline, not that the label's canvas location is unavailable.
 		String label = labelResolver.resolve(point.getLabel());
 		if (label != null && !label.isEmpty())
 		{
