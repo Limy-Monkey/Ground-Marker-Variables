@@ -20,6 +20,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
@@ -45,6 +46,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private ConfigManager configManager;
@@ -126,8 +130,10 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		markersByWorldView.remove(event.getWorldView());
 	}
 
-	// Core's own plugin writes mark/label/color/import/clear edits to config, not us —
-	// this is how we notice those edits happened.
+	// Core's own plugin writes mark/label/color/import/clear edits to config, not us — this
+	// is how we notice those edits happened. Some of those edits (e.g. labelTile's chatbox
+	// input) fire this from the AWT thread, but resolving a variable requires the client
+	// thread, so the rebuild is marshalled there via clientThread.invoke().
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
@@ -145,8 +151,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		try
 		{
 			int regionId = Integer.parseInt(key.substring(REGION_PREFIX.length()));
-			rebuildRegion(regionId);
-			retranslateWorldViewsShowing(regionId);
+			clientThread.invoke(() ->
+			{
+				rebuildRegion(regionId);
+				retranslateWorldViewsShowing(regionId);
+			});
 		}
 		catch (NumberFormatException e)
 		{
