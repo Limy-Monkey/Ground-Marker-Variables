@@ -221,7 +221,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		hasRespondedThisTick = false;
-		if (config.enablePartySync() && !config.syncTarget().isEmpty() && !partyService.getMembers().isEmpty())
+		if (config.enablePartySync() && !config.syncTarget().isEmpty()
+			&& partyService.getMembers().stream().anyMatch(m -> matchesTarget(m.getDisplayName(), config.syncTarget())))
 		{
 			partyService.send(new MetronomeSyncRequest(config.syncTarget()));
 		}
@@ -233,7 +234,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	public void onMetronomeSyncRequest(MetronomeSyncRequest request)
 	{
 		PartyMember localMember = partyService.getLocalMember();
-		if (localMember == null || !localMember.getDisplayName().equalsIgnoreCase(request.getTarget()))
+		if (localMember == null || !matchesTarget(localMember.getDisplayName(), request.getTarget()))
 		{
 			return;
 		}
@@ -257,12 +258,19 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		PartyMember sender = partyService.getMemberById(response.getMemberId());
-		if (sender == null || !sender.getDisplayName().equalsIgnoreCase(config.syncTarget()))
+		if (sender == null || !matchesTarget(sender.getDisplayName(), config.syncTarget()))
 		{
 			return;
 		}
 
 		metronomeLabelVariable.syncTo(response.getElapsedTicks());
+	}
+
+	// Case-insensitive, and underscore/space-interchangeable, since a display name can arrive
+	// over the party websocket with underscores in place of spaces.
+	private static boolean matchesTarget(String displayName, String target)
+	{
+		return displayName.replace('_', ' ').equalsIgnoreCase(target.replace('_', ' '));
 	}
 
 	Collection<CachedMarker> getMarkers(int regionId)
