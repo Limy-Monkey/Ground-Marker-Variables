@@ -7,9 +7,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 
-// {metronomeN} counts up from 1 to N, or with the "Count Down" config option, down from N to
-// 1, then repeats, advancing once per game tick. {metronomeN_M} is the same, but only
-// advances once every M ticks (default M = 1). Driven
+// {metronomeN} (or its {mN} alias) counts up from 1 to N, or with the "Count Down" config
+// option, down from N to 1, then repeats, advancing once per game tick. {metronomeN_M} is
+// the same, but only advances once every M ticks (default M = 1). Driven
 // by Client.getTickCount() rather than our own counter so it stays exact regardless of how
 // often the overlay redraws, and so every {metronomeN_M} with the same N and M stays in sync
 // — offset by the "Reset metronome" hotkey's tick (see offset()) so every metronome can be
@@ -24,7 +24,7 @@ import net.runelite.api.Client;
 public class MetronomeLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN =
-		Pattern.compile("\\{metronome(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
+		Pattern.compile("\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
