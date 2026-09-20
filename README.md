@@ -31,6 +31,9 @@ Supported variables:
 - `{metronome4}`
   - 4 tick metronome on the tile
   - Cannot be used inside of a \<cond\>.
+- `This text is <col=00FFFF>teal!`
+  - Changes color of the word "teal!" to `#00FFFF`
+  - Does not support `</col>`.
 
 ## Options:
 
