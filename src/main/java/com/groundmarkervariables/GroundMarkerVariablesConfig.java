@@ -63,4 +63,50 @@ public interface GroundMarkerVariablesConfig extends Config
 	{
 		return "";
 	}
+
+	@ConfigSection(
+		name = "Examples",
+		description = "Quick reference for available variables and example labels — see the README for full details.",
+		position = 4,
+		closedByDefault = true
+	)
+	String examplesSection = "examples";
+
+	// void return type + empty description: renders as a plain HTML label with no input
+	// control (see ConfigPanel's type dispatch), used here purely as inline help text.
+	@ConfigItem(
+		position = 1,
+		keyName = "variablesHelp",
+		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
+			+ "- {rsn}<br>- {spellbook}<br>"
+			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt;}<br>"
+			+ "- {weapon}<br>- {attackStyle}<br>"
+			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
+			+ "- {hasThralls}<br>- {hasFreeze}<br>- {hasEntangle}<br>"
+			+ "- {hasItem &lt;name&gt;}<br>"
+			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}"
+			+ "</blockquote>",
+		description = "",
+		section = examplesSection
+	)
+	default void variablesHelp()
+	{
+	}
+
+	@ConfigItem(
+		position = 2,
+		keyName = "examplesHelp",
+		name = "<html><b>Examples:</b><blockquote style=\"margin-left: 10px\">"
+			+ "- You are currently on the {spellbook} spellbook!<br>"
+			+ "- {lvl_agility &lt; 87 ? Bring Summer Pie! : }<br>"
+			+ "- {hasFreeze &amp;&amp; weapon == staff of the dead ? Gigachad : Noob}<br>"
+			+ "- {metronome4}<br>"
+			+ "- This text is &lt;col=00FFFF&gt;teal!"
+			+ "</blockquote>",
+		description = "",
+		section = examplesSection
+	)
+	default void examplesHelp()
+	{
+	}
 }
