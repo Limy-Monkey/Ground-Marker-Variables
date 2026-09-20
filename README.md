@@ -35,6 +35,7 @@ Supported variables:
 ## Options:
 
 - **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
+- **Count Down** — Count \{metronome\} down from N → 1 instead of up from 1 → N.
 - **Party Sync** / **Sync Target** — Sync \{metronome\} to a party member's tick count instead of your own. Set Sync Target to their display name; they need Ground Marker Variables installed and must be in the same party.
 
 ## Note:

@@ -1,13 +1,15 @@
 package com.groundmarkervariables.variables;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 
-// {metronomeN} counts down from N to 1, then restarts at N, advancing once per game tick.
-// {metronomeN_M} is the same, but only advances once every M ticks (default M = 1). Driven
+// {metronomeN} counts up from 1 to N, or with the "Count Down" config option, down from N to
+// 1, then repeats, advancing once per game tick. {metronomeN_M} is the same, but only
+// advances once every M ticks (default M = 1). Driven
 // by Client.getTickCount() rather than our own counter so it stays exact regardless of how
 // often the overlay redraws, and so every {metronomeN_M} with the same N and M stays in sync
 // — offset by the "Reset metronome" hotkey's tick (see offset()) so every metronome can be
@@ -25,12 +27,14 @@ public class MetronomeLabelVariable implements LabelVariable
 		Pattern.compile("\\{metronome(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private final GroundMarkerVariablesConfig config;
 	private volatile int offsetTick;
 
 	@Inject
-	private MetronomeLabelVariable(Client client)
+	private MetronomeLabelVariable(Client client, GroundMarkerVariablesConfig config)
 	{
 		this.client = client;
+		this.config = config;
 	}
 
 	public void offset()
@@ -73,7 +77,8 @@ public class MetronomeLabelVariable implements LabelVariable
 		}
 
 		int step = (client.getTickCount() - offsetTick) / ticksPerStep;
-		return String.valueOf(max - (step % max));
+		int position = step % max;
+		return String.valueOf(config.countDown() ? max - position : position + 1);
 	}
 
 	// \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can

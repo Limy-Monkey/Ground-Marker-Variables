@@ -22,10 +22,21 @@ public interface GroundMarkerVariablesConfig extends Config
 		return Keybind.NOT_SET;
 	}
 
+	@ConfigItem(
+		position = 2,
+		keyName = "countDown",
+		name = "Count Down",
+		description = "Count {metronome} down from N to 1 instead of up from 1 to N."
+	)
+	default boolean countDown()
+	{
+		return false;
+	}
+
 	@ConfigSection(
 		name = "Party Sync",
 		description = "Sync {metronome} to a party member's tick count.",
-		position = 2
+		position = 3
 	)
 	String partySyncSection = "partySync";
 
