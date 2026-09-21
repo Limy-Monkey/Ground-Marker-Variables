@@ -33,10 +33,21 @@ public interface GroundMarkerVariablesConfig extends Config
 		return false;
 	}
 
+	@ConfigItem(
+		position = 3,
+		keyName = "advancedLabelEditor",
+		name = "Advanced Label Editor",
+		description = "Replace Ground Markers' Label editor with our own. When off, Ground Markers' stock editor is used untouched."
+	)
+	default boolean advancedLabelEditor()
+	{
+		return false;
+	}
+
 	@ConfigSection(
 		name = "Party Sync",
 		description = "Sync {metronome} to a party member's tick count.",
-		position = 3
+		position = 4
 	)
 	String partySyncSection = "partySync";
 
@@ -67,7 +78,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Examples",
 		description = "Quick reference for available variables and example labels — see the README for full details.",
-		position = 4,
+		position = 5,
 		closedByDefault = true
 	)
 	String examplesSection = "examples";

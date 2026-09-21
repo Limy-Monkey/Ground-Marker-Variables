@@ -10,18 +10,25 @@ import com.groundmarkervariables.variables.MetronomeLabelVariable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
+import net.runelite.api.Tile;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
@@ -51,6 +58,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";
 	private static final String REGION_PREFIX = "region_";
+	private static final String RECENT_LABELS_KEY = "recentLabels";
+	private static final int RECENT_LABELS_MAX = 3;
+	private static final int NEARBY_LABEL_DISTANCE = 150;
 
 	@Inject
 	private Client client;
@@ -66,6 +76,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private Gson gson;
+
+	@Inject
+	private Provider<AdvancedLabelEditor> advancedLabelEditorProvider;
 
 	@Inject
 	private LabelResolver labelResolver;
@@ -153,6 +166,161 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		catch (IllegalArgumentException e)
 		{
 			// Never registered successfully; nothing to unregister.
+		}
+	}
+
+	// Priority -1 so this runs after core's GroundMarkerPlugin#onMenuEntryAdded, which is what
+	// actually creates the "Label" entry we're looking for — EventBus otherwise orders equal-
+	// priority subscribers alphabetically by class name, which would run ours first.
+	@Subscribe(priority = -1)
+	public void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		if (!config.advancedLabelEditor())
+		{
+			return;
+		}
+
+		MenuEntry labelEntry = null;
+		for (MenuEntry entry : client.getMenuEntries())
+		{
+			if ("Label".equals(entry.getOption()) && "Tile".equals(entry.getTarget()) && entry.getType() == MenuAction.RUNELITE)
+			{
+				labelEntry = entry;
+				break;
+			}
+		}
+
+		if (labelEntry == null)
+		{
+			return;
+		}
+
+		WorldView wv = client.getWorldView(event.getMenuEntry().getWorldViewId());
+		if (wv == null)
+		{
+			return;
+		}
+
+		Tile selectedSceneTile = wv.getSelectedSceneTile();
+		if (selectedSceneTile == null)
+		{
+			return;
+		}
+
+		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, selectedSceneTile.getLocalLocation());
+		labelEntry.onClick(e -> openLabelEditor(worldPoint));
+	}
+
+	private void openLabelEditor(WorldPoint worldPoint)
+	{
+		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
+
+		advancedLabelEditorProvider.get()
+			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint))
+			.prompt("Tile label")
+			.value(currentLabel)
+			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
+			.build();
+	}
+
+	// Every other marker's own (raw, unresolved) label within NEARBY_LABEL_DISTANCE tiles —
+	// much further than the overlay's own 32-tile render distance — closest first, excluding
+	// worldPoint itself and any duplicate label text.
+	private List<String> findNearbyLabels(WorldPoint worldPoint)
+	{
+		List<TranslatedMarker> candidates = new ArrayList<>();
+		for (WorldView wv : getTrackedWorldViews())
+		{
+			candidates.addAll(getTranslatedMarkers(wv));
+		}
+
+		candidates.sort(Comparator.comparingInt(m -> m.worldPoint.distanceTo(worldPoint)));
+
+		List<String> labels = new ArrayList<>();
+		for (TranslatedMarker marker : candidates)
+		{
+			String label = marker.marker.source.getLabel();
+			if (label == null || label.isEmpty() || marker.worldPoint.equals(worldPoint)
+				|| marker.worldPoint.distanceTo(worldPoint) > NEARBY_LABEL_DISTANCE)
+			{
+				continue;
+			}
+
+			if (!labels.contains(label))
+			{
+				labels.add(label);
+			}
+		}
+
+		return labels;
+	}
+
+	private List<String> getRecentLabels()
+	{
+		String json = configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY);
+		if (json == null || json.isEmpty())
+		{
+			return Collections.emptyList();
+		}
+
+		List<String> recent = gson.fromJson(json, new TypeToken<List<String>>()
+		{
+		}.getType());
+		return recent == null ? Collections.emptyList() : recent;
+	}
+
+	// Moves label to the front if it's already there, rather than storing a duplicate.
+	private void recordRecentLabel(String label)
+	{
+		List<String> recent = new ArrayList<>(getRecentLabels());
+		recent.remove(label);
+		recent.add(0, label);
+		if (recent.size() > RECENT_LABELS_MAX)
+		{
+			recent = recent.subList(0, RECENT_LABELS_MAX);
+		}
+
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
+	}
+
+	private GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
+	{
+		for (GroundMarkerPointData point : parseStoredPoints(worldPoint.getRegionID()))
+		{
+			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
+				&& point.getZ() == worldPoint.getPlane())
+			{
+				return point;
+			}
+		}
+
+		return null;
+	}
+
+	// Mirrors core's labelTile()/savePoints() persistence — we can't call those directly since
+	// they're private on core's plugin instance, but writing to the same config key means our
+	// own onConfigChanged picks this up and refreshes the overlay for free.
+	private void saveLabel(WorldPoint worldPoint, String newLabel)
+	{
+		int regionId = worldPoint.getRegionID();
+		List<GroundMarkerPointData> points = new ArrayList<>(parseStoredPoints(regionId));
+		String label = newLabel.isEmpty() ? null : newLabel;
+
+		for (int i = 0; i < points.size(); i++)
+		{
+			GroundMarkerPointData point = points.get(i);
+			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
+				&& point.getZ() == worldPoint.getPlane())
+			{
+				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), point.getColor(), label));
+				configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
+				if (label != null)
+				{
+					recordRecentLabel(label);
+				}
+				return;
+			}
 		}
 	}
 

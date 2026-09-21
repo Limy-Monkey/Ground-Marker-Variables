@@ -40,6 +40,7 @@ Supported variables:
 
 - **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
 - **Count Down** — Count \{metronome\} down from N → 1 instead of up from 1 → N.
+- **Advanced Label Editor** — Replaces RuneLite Core's Tile label prompt with an advanced version with extended Ground Marker Variable support.
 - **Party Sync** / **Sync Target** — Sync \{metronome\} to a party member's tick count instead of your own. Set Sync Target to their display name; they need Ground Marker Variables installed and must be in the same party.
 
 ## Note:
