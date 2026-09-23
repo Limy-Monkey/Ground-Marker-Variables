@@ -93,6 +93,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt;}<br>"
 			+ "- {weapon}<br>- {attackStyle}<br>"
 			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
+			+ "- {miscellania} (0-127)<br>"
 			+ "- {hasThralls}<br>- {hasFreeze}<br>- {hasEntangle}<br>"
 			+ "- {hasItem &lt;name&gt;}<br>"
 			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}"

@@ -13,6 +13,7 @@ Supported variables:
 | {attackStyle}                            | Current combat style name, e.g. Accurate, Aggressive, Casting                                            |
 | {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
 | {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
+| {miscellania}                            | Kingdom of Miscellania approval rating, 0-127                                                            |
 | {hasThralls}                             | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                |
 | {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
 | {hasEntangle}                            | true if Entangle is castable (Level not checked)                                                         |

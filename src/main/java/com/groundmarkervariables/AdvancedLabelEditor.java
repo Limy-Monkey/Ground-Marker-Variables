@@ -54,7 +54,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// (underscore included), since what follows them is a skill name — see completeSkill().
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
-		"lvl_", "boost_", "hasThralls", "hasFreeze", "hasEntangle", "hasItem"
+		"lvl_", "boost_", "hasThralls", "hasFreeze", "hasEntangle", "hasItem", "miscellania"
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} — once typing continues past either prefix, autocomplete
