@@ -217,7 +217,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
 
 		advancedLabelEditorProvider.get()
-			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint))
+			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel)
 			.prompt("Tile label")
 			.value(currentLabel)
 			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
@@ -281,6 +281,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			recent = recent.subList(0, RECENT_LABELS_MAX);
 		}
 
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
+	}
+
+	private void removeRecentLabel(String label)
+	{
+		List<String> recent = new ArrayList<>(getRecentLabels());
+		recent.remove(label);
 		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
 	}
 

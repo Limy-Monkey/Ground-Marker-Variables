@@ -5,6 +5,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -74,16 +75,25 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
 
 	// One row in the recommendations list: either a section title (not selectable) or a
-	// label suggestion (selectable — click fills the input with text).
+	// label suggestion (selectable — click fills the input with text). Only Recent entries
+	// are removable (right-click "Remove"), since Current/Nearby aren't backed by the saved
+	// recent-labels list.
 	private static final class Row
 	{
 		private final String text;
 		private final boolean title;
+		private final boolean removable;
 
 		private Row(String text, boolean title)
 		{
+			this(text, title, false);
+		}
+
+		private Row(String text, boolean title, boolean removable)
+		{
 			this.text = text;
 			this.title = title;
+			this.removable = removable;
 		}
 	}
 
@@ -92,6 +102,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
 	private List<String> nearbyLabels = Collections.emptyList();
+	private Consumer<String> onRemoveRecent = label -> { };
 	private int scrollOffset;
 
 	// -1 when no shift+Left/Right selection is in progress; otherwise the fixed end of the
@@ -111,11 +122,15 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
-	AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels)
+	// onRemoveRecent is invoked (with the removed label) when the user right-clicks "Remove"
+	// on a Recent entry, so the plugin can drop it from the saved recent-labels list.
+	AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels,
+		Consumer<String> onRemoveRecent)
 	{
 		this.originalLabel = originalLabel == null ? "" : originalLabel;
-		this.recentLabels = recentLabels;
+		this.recentLabels = new ArrayList<>(recentLabels);
 		this.nearbyLabels = nearbyLabels;
+		this.onRemoveRecent = onRemoveRecent;
 		return this;
 	}
 
@@ -713,7 +728,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 				rows.add(new Row("Recent", true));
 				for (String label : recentLabels)
 				{
-					rows.add(new Row(label, false));
+					rows.add(new Row(label, false, true));
 				}
 			}
 
@@ -782,8 +797,22 @@ class AdvancedLabelEditor extends ChatboxTextInput
 				String selected = row.text;
 				text.setHasListener(true);
 				text.setAction(0, "Select");
+				if (row.removable)
+				{
+					text.setAction(1, "Remove");
+				}
 				text.setName(selected);
-				text.setOnOpListener((JavaScriptCallback) ev -> selectRecommendation(selected));
+				text.setOnOpListener((JavaScriptCallback) ev ->
+				{
+					if (ev.getOp() == 2)
+					{
+						removeRecentEntry(selected);
+					}
+					else
+					{
+						selectRecommendation(selected);
+					}
+				});
 				text.setOnMouseRepeatListener((JavaScriptCallback) ev -> text.setTextColor(HOVER_COLOR));
 				text.setOnMouseLeaveListener((JavaScriptCallback) ev -> text.setTextColor(0x000000));
 			}
@@ -795,6 +824,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private void selectRecommendation(String text)
 	{
 		value(text);
+	}
+
+	private void removeRecentEntry(String label)
+	{
+		recentLabels.remove(label);
+		onRemoveRecent.accept(label);
+		update();
 	}
 
 	private void scroll(int direction)
