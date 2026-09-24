@@ -135,7 +135,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.removeIf(o -> o instanceof GroundMarkerOverlay);
 		overlayManager.add(overlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
-		loadPoints();
+
+		// startUp() itself runs on the AWT thread (PluginManager starts plugins via
+		// SwingUtilities.invokeAndWait), but resolving a variable requires the client thread —
+		// same reasoning as onConfigChanged's rebuild below.
+		clientThread.invoke(() -> loadPoints());
 
 		// A collision (another plugin already claiming these message names) throws here;
 		// party sync is simply unavailable in that case rather than failing the whole plugin.
@@ -332,10 +336,12 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
+	// Fired from ConfigManager's profile-switch methods, called from the config panel's AWT
+	// thread — same reasoning as startUp() and onConfigChanged() below.
 	@Subscribe
 	public void onProfileChanged(ProfileChanged event)
 	{
-		loadPoints();
+		clientThread.invoke(() -> loadPoints());
 	}
 
 	@Subscribe
