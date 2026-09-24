@@ -26,11 +26,12 @@ class VariableRegistry
 		BoostedSkillLevelLabelVariable boostedSkillLevel,
 		AttackStyleLabelVariable attackStyle,
 		HasItemLabelVariable hasItem,
-		MiscellaniaLabelVariable miscellania)
+		MiscellaniaLabelVariable miscellania,
+		HasAlchsLabelVariable hasAlchs)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, hasItem, miscellania);
+			attackStyle, hasItem, miscellania, hasAlchs);
 	}
 
 	List<LabelVariable> all()
