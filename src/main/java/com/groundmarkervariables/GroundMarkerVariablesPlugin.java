@@ -61,6 +61,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final String RECENT_LABELS_KEY = "recentLabels";
 	private static final int RECENT_LABELS_MAX = 3;
 	private static final int NEARBY_LABEL_DISTANCE = 150;
+	private static final int REFRESH_DISTANCE = 40;
 
 	@Inject
 	private Client client;
@@ -383,15 +384,27 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// Refreshes every cached label once per tick instead of once per render() call.
+	// Refreshes cached labels once per tick instead of once per render() call, distance-culled
+	// the same way as the overlay's own render distance.
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		for (List<CachedMarker> markers : markersByRegion.values())
+		if (client.getLocalPlayer() != null)
 		{
-			for (CachedMarker marker : markers)
+			boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
+			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+
+			for (WorldView wv : getTrackedWorldViews())
 			{
-				marker.refresh(labelResolver);
+				for (TranslatedMarker translated : getTranslatedMarkers(wv))
+				{
+					if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
+					{
+						continue;
+					}
+
+					translated.marker.refresh(labelResolver);
+				}
 			}
 		}
 
