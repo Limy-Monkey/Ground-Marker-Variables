@@ -74,6 +74,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String COLOR_TAG_PREFIX = "col=";
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
 
+	// </col> — reverts to the tile's own color (see GroundMarkerVariablesOverlay). A complete,
+	// parameter-free literal, so it just completes in full the moment "<" is followed by "/".
+	private static final String CLOSE_COLOR_TAG = "/col>";
+
 	// One row in the recommendations list: either a section title (not selectable) or a
 	// label suggestion (selectable — click fills the input with text). Only Recent entries
 	// are removable (right-click "Remove"), since Current/Nearby aren't backed by the saved
@@ -437,6 +441,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (opener == '<')
 		{
+			// "<" can start either an opening <col=RRGGBB> or a closing </col> — they diverge
+			// at the very first character, so a leading "/" commits to the closing tag.
+			if (!partial.isEmpty() && partial.charAt(0) == '/')
+			{
+				return completeCloseColorTag(partial);
+			}
+
 			// Unlike "{", an empty partial here still autocompletes — there's only one thing
 			// "<" can start (a color tag), so there's no ambiguous guess being made.
 			return completeColorTag(partial);
@@ -514,9 +525,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(skillPartial.length());
 	}
 
-	// "<col=" completes literally, same as any variable name; once it's fully typed, the hex
-	// value completes from whatever <col=> a recent/nearby label already used (no fallback —
-	// there's no "default color" the way candidates.get(0) is a fallback for skills).
+	// "<col=" completes literally, same as any variable name. Once it's fully typed, a standard
+	// color name (see NamedColors) takes priority the same way skill names do — static
+	// candidate list, ambiguity resolved from recent/nearby usage, falling back to the first
+	// candidate. Only once no name matches does it fall back to a genuine hex value from
+	// recent/nearby history (no fallback there — there's no "default color" to guess).
 	private String completeColorTag(String partial)
 	{
 		if (partial.length() < COLOR_TAG_PREFIX.length())
@@ -531,12 +544,40 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
+		String hexPartial = partial.substring(COLOR_TAG_PREFIX.length());
+
+		List<String> namedCandidates = new ArrayList<>();
+		for (String name : NamedColors.HEX_BY_NAME.keySet())
+		{
+			if (name.length() > hexPartial.length() && name.regionMatches(true, 0, hexPartial, 0, hexPartial.length()))
+			{
+				namedCandidates.add(name);
+			}
+		}
+
+		if (!namedCandidates.isEmpty())
+		{
+			String chosen = namedCandidates.size() == 1 ? namedCandidates.get(0) : resolveAmbiguousCandidate(namedCandidates, "<" + COLOR_TAG_PREFIX);
+			return chosen.substring(hexPartial.length()) + ">";
+		}
+
 		// Unlike skill names, an empty hex partial still autocompletes here — colors have no
 		// large fixed candidate list to guess from, only actual recent/nearby usage, so
 		// suggesting one only ever reflects something the user has genuinely typed before.
-		String hexPartial = partial.substring(COLOR_TAG_PREFIX.length());
 		String hex = findRecentColor(hexPartial);
 		return hex == null ? null : hex.substring(hexPartial.length()) + ">";
+	}
+
+	// "</col>" completes literally in full — no hex value or history lookup needed.
+	private String completeCloseColorTag(String partial)
+	{
+		if (partial.length() >= CLOSE_COLOR_TAG.length()
+			|| !CLOSE_COLOR_TAG.regionMatches(true, 0, partial, 0, partial.length()))
+		{
+			return null;
+		}
+
+		return CLOSE_COLOR_TAG.substring(partial.length());
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally

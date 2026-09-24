@@ -33,9 +33,8 @@ Supported variables:
   - 4 tick metronome on the tile
   - Cannot be used inside of a \<cond\>.
   - `{m4}` works as an alias as well.
-- `This text is <col=00FFFF>teal!`
+- `This text is <col=teal>teal!`
   - Changes color of the word "teal!" to `#00FFFF`
-  - Does not support `</col>`.
 
 ## Options:
 
