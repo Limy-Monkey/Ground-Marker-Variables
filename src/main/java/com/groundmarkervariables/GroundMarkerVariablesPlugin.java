@@ -303,16 +303,38 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				});
 			});
 
-		for (Color color : existingColors())
+		List<Color> existingColors = existingColors();
+		for (Color color : existingColors)
 		{
 			if (!color.equals(existing.getColor()))
 			{
+				// Same RGB as another entry, only distinguishable by opacity — disambiguate
+				// with the opacity percentage, since the color swatch alone looks identical.
+				String option = hasOpacityCollision(existingColors, color)
+					? "Color (" + Math.round(color.getAlpha() / 255f * 100) + "%)"
+					: "Color";
+
 				submenu.createMenuEntry(-1)
-					.setOption(ColorUtil.prependColorTag("Color", color))
+					.setOption(ColorUtil.prependColorTag(option, color))
 					.setType(MenuAction.RUNELITE)
 					.onClick(e -> colorTile(worldPoint, color));
 			}
 		}
+	}
+
+	// True if some other color in the list shares color's RGB but not its alpha.
+	private static boolean hasOpacityCollision(List<Color> colors, Color color)
+	{
+		for (Color other : colors)
+		{
+			if (!other.equals(color) && other.getRed() == color.getRed() && other.getGreen() == color.getGreen()
+				&& other.getBlue() == color.getBlue())
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	// Distinct, non-null colors across every currently loaded marker, for the Color submenu's
