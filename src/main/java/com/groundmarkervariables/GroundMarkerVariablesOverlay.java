@@ -6,7 +6,6 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import net.runelite.api.Client;
@@ -28,10 +27,6 @@ public class GroundMarkerVariablesOverlay extends Overlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=[0-9a-fA-F]{2,6}>");
-	// <col=NAME> for any of NamedColors' standard names — TextComponent only understands hex,
-	// so this expands to <col=RRGGBB> before COLOR_TAG_PATTERN or TextComponent ever see it.
-	private static final Pattern NAMED_COLOR_TAG_PATTERN = Pattern.compile(
-		"<col=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final GroundMarkerVariablesPlugin plugin;
@@ -109,7 +104,7 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			// </col> reverts to the tile's own color — TextComponent has no real concept of a
 			// closing tag, so this just expands to another <col=> for the tile's own color.
 			label = label.replace("</col>", "<col=" + ColorUtil.colorToHexCode(color) + ">");
-			label = expandNamedColors(label);
+			label = NamedColors.expandColorAliases(label);
 
 			// Center against the visible text width, not the raw string with <col=> tags in it.
 			String visibleLabel = COLOR_TAG_PATTERN.matcher(label).replaceAll("");
@@ -125,24 +120,5 @@ public class GroundMarkerVariablesOverlay extends Overlay
 				textComponent.render(graphics);
 			}
 		}
-	}
-
-	private static String expandNamedColors(String label)
-	{
-		Matcher matcher = NAMED_COLOR_TAG_PATTERN.matcher(label);
-		if (!matcher.find())
-		{
-			return label;
-		}
-
-		StringBuilder result = new StringBuilder();
-		matcher.reset();
-		while (matcher.find())
-		{
-			String hex = NamedColors.HEX_BY_NAME.get(matcher.group(1).toLowerCase());
-			matcher.appendReplacement(result, Matcher.quoteReplacement("<col=" + hex + ">"));
-		}
-		matcher.appendTail(result);
-		return result.toString();
 	}
 }

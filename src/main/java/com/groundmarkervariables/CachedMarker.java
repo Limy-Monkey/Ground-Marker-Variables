@@ -12,12 +12,19 @@ class CachedMarker
 	CachedMarker(GroundMarkerPointData source, LabelResolver labelResolver)
 	{
 		this.source = source;
-		this.resolvedLabel = labelResolver.resolve(source.getLabel());
+		this.resolvedLabel = labelResolver.resolve(expandColorAliases(source.getLabel()));
 	}
 
 	void refresh(LabelResolver labelResolver)
 	{
-		resolvedLabel = labelResolver.resolve(source.getLabel());
+		resolvedLabel = labelResolver.resolve(expandColorAliases(source.getLabel()));
+	}
+
+	// {col=...}/{/col} are curly-brace aliases for <col=...>/</col> — expand before resolve()
+	// so LabelResolver's variables don't mistake them for {variable}/{cond ? a : b} syntax.
+	private static String expandColorAliases(String label)
+	{
+		return label == null ? null : NamedColors.expandColorAliases(label);
 	}
 
 	String getResolvedLabel()

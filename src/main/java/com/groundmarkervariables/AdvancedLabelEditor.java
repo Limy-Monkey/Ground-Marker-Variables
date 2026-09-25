@@ -41,10 +41,11 @@ import net.runelite.client.util.Text;
 class AdvancedLabelEditor extends ChatboxTextInput
 {
 	private static final int LINE_HEIGHT = 20;
-	private static final int SEPARATOR_Y = 4 + (LINE_HEIGHT * 2);
 	private static final int ROW_HEIGHT = 16;
-	private static final int RESULTS_START_Y = SEPARATOR_Y + 8;
 	private static final int VISIBLE_ROWS = 5;
+	// Caps ChatboxTextInput's own word-wrap (see lines() in the constructor) — also mirrored
+	// by computeWrappedLines(), since the wrapped row count isn't otherwise exposed.
+	private static final int MAX_EDIT_LINES = 3;
 	private static final int SCROLLBAR_WIDTH = 14;
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
@@ -52,11 +53,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int HOVER_COLOR = 0x444444;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
 
-	// The completable name portion of every variable — "lvl_"/"boost_" complete in full
-	// (underscore included), since what follows them is a skill name — see completeSkill().
+	// The completable name of every variable — "lvl_"/"boost_"/"col=" include their trailing
+	// underscore/equals, since a skill name or color value follows them.
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
-		"lvl_", "boost_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania"
+		"lvl_", "boost_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col="
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} — once typing continues past either prefix, autocomplete
@@ -75,17 +76,23 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String COLOR_TAG_PREFIX = "col=";
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
 
-	// For underlining only — also matches named colors and </col> (no group(1) means </col>).
+	// For underlining only — also matches {col=HEX|NAME}, </col>, and {/col} (no groups means
+	// </col> or {/col}, both reverting to the tile's own color).
 	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile(
-		"<col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>|</col>", Pattern.CASE_INSENSITIVE);
-
-	// Matches only named colors — mirrors GroundMarkerVariablesOverlay's pattern of the same name.
-	private static final Pattern NAMED_COLOR_TAG_PATTERN = Pattern.compile(
-		"<col=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>", Pattern.CASE_INSENSITIVE);
+		"<col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>"
+			+ "|\\{col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")\\}"
+			+ "|</col>|\\{/col\\}",
+		Pattern.CASE_INSENSITIVE);
 
 	// </col> — reverts to the tile's own color (see GroundMarkerVariablesOverlay). A complete,
 	// parameter-free literal, so it just completes in full the moment "<" is followed by "/".
 	private static final String CLOSE_COLOR_TAG = "/col>";
+
+	// {/col} — the {col=} family's own alias for </col>, closed with "}" instead of ">".
+	private static final String CLOSE_COLOR_ALIAS = "/col}";
+
+	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
+	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
 
 	// One row in the recommendations list: either a section title (not selectable) or a
 	// label suggestion (selectable — click fills the input with text). Only Recent entries
@@ -107,6 +114,21 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			this.text = text;
 			this.title = title;
 			this.removable = removable;
+		}
+	}
+
+	// One wrapped row of edit text — mirrors ChatboxTextInput's own private Line class.
+	private static final class WrappedLine
+	{
+		private final int start;
+		private final int end;
+		private final String text;
+
+		private WrappedLine(int start, int end, String text)
+		{
+			this.start = start;
+			this.end = end;
+			this.text = text;
 		}
 	}
 
@@ -135,6 +157,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.config = config;
 		fontID(FontID.PLAIN_12);
+		lines(MAX_EDIT_LINES);
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
@@ -324,12 +347,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return i;
 	}
 
-	// Renders the rest of a variable name as ghost text right after the caret — only while
-	// the caret sits at the very end of the value (no support for autocompleting mid-text)
-	// and inside an unclosed "{", with nothing typed since it but letters. The suggestion is
-	// display-only: it's never inserted into the real value, so the real cursor/typing is
-	// completely unaffected by it.
-	private void buildAutocomplete(Widget container)
+	// Absolute Y of the top of wrapped edit row `lineIndex` (0-based).
+	private static int editRowY(int lineIndex)
+	{
+		return 5 + LINE_HEIGHT + (LINE_HEIGHT * lineIndex);
+	}
+
+	// Renders the rest of a variable name as ghost text right after the caret — display-only,
+	// never inserted into the real value. Always on the last wrapped row, since
+	// pendingCompletion() only ever applies when the caret is at the end of the value.
+	private void buildAutocomplete(Widget container, List<WrappedLine> wrappedLines)
 	{
 		String completion = pendingCompletion();
 		if (completion == null || completion.isEmpty())
@@ -337,16 +364,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		if (font == null)
-		{
-			Widget probe = container.createChild(-1, WidgetType.TEXT);
-			probe.setFontId(FontID.PLAIN_12);
-			font = probe.getFont();
-		}
-
+		WrappedLine lastLine = wrappedLines.get(wrappedLines.size() - 1);
 		String escapedCompletion = Text.escapeJagex(completion);
 		int w = container.getWidth();
-		int fullWidth = font.getTextWidth(Text.escapeJagex(getValue()));
+		int fullWidth = font.getTextWidth(Text.escapeJagex(lastLine.text));
 		int ghostX = (w + fullWidth) / 2;
 
 		Widget ghost = container.createChild(-1, WidgetType.TEXT);
@@ -357,18 +378,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		ghost.setOriginalX(ghostX);
 		ghost.setOriginalWidth(font.getTextWidth(escapedCompletion));
 		ghost.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		ghost.setOriginalY(5 + LINE_HEIGHT - 2);
+		ghost.setOriginalY(editRowY(wrappedLines.size() - 1) - 2);
 		ghost.setOriginalHeight(LINE_HEIGHT);
 		ghost.setXTextAlignment(WidgetTextAlignment.LEFT);
 		ghost.setYTextAlignment(WidgetTextAlignment.CENTER);
 		ghost.revalidate();
 	}
 
-	// Underlines any complete <col=RRGGBB> or <col=name> tag already in the label, in the color
-	// it names — a purely visual editing aid; the tag itself still shows as literal escaped text
-	// here, same as buildRecommendations() does elsewhere. Single-line pixel math, same trade-off
-	// as buildAutocomplete().
-	private void buildColorTagUnderlines(Widget container)
+	// Underlines any complete <col=RRGGBB> or <col=name> tag in the label, in the color it
+	// names. A tag split across a wrapped line break (rare) is skipped rather than drawn wrong.
+	private void buildColorTagUnderlines(Widget container, List<WrappedLine> wrappedLines)
 	{
 		String text = getValue();
 		Matcher matcher = COLOR_TAG_PATTERN_ANY.matcher(text);
@@ -377,21 +396,19 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		if (font == null)
-		{
-			Widget probe = container.createChild(-1, WidgetType.TEXT);
-			probe.setFontId(FontID.PLAIN_12);
-			font = probe.getFont();
-		}
-
 		int w = container.getWidth();
-		int fullWidth = font.getTextWidth(Text.escapeJagex(text));
-		int textStartX = (w - fullWidth) / 2;
 
 		matcher.reset();
 		while (matcher.find())
 		{
-			String value = matcher.group(1);
+			int lineIndex = findLineIndex(wrappedLines, matcher.start());
+			WrappedLine line = wrappedLines.get(lineIndex);
+			if (matcher.end() - 1 > line.end)
+			{
+				continue;
+			}
+
+			String value = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
 
 			int color;
 			if (value == null)
@@ -412,8 +429,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 				}
 			}
 
-			int startX = textStartX + font.getTextWidth(Text.escapeJagex(text.substring(0, matcher.start())));
-			int endX = textStartX + font.getTextWidth(Text.escapeJagex(text.substring(0, matcher.end())));
+			int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
+			int lineStartX = (w - lineFullWidth) / 2;
+			int localStart = matcher.start() - line.start;
+			int localEnd = matcher.end() - line.start;
+			int startX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localStart)));
+			int endX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localEnd)));
 
 			Widget underline = container.createChild(-1, WidgetType.RECTANGLE);
 			underline.setFilled(true);
@@ -422,10 +443,80 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			underline.setOriginalX(startX);
 			underline.setOriginalWidth(Math.max(1, endX - startX));
 			underline.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			underline.setOriginalY(5 + LINE_HEIGHT + LINE_HEIGHT - 3);
+			underline.setOriginalY(editRowY(lineIndex) + LINE_HEIGHT - 3);
 			underline.setOriginalHeight(1);
 			underline.revalidate();
 		}
+	}
+
+	// Mirrors ChatboxTextInput#buildEdit()'s own word-wrap algorithm, since it's computed
+	// internally there and never exposed — needed for our own separator/ghost/underline layout.
+	private List<WrappedLine> computeWrappedLines(String value, int w)
+	{
+		List<WrappedLine> result = new ArrayList<>();
+		if (value.isEmpty())
+		{
+			result.add(new WrappedLine(0, 0, ""));
+			return result;
+		}
+
+		int breakIndex = -1;
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < value.length(); i++)
+		{
+			int count = i - sb.length();
+			char c = value.charAt(i);
+			sb.append(c);
+			if (BREAK_MATCHER.matcher(String.valueOf(c)).matches())
+			{
+				breakIndex = sb.length();
+			}
+
+			if (i == value.length() - 1)
+			{
+				result.add(new WrappedLine(count, count + sb.length() - 1, sb.toString()));
+				break;
+			}
+
+			// Raw, matching core's own buildEdit() exactly — a raw <col=...> substring measures
+			// as near-zero-width Jagex markup there too, so a mismatch here (e.g. escaping)
+			// would make our predicted wrap points diverge from what's actually rendered.
+			if (font.getTextWidth(sb.toString() + value.charAt(i + 1)) < w)
+			{
+				continue;
+			}
+
+			if (result.size() < MAX_EDIT_LINES - 1)
+			{
+				if (breakIndex > 1)
+				{
+					String str = sb.substring(0, breakIndex);
+					result.add(new WrappedLine(count, count + str.length() - 1, str));
+					sb.replace(0, breakIndex, "");
+					breakIndex = -1;
+					continue;
+				}
+
+				result.add(new WrappedLine(count, count + sb.length() - 1, sb.toString()));
+				sb.replace(0, sb.length(), "");
+			}
+		}
+
+		return result;
+	}
+
+	private static int findLineIndex(List<WrappedLine> lines, int charIndex)
+	{
+		for (int i = 0; i < lines.size(); i++)
+		{
+			WrappedLine line = lines.get(i);
+			if (charIndex >= line.start && charIndex <= line.end)
+			{
+				return i;
+			}
+		}
+
+		return lines.size() - 1;
 	}
 
 	// null if autocomplete doesn't apply right now; otherwise the remaining letters that
@@ -489,6 +580,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
+		// {/col} — diverges from {col=...} at the first character, like "<" into <col=/</col>.
+		if (partial.charAt(0) == '/')
+		{
+			return completeCloseColorAlias(partial);
+		}
+
 		for (String prefix : SKILL_PREFIXES)
 		{
 			if (partial.length() >= prefix.length() && partial.regionMatches(true, 0, prefix, 0, prefix.length()))
@@ -500,6 +597,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
+		}
+
+		// {col=...} — the {col=} alias for <col=...>, closed with "}" instead of ">".
+		if (partial.length() >= COLOR_TAG_PREFIX.length() && partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
+		{
+			return completeColorAliasValue(partial.substring(COLOR_TAG_PREFIX.length()));
 		}
 
 		for (int i = 0; i < partial.length(); i++)
@@ -556,11 +659,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(skillPartial.length());
 	}
 
-	// "<col=" completes literally, same as any variable name. Once it's fully typed, a standard
-	// color name (see NamedColors) takes priority the same way skill names do — static
-	// candidate list, ambiguity resolved from recent/nearby usage, falling back to the first
-	// candidate. Only once no name matches does it fall back to a genuine hex value from
-	// recent/nearby history (no fallback there — there's no "default color" to guess).
+	// "<col=" completes literally — the "<" opener has no shared candidate list, unlike "{".
 	private String completeColorTag(String partial)
 	{
 		if (partial.length() < COLOR_TAG_PREFIX.length())
@@ -575,8 +674,20 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
-		String hexPartial = partial.substring(COLOR_TAG_PREFIX.length());
+		return completeColorValue(partial.substring(COLOR_TAG_PREFIX.length()), "<" + COLOR_TAG_PREFIX, ">");
+	}
 
+	// {col=...} alias — "col=" itself completes via VARIABLE_NAMES like any other variable name.
+	private String completeColorAliasValue(String hexPartial)
+	{
+		return completeColorValue(hexPartial, "{" + COLOR_TAG_PREFIX, "}");
+	}
+
+	// Shared value completion for "<col=" and "{col=": a standard color name (NamedColors) takes
+	// priority, ambiguity resolved from recent/nearby usage; otherwise falls back to a genuine
+	// hex value from recent/nearby history (no fallback there). closer is ">" or "}".
+	private String completeColorValue(String hexPartial, String tokenPrefix, String closer)
+	{
 		List<String> namedCandidates = new ArrayList<>();
 		for (String name : NamedColors.HEX_BY_NAME.keySet())
 		{
@@ -588,15 +699,15 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (!namedCandidates.isEmpty())
 		{
-			String chosen = namedCandidates.size() == 1 ? namedCandidates.get(0) : resolveAmbiguousCandidate(namedCandidates, "<" + COLOR_TAG_PREFIX);
-			return chosen.substring(hexPartial.length()) + ">";
+			String chosen = namedCandidates.size() == 1 ? namedCandidates.get(0) : resolveAmbiguousCandidate(namedCandidates, tokenPrefix);
+			return chosen.substring(hexPartial.length()) + closer;
 		}
 
 		// Unlike skill names, an empty hex partial still autocompletes here — colors have no
 		// large fixed candidate list to guess from, only actual recent/nearby usage, so
 		// suggesting one only ever reflects something the user has genuinely typed before.
 		String hex = findRecentColor(hexPartial);
-		return hex == null ? null : hex.substring(hexPartial.length()) + ">";
+		return hex == null ? null : hex.substring(hexPartial.length()) + closer;
 	}
 
 	// "</col>" completes literally in full — no hex value or history lookup needed.
@@ -609,6 +720,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		return CLOSE_COLOR_TAG.substring(partial.length());
+	}
+
+	// "{/col}" completes literally in full, same as completeCloseColorTag().
+	private String completeCloseColorAlias(String partial)
+	{
+		if (partial.length() >= CLOSE_COLOR_ALIAS.length()
+			|| !CLOSE_COLOR_ALIAS.regionMatches(true, 0, partial, 0, partial.length()))
+		{
+			return null;
+		}
+
+		return CLOSE_COLOR_ALIAS.substring(partial.length());
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally
@@ -765,21 +888,33 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		promptWidget.setWidthMode(WidgetSizeMode.MINUS);
 		promptWidget.revalidate();
 
+		if (font == null)
+		{
+			Widget probe = container.createChild(-1, WidgetType.TEXT);
+			probe.setFontId(FontID.PLAIN_12);
+			font = probe.getFont();
+		}
+
+		List<WrappedLine> wrappedLines = computeWrappedLines(getValue(), container.getWidth());
+
 		buildEdit(0, 5 + LINE_HEIGHT, container.getWidth(), LINE_HEIGHT);
-		buildAutocomplete(container);
-		buildColorTagUnderlines(container);
+		buildAutocomplete(container, wrappedLines);
+		buildColorTagUnderlines(container, wrappedLines);
+
+		int separatorY = editRowY(wrappedLines.size()) - 1;
+		int resultsStartY = separatorY + 8;
 
 		Widget separator = container.createChild(-1, WidgetType.LINE);
 		separator.setXPositionMode(WidgetPositionMode.ABSOLUTE_CENTER);
 		separator.setOriginalX(0);
 		separator.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		separator.setOriginalY(SEPARATOR_Y);
+		separator.setOriginalY(separatorY);
 		separator.setOriginalHeight(0);
 		separator.setOriginalWidth(16);
 		separator.setWidthMode(WidgetSizeMode.MINUS);
 		separator.revalidate();
 
-		buildRecommendations(container);
+		buildRecommendations(container, resultsStartY);
 	}
 
 	private List<Row> buildRows()
@@ -846,7 +981,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return rows;
 	}
 
-	private void buildRecommendations(Widget container)
+	private void buildRecommendations(Widget container, int resultsStartY)
 	{
 		List<Row> rows = buildRows();
 		if (rows.isEmpty())
@@ -862,7 +997,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		scrollCapture.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
 		scrollCapture.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
 		scrollCapture.setOriginalX(0);
-		scrollCapture.setOriginalY(RESULTS_START_Y);
+		scrollCapture.setOriginalY(resultsStartY);
 		scrollCapture.setOriginalWidth(container.getWidth());
 		scrollCapture.setOriginalHeight(VISIBLE_ROWS * ROW_HEIGHT);
 		scrollCapture.setHasListener(true);
@@ -874,7 +1009,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		for (int i = 0; i < visibleCount; i++)
 		{
 			Row row = rows.get(scrollOffset + i);
-			int y = RESULTS_START_Y + (ROW_HEIGHT * i);
+			int y = resultsStartY + (ROW_HEIGHT * i);
 
 			Widget text = container.createChild(-1, WidgetType.TEXT);
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
@@ -903,7 +1038,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 					text.setAction(1, "Remove");
 				}
 				// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
-				text.setName(expandNamedColors(selected));
+				text.setName(NamedColors.expandColorAliases(selected));
 				text.setOnOpListener((JavaScriptCallback) ev ->
 				{
 					if (ev.getOp() == 2)
@@ -920,7 +1055,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		buildScrollbar(container, rows.size(), maxOffset);
+		buildScrollbar(container, rows.size(), maxOffset, resultsStartY);
 	}
 
 	private void selectRecommendation(String text)
@@ -942,7 +1077,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		update();
 	}
 
-	private void buildScrollbar(Widget container, int rowCount, int maxOffset)
+	private void buildScrollbar(Widget container, int rowCount, int maxOffset, int resultsStartY)
 	{
 		if (maxOffset <= 0)
 		{
@@ -958,7 +1093,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		upArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
 		upArrow.setOriginalX(0);
 		upArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		upArrow.setOriginalY(RESULTS_START_Y);
+		upArrow.setOriginalY(resultsStartY);
 		upArrow.setOriginalWidth(SCROLLBAR_WIDTH);
 		upArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
 		upArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
@@ -975,7 +1110,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		downArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
 		downArrow.setOriginalX(0);
 		downArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		downArrow.setOriginalY(RESULTS_START_Y + resultsHeight - SCROLLBAR_ARROW_HEIGHT);
+		downArrow.setOriginalY(resultsStartY + resultsHeight - SCROLLBAR_ARROW_HEIGHT);
 		downArrow.setOriginalWidth(SCROLLBAR_WIDTH);
 		downArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
 		downArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
@@ -985,7 +1120,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		downArrow.setOnOpListener((JavaScriptCallback) ev -> scroll(1));
 		downArrow.revalidate();
 
-		int trackY = RESULTS_START_Y + SCROLLBAR_ARROW_HEIGHT;
+		int trackY = resultsStartY + SCROLLBAR_ARROW_HEIGHT;
 		int trackHeight = resultsHeight - (SCROLLBAR_ARROW_HEIGHT * 2);
 		int trackX = (SCROLLBAR_WIDTH - SCROLLBAR_TRACK_WIDTH) / 2;
 
@@ -1016,23 +1151,4 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		thumb.revalidate();
 	}
 
-	// Mirrors GroundMarkerVariablesOverlay's own expandNamedColors().
-	private static String expandNamedColors(String text)
-	{
-		Matcher matcher = NAMED_COLOR_TAG_PATTERN.matcher(text);
-		if (!matcher.find())
-		{
-			return text;
-		}
-
-		StringBuilder result = new StringBuilder();
-		matcher.reset();
-		while (matcher.find())
-		{
-			String hex = NamedColors.HEX_BY_NAME.get(matcher.group(1).toLowerCase());
-			matcher.appendReplacement(result, Matcher.quoteReplacement("<col=" + hex + ">"));
-		}
-		matcher.appendTail(result);
-		return result.toString();
-	}
 }
