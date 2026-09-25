@@ -1,6 +1,11 @@
 package com.groundmarkervariables.variables;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -12,9 +17,9 @@ import javax.inject.Inject;
 // "spellbook" or "metronome5_2". Evaluated by re-wrapping <expr> in braces and testing it
 // against every VariableRegistry variable's own pattern(), so this works for any current or
 // future variable without changes here. == and != are always a case-insensitive string
-// (in)equality check; the ordering comparators require both sides to parse as numbers
-// (metronome's countdown is the only numeric variable today, but nothing here is
-// metronome-specific) and are otherwise unresolvable, same as an unresolvable <expr>.
+// (in)equality check; the ordering comparators require both sides to parse as numbers, or
+// failing that as a clock time (see tryParseTime — lets {time}/{time24} support
+// "{time > 9pm ? ... : ...}"), and are otherwise unresolvable, same as an unresolvable <expr>.
 //
 // && / || combine exactly two conditions (not an arbitrary chain — see PATTERN) using
 // three-valued logic: an unresolvable side still settles the result if the other side
@@ -47,6 +52,13 @@ class ConditionalVariable implements LabelVariable
 	private static final String CONDITION = "([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?";
 	private static final Pattern PATTERN = Pattern.compile(
 		"\\{\\s*" + CONDITION + "(?:(&&|\\|\\|)\\s*" + CONDITION + ")?\\?\\s*(" + BRANCH + ")\\s*:\\s*(" + BRANCH + ")\\s*\\}");
+
+	// "9pm"/"9:00pm" (am/pm required) or "21:00"/"9:00" (24-hour, no marker) — tryParseTime
+	// strips spaces/periods first so "3:45 pm" (as {time} itself renders) also matches.
+	private static final DateTimeFormatter TIME_WITH_AMPM =
+		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("h[:mm]a").toFormatter(Locale.ENGLISH);
+	private static final DateTimeFormatter TIME_24_HOUR =
+		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("H[:mm]").toFormatter(Locale.ENGLISH);
 
 	private final List<LabelVariable> variables;
 
@@ -125,21 +137,33 @@ class ConditionalVariable implements LabelVariable
 
 		Double actualNum = tryParseNumber(actual);
 		Double expectedNum = tryParseNumber(expected);
-		if (actualNum == null || expectedNum == null)
+		if (actualNum != null && expectedNum != null)
 		{
-			return null;
+			return compareOrder(comparator, actualNum, expectedNum);
 		}
 
+		LocalTime actualTime = tryParseTime(actual);
+		LocalTime expectedTime = tryParseTime(expected);
+		if (actualTime != null && expectedTime != null)
+		{
+			return compareOrder(comparator, actualTime.toSecondOfDay(), expectedTime.toSecondOfDay());
+		}
+
+		return null;
+	}
+
+	private static Boolean compareOrder(String comparator, double actual, double expected)
+	{
 		switch (comparator)
 		{
 			case "<":
-				return actualNum < expectedNum;
+				return actual < expected;
 			case ">":
-				return actualNum > expectedNum;
+				return actual > expected;
 			case "<=":
-				return actualNum <= expectedNum;
+				return actual <= expected;
 			case ">=":
-				return actualNum >= expectedNum;
+				return actual >= expected;
 			default:
 				return null;
 		}
@@ -167,6 +191,33 @@ class ConditionalVariable implements LabelVariable
 		}
 
 		return (a == null || b == null) ? null : Boolean.FALSE;
+	}
+
+	private static LocalTime tryParseTime(String value)
+	{
+		String normalized = value.trim().toLowerCase(Locale.ENGLISH).replace(".", "").replaceAll("\\s+", "");
+		if (normalized.isEmpty())
+		{
+			return null;
+		}
+
+		try
+		{
+			return LocalTime.parse(normalized, TIME_WITH_AMPM);
+		}
+		catch (DateTimeParseException e)
+		{
+			// Not "9pm"-shaped — fall through and try it as a bare 24-hour time instead.
+		}
+
+		try
+		{
+			return LocalTime.parse(normalized, TIME_24_HOUR);
+		}
+		catch (DateTimeParseException e)
+		{
+			return null;
+		}
 	}
 
 	private static Double tryParseNumber(String value)

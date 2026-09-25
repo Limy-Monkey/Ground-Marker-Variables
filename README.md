@@ -7,6 +7,7 @@ Supported variables:
 | Variable                                 | Description                                                                                              |
 |------------------------------------------|----------------------------------------------------------------------------------------------------------|
 | {rsn}                                    | Current player's display name                                                                            |
+| {time} / {time24}                        | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                  |
 | {spellbook}                              | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                   |
 | {metronome\<N>} / {metronome\<N>_\<M>}   | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional |
 | {weapon}                                 | Equipped weapon's item name, or Unarmed                                                                  |
@@ -14,6 +15,7 @@ Supported variables:
 | {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
 | {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
 | {miscellania}                            | Kingdom of Miscellania approval rating, 0-127                                                            |
+| {questPoints}                            | Current quest points                                                                                     |
 | {hasThralls}                             | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                |
 | {hasAlchs}                               | true if on Standard Spellbook and has nature and fire runes for High Alchemy                             |
 | {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
@@ -34,6 +36,7 @@ Supported variables:
   - 4 tick metronome on the tile
   - Cannot be used inside of a \<cond\>.
   - `{m4}` works as an alias as well.
+- `{time > 10pm ? Go to bed : One more raid!}`
 - `This text is {col=cyan}cyan!`
   - Changes color of the word "cyan!" to `#00FFFF`
 

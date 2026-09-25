@@ -258,11 +258,11 @@ public interface GroundMarkerVariablesConfig extends Config
 		position = 1,
 		keyName = "variablesHelp",
 		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
-			+ "- {rsn}<br>- {spellbook}<br>"
+			+ "- {rsn}<br>- {time} / {time24}<br>- {spellbook}<br>"
 			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt; - X}<br>"
 			+ "- {weapon}<br>- {attackStyle}<br>"
 			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
-			+ "- {miscellania} (0-127)<br>"
+			+ "- {miscellania} (0-127)<br>- {questPoints}<br>"
 			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>"
 			+ "- {hasItem &lt;name&gt;}<br>"
 			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}"
@@ -282,6 +282,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			+ "- {lvl_agility &lt; 87 ? Bring Summer Pie! : }<br>"
 			+ "- {hasFreeze &amp;&amp; weapon == staff of the dead ? Gigachad : Noob}<br>"
 			+ "- {metronome4}<br>"
+			+ "- {time &gt; 10pm ? Go to bed : One more raid!}<br>"
 			+ "- This text is {col=cyan}cyan!"
 			+ "</blockquote>",
 		description = "",
