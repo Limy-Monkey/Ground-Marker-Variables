@@ -411,12 +411,36 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	private void openLabelEditor(WorldPoint worldPoint)
 	{
+		if (config.useAdvancedLabelEditor())
+		{
+			openAdvancedLabelEditor(worldPoint);
+		}
+		else
+		{
+			openPlainLabelEditor(worldPoint);
+		}
+	}
+
+	private void openAdvancedLabelEditor(WorldPoint worldPoint)
+	{
 		GroundMarkerPointData existing = findStoredPoint(worldPoint);
 		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
 
 		advancedLabelEditorProvider.get()
 			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel)
 			.prompt("Tile label")
+			.value(currentLabel)
+			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
+			.build();
+	}
+
+	// Mirrors core's own labelTile() — used when the Advanced Label Editor is turned off.
+	private void openPlainLabelEditor(WorldPoint worldPoint)
+	{
+		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
+
+		chatboxPanelManager.openTextInput("Tile label")
 			.value(currentLabel)
 			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
 			.build();

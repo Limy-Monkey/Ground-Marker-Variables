@@ -153,9 +153,52 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
+		name = "Advanced Editor",
+		description = "Settings for the Advanced Label Editor.",
+		position = 4
+	)
+	String advancedEditorSection = "advancedEditor";
+
+	@ConfigItem(
+		position = 1,
+		keyName = "useAdvancedLabelEditor",
+		name = "Use Advanced Label Editor",
+		description = "Replace the plain Tile label prompt with the Advanced Label Editor. When off, a plain label prompt is used instead.",
+		section = advancedEditorSection
+	)
+	default boolean useAdvancedLabelEditor()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 2,
+		keyName = "showRecent",
+		name = "Show Recent",
+		description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations. When off, Nearby is not deduplicated against it either.",
+		section = advancedEditorSection
+	)
+	default boolean showRecent()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 3,
+		keyName = "autocomplete",
+		name = "Autocomplete",
+		description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
+		section = advancedEditorSection
+	)
+	default boolean autocomplete()
+	{
+		return true;
+	}
+
+	@ConfigSection(
 		name = "Examples",
 		description = "Quick reference for available variables and example labels — see the README for full details.",
-		position = 4,
+		position = 5,
 		closedByDefault = true
 	)
 	String examplesSection = "examples";

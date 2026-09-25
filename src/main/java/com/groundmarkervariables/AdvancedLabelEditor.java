@@ -102,6 +102,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	private final ChatboxPanelManager chatboxPanelManager;
+	private final GroundMarkerVariablesConfig config;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -118,10 +119,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private FontTypeFace font;
 
 	@Inject
-	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread)
+	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
+		this.config = config;
 		fontID(FontID.PLAIN_12);
 	}
 
@@ -405,9 +407,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// null if autocomplete doesn't apply right now; otherwise the remaining letters that
-	// would complete the variable name currently being typed.
+	// would complete the variable name currently being typed. The single choke point for the
+	// "Autocomplete" config toggle — disabling it here also disables the ghost display
+	// (buildAutocomplete) and Tab-to-accept (keyPressed) for free, since both go through this.
 	private String pendingCompletion()
 	{
+		if (!config.autocomplete())
+		{
+			return null;
+		}
+
 		String text = getValue();
 		int cursor = getCursorStart();
 		if (getCursorStart() != getCursorEnd() || cursor != text.length())
@@ -754,7 +763,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private List<Row> buildRows()
 	{
 		List<Row> rows = new ArrayList<>();
-		if (!originalLabel.isEmpty())
+		boolean hasCurrent = !originalLabel.isEmpty();
+		if (hasCurrent)
 		{
 			rows.add(new Row("Current", true));
 			rows.add(new Row(originalLabel, false));
@@ -764,19 +774,44 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		// has diverged from the original, they no longer apply to what's being edited.
 		if (getValue().equals(originalLabel))
 		{
-			if (!recentLabels.isEmpty())
+			// Skip anything already shown as Current, so the same label isn't listed twice.
+			// Left empty when Show Recent is off, so Nearby's own dedup below naturally excludes
+			// nothing from Recent (there's nothing to exclude if Recent isn't shown at all).
+			List<String> dedupedRecent = new ArrayList<>();
+			if (config.showRecent())
 			{
-				rows.add(new Row("Recent", true));
 				for (String label : recentLabels)
 				{
-					rows.add(new Row(label, false, true));
+					if (!hasCurrent || !label.equals(originalLabel))
+					{
+						dedupedRecent.add(label);
+					}
+				}
+
+				if (!dedupedRecent.isEmpty())
+				{
+					rows.add(new Row("Recent", true));
+					for (String label : dedupedRecent)
+					{
+						rows.add(new Row(label, false, true));
+					}
 				}
 			}
 
-			if (!nearbyLabels.isEmpty())
+			// Skip anything already shown as Current or Recent.
+			List<String> dedupedNearby = new ArrayList<>();
+			for (String label : nearbyLabels)
+			{
+				if ((!hasCurrent || !label.equals(originalLabel)) && !dedupedRecent.contains(label))
+				{
+					dedupedNearby.add(label);
+				}
+			}
+
+			if (!dedupedNearby.isEmpty())
 			{
 				rows.add(new Row("Nearby", true));
-				for (String label : nearbyLabels)
+				for (String label : dedupedNearby)
 				{
 					rows.add(new Row(label, false));
 				}
