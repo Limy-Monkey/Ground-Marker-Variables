@@ -260,7 +260,7 @@ public interface GroundMarkerVariablesConfig extends Config
 		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
 			+ "- {rsn}<br>- {time} / {time24}<br>- {spellbook}<br>"
 			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt; - X}<br>"
-			+ "- {weapon}<br>- {attackStyle}<br>"
+			+ "- {weapon}<br>- {equip_&lt;slot&gt;}<br>- {attackStyle}<br>"
 			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
 			+ "- {miscellania} (0-127)<br>- {questPoints}<br>"
 			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>"

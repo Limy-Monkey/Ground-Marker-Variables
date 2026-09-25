@@ -58,12 +58,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
 		"lvl_", "boost_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "questPoints"
+		"time24", "questPoints", "equip_"
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} — once typing continues past either prefix, autocomplete
 	// switches from variable names to skill names.
 	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_");
+
+	// {equip_<slot>} — once "equip_" is fully typed, autocomplete switches to this fixed slot
+	// list (EquipLabelVariable's own SLOTS keys, plus "quiver").
+	private static final String EQUIP_PREFIX = "equip_";
+	private static final List<String> EQUIP_SLOTS = List.of(
+		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
 
 	// {metronomeN} / {metronomeN_M} — once "metronome" itself is fully typed, the N/N_M
 	// parameter completes from recent/nearby labels' own {metronome...} usage, same idea as
@@ -595,6 +601,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
+		if (partial.length() >= EQUIP_PREFIX.length() && partial.regionMatches(true, 0, EQUIP_PREFIX, 0, EQUIP_PREFIX.length()))
+		{
+			return completeEquipSlot(partial.substring(EQUIP_PREFIX.length()));
+		}
+
 		if (partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
@@ -658,6 +669,32 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
 		return chosen.substring(skillPartial.length());
+	}
+
+	// Same idea as completeSkill, but against EQUIP_SLOTS instead of Skill.values().
+	private String completeEquipSlot(String slotPartial)
+	{
+		if (slotPartial.isEmpty())
+		{
+			return null;
+		}
+
+		List<String> candidates = new ArrayList<>();
+		for (String name : EQUIP_SLOTS)
+		{
+			if (name.length() > slotPartial.length() && name.regionMatches(true, 0, slotPartial, 0, slotPartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + EQUIP_PREFIX);
+		return chosen.substring(slotPartial.length());
 	}
 
 	// "<col=" completes literally — the "<" opener has no shared candidate list, unlike "{".
