@@ -29,18 +29,18 @@ import javax.inject.Inject;
 // either — the second <expr> just swallows the rest as an unresolvable blob.
 //
 // The two branch groups are the one deliberate exception: they also allow a literal
-// {metronomeN} / {metronomeN_M} token, or its {mN} / {mN_M} alias, specifically
-// (METRONOME_TOKEN), so a branch containing one doesn't just make the whole conditional fail
-// to match. Without this, the branch's braces would still be sitting in the label text
-// untouched, and MetronomeLabelVariable's own later, independent pass (see LabelResolver)
-// would resolve it anyway — the conditional would visibly fail to pick a branch, but the
-// metronome number would still render. resolve() neutralizes any such token in the winning
-// branch to the bare word "metronome" (see METRONOME_TOKEN_PATTERN), so it's fully inert
-// here, matching every other way metronome is blocked from conditional use (see
-// VariableRegistry for <expr>).
+// {metronomeN} / {metronomeN_M} token (optionally with a "+/- offset" suffix — see
+// MetronomeLabelVariable), or its {mN} / {mN_M} alias, specifically (METRONOME_TOKEN), so a
+// branch containing one doesn't just make the whole conditional fail to match. Without this,
+// the braces would sit unresolved in the label text, and MetronomeLabelVariable's own later
+// pass (see LabelResolver) would resolve it anyway — the conditional would visibly fail to
+// pick a branch, but the metronome number would still render. resolve() neutralizes any such
+// token in the winning branch to the bare word "metronome" (see METRONOME_TOKEN_PATTERN),
+// matching every other way metronome is blocked from conditional use (see VariableRegistry).
 class ConditionalVariable implements LabelVariable
 {
-	private static final String METRONOME_TOKEN = "(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\})";
+	private static final String METRONOME_TOKEN =
+		"(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\s*(?:[+-]\\s*\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
 	private static final String BRANCH = "(?:[^{}]|" + METRONOME_TOKEN + ")+?";
 

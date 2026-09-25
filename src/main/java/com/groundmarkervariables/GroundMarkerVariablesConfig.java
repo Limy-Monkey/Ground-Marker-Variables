@@ -235,7 +235,7 @@ public interface GroundMarkerVariablesConfig extends Config
 		keyName = "variablesHelp",
 		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
 			+ "- {rsn}<br>- {spellbook}<br>"
-			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt;}<br>"
+			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt; - X}<br>"
 			+ "- {weapon}<br>- {attackStyle}<br>"
 			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
 			+ "- {miscellania} (0-127)<br>"

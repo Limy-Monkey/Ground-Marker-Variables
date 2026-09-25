@@ -15,6 +15,9 @@ import net.runelite.api.Client;
 // — offset by the "Reset metronome" hotkey's tick (see offset()) so every metronome can be
 // re-synced to a moment the player chooses, e.g. the start of a boss fight.
 //
+// {metronomeN +/- offset} (also {metronomeN_M +/- offset}) shifts just that token's phase by
+// "offset" steps, local to resolve() only.
+//
 // @Singleton because this is injected at two separate points (LabelResolver and the reset
 // hotkey listener, in the main com.groundmarkervariables package) that must share the same
 // offset state — Guice hands out a fresh instance per injection point otherwise. Public (unlike
@@ -23,8 +26,8 @@ import net.runelite.api.Client;
 @Singleton
 public class MetronomeLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN =
-		Pattern.compile("\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile(
+		"\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\s*(?:([+-])\\s*(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
@@ -76,8 +79,23 @@ public class MetronomeLabelVariable implements LabelVariable
 			return null;
 		}
 
-		int step = (client.getTickCount() - offsetTick) / ticksPerStep;
-		int position = step % max;
+		int tokenOffset = 0;
+		if (matcher.group(3) != null)
+		{
+			int amount = parseGroup(matcher, 4, -1);
+			if (amount < 0)
+			{
+				return null;
+			}
+
+			// offset is in steps, not raw ticks.
+			tokenOffset = ("-".equals(matcher.group(3)) ? -amount : amount) * ticksPerStep;
+		}
+
+		// floorDiv/floorMod, not / and % — a negative tokenOffset can push this token's own
+		// elapsed count below zero.
+		int step = Math.floorDiv(client.getTickCount() - offsetTick + tokenOffset, ticksPerStep);
+		int position = Math.floorMod(step, max);
 		return String.valueOf(config.countDown() ? max - position : position + 1);
 	}
 

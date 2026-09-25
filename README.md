@@ -8,7 +8,7 @@ Supported variables:
 |------------------------------------------|----------------------------------------------------------------------------------------------------------|
 | {rsn}                                    | Current player's display name                                                                            |
 | {spellbook}                              | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                   |
-| {metronome\<N>} / {metronome\<N>_\<M>}   | Counts down N → 1 and repeats, advancing every M ticks (default 1). Not usable inside a conditional      |
+| {metronome\<N>} / {metronome\<N>_\<M>}   | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional |
 | {weapon}                                 | Equipped weapon's item name, or Unarmed                                                                  |
 | {attackStyle}                            | Current combat style name, e.g. Accurate, Aggressive, Casting                                            |
 | {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
