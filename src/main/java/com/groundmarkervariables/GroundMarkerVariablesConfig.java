@@ -120,6 +120,30 @@ public interface GroundMarkerVariablesConfig extends Config
 		return false;
 	}
 
+	@ConfigItem(
+		position = 3,
+		keyName = "highlightFinalTick",
+		name = "Highlight Final Tick",
+		description = "Color {metronome} on its final tick before it repeats.",
+		section = metronomeSection
+	)
+	default boolean highlightFinalTick()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		position = 4,
+		keyName = "finalTickColor",
+		name = "Final Tick Color",
+		description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
+		section = metronomeSection
+	)
+	default Color finalTickColor()
+	{
+		return Color.RED;
+	}
+
 	@ConfigSection(
 		name = "Party Sync",
 		description = "Sync {metronome} to a party member's tick count.",

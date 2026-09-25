@@ -53,6 +53,7 @@ Tile marker appearance settings, migrated from RuneLite's core Ground Markers pl
 
 - **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
 - **Count Down** — Count \{metronome\} down from N → 1 instead of up from 1 → N.
+- **Highlight Final Tick** / **Final Tick Color** — Color \{metronome\} on its final tick before it repeats.
 
 ### Party Sync
 

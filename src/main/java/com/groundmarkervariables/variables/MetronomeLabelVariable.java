@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
+import net.runelite.client.util.ColorUtil;
 
 // {metronomeN} (or its {mN} alias) counts up from 1 to N, or with the "Count Down" config
 // option, down from N to 1, then repeats, advancing once per game tick. {metronomeN_M} is
@@ -96,7 +97,14 @@ public class MetronomeLabelVariable implements LabelVariable
 		// elapsed count below zero.
 		int step = Math.floorDiv(client.getTickCount() - offsetTick + tokenOffset, ticksPerStep);
 		int position = Math.floorMod(step, max);
-		return String.valueOf(config.countDown() ? max - position : position + 1);
+		String value = String.valueOf(config.countDown() ? max - position : position + 1);
+
+		if (config.highlightFinalTick() && position == max - 1)
+		{
+			value = "<col=" + ColorUtil.colorToHexCode(config.finalTickColor()) + ">" + value + "</col>";
+		}
+
+		return value;
 	}
 
 	// \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can
