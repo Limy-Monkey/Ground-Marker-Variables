@@ -31,10 +31,17 @@ final class NamedColors
 		colors.put("green", "00FF00");
 		colors.put("blue", "0000FF");
 		colors.put("teal", "00FFFF");
+		colors.put("cyan", "00FFFF");
 		colors.put("yellow", "FFFF00");
 		colors.put("purple", "FF00FF");
+		colors.put("magenta", "FF00FF");
 		colors.put("white", "FFFFFF");
 		colors.put("black", "000000");
+		colors.put("gray", "808080");
+		colors.put("lightgray", "C0C0C0");
+		colors.put("darkgray", "404040");
+		colors.put("orange", "FFA500");
+		colors.put("limy", "FFC3A0");
 		return Collections.unmodifiableMap(colors);
 	}
 

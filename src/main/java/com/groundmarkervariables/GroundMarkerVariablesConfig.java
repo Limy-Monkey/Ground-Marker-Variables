@@ -141,7 +141,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	)
 	default Color finalTickColor()
 	{
-		return Color.RED;
+		return Color.CYAN;
 	}
 
 	@ConfigSection(
@@ -282,7 +282,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			+ "- {lvl_agility &lt; 87 ? Bring Summer Pie! : }<br>"
 			+ "- {hasFreeze &amp;&amp; weapon == staff of the dead ? Gigachad : Noob}<br>"
 			+ "- {metronome4}<br>"
-			+ "- This text is &lt;col=teal&gt;teal!"
+			+ "- This text is {col=cyan}cyan!"
 			+ "</blockquote>",
 		description = "",
 		section = examplesSection
