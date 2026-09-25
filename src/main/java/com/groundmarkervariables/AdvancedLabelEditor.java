@@ -832,7 +832,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		int maxOffset = Math.max(0, rows.size() - VISIBLE_ROWS);
+		int maxOffset = Math.max(0, rows.size() - VISIBLE_ROWS + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
 
 		// Invisible — purely captures mouse wheel input over the recommendations area.
@@ -914,7 +914,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	private void scroll(int direction)
 	{
-		int maxOffset = Math.max(0, buildRows().size() - VISIBLE_ROWS);
+		int maxOffset = Math.max(0, buildRows().size() - VISIBLE_ROWS + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset + direction, maxOffset));
 		update();
 	}
