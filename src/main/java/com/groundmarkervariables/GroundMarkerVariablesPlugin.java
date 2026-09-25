@@ -425,9 +425,10 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	{
 		GroundMarkerPointData existing = findStoredPoint(worldPoint);
 		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
+		Color tileColor = existing != null && existing.getColor() != null ? existing.getColor() : config.markerColor();
 
 		advancedLabelEditorProvider.get()
-			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel)
+			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel, tileColor)
 			.prompt("Tile label")
 			.value(currentLabel)
 			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))

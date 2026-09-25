@@ -1,5 +1,6 @@
 package com.groundmarkervariables;
 
+import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -74,6 +75,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String COLOR_TAG_PREFIX = "col=";
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
 
+	// For underlining only — also matches named colors and </col> (no group(1) means </col>).
+	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile(
+		"<col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>|</col>", Pattern.CASE_INSENSITIVE);
+
+	// Matches only named colors — mirrors GroundMarkerVariablesOverlay's pattern of the same name.
+	private static final Pattern NAMED_COLOR_TAG_PATTERN = Pattern.compile(
+		"<col=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>", Pattern.CASE_INSENSITIVE);
+
 	// </col> — reverts to the tile's own color (see GroundMarkerVariablesOverlay). A complete,
 	// parameter-free literal, so it just completes in full the moment "<" is followed by "/".
 	private static final String CLOSE_COLOR_TAG = "/col>";
@@ -108,6 +117,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private List<String> recentLabels = Collections.emptyList();
 	private List<String> nearbyLabels = Collections.emptyList();
 	private Consumer<String> onRemoveRecent = label -> { };
+	private Color tileColor = Color.YELLOW;
 	private int scrollOffset;
 
 	// -1 when no shift+Left/Right selection is in progress; otherwise the fixed end of the
@@ -128,15 +138,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
-	// onRemoveRecent is invoked (with the removed label) when the user right-clicks "Remove"
-	// on a Recent entry, so the plugin can drop it from the saved recent-labels list.
+	// onRemoveRecent handles right-click "Remove" on a Recent entry. tileColor is used to
+	// underline </col> — see buildColorTagUnderlines().
 	AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels,
-		Consumer<String> onRemoveRecent)
+		Consumer<String> onRemoveRecent, Color tileColor)
 	{
 		this.originalLabel = originalLabel == null ? "" : originalLabel;
 		this.recentLabels = new ArrayList<>(recentLabels);
 		this.nearbyLabels = nearbyLabels;
 		this.onRemoveRecent = onRemoveRecent;
+		this.tileColor = tileColor;
 		return this;
 	}
 
@@ -353,14 +364,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		ghost.revalidate();
 	}
 
-	// Underlines any complete <col=RRGGBB> tag already in the label, in the color it names —
-	// a purely visual editing aid; the tag itself still shows as literal escaped text here,
-	// same as buildRecommendations() does elsewhere. Single-line pixel math, same trade-off
+	// Underlines any complete <col=RRGGBB> or <col=name> tag already in the label, in the color
+	// it names — a purely visual editing aid; the tag itself still shows as literal escaped text
+	// here, same as buildRecommendations() does elsewhere. Single-line pixel math, same trade-off
 	// as buildAutocomplete().
 	private void buildColorTagUnderlines(Widget container)
 	{
 		String text = getValue();
-		Matcher matcher = COLOR_TAG_PATTERN.matcher(text);
+		Matcher matcher = COLOR_TAG_PATTERN_ANY.matcher(text);
 		if (!matcher.find())
 		{
 			return;
@@ -380,14 +391,25 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		matcher.reset();
 		while (matcher.find())
 		{
+			String value = matcher.group(1);
+
 			int color;
-			try
+			if (value == null)
 			{
-				color = Integer.parseInt(matcher.group(1), 16);
+				// </col> — the tile's own current color, always fully opaque.
+				color = tileColor.getRGB() & 0xFFFFFF;
 			}
-			catch (NumberFormatException e)
+			else
 			{
-				continue;
+				String hex = NamedColors.HEX_BY_NAME.getOrDefault(value.toLowerCase(), value);
+				try
+				{
+					color = Integer.parseInt(hex, 16);
+				}
+				catch (NumberFormatException e)
+				{
+					continue;
+				}
 			}
 
 			int startX = textStartX + font.getTextWidth(Text.escapeJagex(text.substring(0, matcher.start())));
@@ -880,7 +902,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 				{
 					text.setAction(1, "Remove");
 				}
-				text.setName(selected);
+				// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
+				text.setName(expandNamedColors(selected));
 				text.setOnOpListener((JavaScriptCallback) ev ->
 				{
 					if (ev.getOp() == 2)
@@ -991,5 +1014,25 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		thumb.setOriginalWidth(SCROLLBAR_TRACK_WIDTH);
 		thumb.setOriginalHeight(thumbHeight);
 		thumb.revalidate();
+	}
+
+	// Mirrors GroundMarkerVariablesOverlay's own expandNamedColors().
+	private static String expandNamedColors(String text)
+	{
+		Matcher matcher = NAMED_COLOR_TAG_PATTERN.matcher(text);
+		if (!matcher.find())
+		{
+			return text;
+		}
+
+		StringBuilder result = new StringBuilder();
+		matcher.reset();
+		while (matcher.find())
+		{
+			String hex = NamedColors.HEX_BY_NAME.get(matcher.group(1).toLowerCase());
+			matcher.appendReplacement(result, Matcher.quoteReplacement("<col=" + hex + ">"));
+		}
+		matcher.appendTail(result);
+		return result.toString();
 	}
 }
