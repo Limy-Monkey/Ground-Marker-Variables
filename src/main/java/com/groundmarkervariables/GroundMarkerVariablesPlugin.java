@@ -221,8 +221,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// Mirrors core's GroundMarkerPlugin#onMenuEntryAdded shift-click handling — builds our own
 	// "Mark"/"Unmark"/"Label" entries directly, since core's GroundMarkerPlugin is disabled
 	// via conflicts (see @PluginDescriptor) rather than run alongside this plugin.
-	// Priority > 0 to show at top of menu entries like core
-	@Subscribe(priority = 1)
+	// Priority < 0 to run after other plugins so our entries show at top of menu entries like core
+	@Subscribe(priority = -1)
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
 		MenuAction menuAction = event.getMenuEntry().getType();
