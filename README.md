@@ -39,12 +39,31 @@ Supported variables:
 
 ## Options:
 
+### Ground Markers
+
+Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin the first time this plugin ever starts up.
+
+- **Border width** — Width of the marked tile border.
+- **Draw tiles on minimap** — Whether marked tiles should be drawn on the minimap.
+- **Fill opacity** — Opacity of the tile fill color.
+- **Show import/export/clear options** — Show the Import, Export, and Clear options on the world map orb right-click menu.
+- **Tile color** — The default color for marked tiles.
+
+### Metronome
+
 - **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
 - **Count Down** — Count \{metronome\} down from N → 1 instead of up from 1 → N.
+
+### Party Sync
+
 - **Party Sync** / **Sync Target** — Sync \{metronome\} to a party member's tick count instead of your own. Set Sync Target to their display name; they need Ground Marker Variables installed and must be in the same party.
 
-## Note:
+### Advanced Editor
 
-The Runescape Quill font used for the `Tile label` chat box renders squiggly bracket `{ }` symbols similarly to parentheses `( )`. Only squiggly brackets are supported.
- 
-<img width="568" height="603" alt="java_1hdlq8BOsb" src="https://github.com/user-attachments/assets/4b81bb86-ea82-45a7-bd39-0c600bfdf7bc" />
+- **Use Advanced Label Editor** — Replace the plain Tile label prompt with the Advanced Label Editor. When off, a plain label prompt is used instead.
+- **Show Current** — Show the "Current" section of the Advanced Label Editor's recommendations.
+- **Show Recent** — Show the "Recent" section of the Advanced Label Editor's recommendations.
+- **Show Nearby** — Show the "Nearby" section of the Advanced Label Editor's recommendations.
+- **Autocomplete** — Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.
+
+## Example:
