@@ -8,14 +8,9 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
 
-// {hasFreeze} — true if the player could freeze someone right now, via either path:
-//  - Ancient Magicks spellbook + enough runes for Ice Barrage (6 water, 2 blood, 4 death —
-//    the strongest/most commonly used ice spell, not the cheapest; RuneCounter accounts for
-//    an infinite-water-rune weapon, but blood/death have no infinite source in the game), or
-//  - a Blighted ancient ice sack (acts like the runes for any ice spell) while in the
-//    Wilderness.
-// Doesn't check Magic level (94 for Ice Barrage) — same convention as hasThralls, only what
-// was explicitly asked for.
+// {hasFreeze} — true if on Ancient Magicks and able to cast Ice Barrage: either enough runes
+// (6 water, 2 blood, 4 death) or a Blighted ancient ice sack while in the Wilderness.
+// Doesn't check Magic level — same convention as hasThralls.
 class HasFreezeLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasFreeze\\}", Pattern.CASE_INSENSITIVE);
@@ -38,8 +33,8 @@ class HasFreezeLabelVariable implements LabelVariable
 	@Override
 	public String resolve(Matcher matcher)
 	{
-		boolean hasFreeze = (onAncientSpellbook() && hasIceBarrageRunes())
-			|| (hasBlightedIceSack() && inWilderness());
+		boolean hasFreeze = onAncientSpellbook()
+			&& (hasIceBarrageRunes() || (hasBlightedIceSack() && inWilderness()));
 
 		return String.valueOf(hasFreeze);
 	}
