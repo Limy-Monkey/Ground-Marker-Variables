@@ -764,7 +764,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	{
 		List<Row> rows = new ArrayList<>();
 		boolean hasCurrent = !originalLabel.isEmpty();
-		if (hasCurrent)
+		if (hasCurrent && config.showCurrent())
 		{
 			rows.add(new Row("Current", true));
 			rows.add(new Row(originalLabel, false));
@@ -799,21 +799,24 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 
 			// Skip anything already shown as Current or Recent.
-			List<String> dedupedNearby = new ArrayList<>();
-			for (String label : nearbyLabels)
+			if (config.showNearby())
 			{
-				if ((!hasCurrent || !label.equals(originalLabel)) && !dedupedRecent.contains(label))
+				List<String> dedupedNearby = new ArrayList<>();
+				for (String label : nearbyLabels)
 				{
-					dedupedNearby.add(label);
+					if ((!hasCurrent || !label.equals(originalLabel)) && !dedupedRecent.contains(label))
+					{
+						dedupedNearby.add(label);
+					}
 				}
-			}
 
-			if (!dedupedNearby.isEmpty())
-			{
-				rows.add(new Row("Nearby", true));
-				for (String label : dedupedNearby)
+				if (!dedupedNearby.isEmpty())
 				{
-					rows.add(new Row(label, false));
+					rows.add(new Row("Nearby", true));
+					for (String label : dedupedNearby)
+					{
+						rows.add(new Row(label, false));
+					}
 				}
 			}
 		}

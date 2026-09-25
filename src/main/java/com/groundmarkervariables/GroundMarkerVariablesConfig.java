@@ -155,7 +155,8 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Advanced Editor",
 		description = "Settings for the Advanced Label Editor.",
-		position = 4
+		position = 4,
+		closedByDefault = true
 	)
 	String advancedEditorSection = "advancedEditor";
 
@@ -163,7 +164,7 @@ public interface GroundMarkerVariablesConfig extends Config
 		position = 1,
 		keyName = "useAdvancedLabelEditor",
 		name = "Use Advanced Label Editor",
-		description = "Replace the plain Tile label prompt with the Advanced Label Editor. When off, a plain label prompt is used instead.",
+		description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
 		section = advancedEditorSection
 	)
 	default boolean useAdvancedLabelEditor()
@@ -173,9 +174,21 @@ public interface GroundMarkerVariablesConfig extends Config
 
 	@ConfigItem(
 		position = 2,
+		keyName = "showCurrent",
+		name = "Show Current",
+		description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
+		section = advancedEditorSection
+	)
+	default boolean showCurrent()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 3,
 		keyName = "showRecent",
 		name = "Show Recent",
-		description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations. When off, Nearby is not deduplicated against it either.",
+		description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
 		section = advancedEditorSection
 	)
 	default boolean showRecent()
@@ -184,7 +197,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 3,
+		position = 4,
+		keyName = "showNearby",
+		name = "Show Nearby",
+		description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
+		section = advancedEditorSection
+	)
+	default boolean showNearby()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 5,
 		keyName = "autocomplete",
 		name = "Autocomplete",
 		description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
