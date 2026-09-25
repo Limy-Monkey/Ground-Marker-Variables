@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
 import com.groundmarkervariables.party.MetronomeSyncRequest;
 import com.groundmarkervariables.party.MetronomeSyncResponse;
+import com.groundmarkervariables.variables.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.MetronomeLabelVariable;
 import java.awt.Color;
@@ -23,6 +24,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.KeyCode;
 import net.runelite.api.Menu;
@@ -31,6 +33,7 @@ import net.runelite.api.Tile;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WorldViewLoaded;
@@ -128,6 +131,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private MetronomeResetHotkeyListener metronomeResetHotkeyListener;
+
+	@Inject
+	private BossKillCountTracker bossKillCountTracker;
 
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
@@ -687,6 +693,18 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		metronomeLabelVariable.syncTo(response.getElapsedTicks());
+	}
+
+	// Feeds {kc <boss>} — see BossKillCountTracker. Kill count messages are always GAMEMESSAGE.
+	@Subscribe
+	public void onChatMessage(ChatMessage chatMessage)
+	{
+		if (chatMessage.getType() != ChatMessageType.GAMEMESSAGE)
+		{
+			return;
+		}
+
+		bossKillCountTracker.onChatMessage(chatMessage.getMessage());
 	}
 
 	// Case-insensitive, and underscore/space-interchangeable, since a display name can arrive

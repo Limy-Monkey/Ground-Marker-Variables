@@ -30,11 +30,12 @@ class VariableRegistry
 		HasAlchsLabelVariable hasAlchs,
 		TimeLabelVariable time,
 		QuestPointsLabelVariable questPoints,
-		EquipLabelVariable equip)
+		EquipLabelVariable equip,
+		KcLabelVariable kc)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip);
+			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc);
 	}
 
 	List<LabelVariable> all()

@@ -22,6 +22,8 @@ import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.game.chatbox.ChatboxTextInput;
+import net.runelite.client.hiscore.HiscoreSkill;
+import net.runelite.client.hiscore.HiscoreSkillType;
 import net.runelite.client.util.Text;
 
 // Our own version of Ground Markers' "Tile label" editor (see GroundMarkerVariablesConfig's
@@ -58,7 +60,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
 		"lvl_", "boost_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "questPoints", "equip_"
+		"time24", "questPoints", "equip_", "kc"
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} — once typing continues past either prefix, autocomplete
@@ -70,6 +72,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String EQUIP_PREFIX = "equip_";
 	private static final List<String> EQUIP_SLOTS = List.of(
 		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
+
+	// {kc <boss>} — once "kc " is fully typed, autocomplete switches to HiscoreSkill's BOSS
+	// entries (the same names {kc} boss kill counts are tracked/displayed under).
+	private static final String KC_PREFIX = "kc ";
 
 	// {metronomeN} / {metronomeN_M} — once "metronome" itself is fully typed, the N/N_M
 	// parameter completes from recent/nearby labels' own {metronome...} usage, same idea as
@@ -606,6 +612,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeEquipSlot(partial.substring(EQUIP_PREFIX.length()));
 		}
 
+		if (partial.length() >= KC_PREFIX.length() && partial.regionMatches(true, 0, KC_PREFIX, 0, KC_PREFIX.length()))
+		{
+			return completeBossName(partial.substring(KC_PREFIX.length()));
+		}
+
 		if (partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
@@ -695,6 +706,46 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + EQUIP_PREFIX);
 		return chosen.substring(slotPartial.length());
+	}
+
+	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries instead of Skill.values().
+	private String completeBossName(String bossPartial)
+	{
+		if (bossPartial.isEmpty())
+		{
+			return null;
+		}
+
+		List<String> candidates = new ArrayList<>();
+		for (HiscoreSkill skill : HiscoreSkill.values())
+		{
+			if (skill.getType() != HiscoreSkillType.BOSS)
+			{
+				continue;
+			}
+
+			// Matches BossKillCountTracker's stored key: no "The " prefix, no colon.
+			String name = skill.getName();
+			if (name.regionMatches(true, 0, "The ", 0, 4))
+			{
+				name = name.substring(4);
+			}
+
+			name = name.replace(":", "");
+
+			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + KC_PREFIX);
+		return chosen.substring(bossPartial.length());
 	}
 
 	// "<col=" completes literally — the "<" opener has no shared candidate list, unlike "{".

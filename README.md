@@ -17,6 +17,7 @@ Supported variables:
 | {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
 | {miscellania}                            | Kingdom of Miscellania approval rating, 0-127                                                            |
 | {questPoints}                            | Current quest points                                                                                     |
+| {kc \<boss>}                             | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                        |
 | {hasThralls}                             | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                |
 | {hasAlchs}                               | true if on Standard Spellbook and has nature and fire runes for High Alchemy                             |
 | {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
