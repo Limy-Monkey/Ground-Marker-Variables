@@ -67,5 +67,6 @@ Tile marker appearance settings, migrated from RuneLite's core Ground Markers pl
 - **Autocomplete** — Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.
 
 ## Example:
-<img width="1309" height="890" alt="image" src="https://github.com/user-attachments/assets/3e1a639d-d735-4d26-b396-6f5e2958e9d7" />
+<img width="1309" height="890" alt="image" src="https://github.com/user-attachments/assets/a08bcbd3-a067-4cd5-a59c-f584a5878ad6" />
+
 
