@@ -1,5 +1,6 @@
 package com.groundmarkervariables;
 
+import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
@@ -7,6 +8,7 @@ import com.groundmarkervariables.party.MetronomeSyncRequest;
 import com.groundmarkervariables.party.MetronomeSyncResponse;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.MetronomeLabelVariable;
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -19,10 +21,12 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
+import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.KeyCode;
+import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
-import net.runelite.api.MenuEntry;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
@@ -36,24 +40,25 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.groundmarkers.GroundMarkerOverlay;
-import net.runelite.client.plugins.groundmarkers.GroundMarkerPlugin;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
+import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ColorUtil;
 
 @Slf4j
 @PluginDescriptor(
 	name = "Ground Marker Variables",
 	description = "Ground Markers with variables support, e.g. {spellbook} and {metronome4}",
-	tags = {"ground", "markers", "tile", "overlay", "labels", "variables", "metronome"}
+	tags = {"ground", "markers", "tile", "overlay", "labels", "variables", "metronome"},
+	conflicts = {"Ground Markers"}
 )
-@PluginDependency(GroundMarkerPlugin.class)
 public class GroundMarkerVariablesPlugin extends Plugin
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";
@@ -63,11 +68,24 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
 
+	// Config keys shared verbatim between core's config group and our own "Ground Markers"
+	// section — see migrateConfigFromCore().
+	private static final String[] MIGRATED_CONFIG_KEYS = {
+		"markerColor", "drawOnMinimap", "showImportExport", "borderWidth", "fillOpacity"
+	};
+	private static final String CONFIG_MIGRATED_KEY = "groundMarkerConfigMigrated";
+
+	@Inject
+	private ChatboxPanelManager chatboxPanelManager;
+
 	@Inject
 	private Client client;
 
 	@Inject
 	private ClientThread clientThread;
+
+	@Inject
+	private ColorPickerManager colorPickerManager;
 
 	@Inject
 	private ConfigManager configManager;
@@ -94,15 +112,16 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private PartyService partyService;
 
 	@Inject
-	private WSClient wsClient;
+	private GroundMarkerVariablesSharingManager sharingManager;
 
-	// GroundMarkerOverlay isn't @Singleton; removeIf() below finds the real registered
-	// overlay by type, and this fresh instance is handed back to the manager on shutDown().
 	@Inject
-	private GroundMarkerOverlay coreOverlay;
+	private WSClient wsClient;
 
 	@Inject
 	private GroundMarkerVariablesOverlay overlay;
+
+	@Inject
+	private GroundMarkerVariablesMinimapOverlay minimapOverlay;
 
 	@Inject
 	private KeyManager keyManager;
@@ -130,11 +149,20 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		// @PluginDependency guarantees GroundMarkerPlugin has already started and
-		// added its overlay by now.
-		overlayManager.removeIf(o -> o instanceof GroundMarkerOverlay);
+		if (configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY) == null)
+		{
+			migrateConfigFromCore();
+		}
+
 		overlayManager.add(overlay);
+		overlayManager.add(minimapOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
+
+		if (config.showImportExport())
+		{
+			sharingManager.addImportExportMenuOptions();
+			sharingManager.addClearMenuOption();
+		}
 
 		// startUp() itself runs on the AWT thread (PluginManager starts plugins via
 		// SwingUtilities.invokeAndWait), but resolving a variable requires the client thread —
@@ -154,12 +182,28 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
+	// Copies core's current Ground Markers config values into our own "Ground Markers" section.
+	private void migrateConfigFromCore()
+	{
+		for (String key : MIGRATED_CONFIG_KEYS)
+		{
+			String value = configManager.getConfiguration(CORE_CONFIG_GROUP, key);
+			if (value != null)
+			{
+				configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, key, value);
+			}
+		}
+
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY, "true");
+	}
+
 	@Override
 	protected void shutDown()
 	{
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
-		overlayManager.add(coreOverlay);
+		overlayManager.remove(minimapOverlay);
+		sharingManager.removeMenuOptions();
 		markersByRegion.clear();
 		markersByWorldView.clear();
 
@@ -174,28 +218,15 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// Priority -1 so this runs after core's GroundMarkerPlugin#onMenuEntryAdded, which is what
-	// actually creates the "Label" entry we're looking for — EventBus otherwise orders equal-
-	// priority subscribers alphabetically by class name, which would run ours first.
-	@Subscribe(priority = -1)
+	// Mirrors core's GroundMarkerPlugin#onMenuEntryAdded shift-click handling — builds our own
+	// "Mark"/"Unmark"/"Label" entries directly, since core's GroundMarkerPlugin is disabled
+	// via conflicts (see @PluginDescriptor) rather than run alongside this plugin.
+	// Priority > 0 to show at top of menu entries like core
+	@Subscribe(priority = 1)
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		if (!config.advancedLabelEditor())
-		{
-			return;
-		}
-
-		MenuEntry labelEntry = null;
-		for (MenuEntry entry : client.getMenuEntries())
-		{
-			if ("Label".equals(entry.getOption()) && "Tile".equals(entry.getTarget()) && entry.getType() == MenuAction.RUNELITE)
-			{
-				labelEntry = entry;
-				break;
-			}
-		}
-
-		if (labelEntry == null)
+		MenuAction menuAction = event.getMenuEntry().getType();
+		if (!client.isKeyPressed(KeyCode.KC_SHIFT) || (menuAction != MenuAction.WALK && menuAction != MenuAction.SET_HEADING))
 		{
 			return;
 		}
@@ -213,7 +244,147 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, selectedSceneTile.getLocalLocation());
-		labelEntry.onClick(e -> openLabelEditor(worldPoint));
+		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+
+		client.createMenuEntry(-1)
+			.setOption(existing != null ? "Unmark" : "Mark")
+			.setTarget("Tile")
+			.setType(MenuAction.RUNELITE)
+			.onClick(e -> toggleMark(worldPoint));
+
+		if (existing != null)
+		{
+			client.createMenuEntry(-2)
+				.setOption("Label")
+				.setTarget("Tile")
+				.setType(MenuAction.RUNELITE)
+				.onClick(e -> openLabelEditor(worldPoint));
+
+			buildColorMenu(worldPoint, existing);
+		}
+	}
+
+	// Mirrors core's "Color" submenu build: Reset all (only when the region has more than one
+	// marker), Pick (native color picker), and one quick-select entry per distinct color already
+	// used by any currently loaded marker.
+	private void buildColorMenu(WorldPoint worldPoint, GroundMarkerPointData existing)
+	{
+		int regionId = worldPoint.getRegionID();
+		List<GroundMarkerPointData> regionPoints = new ArrayList<>(getStoredPoints(regionId));
+
+		Menu submenu = client.createMenuEntry(-3)
+			.setOption("Color")
+			.setTarget("Tile")
+			.setType(MenuAction.RUNELITE)
+			.createSubMenu();
+
+		if (regionPoints.size() > 1)
+		{
+			submenu.createMenuEntry(-1)
+				.setOption("Reset all")
+				.setType(MenuAction.RUNELITE)
+				.onClick(e -> chatboxPanelManager.openTextMenuInput("Are you sure you want to reset the color of " + regionPoints.size() + " tiles?")
+					.option("Yes", () -> resetRegionColors(regionId, regionPoints))
+					.option("No", Runnables.doNothing())
+					.build());
+		}
+
+		submenu.createMenuEntry(-1)
+			.setOption("Pick")
+			.setType(MenuAction.RUNELITE)
+			.onClick(e ->
+			{
+				Color color = existing.getColor() != null ? existing.getColor() : config.markerColor();
+				SwingUtilities.invokeLater(() ->
+				{
+					RuneliteColorPicker colorPicker = colorPickerManager.create(client, color, "Tile marker color", false);
+					colorPicker.setOnClose(c -> colorTile(worldPoint, c));
+					colorPicker.setVisible(true);
+				});
+			});
+
+		for (Color color : existingColors())
+		{
+			if (!color.equals(existing.getColor()))
+			{
+				submenu.createMenuEntry(-1)
+					.setOption(ColorUtil.prependColorTag("Color", color))
+					.setType(MenuAction.RUNELITE)
+					.onClick(e -> colorTile(worldPoint, color));
+			}
+		}
+	}
+
+	// Distinct, non-null colors across every currently loaded marker, for the Color submenu's
+	// quick-select entries — mirrors core's points.values().stream().map(getColor).distinct().
+	private List<Color> existingColors()
+	{
+		List<Color> colors = new ArrayList<>();
+		for (WorldView wv : getTrackedWorldViews())
+		{
+			for (TranslatedMarker translated : getTranslatedMarkers(wv))
+			{
+				Color color = translated.marker.source.getColor();
+				if (color != null && !colors.contains(color))
+				{
+					colors.add(color);
+				}
+			}
+		}
+
+		return colors;
+	}
+
+	// Mirrors core's colorTile() — updates just the color of an existing point.
+	private void colorTile(WorldPoint worldPoint, Color newColor)
+	{
+		int regionId = worldPoint.getRegionID();
+		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
+
+		for (int i = 0; i < points.size(); i++)
+		{
+			GroundMarkerPointData point = points.get(i);
+			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
+				&& point.getZ() == worldPoint.getPlane())
+			{
+				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), newColor, point.getLabel()));
+				configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
+				return;
+			}
+		}
+	}
+
+	// Mirrors core's "Reset all" — resets every marker's color in the region to the configured
+	// default marker color.
+	private void resetRegionColors(int regionId, List<GroundMarkerPointData> regionPoints)
+	{
+		Color defaultColor = config.markerColor();
+		List<GroundMarkerPointData> newPoints = new ArrayList<>();
+		for (GroundMarkerPointData point : regionPoints)
+		{
+			newPoints.add(new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), defaultColor, point.getLabel()));
+		}
+
+		configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(newPoints));
+	}
+
+	// Mirrors core's markTile().
+	private void toggleMark(WorldPoint worldPoint)
+	{
+		int regionId = worldPoint.getRegionID();
+		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
+		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+
+		if (existing != null)
+		{
+			points.remove(existing);
+		}
+		else
+		{
+			points.add(new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), null));
+		}
+
+		savePoints(regionId, points);
 	}
 
 	private void openLabelEditor(WorldPoint worldPoint)
@@ -298,7 +469,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	private GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
 	{
-		for (GroundMarkerPointData point : parseStoredPoints(worldPoint.getRegionID()))
+		for (GroundMarkerPointData point : getStoredPoints(worldPoint.getRegionID()))
 		{
 			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
 				&& point.getZ() == worldPoint.getPlane())
@@ -316,7 +487,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private void saveLabel(WorldPoint worldPoint, String newLabel)
 	{
 		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(parseStoredPoints(regionId));
+		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
 		String label = newLabel.isEmpty() ? null : newLabel;
 
 		for (int i = 0; i < points.size(); i++)
@@ -364,6 +535,17 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (GroundMarkerVariablesConfig.GROUP.equals(event.getGroup()) && "showImportExport".equals(event.getKey()))
+		{
+			sharingManager.removeMenuOptions();
+			if (config.showImportExport())
+			{
+				sharingManager.addImportExportMenuOptions();
+				sharingManager.addClearMenuOption();
+			}
+			return;
+		}
+
 		if (!CORE_CONFIG_GROUP.equals(event.getGroup()))
 		{
 			return;
@@ -482,7 +664,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		return markersByWorldView.getOrDefault(wv, Collections.emptyList());
 	}
 
-	private void loadPoints()
+	void loadPoints()
 	{
 		WorldView wv = client.getTopLevelWorldView();
 		if (wv == null)
@@ -570,13 +752,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// partially-built list.
 	private void rebuildRegion(int regionId)
 	{
-		List<CachedMarker> markers = parseStoredPoints(regionId).stream()
+		List<CachedMarker> markers = getStoredPoints(regionId).stream()
 			.map(point -> new CachedMarker(point, labelResolver))
 			.collect(Collectors.toList());
 		markersByRegion.put(regionId, markers);
 	}
 
-	private Collection<GroundMarkerPointData> parseStoredPoints(int regionId)
+	Collection<GroundMarkerPointData> getStoredPoints(int regionId)
 	{
 		String json = configManager.getConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
 		if (json == null || json.isEmpty())
@@ -588,5 +770,18 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		{
 		}.getType());
 		return points == null ? Collections.emptyList() : points;
+	}
+
+	// Mirrors core's savePoints() — used by the sharing manager's import/clear, which need to
+	// replace a whole region's point list at once rather than one point at a time.
+	void savePoints(int regionId, Collection<GroundMarkerPointData> points)
+	{
+		if (points == null || points.isEmpty())
+		{
+			configManager.unsetConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
+			return;
+		}
+
+		configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
 	}
 }

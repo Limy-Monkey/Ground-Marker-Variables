@@ -15,7 +15,6 @@ import net.runelite.api.Point;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.plugins.groundmarkers.GroundMarkerConfig;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -36,16 +35,14 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 	private final Client client;
 	private final GroundMarkerVariablesPlugin plugin;
-	// Ground Markers' own config, so a marker saved without an explicit color falls back
-	// to whatever "Tile color" the user has set in Ground Markers, not a color we invent.
-	private final GroundMarkerConfig groundMarkerConfig;
+	private final GroundMarkerVariablesConfig config;
 
 	@Inject
-	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerConfig groundMarkerConfig)
+	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config)
 	{
 		this.client = client;
 		this.plugin = plugin;
-		this.groundMarkerConfig = groundMarkerConfig;
+		this.config = config;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
 		setLayer(OverlayLayer.ABOVE_SCENE);
@@ -60,7 +57,7 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		}
 
 		// Built once per frame, same as the core overlay, rather than once per tile.
-		Stroke borderStroke = new BasicStroke((float) groundMarkerConfig.borderWidth());
+		Stroke borderStroke = new BasicStroke((float) config.borderWidth());
 
 		for (WorldView wv : plugin.getTrackedWorldViews())
 		{
@@ -94,14 +91,14 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			return;
 		}
 
-		Color color = marker.source.getColor() != null ? marker.source.getColor() : groundMarkerConfig.markerColor();
+		Color color = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
 
 		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
 		if (poly != null)
 		{
 			// Fill is a flat black overlay at the configured opacity, not the marker's own color
 			// at reduced alpha — matches the core overlay's own drawTile() exactly.
-			OverlayUtil.renderPolygon(graphics, poly, color, new Color(0, 0, 0, groundMarkerConfig.fillOpacity()), borderStroke);
+			OverlayUtil.renderPolygon(graphics, poly, color, new Color(0, 0, 0, config.fillOpacity()), borderStroke);
 		}
 
 		// Label rendering doesn't depend on the tile poly resolving — a missing poly only

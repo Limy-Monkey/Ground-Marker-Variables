@@ -1,21 +1,107 @@
 package com.groundmarkervariables;
 
+import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(GroundMarkerVariablesConfig.GROUP)
 public interface GroundMarkerVariablesConfig extends Config
 {
 	String GROUP = "groundMarkerVariables";
 
+	// Recreates core Ground Markers' own config, since this plugin fully replaces it (see the
+	// migration plan) — values are copied from core's config the very first time this plugin
+	// ever starts up (see GroundMarkerVariablesPlugin#migrateConfigFromCore), so existing users
+	// keep their current settings.
+	@ConfigSection(
+		name = "Ground Markers",
+		description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
+		position = 1
+	)
+	String groundMarkersSection = "groundMarkers";
+
+	@ConfigItem(
+		position = 1,
+		keyName = "borderWidth",
+		name = "Border width",
+		description = "Width of the marked tile border.",
+		section = groundMarkersSection
+	)
+	default double borderWidth()
+	{
+		return 2;
+	}
+
+	@ConfigItem(
+		position = 2,
+		keyName = "drawOnMinimap",
+		name = "Draw tiles on minimap",
+		description = "Configures whether marked tiles should be drawn on minimap.",
+		section = groundMarkersSection
+	)
+	default boolean drawTileOnMinimap()
+	{
+		return false;
+	}
+
+	@Range(
+		max = 255
+	)
+	@ConfigItem(
+		position = 3,
+		keyName = "fillOpacity",
+		name = "Fill opacity",
+		description = "Opacity of the tile fill color.",
+		section = groundMarkersSection
+	)
+	default int fillOpacity()
+	{
+		return 50;
+	}
+
+	@ConfigItem(
+		position = 4,
+		keyName = "showImportExport",
+		name = "Show import/export/clear options",
+		description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
+		section = groundMarkersSection
+	)
+	default boolean showImportExport()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		position = 5,
+		keyName = "markerColor",
+		name = "Tile color",
+		description = "The default color for marked tiles.",
+		section = groundMarkersSection
+	)
+	default Color markerColor()
+	{
+		return Color.YELLOW;
+	}
+
+	@ConfigSection(
+		name = "Metronome",
+		description = "Settings for {metronome} tiles.",
+		position = 2
+	)
+	String metronomeSection = "metronome";
+
 	@ConfigItem(
 		position = 1,
 		keyName = "resetMetronomeHotkey",
 		name = "Reset metronome",
-		description = "Hotkey that resets every {metronome} tile's countdown to start from this tick."
+		description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
+		section = metronomeSection
 	)
 	default Keybind resetMetronomeHotkey()
 	{
@@ -26,20 +112,10 @@ public interface GroundMarkerVariablesConfig extends Config
 		position = 2,
 		keyName = "countDown",
 		name = "Count Down",
-		description = "Count {metronome} down from N to 1 instead of up from 1 to N."
+		description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
+		section = metronomeSection
 	)
 	default boolean countDown()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		position = 3,
-		keyName = "advancedLabelEditor",
-		name = "Advanced Label Editor",
-		description = "Replace Ground Markers' Label editor with our own. When off, Ground Markers' stock editor is used untouched."
-	)
-	default boolean advancedLabelEditor()
 	{
 		return false;
 	}
@@ -47,7 +123,8 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Party Sync",
 		description = "Sync {metronome} to a party member's tick count.",
-		position = 4
+		position = 3,
+		closedByDefault = true
 	)
 	String partySyncSection = "partySync";
 
@@ -78,7 +155,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Examples",
 		description = "Quick reference for available variables and example labels — see the README for full details.",
-		position = 5,
+		position = 4,
 		closedByDefault = true
 	)
 	String examplesSection = "examples";
