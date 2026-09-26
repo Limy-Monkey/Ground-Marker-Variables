@@ -11,7 +11,8 @@ import net.runelite.api.gameval.VarbitID;
 // {hasThralls} — true only while the player could cast an Arceuus Conjure spell right now:
 // Arceuus spellbook active, Book of the Dead owned (equipped or carried), and at least one
 // fire, blood, and cosmic rune available (RuneCounter — inventory + rune pouch, plus an
-// infinite source for fire). Doesn't check Magic level.
+// infinite source for fire) — an aether rune substitutes for the cosmic rune. Doesn't check
+// Magic level.
 class HasThrallsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasThralls\\}", Pattern.CASE_INSENSITIVE);
@@ -38,7 +39,7 @@ class HasThrallsLabelVariable implements LabelVariable
 			&& hasBookOfTheDead()
 			&& RuneCounter.hasAtLeast(client, ItemID.FIRERUNE, 1)
 			&& RuneCounter.hasAtLeast(client, ItemID.BLOODRUNE, 1)
-			&& RuneCounter.hasAtLeast(client, ItemID.COSMICRUNE, 1);
+			&& (RuneCounter.hasAtLeast(client, ItemID.COSMICRUNE, 1) || RuneCounter.hasAtLeast(client, ItemID.AETHERRUNE, 1));
 
 		return String.valueOf(hasThralls);
 	}
