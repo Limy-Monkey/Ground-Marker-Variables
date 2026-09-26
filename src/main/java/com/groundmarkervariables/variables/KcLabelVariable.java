@@ -5,7 +5,8 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {kc <boss>} -> the player's tracked kill count for <boss> (case-insensitive), or 0 if none
-// has been recorded yet. See BossKillCountTracker for how kill counts are learned/stored.
+// has been recorded yet. <boss> may be a short alias (e.g. "cg") — see BossAliases — as well
+// as the canonical name. See BossKillCountTracker for how kill counts are learned/stored.
 class KcLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{kc\\s+(.+?)\\}", Pattern.CASE_INSENSITIVE);
@@ -33,7 +34,7 @@ class KcLabelVariable implements LabelVariable
 			return null;
 		}
 
-		Integer kc = tracker.getKc(boss);
+		Integer kc = tracker.getKc(BossAliases.resolve(boss));
 		return String.valueOf(kc == null ? 0 : kc);
 	}
 }
