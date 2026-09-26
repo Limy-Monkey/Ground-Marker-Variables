@@ -97,10 +97,6 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			+ "|</col>|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
 
-	// </col> — reverts to the tile's own color (see GroundMarkerVariablesOverlay). A complete,
-	// parameter-free literal, so it just completes in full the moment "<" is followed by "/".
-	private static final String CLOSE_COLOR_TAG = "/col>";
-
 	// {/col} — the {col=} family's own alias for </col>, closed with "}" instead of ">".
 	private static final String CLOSE_COLOR_ALIAS = "/col}";
 
@@ -551,18 +547,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		int open = -1;
-		char opener = 0;
 		for (int i = cursor - 1; i >= 0; i--)
 		{
 			char c = text.charAt(i);
-			if (c == '}' || c == '>')
+			if (c == '}')
 			{
 				return null;
 			}
-			if (c == '{' || c == '<')
+			if (c == '{')
 			{
 				open = i;
-				opener = c;
 				break;
 			}
 		}
@@ -573,20 +567,6 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		String partial = text.substring(open + 1, cursor);
-
-		if (opener == '<')
-		{
-			// "<" can start either an opening <col=RRGGBB> or a closing </col> — they diverge
-			// at the very first character, so a leading "/" commits to the closing tag.
-			if (!partial.isEmpty() && partial.charAt(0) == '/')
-			{
-				return completeCloseColorTag(partial);
-			}
-
-			// Unlike "{", an empty partial here still autocompletes — there's only one thing
-			// "<" can start (a color tag), so there's no ambiguous guess being made.
-			return completeColorTag(partial);
-		}
 
 		if (partial.isEmpty())
 		{
@@ -748,33 +728,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(bossPartial.length());
 	}
 
-	// "<col=" completes literally — the "<" opener has no shared candidate list, unlike "{".
-	private String completeColorTag(String partial)
-	{
-		if (partial.length() < COLOR_TAG_PREFIX.length())
-		{
-			return COLOR_TAG_PREFIX.regionMatches(true, 0, partial, 0, partial.length())
-				? COLOR_TAG_PREFIX.substring(partial.length())
-				: null;
-		}
-
-		if (!partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
-		{
-			return null;
-		}
-
-		return completeColorValue(partial.substring(COLOR_TAG_PREFIX.length()), "<" + COLOR_TAG_PREFIX, ">");
-	}
-
 	// {col=...} alias — "col=" itself completes via VARIABLE_NAMES like any other variable name.
 	private String completeColorAliasValue(String hexPartial)
 	{
 		return completeColorValue(hexPartial, "{" + COLOR_TAG_PREFIX, "}");
 	}
 
-	// Shared value completion for "<col=" and "{col=": a standard color name (NamedColors) takes
-	// priority, ambiguity resolved from recent/nearby usage; otherwise falls back to a genuine
-	// hex value from recent/nearby history (no fallback there). closer is ">" or "}".
+	// Value completion for "{col=": named colors first, else a hex value from history.
 	private String completeColorValue(String hexPartial, String tokenPrefix, String closer)
 	{
 		List<String> namedCandidates = new ArrayList<>();
@@ -799,19 +759,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return hex == null ? null : hex.substring(hexPartial.length()) + closer;
 	}
 
-	// "</col>" completes literally in full — no hex value or history lookup needed.
-	private String completeCloseColorTag(String partial)
-	{
-		if (partial.length() >= CLOSE_COLOR_TAG.length()
-			|| !CLOSE_COLOR_TAG.regionMatches(true, 0, partial, 0, partial.length()))
-		{
-			return null;
-		}
-
-		return CLOSE_COLOR_TAG.substring(partial.length());
-	}
-
-	// "{/col}" completes literally in full, same as completeCloseColorTag().
+	// "{/col}" completes literally in full.
 	private String completeCloseColorAlias(String partial)
 	{
 		if (partial.length() >= CLOSE_COLOR_ALIAS.length()
