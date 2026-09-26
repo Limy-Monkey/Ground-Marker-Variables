@@ -42,7 +42,26 @@ Supported variables:
 - `This text is {col=cyan}cyan!`
   - Changes color of the word "cyan!" to `#00FFFF`
 
-## Options:
+## Images:
+<img align="left" height="559" alt="image" src="https://github.com/user-attachments/assets/d286df61-ba3d-4da5-8438-7751a2a8de10" /> ToB Entry Check
+
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#41FFFFFF","label":"{hasItem salve ? {col\u003dgreen} : {col\u003dred}}Salve{/col} | {equip_ammo \u003d\u003d Empty ? {col\u003dred}Ammo : {col\u003dgreen}{equip_ammo}}{/col} |{spellbook \u003d\u003d Ancient || spellbook \u003d\u003d Arceuus ? {col\u003dred} : {col\u003dgray}}{hasThralls || hasFreeze ? {col\u003dgreen} : }{spellbook}{/col} spellbook {autoRetal ? | {col\u003dred}Auto Retaliate{/col} : }"}]```
+
+<br clear="left"/><br />
+
+<img align="left" height="553" alt="image" src="https://github.com/user-attachments/assets/d9b451ab-a4d4-42b6-9688-e99b24362b8f" /> Miscellania
+
+```[{"regionId":10044,"regionX":32,"regionY":11,"z":0,"color":"#00FFFFFF","label":"{miscellania \u003d\u003d 127 ? {col\u003dgreen} : {col\u003dlightgray}}{miscellania}{/col} / 127"}]```
+
+<br clear="left"/><br />
+
+<img align="left" height="598" alt="image" src="https://github.com/user-attachments/assets/eb6e2895-d4de-495e-a186-4694734e3db8" /> Royal Titans Entry
+
+```[{"regionId":11925,"regionX":5,"regionY":39,"z":0,"color":"#00FFFFFF","label":"{col\u003dgreen}Royal Titans{/col} kc: {col\u003dgreen}{kc royal titans}"},{"regionId":11925,"regionX":5,"regionY":37,"z":0,"color":"#00FFFFFF","label":"{hasItem blood rune ? {col\u003dgreen} : {col\u003dred}}Blood Runes{/col} | {attackStyle \u003d\u003d casting ? {col\u003dgreen} : {col\u003dred}}Autocast{/col} | {autoRetal ? {col\u003dred} : {col\u003dgreen}}Auto Retaliate{/col}"}]```
+
+<br clear="left"/>
+
+## Config Options:
 
 ### Ground Markers
 
@@ -71,8 +90,3 @@ Tile marker appearance settings, migrated from RuneLite's core Ground Markers pl
 - **Show Recent** — Show the "Recent" section of the Advanced Label Editor's recommendations.
 - **Show Nearby** — Show the "Nearby" section of the Advanced Label Editor's recommendations.
 - **Autocomplete** — Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.
-
-## Example:
-<img width="1309" height="890" alt="image" src="https://github.com/user-attachments/assets/a08bcbd3-a067-4cd5-a59c-f584a5878ad6" />
-
-
