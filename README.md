@@ -22,6 +22,7 @@ Supported variables:
 | {hasAlchs}                               | true if on Standard Spellbook and has nature and fire runes for High Alchemy                             |
 | {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
 | {hasEntangle}                            | true if Entangle is castable (Level not checked)                                                         |
+| {autoRetaliate} / {autoRetal}            | true if Auto Retaliate is on                                                                             |
 | {hasItem \<name>}                        | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}        |
 | {\<cond1> \[&& / \|\| \<cond2>] ? A : B} | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B |
 
@@ -42,7 +43,12 @@ Supported variables:
 - `This text is {col=cyan}cyan!`
   - Changes color of the word "cyan!" to `#00FFFF`
 
-## Options:
+## Image:
+<img width="602" align="left" height="559" alt="image" src="https://github.com/user-attachments/assets/d286df61-ba3d-4da5-8438-7751a2a8de10" /> Ground marker shown: `[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#41FFFFFF","label":"{hasItem salve ? {col\u003dgreen} : {col\u003dred}}Salve{/col} | {equip_ammo \u003d\u003d Empty ? {col\u003dred}Ammo : {col\u003dgreen}{equip_ammo}}{/col} |{spellbook \u003d\u003d Ancient || spellbook \u003d\u003d Arceuus ? {col\u003dred} : {col\u003dgray}}{hasThralls || hasFreeze ? {col\u003dgreen} : }{spellbook}{/col} spellbook"}]`
+
+<br clear="left"/>
+
+## Config Options:
 
 ### Ground Markers
 
@@ -71,8 +77,3 @@ Tile marker appearance settings, migrated from RuneLite's core Ground Markers pl
 - **Show Recent** — Show the "Recent" section of the Advanced Label Editor's recommendations.
 - **Show Nearby** — Show the "Nearby" section of the Advanced Label Editor's recommendations.
 - **Autocomplete** — Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.
-
-## Example:
-<img width="1309" height="890" alt="image" src="https://github.com/user-attachments/assets/a08bcbd3-a067-4cd5-a59c-f584a5878ad6" />
-
-

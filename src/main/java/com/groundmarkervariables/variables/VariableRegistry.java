@@ -31,11 +31,12 @@ class VariableRegistry
 		TimeLabelVariable time,
 		QuestPointsLabelVariable questPoints,
 		EquipLabelVariable equip,
-		KcLabelVariable kc)
+		KcLabelVariable kc,
+		AutoRetaliateLabelVariable autoRetaliate)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc);
+			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate);
 	}
 
 	List<LabelVariable> all()

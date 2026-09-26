@@ -263,7 +263,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			+ "- {weapon}<br>- {equip_&lt;slot&gt;}<br>- {attackStyle}<br>"
 			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>"
 			+ "- {miscellania} (0-127)<br>- {questPoints}<br>- {kc &lt;boss&gt;}<br>"
-			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>"
+			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>- {autoRetaliate}<br>"
 			+ "- {hasItem &lt;name&gt;}<br>"
 			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}"
 			+ "</blockquote>",
