@@ -15,6 +15,7 @@ Supported variables:
 | {attackStyle}                            | Current combat style name, e.g. Accurate, Aggressive, Casting                                            |
 | {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
 | {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
+| {xpRate_\<skill>}                        | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                          |
 | {miscellania}                            | Kingdom of Miscellania approval rating, 0-127                                                            |
 | {questPoints}                            | Current quest points                                                                                     |
 | {kc \<boss>}                             | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                        |

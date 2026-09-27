@@ -55,17 +55,17 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int HOVER_COLOR = 0x444444;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
 
-	// The completable name of every variable — "lvl_"/"boost_"/"col=" include their trailing
-	// underscore/equals, since a skill name or color value follows them.
+	// The completable name of every variable — "lvl_"/"boost_"/"xpRate_"/"col=" include their
+	// trailing underscore/equals, since a skill name or color value follows them.
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
-		"lvl_", "boost_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
+		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "questPoints", "equip_", "kc", "autoRetaliate"
 	);
 
-	// {lvl_<skill>} / {boost_<skill>} — once typing continues past either prefix, autocomplete
-	// switches from variable names to skill names.
-	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_");
+	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
+	// these prefixes, autocomplete switches from variable names to skill names.
+	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_");
 
 	// {equip_<slot>} — once "equip_" is fully typed, autocomplete switches to this fixed slot
 	// list (EquipLabelVariable's own SLOTS keys, plus "quiver").
