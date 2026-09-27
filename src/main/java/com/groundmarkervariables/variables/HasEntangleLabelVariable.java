@@ -10,8 +10,7 @@ import net.runelite.api.gameval.VarbitID;
 
 // {hasEntangle} — true if the player could cast Entangle right now, via either path:
 //  - Standard spellbook + enough runes for Entangle (5 earth, 5 water, 4 nature —
-//    RuneCounter accounts for infinite-earth/water-rune weapons; nature has no infinite
-//    source in the game), or
+//    RuneCounter accounts for infinite-source weapons and combo runes; nature has neither), or
 //  - a Blighted entangle sack (acts like the runes for Entangle/Snare/Bind while on the
 //    standard spellbook) while in the Wilderness.
 // Doesn't check Magic level (79) — same convention as hasThralls/hasFreeze, only what was

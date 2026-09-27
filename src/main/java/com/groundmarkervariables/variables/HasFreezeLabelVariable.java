@@ -9,8 +9,8 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
 
 // {hasFreeze} — true if on Ancient Magicks and able to cast Ice Barrage: either enough runes
-// (6 water, 2 blood, 4 death) or a Blighted ancient ice sack while in the Wilderness.
-// Doesn't check Magic level — same convention as hasThralls.
+// (6 water, 2 blood, 4 death — RuneCounter covers combo runes) or a Blighted ancient ice sack
+// while in the Wilderness. Doesn't check Magic level — same convention as hasThralls.
 class HasFreezeLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasFreeze\\}", Pattern.CASE_INSENSITIVE);

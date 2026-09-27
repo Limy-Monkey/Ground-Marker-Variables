@@ -1,5 +1,8 @@
 package com.groundmarkervariables.variables;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -55,9 +58,59 @@ final class RuneCounter
 			ItemID.MUD_BATTLESTAFF, ItemID.MYSTIC_MUD_STAFF,
 		});
 
+	// All 7 combination runes (oldschool.runescape.wiki/w/Combination_rune) — usable as either
+	// of their two components. We only check whether one exists, not how many.
+	private static final Map<Integer, int[]> COMBO_RUNE_COMPONENTS = Map.ofEntries(
+		Map.entry(ItemID.MISTRUNE, new int[] { ItemID.AIRRUNE, ItemID.WATERRUNE }),
+		Map.entry(ItemID.DUSTRUNE, new int[] { ItemID.AIRRUNE, ItemID.EARTHRUNE }),
+		Map.entry(ItemID.MUDRUNE, new int[] { ItemID.WATERRUNE, ItemID.EARTHRUNE }),
+		Map.entry(ItemID.SMOKERUNE, new int[] { ItemID.AIRRUNE, ItemID.FIRERUNE }),
+		Map.entry(ItemID.STEAMRUNE, new int[] { ItemID.WATERRUNE, ItemID.FIRERUNE }),
+		Map.entry(ItemID.LAVARUNE, new int[] { ItemID.EARTHRUNE, ItemID.FIRERUNE }),
+		Map.entry(ItemID.AETHERRUNE, new int[] { ItemID.COSMICRUNE, ItemID.SOULRUNE }));
+
+	// runeId -> combo runes that count as it
+	private static final Map<Integer, int[]> SUBSTITUTES_BY_RUNE = buildSubstitutesByRune();
+
+	private static Map<Integer, int[]> buildSubstitutesByRune()
+	{
+		Map<Integer, List<Integer>> byRune = new HashMap<>();
+		COMBO_RUNE_COMPONENTS.forEach((combo, components) ->
+		{
+			for (int component : components)
+			{
+				byRune.computeIfAbsent(component, k -> new ArrayList<>()).add(combo);
+			}
+		});
+
+		Map<Integer, int[]> result = new HashMap<>();
+		byRune.forEach((runeId, substitutes) -> result.put(runeId, substitutes.stream().mapToInt(Integer::intValue).toArray()));
+		return result;
+	}
+
 	static boolean hasAtLeast(Client client, int runeId, int required)
 	{
-		return hasInfiniteSource(client, runeId) || count(client, runeId) >= required;
+		return hasInfiniteSource(client, runeId) || count(client, runeId) >= required || hasSubstitute(client, runeId);
+	}
+
+	// Any quantity of a combo rune covering runeId counts as satisfying it.
+	private static boolean hasSubstitute(Client client, int runeId)
+	{
+		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
+		if (substitutes == null)
+		{
+			return false;
+		}
+
+		for (int substitute : substitutes)
+		{
+			if (count(client, substitute) > 0)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	static boolean hasInfiniteSource(Client client, int runeId)
