@@ -10,11 +10,13 @@ class RsnLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{rsn\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private RsnLabelVariable(Client client)
+	private RsnLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -24,8 +26,15 @@ class RsnLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		return client.getLocalPlayer() != null ? client.getLocalPlayer().getName() : null;
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String rsn = resolvePlain(matcher);
+		return rsn == null ? null : richText.labeled("RSN", rsn);
 	}
 }

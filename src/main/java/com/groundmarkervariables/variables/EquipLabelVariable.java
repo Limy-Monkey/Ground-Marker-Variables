@@ -34,14 +34,22 @@ class EquipLabelVariable implements LabelVariable
 		Map.entry("ring", EquipmentInventorySlot.RING),
 		Map.entry("ammo", EquipmentInventorySlot.AMMO));
 
+	private static final Map<String, String> SLOT_LABELS = Map.ofEntries(
+		Map.entry("helm", "Helm"), Map.entry("cape", "Cape"), Map.entry("amulet", "Amulet"),
+		Map.entry("body", "Body"), Map.entry("shield", "Shield"), Map.entry("legs", "Legs"),
+		Map.entry("gloves", "Gloves"), Map.entry("boots", "Boots"), Map.entry("ring", "Ring"),
+		Map.entry("ammo", "Ammo"), Map.entry("quiver", "Quiver"));
+
 	private final Client client;
 	private final ItemManager itemManager;
+	private final RichText richText;
 
 	@Inject
-	private EquipLabelVariable(Client client, ItemManager itemManager)
+	private EquipLabelVariable(Client client, ItemManager itemManager, RichText richText)
 	{
 		this.client = client;
 		this.itemManager = itemManager;
+		this.richText = richText;
 	}
 
 	@Override
@@ -51,7 +59,7 @@ class EquipLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
@@ -59,11 +67,24 @@ class EquipLabelVariable implements LabelVariable
 		}
 
 		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
-		if (QUIVER.equals(slot))
+		return QUIVER.equals(slot) ? resolveQuiver() : resolveSlot(slot);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String itemName = resolvePlain(matcher);
+		if (itemName == null)
 		{
-			return resolveQuiver();
+			return null;
 		}
 
+		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
+		return richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
+	}
+
+	private String resolveSlot(String slot)
+	{
 		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
 		if (equipmentSlot == null)
 		{

@@ -12,11 +12,13 @@ class QuestPointsLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{questPoints\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private QuestPointsLabelVariable(Client client)
+	private QuestPointsLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -26,8 +28,14 @@ class QuestPointsLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		return String.valueOf(client.getVarpValue(VarPlayerID.QP));
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.labeled("Quest Points", resolvePlain(matcher));
 	}
 }

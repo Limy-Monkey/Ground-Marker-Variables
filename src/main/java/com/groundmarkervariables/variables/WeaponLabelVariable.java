@@ -19,12 +19,14 @@ class WeaponLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final ItemManager itemManager;
+	private final RichText richText;
 
 	@Inject
-	private WeaponLabelVariable(Client client, ItemManager itemManager)
+	private WeaponLabelVariable(Client client, ItemManager itemManager, RichText richText)
 	{
 		this.client = client;
 		this.itemManager = itemManager;
+		this.richText = richText;
 	}
 
 	@Override
@@ -34,13 +36,20 @@ class WeaponLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		if (client.getLocalPlayer() == null)
-		{
-			return null;
-		}
+		return client.getLocalPlayer() == null ? null : resolveWeaponName();
+	}
 
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String name = resolvePlain(matcher);
+		return name == null ? null : richText.labeled("Weapon", name);
+	}
+
+	private String resolveWeaponName()
+	{
 		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
 		if (equipment == null)
 		{

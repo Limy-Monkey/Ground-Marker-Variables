@@ -15,11 +15,13 @@ class SkillLevelLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{lvl_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private SkillLevelLabelVariable(Client client)
+	private SkillLevelLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -29,7 +31,7 @@ class SkillLevelLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
@@ -38,5 +40,17 @@ class SkillLevelLabelVariable implements LabelVariable
 
 		Skill skill = SkillFinder.find(matcher.group(1));
 		return skill == null ? null : String.valueOf(client.getRealSkillLevel(skill));
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String level = resolvePlain(matcher);
+		if (level == null)
+		{
+			return null;
+		}
+
+		return richText.labeled(SkillFinder.find(matcher.group(1)).getName(), level);
 	}
 }

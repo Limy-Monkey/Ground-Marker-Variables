@@ -21,11 +21,13 @@ class HasEntangleLabelVariable implements LabelVariable
 	private static final int STANDARD_SPELLBOOK = 0;
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private HasEntangleLabelVariable(Client client)
+	private HasEntangleLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -35,12 +37,20 @@ class HasEntangleLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		boolean hasEntangle = (onStandardSpellbook() && hasEntangleRunes())
-			|| (hasBlightedEntangleSack() && inWilderness());
+		return String.valueOf(hasEntangle());
+	}
 
-		return String.valueOf(hasEntangle);
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.booleanColored(hasEntangle(), "Entangles");
+	}
+
+	private boolean hasEntangle()
+	{
+		return (onStandardSpellbook() && hasEntangleRunes()) || (hasBlightedEntangleSack() && inWilderness());
 	}
 
 	private boolean onStandardSpellbook()

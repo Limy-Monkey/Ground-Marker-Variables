@@ -66,7 +66,7 @@ public class MetronomeLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		int max = parseGroup(matcher, 1, -1);
 		if (max <= 0)
@@ -105,6 +105,13 @@ public class MetronomeLabelVariable implements LabelVariable
 		}
 
 		return value;
+	}
+
+	// Rich and Plain are identical for {metronomeN[_M]}.
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return resolvePlain(matcher);
 	}
 
 	// \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can

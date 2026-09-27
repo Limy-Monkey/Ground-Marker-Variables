@@ -20,7 +20,7 @@ class TimeLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		LocalTime now = LocalTime.now();
 		if (matcher.group(1) != null)
@@ -29,5 +29,12 @@ class TimeLabelVariable implements LabelVariable
 		}
 
 		return now.format(FORMAT_12) + (now.getHour() < 12 ? " am" : " pm");
+	}
+
+	// Rich and Plain are identical for {time}/{time24}.
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return resolvePlain(matcher);
 	}
 }

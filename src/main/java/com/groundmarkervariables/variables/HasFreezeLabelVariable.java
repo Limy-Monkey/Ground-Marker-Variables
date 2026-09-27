@@ -17,11 +17,13 @@ class HasFreezeLabelVariable implements LabelVariable
 	private static final int ANCIENT_SPELLBOOK = 1;
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private HasFreezeLabelVariable(Client client)
+	private HasFreezeLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -31,12 +33,20 @@ class HasFreezeLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		boolean hasFreeze = onAncientSpellbook()
-			&& (hasIceBarrageRunes() || (hasBlightedIceSack() && inWilderness()));
+		return String.valueOf(hasFreeze());
+	}
 
-		return String.valueOf(hasFreeze);
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.booleanColored(hasFreeze(), "Freezes");
+	}
+
+	private boolean hasFreeze()
+	{
+		return onAncientSpellbook() && (hasIceBarrageRunes() || (hasBlightedIceSack() && inWilderness()));
 	}
 
 	private boolean onAncientSpellbook()

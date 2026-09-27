@@ -573,6 +573,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
+		// {^var} / {&var} / {*var} -- Rich/Plain override prefix; skip it before completing.
+		if ("^&*".indexOf(partial.charAt(0)) >= 0)
+		{
+			partial = partial.substring(1);
+			if (partial.isEmpty())
+			{
+				return null;
+			}
+		}
+
 		// {/col} — diverges from {col=...} at the first character, like "<" into <col=/</col>.
 		if (partial.charAt(0) == '/')
 		{

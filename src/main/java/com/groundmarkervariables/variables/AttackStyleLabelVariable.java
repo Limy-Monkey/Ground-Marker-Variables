@@ -23,11 +23,13 @@ class AttackStyleLabelVariable implements LabelVariable
 	private static final String NO_STYLE = "None";
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private AttackStyleLabelVariable(Client client)
+	private AttackStyleLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -37,7 +39,7 @@ class AttackStyleLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
@@ -46,6 +48,13 @@ class AttackStyleLabelVariable implements LabelVariable
 
 		String style = buildAttackStyle(resolveAttackStyleIndex());
 		return style == null ? NO_STYLE : style;
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String name = resolvePlain(matcher);
+		return name == null ? null : richText.labeled("Attack Style", name);
 	}
 
 	// COM_MODE is the 0-based index of the currently selected combat style among the

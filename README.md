@@ -4,33 +4,40 @@ Overrides the default Ground Marker plugin with a version that supports variable
 
 Supported variables:
 
-| Variable                                 | Description                                                                                              |
-|------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| {rsn}                                    | Current player's display name                                                                            |
-| {time} / {time24}                        | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                  |
-| {spellbook}                              | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                   |
-| {metronome\<N>} / {metronome\<N>_\<M>}   | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional |
-| {weapon}                                 | Equipped weapon's item name, or Unarmed                                                                  |
-| {equip_\<slot>}                          | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty |
-| {attackStyle}                            | Current combat style name, e.g. Accurate, Aggressive, Casting                                            |
-| {lvl_\<skill>}                           | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                          |
-| {boost_\<skill>}                         | Current boosted level in \<skill>                                                                        |
-| {xpRate_\<skill>}                        | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                          |
-| {miscellania}                            | Kingdom of Miscellania approval rating, 0-127                                                            |
-| {questPoints}                            | Current quest points                                                                                     |
-| {kc \<boss>}                             | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                        |
-| {hasThralls}                             | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                |
-| {hasAlchs}                               | true if on Standard Spellbook and has nature and fire runes for High Alchemy                             |
-| {hasFreeze}                              | true if Ice Barrage is castable (Level not checked)                                                      |
-| {hasEntangle}                            | true if Entangle is castable (Level not checked)                                                         |
-| {autoRetaliate} / {autoRetal}            | true if Auto Retaliate is on                                                                             |
-| {hasItem \<name>}                        | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}        |
-| {\<cond1> \[&& / \|\| \<cond2>] ? A : B} | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B |
+| Modifiers                                  | Description                                                                                                                                |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `{^...}`                                   | Plain Text version of one of the below, e.g. {kc cg} may evaluate to "385".                                                                |
+| `{&...}`                                   | Rich Text version of one of the below, e.g. {kc cg} may evaluate to "Corrupted Gauntlet kc: 385"                                           |
+| `{*...}`                                   | Opposite of the default behavior, e.g. if Rich Text Default config option is on, then plaintext, otherwise richtext.                       |
+
+| Variable                               | Description                                                                                                                                |
+|----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `{rsn}`                                | Current player's display name                                                                                                              |
+| `{time}` / `{time24}`                  | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                    |
+| `{spellbook}`                          | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                     |
+| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional            |
+| `{weapon}`                             | Equipped weapon's item name, or Unarmed                                                                                                    |
+| `{equip_<slot>}`                       | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                        |
+| `{attackStyle}`                        | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                              |
+| `{lvl_<skill>}`                        | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                            |
+| `{boost_<skill>}`                      | Current boosted level in \<skill>                                                                                                          |
+| `{xpRate_<skill>}`                     | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                           |
+| `{miscellania}`                        | Kingdom of Miscellania approval rating, 0-127                                                                                              |
+| `{questPoints}`                        | Current quest points                                                                                                                       |
+| `{kc <boss>}`                          | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                          |
+| `{hasThralls}`                         | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                                                  |
+| `{hasAlchs}`                           | true if on Standard Spellbook and has nature and fire runes for High Alchemy                                                               |
+| `{hasFreeze}`                          | true if Ice Barrage is castable (Level not checked)                                                                                        |
+| `{hasEntangle}`                        | true if Entangle is castable (Level not checked)                                                                                           |
+| `{autoRetaliate}` / `{autoRetal}`      | true if Auto Retaliate is on                                                                                                               |
+| `{hasItem <name>}`                     | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                          |
+| `{<cond1> && / \|\| <cond2> ? A : B}`  | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B                                   |
+| `{<cond>}`                             | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red. |
 
 ## Examples:
 
-- `You are currently on the {spellbook} spellbook!`
-  - You are currently on the Standard spellbook!
+- `{equip_helm}`
+  - Helm: Helm of Neitiznot
 - `{lvl_agility < 87 ? Bring Summer Pie! : }`
   - Reminder to bring summer pie to boost for Hallowed Sepulcher!
   - Empty if you're already level 87.

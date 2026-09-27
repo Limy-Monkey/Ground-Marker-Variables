@@ -12,11 +12,13 @@ class KcLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{kc\\s+(.+?)\\}", Pattern.CASE_INSENSITIVE);
 
 	private final BossKillCountTracker tracker;
+	private final RichText richText;
 
 	@Inject
-	private KcLabelVariable(BossKillCountTracker tracker)
+	private KcLabelVariable(BossKillCountTracker tracker, RichText richText)
 	{
 		this.tracker = tracker;
+		this.richText = richText;
 	}
 
 	@Override
@@ -26,7 +28,7 @@ class KcLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		String boss = matcher.group(1).trim();
 		if (boss.isEmpty())
@@ -36,5 +38,18 @@ class KcLabelVariable implements LabelVariable
 
 		Integer kc = tracker.getKc(BossAliases.resolve(boss));
 		return String.valueOf(kc == null ? 0 : kc);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String kc = resolvePlain(matcher);
+		if (kc == null)
+		{
+			return null;
+		}
+
+		String canonicalBoss = BossAliases.resolve(matcher.group(1).trim());
+		return richText.labeled(canonicalBoss + " kc", kc);
 	}
 }

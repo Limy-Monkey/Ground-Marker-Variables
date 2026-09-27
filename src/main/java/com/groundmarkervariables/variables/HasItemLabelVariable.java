@@ -48,12 +48,14 @@ class HasItemLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final ItemManager itemManager;
+	private final RichText richText;
 
 	@Inject
-	private HasItemLabelVariable(Client client, ItemManager itemManager)
+	private HasItemLabelVariable(Client client, ItemManager itemManager, RichText richText)
 	{
 		this.client = client;
 		this.itemManager = itemManager;
+		this.richText = richText;
 	}
 
 	@Override
@@ -63,26 +65,54 @@ class HasItemLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
 			return null;
 		}
 
-		String search = matcher.group(1).toLowerCase(Locale.ROOT);
-		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-		boolean hasItem = containerHasItemContaining(inventory, search)
-			|| containerHasItemContaining(client.getItemContainer(InventoryID.EQUIPMENT), search)
-			|| (inventoryHasRunePouch(inventory) && runePouchContains(search));
-		return String.valueOf(hasItem);
+		return String.valueOf(findItemName(matcher.group(1).trim().toLowerCase(Locale.ROOT)) != null);
 	}
 
-	private boolean containerHasItemContaining(ItemContainer container, String search)
+	// Colors the found item's own name, not the search term -- falls back to the search term
+	// if nothing matched.
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		if (client.getLocalPlayer() == null)
+		{
+			return null;
+		}
+
+		String typed = matcher.group(1).trim();
+		String foundName = findItemName(typed.toLowerCase(Locale.ROOT));
+		return richText.booleanColored(foundName != null, foundName != null ? foundName : typed);
+	}
+
+	private String findItemName(String search)
+	{
+		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+		String name = findInContainer(inventory, search);
+		if (name != null)
+		{
+			return name;
+		}
+
+		name = findInContainer(client.getItemContainer(InventoryID.EQUIPMENT), search);
+		if (name != null)
+		{
+			return name;
+		}
+
+		return inventoryHasRunePouch(inventory) ? findInRunePouch(search) : null;
+	}
+
+	private String findInContainer(ItemContainer container, String search)
 	{
 		if (container == null)
 		{
-			return false;
+			return null;
 		}
 
 		for (Item item : container.getItems())
@@ -93,14 +123,14 @@ class HasItemLabelVariable implements LabelVariable
 				continue;
 			}
 
-			String name = itemManager.getItemComposition(item.getId()).getName().toLowerCase(Locale.ROOT);
-			if (name.contains(search))
+			String name = itemManager.getItemComposition(item.getId()).getName();
+			if (name.toLowerCase(Locale.ROOT).contains(search))
 			{
-				return true;
+				return name;
 			}
 		}
 
-		return false;
+		return null;
 	}
 
 	private boolean inventoryHasRunePouch(ItemContainer inventory)
@@ -129,7 +159,7 @@ class HasItemLabelVariable implements LabelVariable
 		return false;
 	}
 
-	private boolean runePouchContains(String search)
+	private String findInRunePouch(String search)
 	{
 		EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
 		for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++)
@@ -141,13 +171,13 @@ class HasItemLabelVariable implements LabelVariable
 				continue;
 			}
 
-			String name = itemManager.getItemComposition(runepouchEnum.getIntValue(runeType)).getName().toLowerCase(Locale.ROOT);
-			if (name.contains(search))
+			String name = itemManager.getItemComposition(runepouchEnum.getIntValue(runeType)).getName();
+			if (name.toLowerCase(Locale.ROOT).contains(search))
 			{
-				return true;
+				return name;
 			}
 		}
 
-		return false;
+		return null;
 	}
 }

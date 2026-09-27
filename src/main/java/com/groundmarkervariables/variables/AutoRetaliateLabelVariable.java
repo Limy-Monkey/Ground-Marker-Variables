@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -15,11 +16,15 @@ class AutoRetaliateLabelVariable implements LabelVariable
 	private static final int AUTO_RETALIATE_VARP = 172;
 
 	private final Client client;
+	private final RichText richText;
+	private final GroundMarkerVariablesConfig config;
 
 	@Inject
-	private AutoRetaliateLabelVariable(Client client)
+	private AutoRetaliateLabelVariable(Client client, RichText richText, GroundMarkerVariablesConfig config)
 	{
 		this.client = client;
+		this.richText = richText;
+		this.config = config;
 	}
 
 	@Override
@@ -29,8 +34,22 @@ class AutoRetaliateLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		return String.valueOf(client.getVarpValue(AUTO_RETALIATE_VARP) == 0);
+		return String.valueOf(autoRetaliateOn());
+	}
+
+	// Invert Auto Retaliate config flips which state renders as Boolean True Color.
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		boolean autoRetaliateOn = autoRetaliateOn();
+		boolean colorAsTrue = config.invertAutoRetaliate() ? !autoRetaliateOn : autoRetaliateOn;
+		return richText.booleanColored(colorAsTrue, "Auto Retaliate");
+	}
+
+	private boolean autoRetaliateOn()
+	{
+		return client.getVarpValue(AUTO_RETALIATE_VARP) == 0;
 	}
 }

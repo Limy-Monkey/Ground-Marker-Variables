@@ -13,11 +13,13 @@ class SpellbookLabelVariable implements LabelVariable
 	private static final String[] SPELLBOOKS = {"Standard", "Ancient", "Lunar", "Arceuus"};
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private SpellbookLabelVariable(Client client)
+	private SpellbookLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -27,7 +29,7 @@ class SpellbookLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
@@ -36,5 +38,12 @@ class SpellbookLabelVariable implements LabelVariable
 
 		int spellbook = client.getVarbitValue(VarbitID.SPELLBOOK);
 		return spellbook >= 0 && spellbook < SPELLBOOKS.length ? SPELLBOOKS[spellbook] : null;
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		String name = resolvePlain(matcher);
+		return name == null ? null : richText.labeled("Spellbook", name);
 	}
 }

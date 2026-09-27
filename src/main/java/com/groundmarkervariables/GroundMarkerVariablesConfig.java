@@ -21,7 +21,8 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Ground Markers",
 		description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
-		position = 1
+		position = 1,
+		closedByDefault = true
 	)
 	String groundMarkersSection = "groundMarkers";
 
@@ -92,7 +93,8 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Metronome",
 		description = "Settings for {metronome} tiles.",
-		position = 2
+		position = 2,
+		closedByDefault = true
 	)
 	String metronomeSection = "metronome";
 
@@ -168,7 +170,7 @@ public interface GroundMarkerVariablesConfig extends Config
 		position = 2,
 		keyName = "syncTarget",
 		name = "Sync Target",
-		description = "Display name of the party member to sync {metronome} to.\nThey need Ground Marker Variables installed and must be in the same party",
+		description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
 		section = partySyncSection
 	)
 	default String syncTarget()
@@ -177,9 +179,89 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
+		name = "Rich Text",
+		description = "Controls the alternate, more descriptive rendering every variable supports.",
+		position = 4,
+		closedByDefault = true
+	)
+	String richTextSection = "richText";
+
+	@ConfigItem(
+		position = 1,
+		keyName = "richTextByDefault",
+		name = "Rich Text by default",
+		description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
+		section = richTextSection
+	)
+	default boolean richTextByDefault()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 2,
+		keyName = "highlightValue",
+		name = "Highlight Value",
+		description = "Highlight the value of the relevant variable in Rich Text mode.",
+		section = richTextSection
+	)
+	default boolean highlightValue()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 3,
+		keyName = "highlightColor",
+		name = "Highlight Color",
+		description = "Color used to highlight variable values when Highlight Value is on.",
+		section = richTextSection
+	)
+	default Color highlightColor()
+	{
+		return new Color(0xFFC3A0);
+	}
+
+	@ConfigItem(
+		position = 4,
+		keyName = "booleanTrueColor",
+		name = "Boolean True Color",
+		description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
+		section = richTextSection
+	)
+	default Color booleanTrueColor()
+	{
+		return Color.GREEN;
+	}
+
+	@ConfigItem(
+		position = 5,
+		keyName = "booleanFalseColor",
+		name = "Boolean False Color",
+		description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
+		section = richTextSection
+	)
+	default Color booleanFalseColor()
+	{
+		return Color.RED;
+	}
+
+	@ConfigItem(
+		position = 6,
+		keyName = "invertAutoRetaliate",
+		name = "Invert Auto Retaliate",
+		description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
+		section = richTextSection
+	)
+	default boolean invertAutoRetaliate()
+	{
+		return true;
+	}
+
+	@ConfigSection(
 		name = "Advanced Editor",
 		description = "Settings for the Advanced Label Editor.",
-		position = 4,
+		position = 5,
 		closedByDefault = true
 	)
 	String advancedEditorSection = "advancedEditor";
@@ -247,8 +329,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 		name = "Examples",
 		description = "Quick reference for available variables and example labels — see the README for full details.",
-		position = 5,
-		closedByDefault = true
+		position = 6
 	)
 	String examplesSection = "examples";
 
@@ -258,6 +339,7 @@ public interface GroundMarkerVariablesConfig extends Config
 		position = 1,
 		keyName = "variablesHelp",
 		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
+			+ "- Prefix any variable with<br>  - ^ (Plain), &amp; (Rich), or * (opposite of default)"
 			+ "- {rsn}<br>- {time} / {time24}<br>- {spellbook}<br>"
 			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt; - X}<br>"
 			+ "- {weapon}<br>- {equip_&lt;slot&gt;}<br>- {attackStyle}<br>"
@@ -265,7 +347,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			+ "- {miscellania} (0-127)<br>- {questPoints}<br>- {kc &lt;boss&gt;}<br>"
 			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>- {autoRetaliate}<br>"
 			+ "- {hasItem &lt;name&gt;}<br>"
-			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}"
+			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}<br>"
 			+ "</blockquote>",
 		description = "",
 		section = examplesSection

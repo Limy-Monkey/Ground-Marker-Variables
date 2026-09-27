@@ -11,7 +11,17 @@ public interface LabelVariable
 	// Matches every occurrence of this variable in a label, e.g. Pattern.compile("\\{rsn\\}").
 	Pattern pattern();
 
-	// Given a match against pattern(), the text to substitute in its place, or null if it
-	// can't be resolved right now (e.g. not logged in yet) — the match is then left as-is.
-	String resolve(Matcher matcher);
+	// Today's concise output, or null if unresolvable (e.g. not logged in yet) -- the match is
+	// then left as-is.
+	String resolvePlain(Matcher matcher);
+
+	// The more descriptive Rich Text output -- see RichText.
+	String resolveRich(Matcher matcher);
+
+	// LabelResolver's dispatch point when it doesn't already know which one it wants; call
+	// resolvePlain/resolveRich directly when it does (see ConditionalVariable, always Plain).
+	default String resolve(Matcher matcher, TextMode mode)
+	{
+		return mode == TextMode.RICH ? resolveRich(matcher) : resolvePlain(matcher);
+	}
 }

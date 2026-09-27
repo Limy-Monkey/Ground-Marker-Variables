@@ -16,11 +16,13 @@ class HasAlchsLabelVariable implements LabelVariable
 	private static final int STANDARD_SPELLBOOK = 0;
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private HasAlchsLabelVariable(Client client)
+	private HasAlchsLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -30,12 +32,21 @@ class HasAlchsLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		boolean hasAlchs = client.getVarbitValue(VarbitID.SPELLBOOK) == STANDARD_SPELLBOOK
+		return String.valueOf(hasAlchs());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.booleanColored(hasAlchs(), "Alchs");
+	}
+
+	private boolean hasAlchs()
+	{
+		return client.getVarbitValue(VarbitID.SPELLBOOK) == STANDARD_SPELLBOOK
 			&& RuneCounter.hasAtLeast(client, ItemID.NATURERUNE, 1)
 			&& RuneCounter.hasAtLeast(client, ItemID.FIRERUNE, 1);
-
-		return String.valueOf(hasAlchs);
 	}
 }

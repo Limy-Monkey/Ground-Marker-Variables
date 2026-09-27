@@ -15,11 +15,13 @@ class BoostedSkillLevelLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{boost_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private BoostedSkillLevelLabelVariable(Client client)
+	private BoostedSkillLevelLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -29,7 +31,7 @@ class BoostedSkillLevelLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
 		if (client.getLocalPlayer() == null)
 		{
@@ -38,5 +40,25 @@ class BoostedSkillLevelLabelVariable implements LabelVariable
 
 		Skill skill = SkillFinder.find(matcher.group(1));
 		return skill == null ? null : String.valueOf(client.getBoostedSkillLevel(skill));
+	}
+
+	// Needs the real level too, so this doesn't delegate to resolvePlain.
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		if (client.getLocalPlayer() == null)
+		{
+			return null;
+		}
+
+		Skill skill = SkillFinder.find(matcher.group(1));
+		if (skill == null)
+		{
+			return null;
+		}
+
+		int boosted = client.getBoostedSkillLevel(skill);
+		int real = client.getRealSkillLevel(skill);
+		return skill.getName() + ": " + richText.highlightValue(String.valueOf(boosted)) + " / " + real;
 	}
 }

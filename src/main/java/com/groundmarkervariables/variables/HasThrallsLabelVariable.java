@@ -18,11 +18,13 @@ class HasThrallsLabelVariable implements LabelVariable
 	private static final int ARCEUUS_SPELLBOOK = 3;
 
 	private final Client client;
+	private final RichText richText;
 
 	@Inject
-	private HasThrallsLabelVariable(Client client)
+	private HasThrallsLabelVariable(Client client, RichText richText)
 	{
 		this.client = client;
+		this.richText = richText;
 	}
 
 	@Override
@@ -32,15 +34,24 @@ class HasThrallsLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolve(Matcher matcher)
+	public String resolvePlain(Matcher matcher)
 	{
-		boolean hasThralls = client.getVarbitValue(VarbitID.SPELLBOOK) == ARCEUUS_SPELLBOOK
+		return String.valueOf(hasThralls());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.booleanColored(hasThralls(), "Thralls");
+	}
+
+	private boolean hasThralls()
+	{
+		return client.getVarbitValue(VarbitID.SPELLBOOK) == ARCEUUS_SPELLBOOK
 			&& hasBookOfTheDead()
 			&& RuneCounter.hasAtLeast(client, ItemID.FIRERUNE, 1)
 			&& RuneCounter.hasAtLeast(client, ItemID.BLOODRUNE, 1)
 			&& RuneCounter.hasAtLeast(client, ItemID.COSMICRUNE, 1);
-
-		return String.valueOf(hasThralls);
 	}
 
 	private boolean hasBookOfTheDead()
