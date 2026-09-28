@@ -1,6 +1,7 @@
 package com.groundmarkervariables;
 
 import com.google.gson.Gson;
+import com.groundmarkervariables.variables.BossAliases;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -719,7 +720,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(slotPartial.length());
 	}
 
-	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries instead of Skill.values().
+	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries plus BossAliases'
+	// short forms (e.g. "cg") instead of Skill.values().
 	private String completeBossName(String bossPartial)
 	{
 		if (bossPartial.isEmpty())
@@ -747,6 +749,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
 				candidates.add(name);
+			}
+		}
+
+		for (String alias : BossAliases.aliases())
+		{
+			if (alias.length() > bossPartial.length() && alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			{
+				candidates.add(alias);
 			}
 		}
 

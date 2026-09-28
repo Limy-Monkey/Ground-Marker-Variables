@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 // Ported from RuneLite's ChatCommandsPlugin#longBossName (BSD 2-Clause License):
 // Copyright (c) 2017, Adam <Adam@sigterm.info>. All rights reserved.
@@ -9,9 +10,9 @@ import java.util.Map;
 //
 // Resolves a short alias (e.g. "cg", "cox cm 3") to the canonical name
 // BossKillCountTracker stores kill counts under; unmatched text is title-cased instead, same
-// as longBossName's own default case. Used to normalize {kc <boss>}'s lookup only — not
-// offered as an autocomplete candidate list (see AdvancedLabelEditor#completeBossName).
-final class BossAliases
+// as longBossName's own default case. Public so AdvancedLabelEditor can also autocomplete
+// from aliases().
+public final class BossAliases
 {
 	private static final Map<String, String> ALIASES = Map.ofEntries(
 		Map.entry("corp", "Corporeal Beast"),
@@ -391,6 +392,11 @@ final class BossAliases
 	{
 		String alias = ALIASES.get(boss.toLowerCase(Locale.ENGLISH));
 		return alias != null ? alias : capitalize(boss);
+	}
+
+	public static Set<String> aliases()
+	{
+		return ALIASES.keySet();
 	}
 
 	// Capitalize bosses to their standard format in osrs
