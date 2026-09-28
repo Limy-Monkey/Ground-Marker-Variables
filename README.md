@@ -6,8 +6,8 @@ Supported variables:
 
 | Modifiers                                  | Description                                                                                                                                |
 |--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `{^...}`                                   | Plain Text version of one of the below, e.g. {kc cg} may evaluate to "385".                                                                |
-| `{&...}`                                   | Rich Text version of one of the below, e.g. {kc cg} may evaluate to "Corrupted Gauntlet kc: 385"                                           |
+| `{^...}`                                   | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                                                             |
+| `{&...}`                                   | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385`                                        |
 | `{*...}`                                   | Opposite of the default behavior, e.g. if Rich Text Default config option is on, then plaintext, otherwise richtext.                       |
 
 | Variable                               | Description                                                                                                                                |
@@ -15,7 +15,7 @@ Supported variables:
 | `{rsn}`                                | Current player's display name                                                                                                              |
 | `{time}` / `{time24}`                  | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                    |
 | `{spellbook}`                          | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                     |
-| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional            |
+| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Optional " - X" offsets it. Not usable inside a conditional           |
 | `{weapon}`                             | Equipped weapon's item name, or Unarmed                                                                                                    |
 | `{equip_<slot>}`                       | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                        |
 | `{attackStyle}`                        | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                              |
@@ -31,7 +31,7 @@ Supported variables:
 | `{hasEntangle}`                        | true if Entangle is castable (Level not checked)                                                                                           |
 | `{autoRetaliate}` / `{autoRetal}`      | true if Auto Retaliate is on                                                                                                               |
 | `{hasItem <name>}`                     | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                          |
-| `{<cond1> && / \|\| <cond2> ? A : B}`  | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B                                   |
+| `{<cond1> && / \|\| <cond2> ? A : B}`  | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
 | `{<cond>}`                             | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red. |
 
 ## Examples:
@@ -52,44 +52,26 @@ Supported variables:
   - Changes color of the word "cyan!" to `#00FFFF`
 
 ## Images:
-<img align="left" height="559" alt="image" src="https://github.com/user-attachments/assets/d286df61-ba3d-4da5-8438-7751a2a8de10" /> ToB Entry Check
+<img align="left" height="911" alt="java_zoCv5CveVH" src="https://github.com/user-attachments/assets/0bf33505-df1b-4372-a983-1ed42fd894d6" /> ToB Entry Check
 
-```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#41FFFFFF","label":"{hasItem salve ? {col\u003dgreen} : {col\u003dred}}Salve{/col} | {equip_ammo \u003d\u003d Empty ? {col\u003dred}Ammo : {col\u003dgreen}{equip_ammo}}{/col} |{spellbook \u003d\u003d Ancient || spellbook \u003d\u003d Arceuus ? {col\u003dred} : {col\u003dgray}}{hasThralls || hasFreeze ? {col\u003dgreen} : }{spellbook}{/col} spellbook {autoRetal ? | {col\u003dred}Auto Retaliate{/col} : }"}]```
-
-<br clear="left"/><br />
-
-<img align="left" height="553" alt="image" src="https://github.com/user-attachments/assets/d9b451ab-a4d4-42b6-9688-e99b24362b8f" /> Miscellania
-
-```[{"regionId":10044,"regionX":32,"regionY":11,"z":0,"color":"#00FFFFFF","label":"{miscellania \u003d\u003d 127 ? {col\u003dgreen} : {col\u003dlightgray}}{miscellania}{/col} / 127"}]```
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#41FFFFFF","label":"{hasItem Salve} | {equip_ammo !\u003d Empty} | {hasThralls} | {hasFreeze} | {autoRetaliate}"}]```
 
 <br clear="left"/><br />
 
-<img align="left" height="598" alt="image" src="https://github.com/user-attachments/assets/eb6e2895-d4de-495e-a186-4694734e3db8" /> Royal Titans Entry
+<img align="left" height="575" alt="image" src="https://github.com/user-attachments/assets/5ccf632f-802b-4ee5-b4d0-3574d3077637" /> Miscellania
 
-```[{"regionId":11925,"regionX":5,"regionY":39,"z":0,"color":"#00FFFFFF","label":"{col\u003dgreen}Royal Titans{/col} kc: {col\u003dgreen}{kc royal titans}"},{"regionId":11925,"regionX":5,"regionY":37,"z":0,"color":"#00FFFFFF","label":"{hasItem blood rune ? {col\u003dgreen} : {col\u003dred}}Blood Runes{/col} | {attackStyle \u003d\u003d casting ? {col\u003dgreen} : {col\u003dred}}Autocast{/col} | {autoRetal ? {col\u003dred} : {col\u003dgreen}}Auto Retaliate{/col}"}]```
+```[{"regionId":10044,"regionX":32,"regionY":11,"z":0,"color":"#00FFFFFF","label":"{miscellania}"}]```
 
-<br clear="left"/>
+<br clear="left"/><br />
 
-## Config Options:
+<img align="left" height="631" alt="image" src="https://github.com/user-attachments/assets/5550a608-1352-4255-91ec-9ac9266cbb2e" /> Royal Titans Entry
 
-### Ground Markers
+```[{"regionId":11925,"regionX":5,"regionY":39,"z":0,"color":"#00FFFFFF","label":"{kc royal titans}"},{"regionId":11925,"regionX":5,"regionY":37,"z":0,"color":"#00FFFFFF","label":"{hasItem Blood Rune} | {attackStyle \u003d\u003d casting} | {autoRetal}"}]```
 
-Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin the first time this plugin ever starts up.
+<br clear="left"/><br />
 
-### Metronome
+<img align="left" height="711" alt="image" src="https://github.com/user-attachments/assets/6c7d8942-e7c6-414c-8fe2-a2a2e6122d2b" /> Skilling
 
-- **Reset metronome** — Set a hotkey to resets the internal \{metronome\} to the current tick.
-- **Count Down** — Count \{metronome\} down from N → 1 instead of up from 1 → N.
-- **Highlight Final Tick** / **Final Tick Color** — Color \{metronome\} on its final tick before it repeats.
+```[{"regionId":11050,"regionX":20,"regionY":10,"z":0,"color":"#00FFFFFF","label":"{xpRate_woodcutting}"}]```
 
-### Party Sync
-
-- **Party Sync** / **Sync Target** — Sync \{metronome\} to a party member's tick count instead of your own. Set Sync Target to their display name; they need Ground Marker Variables installed and must be in the same party.
-
-### Advanced Editor
-
-- **Use Advanced Label Editor** — Replace the plain Tile label prompt with the Advanced Label Editor. When off, a plain label prompt is used instead.
-- **Show Current** — Show the "Current" section of the Advanced Label Editor's recommendations.
-- **Show Recent** — Show the "Recent" section of the Advanced Label Editor's recommendations.
-- **Show Nearby** — Show the "Nearby" section of the Advanced Label Editor's recommendations.
-- **Autocomplete** — Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.
+<br clear="left"/><br />
