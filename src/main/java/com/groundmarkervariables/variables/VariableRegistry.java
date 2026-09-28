@@ -35,12 +35,13 @@ class VariableRegistry
 		AutoRetaliateLabelVariable autoRetaliate,
 		XpRateLabelVariable xpRate,
 		RunEnergyLabelVariable runEnergy,
-		SpecLabelVariable spec)
+		SpecLabelVariable spec,
+		SixHourTimeRemainingLabelVariable sixHourTimeRemaining)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate, xpRate,
-			runEnergy, spec);
+			runEnergy, spec, sixHourTimeRemaining);
 	}
 
 	List<LabelVariable> all()

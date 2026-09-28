@@ -9,6 +9,7 @@ import com.groundmarkervariables.party.MetronomeSyncResponse;
 import com.groundmarkervariables.variables.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.SixHourTimeRemainingLabelVariable;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +35,7 @@ import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WorldViewLoaded;
@@ -138,6 +140,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private BossKillCountTracker bossKillCountTracker;
+
+	@Inject
+	private SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
@@ -697,6 +702,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		metronomeLabelVariable.syncTo(response.getElapsedTicks());
+	}
+
+	// Feeds {6HourTimeRemaining} — see SixHourTimeRemainingLabelVariable.
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		sixHourTimeRemaining.onGameStateChanged(event.getGameState());
 	}
 
 	// Feeds {kc <boss>} — see BossKillCountTracker. Kill count messages are always GAMEMESSAGE.

@@ -35,7 +35,9 @@ class RichText
 		return colored(value ? config.booleanTrueColor() : config.booleanFalseColor(), text);
 	}
 
-	private static String colored(Color color, String text)
+	// Not config-driven, so package-private -- lets a caller force an explicit color (see
+	// SixHourTimeRemainingLabelVariable/BooleanVariable's warning special case).
+	static String colored(Color color, String text)
 	{
 		return "<col=" + ColorUtil.colorToHexCode(color) + ">" + text + "</col>";
 	}
