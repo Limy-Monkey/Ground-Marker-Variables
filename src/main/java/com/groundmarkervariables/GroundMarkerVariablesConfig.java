@@ -19,19 +19,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	// ever starts up (see GroundMarkerVariablesPlugin#migrateConfigFromCore), so existing users
 	// keep their current settings.
 	@ConfigSection(
-		name = "Ground Markers",
-		description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
-		position = 1,
-		closedByDefault = true
+			name = "Ground Markers",
+			description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
+			position = 1,
+			closedByDefault = true
 	)
 	String groundMarkersSection = "groundMarkers";
 
 	@ConfigItem(
-		position = 1,
-		keyName = "borderWidth",
-		name = "Border width",
-		description = "Width of the marked tile border.",
-		section = groundMarkersSection
+			position = 1,
+			keyName = "borderWidth",
+			name = "Border width",
+			description = "Width of the marked tile border.",
+			section = groundMarkersSection
 	)
 	default double borderWidth()
 	{
@@ -39,11 +39,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "drawOnMinimap",
-		name = "Draw tiles on minimap",
-		description = "Configures whether marked tiles should be drawn on minimap.",
-		section = groundMarkersSection
+			position = 2,
+			keyName = "drawOnMinimap",
+			name = "Draw tiles on minimap",
+			description = "Configures whether marked tiles should be drawn on minimap.",
+			section = groundMarkersSection
 	)
 	default boolean drawTileOnMinimap()
 	{
@@ -51,14 +51,14 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@Range(
-		max = 255
+			max = 255
 	)
 	@ConfigItem(
-		position = 3,
-		keyName = "fillOpacity",
-		name = "Fill opacity",
-		description = "Opacity of the tile fill color.",
-		section = groundMarkersSection
+			position = 3,
+			keyName = "fillOpacity",
+			name = "Fill opacity",
+			description = "Opacity of the tile fill color.",
+			section = groundMarkersSection
 	)
 	default int fillOpacity()
 	{
@@ -66,11 +66,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 4,
-		keyName = "showImportExport",
-		name = "Show import/export/clear options",
-		description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
-		section = groundMarkersSection
+			position = 4,
+			keyName = "showImportExport",
+			name = "Show import/export/clear options",
+			description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
+			section = groundMarkersSection
 	)
 	default boolean showImportExport()
 	{
@@ -79,11 +79,11 @@ public interface GroundMarkerVariablesConfig extends Config
 
 	@Alpha
 	@ConfigItem(
-		position = 5,
-		keyName = "markerColor",
-		name = "Tile color",
-		description = "The default color for marked tiles.",
-		section = groundMarkersSection
+			position = 5,
+			keyName = "markerColor",
+			name = "Tile color",
+			description = "The default color for marked tiles.",
+			section = groundMarkersSection
 	)
 	default Color markerColor()
 	{
@@ -91,19 +91,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Metronome",
-		description = "Settings for {metronome} tiles.",
-		position = 2,
-		closedByDefault = true
+			name = "Metronome",
+			description = "Settings for {metronome} tiles.",
+			position = 2,
+			closedByDefault = true
 	)
 	String metronomeSection = "metronome";
 
 	@ConfigItem(
-		position = 1,
-		keyName = "resetMetronomeHotkey",
-		name = "Reset metronome",
-		description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
-		section = metronomeSection
+			position = 1,
+			keyName = "resetMetronomeHotkey",
+			name = "Reset metronome",
+			description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
+			section = metronomeSection
 	)
 	default Keybind resetMetronomeHotkey()
 	{
@@ -111,11 +111,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "countDown",
-		name = "Count Down",
-		description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
-		section = metronomeSection
+			position = 2,
+			keyName = "countDown",
+			name = "Count Down",
+			description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
+			section = metronomeSection
 	)
 	default boolean countDown()
 	{
@@ -123,11 +123,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 3,
-		keyName = "highlightFinalTick",
-		name = "Highlight Final Tick",
-		description = "Color {metronome} on its final tick before it repeats.",
-		section = metronomeSection
+			position = 3,
+			keyName = "highlightFinalTick",
+			name = "Highlight Final Tick",
+			description = "Color {metronome} on its final tick before it repeats.",
+			section = metronomeSection
 	)
 	default boolean highlightFinalTick()
 	{
@@ -135,11 +135,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 4,
-		keyName = "finalTickColor",
-		name = "Final Tick Color",
-		description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
-		section = metronomeSection
+			position = 4,
+			keyName = "finalTickColor",
+			name = "Final Tick Color",
+			description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
+			section = metronomeSection
 	)
 	default Color finalTickColor()
 	{
@@ -147,19 +147,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Party Sync",
-		description = "Sync {metronome} to a party member's tick count.",
-		position = 3,
-		closedByDefault = true
+			name = "Party Sync",
+			description = "Sync {metronome} to a party member's tick count.",
+			position = 3,
+			closedByDefault = true
 	)
 	String partySyncSection = "partySync";
 
 	@ConfigItem(
-		position = 1,
-		keyName = "enablePartySync",
-		name = "Party Sync",
-		description = "Sync {metronome} to a party member's tick count.",
-		section = partySyncSection
+			position = 1,
+			keyName = "enablePartySync",
+			name = "Party Sync",
+			description = "Sync {metronome} to a party member's tick count.",
+			section = partySyncSection
 	)
 	default boolean enablePartySync()
 	{
@@ -167,11 +167,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "syncTarget",
-		name = "Sync Target",
-		description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
-		section = partySyncSection
+			position = 2,
+			keyName = "syncTarget",
+			name = "Sync Target",
+			description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
+			section = partySyncSection
 	)
 	default String syncTarget()
 	{
@@ -179,19 +179,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Rich Text",
-		description = "Controls the alternate, more descriptive rendering every variable supports.",
-		position = 4,
-		closedByDefault = true
+			name = "Rich Text",
+			description = "Controls the alternate, more descriptive rendering every variable supports.",
+			position = 4,
+			closedByDefault = true
 	)
 	String richTextSection = "richText";
 
 	@ConfigItem(
-		position = 1,
-		keyName = "richTextByDefault",
-		name = "Rich Text by default",
-		description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
-		section = richTextSection
+			position = 1,
+			keyName = "richTextByDefault",
+			name = "Rich Text by default",
+			description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
+			section = richTextSection
 	)
 	default boolean richTextByDefault()
 	{
@@ -199,11 +199,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "highlightValue",
-		name = "Highlight Value",
-		description = "Highlight the value of the relevant variable in Rich Text mode.",
-		section = richTextSection
+			position = 2,
+			keyName = "highlightValue",
+			name = "Highlight Value",
+			description = "Highlight the value of the relevant variable in Rich Text mode.",
+			section = richTextSection
 	)
 	default boolean highlightValue()
 	{
@@ -211,11 +211,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 3,
-		keyName = "highlightColor",
-		name = "Highlight Color",
-		description = "Color used to highlight variable values when Highlight Value is on.",
-		section = richTextSection
+			position = 3,
+			keyName = "highlightColor",
+			name = "Highlight Color",
+			description = "Color used to highlight variable values when Highlight Value is on.",
+			section = richTextSection
 	)
 	default Color highlightColor()
 	{
@@ -223,11 +223,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 4,
-		keyName = "booleanTrueColor",
-		name = "Boolean True Color",
-		description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
-		section = richTextSection
+			position = 4,
+			keyName = "booleanTrueColor",
+			name = "Boolean True Color",
+			description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
+			section = richTextSection
 	)
 	default Color booleanTrueColor()
 	{
@@ -235,11 +235,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 5,
-		keyName = "booleanFalseColor",
-		name = "Boolean False Color",
-		description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
-		section = richTextSection
+			position = 5,
+			keyName = "booleanFalseColor",
+			name = "Boolean False Color",
+			description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
+			section = richTextSection
 	)
 	default Color booleanFalseColor()
 	{
@@ -247,11 +247,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 6,
-		keyName = "invertAutoRetaliate",
-		name = "Invert Auto Retaliate",
-		description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
-		section = richTextSection
+			position = 6,
+			keyName = "invertAutoRetaliate",
+			name = "Invert Auto Retaliate",
+			description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
+			section = richTextSection
 	)
 	default boolean invertAutoRetaliate()
 	{
@@ -259,19 +259,19 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Advanced Editor",
-		description = "Settings for the Advanced Label Editor.",
-		position = 5,
-		closedByDefault = true
+			name = "Advanced Editor",
+			description = "Settings for the Advanced Label Editor.",
+			position = 5,
+			closedByDefault = true
 	)
 	String advancedEditorSection = "advancedEditor";
 
 	@ConfigItem(
-		position = 1,
-		keyName = "useAdvancedLabelEditor",
-		name = "Use Advanced Label Editor",
-		description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
-		section = advancedEditorSection
+			position = 1,
+			keyName = "useAdvancedLabelEditor",
+			name = "Use Advanced Label Editor",
+			description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
+			section = advancedEditorSection
 	)
 	default boolean useAdvancedLabelEditor()
 	{
@@ -279,11 +279,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "showCurrent",
-		name = "Show Current",
-		description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
-		section = advancedEditorSection
+			position = 2,
+			keyName = "showCurrent",
+			name = "Show Current",
+			description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
+			section = advancedEditorSection
 	)
 	default boolean showCurrent()
 	{
@@ -291,11 +291,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 3,
-		keyName = "showRecent",
-		name = "Show Recent",
-		description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
-		section = advancedEditorSection
+			position = 3,
+			keyName = "showRecent",
+			name = "Show Recent",
+			description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
+			section = advancedEditorSection
 	)
 	default boolean showRecent()
 	{
@@ -303,11 +303,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 4,
-		keyName = "showNearby",
-		name = "Show Nearby",
-		description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
-		section = advancedEditorSection
+			position = 4,
+			keyName = "showNearby",
+			name = "Show Nearby",
+			description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
+			section = advancedEditorSection
 	)
 	default boolean showNearby()
 	{
@@ -315,11 +315,11 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 5,
-		keyName = "autocomplete",
-		name = "Autocomplete",
-		description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
-		section = advancedEditorSection
+			position = 5,
+			keyName = "autocomplete",
+			name = "Autocomplete",
+			description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
+			section = advancedEditorSection
 	)
 	default boolean autocomplete()
 	{
@@ -327,51 +327,85 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Examples",
-		description = "Quick reference for available variables and example labels — see the README for full details.",
-		position = 6
+			name = "Tips",
+			description = "Quick tips for getting started.",
+			position = 6
 	)
-	String examplesSection = "examples";
+	String aboutSection = "about";
 
 	// void return type + empty description: renders as a plain HTML label with no input
 	// control (see ConfigPanel's type dispatch), used here purely as inline help text.
 	@ConfigItem(
-		position = 1,
-		keyName = "variablesHelp",
-		name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
-			+ "- Prefix any variable with<br>  - ^ (Plain), &amp; (Rich), or * (opposite of default)"
-			+ "- {rsn}<br>- {time} / {time24}<br>- {spellbook}<br>"
-			+ "- {metronome&lt;N&gt;} / {metronome&lt;N&gt;_&lt;M&gt; - X}<br>"
-			+ "- {weapon}<br>- {equip_&lt;slot&gt;}<br>- {attackStyle}<br>"
-			+ "- {lvl_&lt;skill&gt;}<br>- {boost_&lt;skill&gt;}<br>- {xpRate_&lt;skill&gt;}<br>"
-			+ "- {miscellania} (0-127)<br>- {questPoints}<br>- {kc &lt;boss&gt;}<br>"
-			+ "- {runEnergy}<br>- {spec}<br>- {6HourTimeRemaining < 1.5}<br>- {slayerTask}<br>"
-			+ "- {hasThralls}<br>- {hasAlchs}<br>- {hasFreeze}<br>- {hasEntangle}<br>- {autoRetaliate}<br>"
-			+ "- {hasItem &lt;name&gt;}<br>"
-			+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}<br>"
-			+ "</blockquote>",
-		description = "",
-		section = examplesSection
+			position = 1,
+			keyName = "notesHelp",
+			name = "<html><b>Try labeling a tile:</b><blockquote style=\"margin-left: 10px\">"
+					+ "- {slayerTask}<br>"
+					+ "- {hasItem Salve}<br>"
+					+ "- {kc brutus}"
+					+ "</blockquote>",
+			description = "",
+			section = aboutSection
 	)
-	default void variablesHelp()
+	default void notesHelp()
 	{
 	}
 
 	@ConfigItem(
-		position = 2,
-		keyName = "examplesHelp",
-		name = "<html><b>Examples:</b><blockquote style=\"margin-left: 10px\">"
-			+ "- You are currently on the {spellbook} spellbook!<br>"
-			+ "- {lvl_agility &lt; 87 ? Bring Summer Pie! : }<br>"
-			+ "- {hasFreeze &amp;&amp; weapon == staff of the dead ? Gigachad : Noob}<br>"
-			+ "- {metronome4}<br>"
-			+ "- {time &gt; 10pm ? Go to bed : One more raid!}<br>"
-			+ "- This text is {col=cyan}cyan!"
-			+ "</blockquote>",
-		description = "",
-		section = examplesSection
+			position = 2,
+			keyName = "aboutHelp",
+			name = "<html><b>Pro tips:</b><blockquote style=\"margin-left: 10px\">"
+					+ "- Press tab to autocomplete<br>"
+					+ "- Try {^slayerTask} syntax<br>"
+					+ "- Play with conditionals!<br>"
+					+ "- Try {spellbook == Ancient}<br>"
+					+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;] ? A : B}<br>"
+					+ "</blockquote>",
+			description = "",
+			section = aboutSection
 	)
-	default void examplesHelp()
+	default void aboutHelp()
+	{
+	}
+
+	@ConfigSection(
+			name = "Variables",
+			description = "Quick reference for every available variable — see the README for full details.",
+			position = 7
+	)
+	String variablesSection = "variables";
+
+	@ConfigItem(
+			position = 1,
+			keyName = "variableHelp1",
+			name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
+					+ "- {rsn}<br>"
+					+ "- {time}<br>"
+					+ "- {6HourTimeRemaining &lt; 1.5}<br>"
+					+ "- {metronome4} / {m4_5 - 2}<br>"
+					+ "- {kc &lt;boss&gt;}<br><br>"
+					+ "- {slayerTask}<br>"
+					+ "- {spellbook}<br>"
+					+ "- {weapon}<br>"
+					+ "- {equip_&lt;slot&gt;}<br>"
+					+ "- {attackStyle}<br>"
+					+ "- {lvl_&lt;skill&gt;}<br>"
+					+ "- {boost_&lt;skill&gt;}<br>"
+					+ "- {xpRate_&lt;skill&gt;}<br>"
+					+ "- {miscellania} (0-127)<br>"
+					+ "- {runEnergy}<br>"
+					+ "- {spec}<br>"
+					+ "- {questPoints}<br><br>"
+					+ "- {hasThralls}<br>"
+					+ "- {hasAlchs}<br>"
+					+ "- {hasFreeze}<br>"
+					+ "- {hasEntangle}<br>"
+					+ "- {autoRetaliate}<br>"
+					+ "- {hasItem &lt;name&gt;}<br>"
+					+ "</blockquote>",
+			description = "",
+			section = variablesSection
+	)
+	default void variableHelp2()
 	{
 	}
 }
