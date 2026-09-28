@@ -191,7 +191,8 @@ public interface GroundMarkerVariablesConfig extends Config
 			keyName = "richTextByDefault",
 			name = "Rich Text by default",
 			description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
-			section = richTextSection
+			section = richTextSection,
+			hidden = true
 	)
 	default boolean richTextByDefault()
 	{
@@ -387,7 +388,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {spellbook}<br>"
 					+ "- {weapon}<br>"
 					+ "- {equip_&lt;slot&gt;}<br>"
-					+ "- {attackStyle} / {attackType}<br>"
+					+ "- {attackStyle}, {attackType}<br>"
 					+ "- {lvl_&lt;skill&gt;}<br>"
 					+ "- {boost_&lt;skill&gt;}<br>"
 					+ "- {xpRate_&lt;skill&gt;}<br>"
