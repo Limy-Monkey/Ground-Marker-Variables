@@ -53,6 +53,7 @@ import net.runelite.client.party.WSClient;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.slayer.SlayerPlugin;
 import net.runelite.client.plugins.xptracker.XpTrackerPlugin;
 import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
@@ -68,6 +69,8 @@ import net.runelite.client.util.ColorUtil;
 )
 // XpTrackerPlugin: Used for {xpRate_<skill>} variable, N/A if disabled.
 @PluginDependency(XpTrackerPlugin.class)
+// SlayerPlugin: Used for {slayerTask} variable, N/A if disabled.
+@PluginDependency(SlayerPlugin.class)
 public class GroundMarkerVariablesPlugin extends Plugin
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";

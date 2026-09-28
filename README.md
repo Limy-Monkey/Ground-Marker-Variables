@@ -25,6 +25,7 @@ Supported variables:
 | `{miscellania}`                         | Kingdom of Miscellania approval rating, 0-127                                                                                                                    |
 | `{questPoints}`                         | Current quest points                                                                                                                                             |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
+| `{slayerTask}`                          | Current slayer task. Requires Slayer plugin to be running.                                                                                                       |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
 | `{hasThralls}`                          | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                                                                        |
 | `{hasAlchs}`                            | true if on Standard Spellbook and has nature and fire runes for High Alchemy                                                                                     |
