@@ -58,7 +58,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// The completable name of every variable — "lvl_"/"boost_"/"xpRate_"/"col=" include their
 	// trailing underscore/equals, since a skill name or color value follows them.
 	private static final List<String> VARIABLE_NAMES = List.of(
-		"rsn", "spellbook", "metronome", "weapon", "attackStyle",
+		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "questPoints", "equip_", "kc", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask"
 	);

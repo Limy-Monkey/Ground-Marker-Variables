@@ -19,6 +19,7 @@ Supported variables:
 | `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
 | `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
 | `{attackStyle}`                         | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                                                    |
+| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic                                                                                       |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
 | `{xpRate_<skill>}`                      | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                                                 |

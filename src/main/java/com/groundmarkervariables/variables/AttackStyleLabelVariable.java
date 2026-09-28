@@ -46,15 +46,33 @@ class AttackStyleLabelVariable implements LabelVariable
 			return null;
 		}
 
-		String style = buildAttackStyle(resolveAttackStyleIndex());
+		String style = buildAttackStyle(resolveWeaponCategory(), resolveAttackStyleIndex());
 		return style == null ? NO_STYLE : style;
 	}
 
+	// Appends the damage type in parens, e.g. "Aggressive (Slash)" -- see WeaponAttackTypes.
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		String name = resolvePlain(matcher);
-		return name == null ? null : richText.labeled("Attack Style", name);
+		if (client.getLocalPlayer() == null)
+		{
+			return null;
+		}
+
+		int weaponCategory = resolveWeaponCategory();
+		int styleIndex = resolveAttackStyleIndex();
+		String style = buildAttackStyle(weaponCategory, styleIndex);
+		String name = style == null ? NO_STYLE : style;
+
+		WeaponAttackType type = WeaponAttackTypes.forStyle(weaponCategory, styleIndex);
+		String value = (type == null || type == WeaponAttackType.NONE) ? name : name + " (" + type.displayName() + ")";
+
+		return richText.labeled("Attack Style", value);
+	}
+
+	private int resolveWeaponCategory()
+	{
+		return client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
 	}
 
 	// COM_MODE is the 0-based index of the currently selected combat style among the
@@ -75,9 +93,9 @@ class AttackStyleLabelVariable implements LabelVariable
 
 	// Null if the resolved style is "Other" (no notable style, e.g. an empty weapon slot) or
 	// the weapon type isn't in the style table at all.
-	private String buildAttackStyle(int attackStyleIndex)
+	private String buildAttackStyle(int weaponCategory, int attackStyleIndex)
 	{
-		String[] styleNames = weaponTypeStyleNames(client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY));
+		String[] styleNames = weaponTypeStyleNames(weaponCategory);
 		if (attackStyleIndex < 0 || attackStyleIndex >= styleNames.length)
 		{
 			return null;

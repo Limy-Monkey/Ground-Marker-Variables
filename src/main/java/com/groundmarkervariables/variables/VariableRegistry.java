@@ -25,6 +25,7 @@ class VariableRegistry
 		HasEntangleLabelVariable hasEntangle,
 		BoostedSkillLevelLabelVariable boostedSkillLevel,
 		AttackStyleLabelVariable attackStyle,
+		AttackTypeLabelVariable attackType,
 		HasItemLabelVariable hasItem,
 		MiscellaniaLabelVariable miscellania,
 		HasAlchsLabelVariable hasAlchs,
@@ -41,7 +42,7 @@ class VariableRegistry
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate, xpRate,
+			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask);
 	}
 
