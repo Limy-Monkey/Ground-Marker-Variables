@@ -23,16 +23,12 @@ import net.runelite.client.game.ItemManager;
 // when the pouch itself is actually in the inventory — same rune/quantity varbits and
 // EnumID.RUNEPOUCH_RUNE lookup core's own RunepouchOverlay uses.
 //
-// [^{}?:]+? (not [^{}]+?) deliberately excludes '?' and ':' from <name>, the same fail-safe
-// philosophy ConditionalVariable uses excluding '{'/'}' from its own groups: this variable is
-// itself a registered base variable, so LabelResolver's own pass over it runs before
-// ConditionalVariable's does. Without the exclusion, {hasItem staff of the dead ? A : B} used
-// as a bare conditional <expr> would match THIS pattern directly first and swallow "? A : B"
-// as part of the item name, resolving to false before the conditional ever got a turn. No
-// real item name contains '?' or ':', so this costs nothing in practice.
+// [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise, as a base variable,
+// this pattern runs before ConditionalVariable/BooleanVariable and would swallow a trailing
+// "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
 class HasItemLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	private static final int[] RUNE_POUCH_ITEM_IDS = {
 		ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER

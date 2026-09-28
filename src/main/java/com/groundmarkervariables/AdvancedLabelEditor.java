@@ -1,11 +1,15 @@
 package com.groundmarkervariables;
 
+import com.google.gson.Gson;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,6 +24,7 @@ import net.runelite.api.widgets.WidgetSizeMode;
 import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.game.chatbox.ChatboxTextInput;
 import net.runelite.client.hiscore.HiscoreSkill;
@@ -60,7 +65,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "questPoints", "equip_", "kc", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask"
+		"time24", "questPoints", "equip_", "kc", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask"
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
@@ -76,6 +81,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// {kc <boss>} — once "kc " is fully typed, autocomplete switches to HiscoreSkill's BOSS
 	// entries (the same names {kc} boss kill counts are tracked/displayed under).
 	private static final String KC_PREFIX = "kc ";
+
+	// {loot <monster>} — once "loot " is fully typed, autocomplete offers every monster Loot
+	// Tracker has recorded loot for, since it covers far more than named bosses.
+	private static final String LOOT_PREFIX = "loot ";
+	private static final String LOOT_TRACKER_GROUP = "loottracker";
+	private static final String LOOT_KEY_PREFIX = "drops_NPC_";
 
 	// {metronomeN} / {metronomeN_M} — once "metronome" itself is fully typed, the N/N_M
 	// parameter completes from recent/nearby labels' own {metronome...} usage, same idea as
@@ -143,6 +154,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final GroundMarkerVariablesConfig config;
+	private final ConfigManager configManager;
+	private final Gson gson;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -160,11 +173,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private FontTypeFace font;
 
 	@Inject
-	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config)
+	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
+		ConfigManager configManager, Gson gson)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.config = config;
+		this.configManager = configManager;
+		this.gson = gson;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
 	}
@@ -607,6 +623,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeBossName(partial.substring(KC_PREFIX.length()));
 		}
 
+		if (partial.length() >= LOOT_PREFIX.length() && partial.regionMatches(true, 0, LOOT_PREFIX, 0, LOOT_PREFIX.length()))
+		{
+			return completeLootMonster(partial.substring(LOOT_PREFIX.length()));
+		}
+
 		if (partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
@@ -736,6 +757,65 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + KC_PREFIX);
 		return chosen.substring(bossPartial.length());
+	}
+
+	// Same idea as completeBossName, but candidates come from lootMonsters() instead of a fixed
+	// list.
+	private String completeLootMonster(String monsterPartial)
+	{
+		if (monsterPartial.isEmpty())
+		{
+			return null;
+		}
+
+		List<String> candidates = new ArrayList<>();
+		for (String name : lootMonsters())
+		{
+			if (name.length() > monsterPartial.length() && name.regionMatches(true, 0, monsterPartial, 0, monsterPartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
+		return chosen.substring(monsterPartial.length());
+	}
+
+	// Every monster Loot Tracker has recorded loot for, most recent first (only used to
+	// tie-break resolveAmbiguousCandidate's fallback — no cap on the candidate pool itself).
+	private List<String> lootMonsters()
+	{
+		String profile = configManager.getRSProfileKey();
+		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
+		for (String key : configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, profile, LOOT_KEY_PREFIX))
+		{
+			String json = configManager.getConfiguration(LOOT_TRACKER_GROUP, profile, key);
+			Instant last = gson.fromJson(json, LootLast.class).last;
+			if (last != null)
+			{
+				byLast.add(new SimpleEntry<>(key.substring(LOOT_KEY_PREFIX.length()), last));
+			}
+		}
+
+		byLast.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+
+		List<String> names = new ArrayList<>();
+		for (Map.Entry<String, Instant> entry : byLast)
+		{
+			names.add(entry.getKey());
+		}
+		return names;
+	}
+
+	// Matches the "last" field of Loot Tracker's own (package-private) ConfigLoot for Gson.
+	private static final class LootLast
+	{
+		Instant last;
 	}
 
 	// {col=...} alias — "col=" itself completes via VARIABLE_NAMES like any other variable name.

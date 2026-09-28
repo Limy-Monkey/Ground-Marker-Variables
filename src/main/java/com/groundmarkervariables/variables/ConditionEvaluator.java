@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables;
 
+import java.text.ParseException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import javax.inject.Inject;
+import net.runelite.client.util.QuantityFormatter;
 
 // Shared <expr> [<cmp> <value>] evaluation for ConditionalVariable and BooleanVariable. <expr>
 // is resolved by re-wrapping it in braces and testing it against every VariableRegistry
@@ -133,6 +135,8 @@ class ConditionEvaluator
 		}
 	}
 
+	// Falls back to RuneLite's own K/M/B stack-size suffix, e.g. "10.5k" -> 10500, so
+	// {loot monster > 10.5k} works the same way {loot}'s own Rich Text displays gp.
 	private static Double tryParseNumber(String value)
 	{
 		try
@@ -140,6 +144,15 @@ class ConditionEvaluator
 			return Double.parseDouble(value);
 		}
 		catch (NumberFormatException e)
+		{
+			// Not a bare number — fall through and try it as a suffixed stack size instead.
+		}
+
+		try
+		{
+			return (double) QuantityFormatter.parseQuantity(value);
+		}
+		catch (ParseException e)
 		{
 			return null;
 		}

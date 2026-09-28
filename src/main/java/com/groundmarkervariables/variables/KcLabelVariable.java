@@ -9,7 +9,9 @@ import javax.inject.Inject;
 // as the canonical name. See BossKillCountTracker for how kill counts are learned/stored.
 class KcLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{kc\\s+(.+?)\\}", Pattern.CASE_INSENSITIVE);
+	// Excludes ?:<>=! so a trailing BooleanVariable/ConditionalVariable comparator (e.g. "{kc
+	// cg > 10}") isn't swallowed into the boss name here.
+	private static final Pattern PATTERN = Pattern.compile("\\{kc\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
 
 	private final BossKillCountTracker tracker;
 	private final RichText richText;
