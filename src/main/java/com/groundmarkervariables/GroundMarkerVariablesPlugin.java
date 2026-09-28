@@ -27,6 +27,7 @@ import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.KeyCode;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
@@ -86,6 +87,12 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		"markerColor", "drawOnMinimap", "showImportExport", "borderWidth", "fillOpacity"
 	};
 	private static final String CONFIG_MIGRATED_KEY = "groundMarkerConfigMigrated";
+
+	// Bump alongside runelite-plugin.properties/build.gradle's version to show the message
+	// again on the next update.
+	private static final String NEW_VERSION = "1.2.0";
+	private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
+	private static final String UPDATE_MESSAGE = "<col=008800>Ground Marker Variables v1.2: New variables, Rich Text formatting. Use {^variable} for the old, Plain Text format.";
 
 	@Inject
 	private ChatboxPanelManager chatboxPanelManager;
@@ -158,6 +165,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// Guards against replying twice in the same tick if multiple party members target us.
 	private boolean hasRespondedThisTick;
 
+	// Captured in startUp() -- true only for a brand new install, so announceUpdateIfNeeded()
+	// can skip users who've never seen the old behavior.
+	private boolean freshInstall;
+	private boolean hasAnnounced = false;
+
 	@Provides
 	GroundMarkerVariablesConfig provideConfig(ConfigManager configManager)
 	{
@@ -167,7 +179,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		if (configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY) == null)
+		freshInstall = configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY) == null;
+		if (freshInstall)
 		{
 			migrateConfigFromCore();
 		}
@@ -712,6 +725,33 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		sixHourTimeRemaining.onGameStateChanged(event.getGameState());
+
+		if (event.getGameState() == GameState.LOGGED_IN)
+		{
+			announceUpdateIfNeeded();
+		}
+	}
+
+	// Shows UPDATE_MESSAGE once per version, skipping a fresh install. Safe against LOGGED_IN
+	// re-firing on loading-line crossings -- the config write makes later checks see it's shown.
+	private void announceUpdateIfNeeded()
+	{
+		if (hasAnnounced)
+		{
+			return;
+		}
+		hasAnnounced = true;
+		if (NEW_VERSION.equals(configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_SEEN_VERSION_KEY))) {
+			return;
+		}
+		if (freshInstall)
+		{
+			configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_SEEN_VERSION_KEY, NEW_VERSION);
+			return;
+		}
+
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_SEEN_VERSION_KEY, NEW_VERSION);
+		client.addChatMessage(ChatMessageType.CONSOLE, "", UPDATE_MESSAGE, null);
 	}
 
 	// Feeds {kc <boss>} — see BossKillCountTracker. Kill count messages are always GAMEMESSAGE.
