@@ -122,6 +122,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
 	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
 
+	// Every complete {...} token, up to one level of nesting — used by selectTokenAt().
+	private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{(?:[^{}]|\\{[^{}]*\\})*\\}");
+
 	// One row in the recommendations list: either a section title (not selectable) or a
 	// label suggestion (selectable — click fills the input with text). Only Recent entries
 	// are removable (right-click "Remove"), since Current/Nearby aren't backed by the saved
@@ -316,20 +319,55 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		super.keyPressed(ev);
 	}
 
-	// Double-click selects the word under the cursor — the base class has no word-selection
-	// at all. mousePressed() (super's) already moved the cursor to the click point by the
-	// time mouseClicked() fires, so getCursorStart() is where the click landed.
+	// Double-click selects the word under the cursor, triple-click the whole {...} token
+	// (braces included), quadruple-click (or more) the entire label — the base class has none
+	// of these.
 	@Override
 	public MouseEvent mouseClicked(MouseEvent mouseEvent)
 	{
 		super.mouseClicked(mouseEvent);
 
-		if (mouseEvent.getButton() == MouseEvent.BUTTON1 && mouseEvent.getClickCount() >= 2)
+		if (mouseEvent.getButton() == MouseEvent.BUTTON1)
 		{
-			selectWordAt(getCursorStart());
+			int clicks = mouseEvent.getClickCount();
+			if (clicks >= 4)
+			{
+				selectAll();
+			}
+			else if (clicks == 3)
+			{
+				selectTokenAt(getCursorStart());
+			}
+			else if (clicks == 2)
+			{
+				selectWordAt(getCursorStart());
+			}
 		}
 
 		return mouseEvent;
+	}
+
+	// Falls back to selecting the entire label if pos isn't inside a {...} token.
+	private void selectTokenAt(int pos)
+	{
+		Matcher matcher = TOKEN_PATTERN.matcher(getValue());
+		while (matcher.find())
+		{
+			if (pos >= matcher.start() && pos <= matcher.end())
+			{
+				shiftSelectionAnchor = -1;
+				cursorAt(matcher.start(), matcher.end());
+				return;
+			}
+		}
+
+		selectAll();
+	}
+
+	private void selectAll()
+	{
+		shiftSelectionAnchor = -1;
+		cursorAt(0, getValue().length());
 	}
 
 	private void selectWordAt(int pos)
@@ -338,6 +376,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (text.isEmpty())
 		{
 			return;
+		}
+
+		// The literal "\n" line-break escape is its own word, not split across the "\" (not
+		// alphanumeric) and "n" (alphanumeric) categories below.
+		for (int start = Math.max(0, pos - 2); start <= Math.min(pos, text.length() - 2); start++)
+		{
+			if (text.startsWith("\\n", start))
+			{
+				shiftSelectionAnchor = -1;
+				cursorAt(start, start + 2);
+				return;
+			}
 		}
 
 		// pos may be at the very end (no character there) — fall back to the last
