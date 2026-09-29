@@ -13,7 +13,7 @@ import net.runelite.api.gameval.VarbitID;
 // while in the Wilderness. Doesn't check Magic level — same convention as hasThralls.
 class HasFreezeLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasFreeze\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasFreezes?\\}", Pattern.CASE_INSENSITIVE);
 	private static final int ANCIENT_SPELLBOOK = 1;
 
 	private final Client client;
