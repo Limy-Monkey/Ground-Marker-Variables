@@ -88,6 +88,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	};
 	private static final String CONFIG_MIGRATED_KEY = "groundMarkerConfigMigrated";
 
+	// showCurrent's default changed from true to false — forces existing installs over once.
+	private static final String SHOW_CURRENT_MIGRATED_KEY = "showCurrentDefaultMigrated";
+
 	// Bump alongside runelite-plugin.properties/build.gradle's version to show the message
 	// again on the next update.
 	private static final String NEW_VERSION = "1.2.0";
@@ -184,6 +187,10 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		{
 			migrateConfigFromCore();
 		}
+		else
+		{
+			migrateShowCurrentDefault();
+		}
 
 		overlayManager.add(overlay);
 		overlayManager.add(minimapOverlay);
@@ -226,6 +233,19 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY, "true");
+	}
+
+	// Runs once for existing installs only — fresh installs already get showCurrent's new
+	// (false) default with nothing stored yet.
+	private void migrateShowCurrentDefault()
+	{
+		if (configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, SHOW_CURRENT_MIGRATED_KEY) != null)
+		{
+			return;
+		}
+
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, "showCurrent", false);
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, SHOW_CURRENT_MIGRATED_KEY, "true");
 	}
 
 	@Override

@@ -287,7 +287,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	)
 	default boolean showCurrent()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(

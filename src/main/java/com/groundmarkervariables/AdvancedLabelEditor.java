@@ -61,6 +61,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int HOVER_COLOR = 0x444444;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
 
+	// Undo/"_"/"x", right-aligned in the prompt row.
+	private static final int TOP_BAR_GAP = 4;
+	private static final int CLOSE_BUTTON_WIDTH = 12;
+	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
+	private static final int UNDO_BUTTON_WIDTH = 12;
+
 	// The completable name of every variable — "lvl_"/"boost_"/"xpRate_"/"col=" include their
 	// trailing underscore/equals, since a skill name or color value follows them.
 	private static final List<String> VARIABLE_NAMES = List.of(
@@ -170,7 +176,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private int shiftSelectionAnchor = -1;
 
 	// Lazily cached — only ever touched from update() (key-typing/click/scroll triggered,
-	// all confirmed client-thread), never from mousePressed/mouseDragged.
+	// all confirmed client-thread), never from mousePressed/mouseDragged. Cleared by
+	// toggleFontSize() to force a re-probe against the new font.
 	private FontTypeFace font;
 
 	@Inject
@@ -184,6 +191,20 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		this.gson = gson;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
+	}
+
+	// Persisted (not RS-profile-scoped, like recentLabels) so the "_" toggle survives restarts.
+	private static final String SMALL_FONT_KEY = "advancedEditorSmallFont";
+
+	// PLAIN_11 once toggled via the "_" button, else the default PLAIN_12.
+	private int editorFontId()
+	{
+		return smallFont() ? FontID.PLAIN_11 : FontID.PLAIN_12;
+	}
+
+	private boolean smallFont()
+	{
+		return Boolean.parseBoolean(configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY));
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
@@ -398,17 +419,23 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		Widget ghost = container.createChild(-1, WidgetType.TEXT);
 		ghost.setText(escapedCompletion);
-		ghost.setFontId(FontID.PLAIN_12);
+		ghost.setFontId(editorFontId());
 		ghost.setTextColor(AUTOCOMPLETE_COLOR);
 		ghost.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
 		ghost.setOriginalX(ghostX);
 		ghost.setOriginalWidth(font.getTextWidth(escapedCompletion));
 		ghost.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		ghost.setOriginalY(editRowY(wrappedLines.size() - 1) - 2);
+		ghost.setOriginalY(editRowY(wrappedLines.size() - 1) + ghostYOffset());
 		ghost.setOriginalHeight(LINE_HEIGHT);
 		ghost.setXTextAlignment(WidgetTextAlignment.LEFT);
 		ghost.setYTextAlignment(WidgetTextAlignment.CENTER);
 		ghost.revalidate();
+	}
+
+	// Empirically tuned — PLAIN_11 needs 2px more than PLAIN_12.
+	private int ghostYOffset()
+	{
+		return smallFont() ? -4 : -2;
 	}
 
 	// Underlines any complete <col=RRGGBB> or <col=name> tag in the label, in the color it
@@ -1025,15 +1052,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		promptWidget.setWidthMode(WidgetSizeMode.MINUS);
 		promptWidget.revalidate();
 
+		buildTopBar(container);
+
 		if (font == null)
 		{
 			Widget probe = container.createChild(-1, WidgetType.TEXT);
-			probe.setFontId(FontID.PLAIN_12);
+			probe.setFontId(editorFontId());
 			font = probe.getFont();
 		}
 
 		List<WrappedLine> wrappedLines = computeWrappedLines(getValue(), container.getWidth());
 
+		fontID(editorFontId());
 		buildEdit(0, 5 + LINE_HEIGHT, container.getWidth(), LINE_HEIGHT);
 		buildAutocomplete(container, wrappedLines);
 		buildColorTagUnderlines(container, wrappedLines);
@@ -1052,6 +1082,78 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		separator.revalidate();
 
 		buildRecommendations(container, resultsStartY);
+	}
+
+	// Undo (grayed out/unclickable once the value matches originalLabel), "_" (font size
+	// toggle) and "x" (close without saving), right-aligned in the prompt row.
+	private void buildTopBar(Widget container)
+	{
+		int rightX = TOP_BAR_GAP;
+
+		Widget close = createTopBarButton(container, "x", rightX, CLOSE_BUTTON_WIDTH);
+		close.setHasListener(true);
+		close.setAction(0, "Close");
+		close.setOnOpListener((JavaScriptCallback) ev -> chatboxPanelManager.close());
+		addHoverHighlight(close, 0x000000);
+		close.revalidate();
+		rightX += CLOSE_BUTTON_WIDTH + TOP_BAR_GAP;
+
+		Widget fontToggle = createTopBarButton(container, "_", rightX, FONT_TOGGLE_BUTTON_WIDTH);
+		fontToggle.setHasListener(true);
+		fontToggle.setAction(0, "Toggle font size");
+		fontToggle.setOnOpListener((JavaScriptCallback) ev -> toggleFontSize());
+		addHoverHighlight(fontToggle, 0x000000);
+		fontToggle.revalidate();
+		rightX += FONT_TOGGLE_BUTTON_WIDTH + TOP_BAR_GAP;
+
+		boolean canUndo = !getValue().equals(originalLabel);
+		// Escaped — a lone "<" is parsed as the start of an inline tag and never drawn otherwise.
+		Widget undo = createTopBarButton(container, Text.escapeJagex("<"), rightX, UNDO_BUTTON_WIDTH);
+		undo.setTextColor(canUndo ? 0x000000 : 0x888888);
+		if (canUndo)
+		{
+			undo.setHasListener(true);
+			undo.setAction(0, "Undo");
+			undo.setOnOpListener((JavaScriptCallback) ev -> undo());
+			addHoverHighlight(undo, 0x000000);
+		}
+		undo.revalidate();
+	}
+
+	private void addHoverHighlight(Widget widget, int normalColor)
+	{
+		widget.setOnMouseRepeatListener((JavaScriptCallback) ev -> widget.setTextColor(HOVER_COLOR));
+		widget.setOnMouseLeaveListener((JavaScriptCallback) ev -> widget.setTextColor(normalColor));
+	}
+
+	private Widget createTopBarButton(Widget container, String text, int rightX, int width)
+	{
+		Widget button = container.createChild(-1, WidgetType.TEXT);
+		button.setText(text);
+		button.setFontId(FontID.BOLD_12);
+		button.setTextColor(0x000000);
+		button.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
+		button.setOriginalX(rightX);
+		button.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
+		button.setOriginalY(5);
+		button.setOriginalWidth(width);
+		button.setOriginalHeight(LINE_HEIGHT);
+		button.setXTextAlignment(WidgetTextAlignment.CENTER);
+		button.setYTextAlignment(WidgetTextAlignment.CENTER);
+		return button;
+	}
+
+	private void undo()
+	{
+		value(originalLabel);
+		update();
+	}
+
+	private void toggleFontSize()
+	{
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY, !smallFont());
+		font = null;
+		update();
 	}
 
 	private List<Row> buildRows()
@@ -1152,7 +1254,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
 			// Jagex markup) shows as literal text instead of actually being applied.
 			text.setText(row.title ? row.text : Text.escapeJagex(row.text));
-			text.setFontId(row.title ? FontID.QUILL_8 : FontID.PLAIN_12);
+			text.setFontId(row.title ? FontID.QUILL_8 : editorFontId());
 			text.setTextColor(row.title ? 0x800000 : 0x000000);
 			text.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
 			text.setOriginalX(row.title ? 6 : 13);
