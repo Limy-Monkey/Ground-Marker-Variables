@@ -797,6 +797,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
+		// {lvl_combat} / {lvl_total} -- not real Skill entries, and not supported by {boost_}/{xpRate_}.
+		if ("lvl_".equals(prefix))
+		{
+			for (String extra : List.of("combat", "total"))
+			{
+				if (extra.length() > skillPartial.length() && extra.regionMatches(true, 0, skillPartial, 0, skillPartial.length()))
+				{
+					candidates.add(extra);
+				}
+			}
+		}
+
 		if (candidates.isEmpty())
 		{
 			return null;
