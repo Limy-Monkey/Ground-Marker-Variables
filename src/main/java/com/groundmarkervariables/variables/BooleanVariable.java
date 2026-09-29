@@ -6,22 +6,20 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {<expr> <cmp> <value>} — colors <expr>'s own Plain Text value true/false, no ?/: branches.
-// ?/: excluded from both groups so this can't collide with real {cond ? A : B} syntax.
+// ? excluded from both groups so this can't collide with real {cond ? A : B} syntax (every
+// real conditional has a literal '?' before any ':', so that alone is enough -- <value> still
+// allows ':' for clock-time values like {time < 9:00}).
 //
 // {6HourTimeRemaining < <hours>} / {6HourTimeRemaining <= <hours>} is a special case: <hours>
-// is a plain number of hours against the live Duration, not the generic comparison above
-// (which would misread "1:45" as a clock time). Rich: false is the normal Rich Text, true
+// is a plain number of hours (or "h:mm") against the live Duration, not the generic comparison
+// above (which would misread "1:45" as a clock time). Rich: false is the normal Rich Text, true
 // swaps in Boolean False Color as a warning. Plain: false is "", true is the bare value. Any
 // other comparator with this variable resolves to a call-to-action instead.
 class BooleanVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile(
-		"\\{\\s*([^{}?:]+?)\\s*(==|!=|<=|>=|<|>)\\s*([^{}?:]+?)\\s*\\}");
+		"\\{\\s*([^{}?:]+?)\\s*(==|!=|<=|>=|<|>)\\s*([^{}?]+?)\\s*\\}");
 	private static final String UNSUPPORTED_COMPARATOR_TEXT = "Use {6HourTimeRemaining < 1.5} for a 1.5 hour warning";
-
-	// <hours> is a bare number, optionally suffixed with "hour(s)"/"hr(s)" (e.g. "1.5 hours",
-	// "1.5hrs"); anything else (e.g. a clock time) is unresolvable in sixHourWarning().
-	private static final Pattern HOURS_PATTERN = Pattern.compile("(-?\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?)?", Pattern.CASE_INSENSITIVE);
 
 	private final ConditionEvaluator evaluator;
 	private final RichText richText;
@@ -81,7 +79,7 @@ class BooleanVariable implements LabelVariable
 
 	private boolean isSixHourTimeRemaining(String expr)
 	{
-		return sixHourTimeRemaining.pattern().matcher("{" + expr.trim() + "}").matches();
+		return evaluator.isSixHourTimeRemaining(expr);
 	}
 
 	private String resolveSixHourWarning(Matcher matcher, boolean rich)
@@ -92,7 +90,7 @@ class BooleanVariable implements LabelVariable
 			return UNSUPPORTED_COMPARATOR_TEXT;
 		}
 
-		Boolean warning = sixHourWarning(matcher);
+		Boolean warning = evaluator.evaluateCondition(matcher.group(1), comparator, matcher.group(3));
 		if (warning == null)
 		{
 			return null;
@@ -104,17 +102,5 @@ class BooleanVariable implements LabelVariable
 		}
 
 		return rich ? sixHourTimeRemaining.richTextWithColor(config.booleanFalseColor()) : sixHourTimeRemaining.formatPlain();
-	}
-
-	private Boolean sixHourWarning(Matcher matcher)
-	{
-		Matcher hoursMatcher = HOURS_PATTERN.matcher(matcher.group(3).trim());
-		if (!hoursMatcher.matches())
-		{
-			return null;
-		}
-
-		double hoursRemaining = sixHourTimeRemaining.remaining().toMinutes() / 60.0;
-		return evaluator.evaluate(String.valueOf(hoursRemaining), matcher.group(2), hoursMatcher.group(1));
 	}
 }

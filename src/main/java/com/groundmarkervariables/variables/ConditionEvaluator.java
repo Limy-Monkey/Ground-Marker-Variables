@@ -8,6 +8,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.inject.Inject;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -25,12 +26,18 @@ class ConditionEvaluator
 	private static final DateTimeFormatter TIME_24_HOUR =
 		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("H[:mm]").toFormatter(Locale.ENGLISH);
 
+	// See parseHoursThreshold().
+	private static final Pattern HOURS_PATTERN = Pattern.compile("(-?\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?)?", Pattern.CASE_INSENSITIVE);
+	private static final Pattern HOURS_MINUTES_PATTERN = Pattern.compile("(-?\\d+):(\\d{1,2})");
+
 	private final List<LabelVariable> variables;
+	private final SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 
 	@Inject
-	private ConditionEvaluator(VariableRegistry registry)
+	private ConditionEvaluator(VariableRegistry registry, SixHourTimeRemainingLabelVariable sixHourTimeRemaining)
 	{
 		this.variables = registry.all();
+		this.sixHourTimeRemaining = sixHourTimeRemaining;
 	}
 
 	// <expr>'s own Plain Text value, or null if <expr> doesn't match any base variable.
@@ -50,8 +57,53 @@ class ConditionEvaluator
 
 	Boolean evaluateCondition(String expr, String comparator, String expected)
 	{
+		if (comparator != null && isSixHourTimeRemaining(expr))
+		{
+			return evaluateSixHourWarning(comparator, expected);
+		}
+
 		String actual = resolveExpression(expr);
 		return actual == null ? null : evaluate(actual, comparator, expected);
+	}
+
+	// Shared with BooleanVariable, which also needs to know this for its own </<= restriction
+	// and duration-specific Rich/Plain text.
+	boolean isSixHourTimeRemaining(String expr)
+	{
+		return sixHourTimeRemaining.pattern().matcher("{" + expr.trim() + "}").matches();
+	}
+
+	// {6HourTimeRemaining}'s own Plain Text is an "h:mm" duration string -- comparing that
+	// against <hours> the normal way would misparse both as clock times.
+	private Boolean evaluateSixHourWarning(String comparator, String expected)
+	{
+		Double threshold = parseHoursThreshold(expected.trim());
+		if (threshold == null)
+		{
+			return null;
+		}
+
+		double hoursRemaining = sixHourTimeRemaining.remaining().toMinutes() / 60.0;
+		return evaluate(String.valueOf(hoursRemaining), comparator, String.valueOf(threshold));
+	}
+
+	// <hours> is either a bare number, optionally suffixed with "hour(s)"/"hr(s)" (e.g. "1.5
+	// hours", "1.5hrs"), or "h:mm" matching {6HourTimeRemaining}'s own Plain Text (e.g. "5:45").
+	private static Double parseHoursThreshold(String value)
+	{
+		Matcher hoursMatcher = HOURS_PATTERN.matcher(value);
+		if (hoursMatcher.matches())
+		{
+			return Double.parseDouble(hoursMatcher.group(1));
+		}
+
+		Matcher hoursMinutesMatcher = HOURS_MINUTES_PATTERN.matcher(value);
+		if (hoursMinutesMatcher.matches())
+		{
+			return Integer.parseInt(hoursMinutesMatcher.group(1)) + Integer.parseInt(hoursMinutesMatcher.group(2)) / 60.0;
+		}
+
+		return null;
 	}
 
 	// Null means "can't be evaluated" (e.g. an ordering comparator against a non-numeric
