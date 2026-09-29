@@ -386,6 +386,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {kc &lt;boss&gt;}<br>"
 					+ "- {loot &lt;monster&gt;}<br><br>"
 					+ "- {slayerTask}<br>"
+					+ "- {slayerPoints}<br>"
 					+ "- {spellbook}<br>"
 					+ "- {weapon}<br>"
 					+ "- {equip_&lt;slot&gt;}<br>"

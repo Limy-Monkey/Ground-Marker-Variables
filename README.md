@@ -28,6 +28,8 @@ Supported variables:
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot Tormented Demon}                                                            |
 | `{slayerTask}`                          | Current slayer task. Requires Slayer plugin to be running.                                                                                                       |
+| `{slayerStreak}`                        | Current slayer task streak (tasks completed in a row)                                                                                                            |
+| `{slayerPoints}`                        | Current slayer points                                                                                                                                            |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
 | `{hasThralls}`                          | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                                                                        |
 | `{hasAlchs}`                            | true if on Standard Spellbook and has nature and fire runes for High Alchemy                                                                                     |

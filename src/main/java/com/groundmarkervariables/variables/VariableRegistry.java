@@ -39,12 +39,14 @@ class VariableRegistry
 		SpecLabelVariable spec,
 		SixHourTimeRemainingLabelVariable sixHourTimeRemaining,
 		SlayerTaskLabelVariable slayerTask,
+		SlayerStreakLabelVariable slayerStreak,
+		SlayerPointsLabelVariable slayerPoints,
 		LootLabelVariable loot)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate, xpRate,
-			runEnergy, spec, sixHourTimeRemaining, slayerTask, loot);
+			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot);
 	}
 
 	List<LabelVariable> all()

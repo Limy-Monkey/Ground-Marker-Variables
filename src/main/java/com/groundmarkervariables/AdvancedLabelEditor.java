@@ -73,7 +73,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "questPoints", "equip_", "kc", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask"
+		"time24", "questPoints", "equip_", "kc", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
+		"slayerStreak", "slayerPoints"
 	);
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
