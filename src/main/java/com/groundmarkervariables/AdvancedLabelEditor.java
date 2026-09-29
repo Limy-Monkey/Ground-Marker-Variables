@@ -947,7 +947,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		String param = findRecentMetronomeParam(paramPartial);
-		return param == null ? null : param.substring(paramPartial.length());
+		if (param == null)
+		{
+			return paramPartial.isEmpty() ? "4" : null;
+		}
+		return param.substring(paramPartial.length());
 	}
 
 	private String findRecentMetronomeParam(String paramPartial)
