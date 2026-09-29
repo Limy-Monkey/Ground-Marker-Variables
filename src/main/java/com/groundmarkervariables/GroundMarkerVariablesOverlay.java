@@ -106,19 +106,36 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			label = label.replace("</col>", "<col=" + ColorUtil.colorToHexCode(color) + ">");
 			label = NamedColors.expandColorAliases(label);
 
+			// Literal "\n" becomes a real line break, split into rows.
+			String[] lines = label.replace("\\n", "\n").split("\n", -1);
+			drawLines(graphics, localPoint, lines, color);
+		}
+	}
+
+	// One TextComponent per line, each centered on its own width, stacked as a block centered
+	// on localPoint (not anchored at the first line).
+	private void drawLines(Graphics2D graphics, LocalPoint localPoint, String[] lines, Color color)
+	{
+		int lineHeight = graphics.getFontMetrics().getHeight();
+		int startY = -((lines.length - 1) * lineHeight) / 2;
+
+		for (int i = 0; i < lines.length; i++)
+		{
 			// Center against the visible text width, not the raw string with <col=> tags in it.
-			String visibleLabel = COLOR_TAG_PATTERN.matcher(label).replaceAll("");
-			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, visibleLabel, 0);
-			if (textLocation != null)
+			String visibleLine = COLOR_TAG_PATTERN.matcher(lines[i]).replaceAll("");
+			Point textLocation = Perspective.getCanvasTextLocation(client, graphics, localPoint, visibleLine, 0);
+			if (textLocation == null)
 			{
-				// Full opacity regardless of the marker's own (possibly transparent) color —
-				// only the tile fill/outline should ever be see-through, never the label text.
-				TextComponent textComponent = new TextComponent();
-				textComponent.setText(label);
-				textComponent.setColor(ColorUtil.colorWithAlpha(color, 0xFF));
-				textComponent.setPosition(textLocation.getX(), textLocation.getY());
-				textComponent.render(graphics);
+				continue;
 			}
+
+			// Full opacity regardless of the marker's own (possibly transparent) color — only
+			// the tile fill/outline should ever be see-through, never the label text.
+			TextComponent textComponent = new TextComponent();
+			textComponent.setText(lines[i]);
+			textComponent.setColor(ColorUtil.colorWithAlpha(color, 0xFF));
+			textComponent.setPosition(textLocation.getX(), textLocation.getY() + startY + i * lineHeight);
+			textComponent.render(graphics);
 		}
 	}
 }

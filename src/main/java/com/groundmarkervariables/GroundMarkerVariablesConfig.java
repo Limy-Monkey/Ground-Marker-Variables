@@ -181,8 +181,7 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 			name = "Rich Text",
 			description = "Controls the alternate, more descriptive rendering every variable supports.",
-			position = 4,
-			closedByDefault = true
+			position = 4
 	)
 	String richTextSection = "richText";
 
@@ -330,7 +329,8 @@ public interface GroundMarkerVariablesConfig extends Config
 	@ConfigSection(
 			name = "Tips",
 			description = "Quick tips for getting started.",
-			position = 6
+			position = 6,
+			closedByDefault = true
 	)
 	String aboutSection = "about";
 
@@ -357,8 +357,8 @@ public interface GroundMarkerVariablesConfig extends Config
 			name = "<html><b>Pro tips:</b><blockquote style=\"margin-left: 10px\">"
 					+ "- Press tab to autocomplete<br>"
 					+ "- Try {^slayerTask} syntax<br>"
-					+ "- Play with conditionals!<br>"
 					+ "- Try {spellbook == Ancient}<br>"
+					+ "- Use \\n for newlines!<br>"
 					+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ? A : B}<br>"
 					+ "</blockquote>",
 			description = "",

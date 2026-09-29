@@ -4,11 +4,11 @@ Overrides the default Ground Marker plugin with a version that supports variable
 
 Supported variables:
 
-| Modifiers                                  | Description                                                                                                                                |
-|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `{^...}`                                   | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                                                             |
-| `{&...}`                                   | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385`                                        |
-| `{*...}`                                   | Opposite of the default behavior, e.g. if Rich Text Default config option is on, then plaintext, otherwise richtext.                       |
+| Modifiers | Description                                                                                         |
+|-----------|-----------------------------------------------------------------------------------------------------|
+| `{^...}`  | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                      |
+| `{&...}`  | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385` |
+| `\n`      | Newline.                                                                                            |
 
 | Variable                                | Description                                                                                                                                                      |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
