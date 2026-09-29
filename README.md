@@ -58,9 +58,9 @@ Supported variables:
   - Changes color of the word "cyan!" to `#00FFFF`
 
 ## Images:
-<img align="left" height="911" alt="java_zoCv5CveVH" src="https://github.com/user-attachments/assets/0bf33505-df1b-4372-a983-1ed42fd894d6" /> ToB Entry Check
+<img align="left" height="516" alt="image" src="https://github.com/user-attachments/assets/9e285de3-1774-468a-8b42-2bcbcb64e134" /> ToB Entry Check
 
-```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#41FFFFFF","label":"{hasItem Salve} | {equip_ammo !\u003d Empty} | {hasThralls} | {hasFreeze} | {autoRetaliate}"}]```
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{spellbook} \\n {hasItem Salve} \\n {equip_ammo !\u003d Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
 
 <br clear="left"/><br />
 
