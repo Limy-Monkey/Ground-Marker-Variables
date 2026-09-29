@@ -60,6 +60,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
 	private static final int HOVER_COLOR = 0x444444;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
+	private static final int GHOST_BACKGROUND_COLOR = 0xFFFFFF;
 
 	// Undo/"_"/"x", right-aligned in the prompt row.
 	private static final int TOP_BAR_GAP = 4;
@@ -246,8 +247,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			if (completion != null && !completion.isEmpty())
 			{
 				ev.consume();
-				value(getValue() + completion);
-				cursorAt(getValue().length());
+				int cursor = getCursorStart();
+				String before = getValue().substring(0, cursor);
+				String after = getValue().substring(cursor);
+				value(before + completion + after);
+				cursorAt(before.length() + completion.length());
 				return;
 			}
 		}
@@ -401,8 +405,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Renders the rest of a variable name as ghost text right after the caret — display-only,
-	// never inserted into the real value. Always on the last wrapped row, since
-	// pendingCompletion() only ever applies when the caret is at the end of the value.
+	// never inserted into the real value. Caret may be mid-value now, so its row/X come from
+	// findLineIndex the same way buildColorTagUnderlines locates a match.
 	private void buildAutocomplete(Widget container, List<WrappedLine> wrappedLines)
 	{
 		String completion = pendingCompletion();
@@ -411,11 +415,35 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		WrappedLine lastLine = wrappedLines.get(wrappedLines.size() - 1);
+		int cursor = getCursorStart();
+		int lineIndex = findLineIndex(wrappedLines, cursor);
+		WrappedLine line = wrappedLines.get(lineIndex);
+		int localCursor = cursor - line.start;
+
 		String escapedCompletion = Text.escapeJagex(completion);
 		int w = container.getWidth();
-		int fullWidth = font.getTextWidth(Text.escapeJagex(lastLine.text));
-		int ghostX = (w + fullWidth) / 2;
+		int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
+		int lineStartX = (w - lineFullWidth) / 2;
+		int ghostX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localCursor)));
+		int ghostWidth = font.getTextWidth(escapedCompletion);
+		int ghostY = editRowY(lineIndex) + ghostYOffset();
+
+		// No native rounded-rect widget exists, so this is a plain filled backing behind the
+		// ghost text — same technique buildEdit() itself uses for its selection highlight. Only
+		// needed when there's real text after the cursor on this row to stay legible over.
+		if (localCursor < line.text.length())
+		{
+			Widget ghostBackground = container.createChild(-1, WidgetType.RECTANGLE);
+			ghostBackground.setFilled(true);
+			ghostBackground.setTextColor(GHOST_BACKGROUND_COLOR);
+			ghostBackground.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
+			ghostBackground.setOriginalX(ghostX - 1);
+			ghostBackground.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
+			ghostBackground.setOriginalY(ghostY);
+			ghostBackground.setOriginalWidth(ghostWidth + 2);
+			ghostBackground.setOriginalHeight(LINE_HEIGHT);
+			ghostBackground.revalidate();
+		}
 
 		Widget ghost = container.createChild(-1, WidgetType.TEXT);
 		ghost.setText(escapedCompletion);
@@ -423,9 +451,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		ghost.setTextColor(AUTOCOMPLETE_COLOR);
 		ghost.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
 		ghost.setOriginalX(ghostX);
-		ghost.setOriginalWidth(font.getTextWidth(escapedCompletion));
+		ghost.setOriginalWidth(ghostWidth);
 		ghost.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		ghost.setOriginalY(editRowY(wrappedLines.size() - 1) + ghostYOffset());
+		ghost.setOriginalY(ghostY);
 		ghost.setOriginalHeight(LINE_HEIGHT);
 		ghost.setXTextAlignment(WidgetTextAlignment.LEFT);
 		ghost.setYTextAlignment(WidgetTextAlignment.CENTER);
@@ -585,7 +613,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String text = getValue();
 		int cursor = getCursorStart();
-		if (getCursorStart() != getCursorEnd() || cursor != text.length())
+		if (getCursorStart() != getCursorEnd())
+		{
+			return null;
+		}
+
+		// Mid-value completion would otherwise run straight into whatever comes next.
+		if (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor)))
 		{
 			return null;
 		}
