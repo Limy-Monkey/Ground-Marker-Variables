@@ -1,6 +1,11 @@
 package com.groundmarkervariables.variables;
 
 import com.google.gson.Gson;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -9,16 +14,20 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.util.QuantityFormatter;
 
 // {loot <monster>} -> gp value of loot Loot Tracker has recorded for <monster>, or 0 if none.
-// Matches <monster> case-insensitively against Loot Tracker's own stored "drops_NPC_<name>"
-// keys directly — unlike {kc}, Loot Tracker covers far more than named bosses, so BossAliases
-// doesn't apply here.
+// Matches <monster> against Loot Tracker's own "drops_<TYPE>_<name>" keys (TYPE = NPC, EVENT,
+// etc.) — unlike {kc}, Loot Tracker covers far more than named bosses, so BossAliases doesn't apply.
 class LootLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! so a trailing BooleanVariable/ConditionalVariable comparator (e.g. "{loot
 	// monster > 10000}") isn't swallowed into the monster name here.
 	private static final Pattern PATTERN = Pattern.compile("\\{loot\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
 	static final String GROUP = "loottracker";
-	static final String KEY_PREFIX = "drops_NPC_";
+	static final String KEY_PREFIX = "drops_";
+
+	// Rich Text lists any single item worth at least this much on its own, most expensive first
+	// -- a stack only qualifies if EVERY unit in it clears the bar, not the stack's total value.
+	private static final long MIN_ITEM_VALUE = 300_000;
+	private static final int MAX_ITEMS_SHOWN = 5;
 
 	private final ConfigManager configManager;
 	private final ItemManager itemManager;
@@ -56,8 +65,21 @@ class LootLabelVariable implements LabelVariable
 			return null;
 		}
 
-		return loot.monster + " (" + richText.highlightValue(String.valueOf(loot.kills)) + "): "
-			+ richText.highlightValue(QuantityFormatter.quantityToStackSize(loot.gp));
+		StringBuilder sb = new StringBuilder()
+			.append(loot.monster).append(" (").append(richText.highlightValue(String.valueOf(loot.kills))).append("): ")
+			.append(richText.highlightValue(QuantityFormatter.quantityToStackSize(loot.gp)));
+
+		// <item=ID> is GroundMarkerVariablesOverlay's own inline-icon tag.
+		if (!loot.expensiveItems.isEmpty())
+		{
+			sb.append(" |");
+			for (ExpensiveItem item : loot.expensiveItems)
+			{
+				sb.append(" ").append(item.quantity).append("x <item=").append(item.itemId).append('>');
+			}
+		}
+
+		return sb.toString();
 	}
 
 	private Loot loot(Matcher matcher)
@@ -73,7 +95,15 @@ class LootLabelVariable implements LabelVariable
 		String name = monster;
 		for (String candidate : configManager.getRSProfileConfigurationKeys(GROUP, profile, KEY_PREFIX))
 		{
-			String candidateName = candidate.substring(KEY_PREFIX.length());
+			// "drops_<TYPE>_<name>" -- TYPE (NPC/EVENT/PLAYER/...) has no underscore of its own,
+			// so the first one after the prefix is exactly where the name starts.
+			String rest = candidate.substring(KEY_PREFIX.length());
+			int typeEnd = rest.indexOf('_');
+			if (typeEnd < 0)
+			{
+				continue;
+			}
+			String candidateName = rest.substring(typeEnd + 1);
 			if (candidateName.equalsIgnoreCase(monster))
 			{
 				key = candidate;
@@ -84,20 +114,39 @@ class LootLabelVariable implements LabelVariable
 
 		if (key == null)
 		{
-			return new Loot(name, 0, 0);
+			return new Loot(name, 0, 0, List.of());
 		}
 
 		LootConfigData data = gson.fromJson(configManager.getConfiguration(GROUP, profile, key), LootConfigData.class);
 		long gp = 0;
+		Map<Integer, Integer> quantityByItem = new LinkedHashMap<>();
 		if (data.drops != null)
 		{
 			for (int i = 0; i < data.drops.length - 1; i += 2)
 			{
-				gp += (long) itemManager.getItemPrice(data.drops[i]) * data.drops[i + 1];
+				int itemId = data.drops[i];
+				int quantity = data.drops[i + 1];
+				gp += (long) itemManager.getItemPrice(itemId) * quantity;
+				quantityByItem.merge(itemId, quantity, Integer::sum);
 			}
 		}
 
-		return new Loot(name, data.kills, gp);
+		List<ExpensiveItem> expensiveItems = new ArrayList<>();
+		for (Map.Entry<Integer, Integer> entry : quantityByItem.entrySet())
+		{
+			long price = itemManager.getItemPrice(entry.getKey());
+			if (price >= MIN_ITEM_VALUE)
+			{
+				expensiveItems.add(new ExpensiveItem(entry.getKey(), entry.getValue(), price));
+			}
+		}
+		expensiveItems.sort(Comparator.comparingLong((ExpensiveItem item) -> item.price).reversed());
+		if (expensiveItems.size() > MAX_ITEMS_SHOWN)
+		{
+			expensiveItems = expensiveItems.subList(0, MAX_ITEMS_SHOWN);
+		}
+
+		return new Loot(name, data.kills, gp, expensiveItems);
 	}
 
 	// Field names match Loot Tracker's own (package-private) ConfigLoot for Gson.
@@ -112,12 +161,28 @@ class LootLabelVariable implements LabelVariable
 		final String monster;
 		final int kills;
 		final long gp;
+		final List<ExpensiveItem> expensiveItems;
 
-		Loot(String monster, int kills, long gp)
+		Loot(String monster, int kills, long gp, List<ExpensiveItem> expensiveItems)
 		{
 			this.monster = monster;
 			this.kills = kills;
 			this.gp = gp;
+			this.expensiveItems = expensiveItems;
+		}
+	}
+
+	private static final class ExpensiveItem
+	{
+		final int itemId;
+		final int quantity;
+		final long price;
+
+		ExpensiveItem(int itemId, int quantity, long price)
+		{
+			this.itemId = itemId;
+			this.quantity = quantity;
+			this.price = price;
 		}
 	}
 }

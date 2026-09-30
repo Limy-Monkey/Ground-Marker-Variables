@@ -101,7 +101,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// Tracker has recorded loot for, since it covers far more than named bosses.
 	private static final String LOOT_PREFIX = "loot ";
 	private static final String LOOT_TRACKER_GROUP = "loottracker";
-	private static final String LOOT_KEY_PREFIX = "drops_NPC_";
+	private static final String LOOT_KEY_PREFIX = "drops_";
 
 	// {metronomeN} / {metronomeN_M} — once "metronome" itself is fully typed, the N/N_M
 	// parameter completes from recent/nearby labels' own {metronome...} usage, same idea as
@@ -950,11 +950,19 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
 		for (String key : configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, profile, LOOT_KEY_PREFIX))
 		{
+			// Skip the "<TYPE>_" (NPC/EVENT/PLAYER/...) that precedes the name.
+			String rest = key.substring(LOOT_KEY_PREFIX.length());
+			int typeEnd = rest.indexOf('_');
+			if (typeEnd < 0)
+			{
+				continue;
+			}
+
 			String json = configManager.getConfiguration(LOOT_TRACKER_GROUP, profile, key);
 			Instant last = gson.fromJson(json, LootLast.class).last;
 			if (last != null)
 			{
-				byLast.add(new SimpleEntry<>(key.substring(LOOT_KEY_PREFIX.length()), last));
+				byLast.add(new SimpleEntry<>(rest.substring(typeEnd + 1), last));
 			}
 		}
 
