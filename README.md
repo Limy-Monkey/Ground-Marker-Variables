@@ -64,15 +64,15 @@ Supported variables:
 
 <br clear="left"/><br />
 
-<img align="left" height="575" alt="image" src="https://github.com/user-attachments/assets/5ccf632f-802b-4ee5-b4d0-3574d3077637" /> Miscellania
+<img align="left" height="521" alt="image" src="https://github.com/user-attachments/assets/8ee3ee10-3ec6-473c-8b04-520e7a70dd53" /> Tombs of Amascut Loot
 
-```[{"regionId":10044,"regionX":32,"regionY":11,"z":0,"color":"#00FFFFFF","label":"{miscellania}"}]```
+```[{"regionId":13454,"regionX":31,"regionY":27,"z":0,"color":"#00FFFFFF","label":"{loot Tombs of Amascut}"}]```
 
 <br clear="left"/><br />
 
-<img align="left" height="631" alt="image" src="https://github.com/user-attachments/assets/5550a608-1352-4255-91ec-9ac9266cbb2e" /> Royal Titans Entry
+<img align="left" height="575" alt="image" src="https://github.com/user-attachments/assets/5ccf632f-802b-4ee5-b4d0-3574d3077637" /> Miscellania
 
-```[{"regionId":11925,"regionX":5,"regionY":39,"z":0,"color":"#00FFFFFF","label":"{kc royal titans}"},{"regionId":11925,"regionX":5,"regionY":37,"z":0,"color":"#00FFFFFF","label":"{hasItem Blood Rune} | {attackStyle \u003d\u003d casting} | {autoRetal}"}]```
+```[{"regionId":10044,"regionX":32,"regionY":11,"z":0,"color":"#00FFFFFF","label":"{miscellania}"}]```
 
 <br clear="left"/><br />
 
