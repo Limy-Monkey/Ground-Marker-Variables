@@ -91,6 +91,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// entries (the same names {kc} boss kill counts are tracked/displayed under).
 	private static final String KC_PREFIX = "kc ";
 
+	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
+	// autocomplete-only, since typing the full name already resolves correctly on its own.
+	private static final List<String> EXTRA_BOSS_NAMES = List.of(
+		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket"
+	);
+
 	// {loot <monster>} — once "loot " is fully typed, autocomplete offers every monster Loot
 	// Tracker has recorded loot for, since it covers far more than named bosses.
 	private static final String LOOT_PREFIX = "loot ";
@@ -844,8 +850,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(slotPartial.length());
 	}
 
-	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries plus BossAliases'
-	// short forms (e.g. "cg") instead of Skill.values().
+	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries, BossAliases (both
+	// short forms and canonical names), and EXTRA_BOSS_NAMES.
 	private String completeBossName(String bossPartial)
 	{
 		if (bossPartial.isEmpty())
@@ -881,6 +887,22 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			if (alias.length() > bossPartial.length() && alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
 				candidates.add(alias);
+			}
+		}
+
+		for (String name : BossAliases.canonicalNames())
+		{
+			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		for (String name : EXTRA_BOSS_NAMES)
+		{
+			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			{
+				candidates.add(name);
 			}
 		}
 

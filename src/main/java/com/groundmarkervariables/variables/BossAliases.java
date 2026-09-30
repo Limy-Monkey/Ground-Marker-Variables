@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables;
 
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -397,6 +398,13 @@ public final class BossAliases
 	public static Set<String> aliases()
 	{
 		return ALIASES.keySet();
+	}
+
+	// Every distinct canonical name an alias resolves to, e.g. "Chambers of Xeric" -- so
+	// AdvancedLabelEditor can also autocomplete the full name, not just its short forms.
+	public static Set<String> canonicalNames()
+	{
+		return new LinkedHashSet<>(ALIASES.values());
 	}
 
 	// Capitalize bosses to their standard format in osrs
