@@ -146,6 +146,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private GroundMarkerVariablesMinimapOverlay minimapOverlay;
 
 	@Inject
+	private PartyNotificationOverlay partyNotificationOverlay;
+
+	@Inject
 	private KeyManager keyManager;
 
 	@Inject
@@ -159,6 +162,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private PingedTileManager pingedTileManager;
+
+	@Inject
+	private GroundMarkerPartySharingManager groundMarkerPartySharingManager;
 
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
@@ -197,8 +203,10 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 		overlayManager.add(overlay);
 		overlayManager.add(minimapOverlay);
+		overlayManager.add(partyNotificationOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		pingedTileManager.startUp();
+		groundMarkerPartySharingManager.startUp();
 
 		if (config.showImportExport())
 		{
@@ -256,9 +264,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	protected void shutDown()
 	{
 		pingedTileManager.shutDown();
+		groundMarkerPartySharingManager.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
 		overlayManager.remove(minimapOverlay);
+		overlayManager.remove(partyNotificationOverlay);
 		sharingManager.removeMenuOptions();
 		markersByRegion.clear();
 		markersByWorldView.clear();

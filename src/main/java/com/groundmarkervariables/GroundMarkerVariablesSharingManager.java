@@ -75,19 +75,24 @@ class GroundMarkerVariablesSharingManager
 		menuManager.removeManagedCustomMenu(CLEAR_MARKERS_OPTION);
 	}
 
-	private void exportGroundMarkers(MenuEntry menuEntry)
+	// Also used by GroundMarkerPartySharingManager's "Share to Party".
+	List<GroundMarkerPointData> activePoints()
 	{
 		int[] regions = client.getMapRegions();
 		if (regions == null)
 		{
-			return;
+			return List.of();
 		}
 
-		List<GroundMarkerPointData> activePoints = Arrays.stream(regions)
+		return Arrays.stream(regions)
 			.mapToObj(regionId -> plugin.getStoredPoints(regionId).stream())
 			.flatMap(Function.identity())
 			.collect(Collectors.toList());
+	}
 
+	private void exportGroundMarkers(MenuEntry menuEntry)
+	{
+		List<GroundMarkerPointData> activePoints = activePoints();
 		if (activePoints.isEmpty())
 		{
 			sendChatMessage("You have no ground markers to export.");
@@ -149,12 +154,17 @@ class GroundMarkerVariablesSharingManager
 		}
 
 		chatboxPanelManager.openTextMenuInput("Are you sure you want to import " + importPoints.size() + " ground markers?")
-			.option("Yes", () -> importGroundMarkers(importPoints))
+			.option("Yes", () ->
+			{
+				importGroundMarkers(importPoints);
+				sendChatMessage(importPoints.size() + " ground markers were imported from the clipboard.");
+			})
 			.option("No", Runnables.doNothing())
 			.build();
 	}
 
-	private void importGroundMarkers(Collection<GroundMarkerPointData> importPoints)
+	// Also used by GroundMarkerPartySharingManager's own "Import ... from <user>".
+	void importGroundMarkers(Collection<GroundMarkerPointData> importPoints)
 	{
 		// Regions being imported may not be loaded on client, so import each bunch directly
 		// into config rather than going through the in-memory cache.
@@ -186,7 +196,6 @@ class GroundMarkerVariablesSharingManager
 
 		log.debug("Reloading points after import");
 		plugin.loadPoints();
-		sendChatMessage(importPoints.size() + " ground markers were imported from the clipboard.");
 	}
 
 	private static boolean containsLocation(Collection<GroundMarkerPointData> points, GroundMarkerPointData point)
