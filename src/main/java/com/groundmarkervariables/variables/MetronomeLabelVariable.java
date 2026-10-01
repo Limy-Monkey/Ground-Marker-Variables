@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
+import net.runelite.client.party.PartyService;
 import net.runelite.client.util.ColorUtil;
 
 // {metronomeN} (or its {mN} alias) counts up from 1 to N, or with the "Count Down" config
@@ -30,15 +31,23 @@ public class MetronomeLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile(
 		"\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\s*(?:([+-])\\s*(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
+	// Sync target's "Count Down" stops overriding our own config after this many ticks (30s)
+	// with no new MetronomeSyncResponse.
+	private static final int SYNC_TIMEOUT_TICKS = 50;
+
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
+	private final PartyService partyService;
 	private volatile int offsetTick;
+	private volatile boolean syncedCountDown;
+	private volatile int lastSyncTick = -SYNC_TIMEOUT_TICKS - 1;
 
 	@Inject
-	private MetronomeLabelVariable(Client client, GroundMarkerVariablesConfig config)
+	private MetronomeLabelVariable(Client client, GroundMarkerVariablesConfig config, PartyService partyService)
 	{
 		this.client = client;
 		this.config = config;
+		this.partyService = partyService;
 	}
 
 	public void offset()
@@ -53,10 +62,30 @@ public class MetronomeLabelVariable implements LabelVariable
 		return client.getTickCount() - offsetTick;
 	}
 
-	// Applies a party member's elapsedTicks so this client's countdown matches theirs.
-	public void syncTo(int remoteElapsedTicks)
+	// Applies a party member's elapsedTicks/countDown so this client matches theirs.
+	public void syncTo(int remoteElapsedTicks, boolean remoteCountDown)
 	{
 		offsetTick = client.getTickCount() - remoteElapsedTicks;
+		syncedCountDown = remoteCountDown;
+		lastSyncTick = client.getTickCount();
+	}
+
+	// The sync target's countDown, unless stale (no response in SYNC_TIMEOUT_TICKS) or we've
+	// left the party -- then back to our own config, same as if never synced.
+	private boolean effectiveCountDown()
+	{
+		if (client.getTickCount() - lastSyncTick < SYNC_TIMEOUT_TICKS)
+		{
+			if (!partyService.isInParty())
+			{
+				lastSyncTick = -SYNC_TIMEOUT_TICKS;
+				return config.countDown();
+			}
+
+			return syncedCountDown;
+		}
+
+		return config.countDown();
 	}
 
 	@Override
@@ -97,7 +126,7 @@ public class MetronomeLabelVariable implements LabelVariable
 		// elapsed count below zero.
 		int step = Math.floorDiv(client.getTickCount() - offsetTick + tokenOffset, ticksPerStep);
 		int position = Math.floorMod(step, max);
-		String value = String.valueOf(config.countDown() ? max - position : position + 1);
+		String value = String.valueOf(effectiveCountDown() ? max - position : position + 1);
 
 		if (config.highlightFinalTick() && position == max - 1)
 		{

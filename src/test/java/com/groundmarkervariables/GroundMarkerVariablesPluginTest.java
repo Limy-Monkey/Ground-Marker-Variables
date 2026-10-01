@@ -9,7 +9,7 @@ public class GroundMarkerVariablesPluginTest
 	{
 		// Equivalent to -ea, which loadBuiltin requires.
 		ClassLoader.getSystemClassLoader().setDefaultAssertionStatus(true);
-		applyDefaultHardwareAcceleration();
+		//applyDefaultHardwareAcceleration();
 
 		ExternalPluginManager.loadBuiltin(GroundMarkerVariablesPlugin.class);
 		RuneLite.main(args);

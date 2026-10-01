@@ -5,14 +5,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import net.runelite.client.party.messages.PartyMemberMessage;
 
-// Answers a MetronomeSyncRequest with how many ticks have elapsed since the sender's own
-// {metronome} offset — the one value every {metronomeN}/{metronomeN_M} marker's countdown is
-// derived from. The sender's identity is PartyMemberMessage's own memberId (set by WSClient
-// on receipt), not a field here.
+// Answers a MetronomeSyncRequest with elapsedTicks (see MetronomeLabelVariable) plus the
+// sender's own "Count Down" config, so the target's setting decides counting direction too.
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 public class MetronomeSyncResponse extends PartyMemberMessage
 {
 	private int elapsedTicks;
+	private boolean countDown;
 }

@@ -734,7 +734,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 		hasRespondedThisTick = true;
 
-		partyService.send(new MetronomeSyncResponse(metronomeLabelVariable.elapsedTicks()));
+		partyService.send(new MetronomeSyncResponse(metronomeLabelVariable.elapsedTicks(), config.countDown()));
 	}
 
 	// Applies a response only if it's actually from our configured sync target.
@@ -752,7 +752,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			return;
 		}
 
-		metronomeLabelVariable.syncTo(response.getElapsedTicks());
+		metronomeLabelVariable.syncTo(response.getElapsedTicks(), response.isCountDown());
 	}
 
 	// Feeds {6HourTimeRemaining} — see SixHourTimeRemainingLabelVariable.
