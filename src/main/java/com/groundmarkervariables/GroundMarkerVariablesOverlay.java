@@ -1,13 +1,16 @@
 package com.groundmarkervariables;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
 import java.awt.image.BufferedImage;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -40,15 +43,17 @@ public class GroundMarkerVariablesOverlay extends Overlay
 	private final GroundMarkerVariablesPlugin plugin;
 	private final GroundMarkerVariablesConfig config;
 	private final ItemManager itemManager;
+	private final PingedTileManager pingedTileManager;
 
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
-		ItemManager itemManager)
+		ItemManager itemManager, PingedTileManager pingedTileManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
 		this.itemManager = itemManager;
+		this.pingedTileManager = pingedTileManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
 		setLayer(OverlayLayer.ABOVE_SCENE);
@@ -65,18 +70,28 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		// Built once per frame, same as the core overlay, rather than once per tile.
 		Stroke borderStroke = new BasicStroke((float) config.borderWidth());
 
+		Instant now = Instant.now();
 		for (WorldView wv : plugin.getTrackedWorldViews())
 		{
 			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
 			{
-				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke);
+				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, 1f);
+			}
+
+			for (TranslatedPingedTile translated : pingedTileManager.getTranslatedPingedTiles(wv))
+			{
+				float opacity = translated.tile.opacity(now);
+				if (opacity > 0f)
+				{
+					drawTileAt(graphics, wv, translated.worldPoint, translated.tile.marker, borderStroke, opacity);
+				}
 			}
 		}
 
 		return null;
 	}
 
-	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke)
+	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke, float opacity)
 	{
 		if (worldPoint.getPlane() != wv.getPlane())
 		{
@@ -98,13 +113,15 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		}
 
 		Color color = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
+		Color fadedColor = opacity >= 1f ? color : ColorUtil.colorWithAlpha(color, (int) (color.getAlpha() * opacity));
 
 		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
 		if (poly != null)
 		{
 			// Fill is a flat black overlay at the configured opacity, not the marker's own color
 			// at reduced alpha — matches the core overlay's own drawTile() exactly.
-			OverlayUtil.renderPolygon(graphics, poly, color, new Color(0, 0, 0, config.fillOpacity()), borderStroke);
+			Color fill = new Color(0, 0, 0, (int) (config.fillOpacity() * opacity));
+			OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, borderStroke);
 		}
 
 		// Label rendering doesn't depend on the tile poly resolving — a missing poly only
@@ -119,7 +136,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 
 			// Literal "\n" becomes a real line break, split into rows.
 			String[] lines = label.replace("\\n", "\n").split("\n", -1);
+
+			// A Composite fades every pixel actually drawn -- needed since TextComponent's
+			// shadow and <col=> spans both hardcode full opacity regardless of our own color.
+			Composite originalComposite = graphics.getComposite();
+			if (opacity < 1f)
+			{
+				graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+			}
+
 			drawLines(graphics, localPoint, lines, color);
+
+			graphics.setComposite(originalComposite);
 		}
 	}
 
@@ -196,8 +224,8 @@ public class GroundMarkerVariablesOverlay extends Overlay
 			else
 			{
 				String text = (String) segment;
-				// Full opacity regardless of the marker's own (possibly transparent) color —
-				// only the tile fill/outline should ever be see-through, never the label text.
+				// Full opacity regardless of the marker's own (possibly transparent) color --
+				// the caller's Composite (see drawTileAt) is what applies any fade, not this.
 				TextComponent textComponent = new TextComponent();
 				textComponent.setText(text);
 				textComponent.setColor(ColorUtil.colorWithAlpha(color, 0xFF));

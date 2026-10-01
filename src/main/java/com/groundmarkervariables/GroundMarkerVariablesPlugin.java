@@ -157,6 +157,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 
+	@Inject
+	private PingedTileManager pingedTileManager;
+
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
 	private final Map<Integer, List<CachedMarker>> markersByRegion = new ConcurrentHashMap<>();
@@ -195,6 +198,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.add(overlay);
 		overlayManager.add(minimapOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
+		pingedTileManager.startUp();
 
 		if (config.showImportExport())
 		{
@@ -251,6 +255,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		pingedTileManager.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
 		overlayManager.remove(minimapOverlay);
@@ -565,7 +570,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
 	}
 
-	private GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
+	GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
 	{
 		for (GroundMarkerPointData point : getStoredPoints(worldPoint.getRegionID()))
 		{

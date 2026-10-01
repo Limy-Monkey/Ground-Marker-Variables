@@ -178,6 +178,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return "";
 	}
 
+	@ConfigItem(
+			position = 3,
+			keyName = "sharePingedTiles",
+			name = "Share Pinged Tiles",
+			description = "Share a tile you ping with your party if you have it marked, and show tiles shared by others.",
+			section = partySyncSection
+	)
+	default boolean sharePingedTiles()
+	{
+		return false;
+	}
+
 	@ConfigSection(
 			name = "Rich Text",
 			description = "Controls the alternate, more descriptive rendering every variable supports.",

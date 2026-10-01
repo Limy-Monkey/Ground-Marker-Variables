@@ -7,6 +7,8 @@ public class GroundMarkerVariablesPluginTest
 {
 	public static void main(String[] args) throws Exception
 	{
+		// Equivalent to -ea, which loadBuiltin requires.
+		ClassLoader.getSystemClassLoader().setDefaultAssertionStatus(true);
 		applyDefaultHardwareAcceleration();
 
 		ExternalPluginManager.loadBuiltin(GroundMarkerVariablesPlugin.class);
