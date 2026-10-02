@@ -5,11 +5,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import net.runelite.client.party.messages.PartyMemberMessage;
 
-// Asks the party member named target to respond with a MetronomeSyncResponse.
+// Asks the party member named target to respond with a GMVMetronomeSyncResponse.
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class MetronomeSyncRequest extends PartyMemberMessage
+public class GMVMetronomeSyncRequest extends PartyMemberMessage
 {
 	private String target;
 }

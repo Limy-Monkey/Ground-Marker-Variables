@@ -34,7 +34,7 @@ public class MetronomeLabelVariable implements LabelVariable
 		"\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\s*(?:([+-])\\s*(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	// Sync target's "Count Down" stops overriding our own config after this many ticks (30s)
-	// with no new MetronomeSyncResponse.
+	// with no new GMVMetronomeSyncResponse.
 	private static final int SYNC_TIMEOUT_TICKS = 50;
 
 	// A new offset only commits after this many consecutive responses agree on it.
@@ -63,7 +63,7 @@ public class MetronomeLabelVariable implements LabelVariable
 	}
 
 	// Ticks elapsed since offsetTick — the one value every marker's countdown is derived
-	// from, sent to party members as a MetronomeSyncResponse.
+	// from, sent to party members as a GMVMetronomeSyncResponse.
 	public int elapsedTicks()
 	{
 		return client.getTickCount() - offsetTick;

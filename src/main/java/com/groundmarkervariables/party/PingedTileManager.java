@@ -92,7 +92,7 @@ public class PingedTileManager
 		try
 		{
 			wsClient.registerMessage(TilePing.class);
-			wsClient.registerMessage(PingedTileShare.class);
+			wsClient.registerMessage(GMVPingedTileShare.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -106,7 +106,7 @@ public class PingedTileManager
 
 		try
 		{
-			wsClient.unregisterMessage(PingedTileShare.class);
+			wsClient.unregisterMessage(GMVPingedTileShare.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -147,12 +147,12 @@ public class PingedTileManager
 
 		recentlySent.put(point, Boolean.TRUE);
 		Integer rgb = existing.getColor() == null ? null : existing.getColor().getRGB();
-		partyService.send(new PingedTileShare(point, rgb, existing.getLabel()));
+		partyService.send(new GMVPingedTileShare(point, rgb, existing.getLabel()));
 	}
 
 	// Displays a tile shared by another party member, unless we already have it marked.
 	@Subscribe
-	public void onPingedTileShare(PingedTileShare share)
+	public void onGMVPingedTileShare(GMVPingedTileShare share)
 	{
 		if (!config.showPingedTiles())
 		{

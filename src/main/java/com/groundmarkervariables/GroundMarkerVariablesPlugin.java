@@ -233,8 +233,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		// party sync is simply unavailable in that case rather than failing the whole plugin.
 		try
 		{
-			wsClient.registerMessage(MetronomeSyncRequest.class);
-			wsClient.registerMessage(MetronomeSyncResponse.class);
+			wsClient.registerMessage(GMVMetronomeSyncRequest.class);
+			wsClient.registerMessage(GMVMetronomeSyncResponse.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -286,8 +286,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 		try
 		{
-			wsClient.unregisterMessage(MetronomeSyncRequest.class);
-			wsClient.unregisterMessage(MetronomeSyncResponse.class);
+			wsClient.unregisterMessage(GMVMetronomeSyncRequest.class);
+			wsClient.unregisterMessage(GMVMetronomeSyncResponse.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -710,14 +710,14 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		if (config.enablePartySync() && !config.syncTarget().isEmpty()
 			&& partyService.getMembers().stream().anyMatch(m -> matchesTarget(m.getDisplayName(), config.syncTarget())))
 		{
-			partyService.send(new MetronomeSyncRequest(config.syncTarget()));
+			partyService.send(new GMVMetronomeSyncRequest(config.syncTarget()));
 		}
 	}
 
 	// Answers a request if we're the named target, regardless of our own Party Sync setting —
 	// being a sync source doesn't require opting into following anyone yourself.
 	@Subscribe
-	public void onMetronomeSyncRequest(MetronomeSyncRequest request)
+	public void onGMVMetronomeSyncRequest(GMVMetronomeSyncRequest request)
 	{
 		PartyMember localMember = partyService.getLocalMember();
 		if (localMember == null || !matchesTarget(localMember.getDisplayName(), request.getTarget()))
@@ -731,12 +731,12 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 		hasRespondedThisTick = true;
 
-		partyService.send(new MetronomeSyncResponse(metronomeLabelVariable.elapsedTicks(), config.countDown()));
+		partyService.send(new GMVMetronomeSyncResponse(metronomeLabelVariable.elapsedTicks(), config.countDown()));
 	}
 
 	// Applies a response only if it's actually from our configured sync target.
 	@Subscribe
-	public void onMetronomeSyncResponse(MetronomeSyncResponse response)
+	public void onGMVMetronomeSyncResponse(GMVMetronomeSyncResponse response)
 	{
 		if (!config.enablePartySync())
 		{

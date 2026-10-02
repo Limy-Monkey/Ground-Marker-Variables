@@ -12,7 +12,7 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class PingedTileShare extends PartyMemberMessage
+public class GMVPingedTileShare extends PartyMemberMessage
 {
 	private WorldPoint point;
 	private Integer colorRgb;

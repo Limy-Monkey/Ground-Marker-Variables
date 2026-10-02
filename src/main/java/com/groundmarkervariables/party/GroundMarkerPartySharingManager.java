@@ -91,7 +91,7 @@ public class GroundMarkerPartySharingManager
 
 		try
 		{
-			wsClient.registerMessage(GroundMarkerPartyShare.class);
+			wsClient.registerMessage(GMVGroundMarkerPartyShare.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -109,7 +109,7 @@ public class GroundMarkerPartySharingManager
 
 		try
 		{
-			wsClient.unregisterMessage(GroundMarkerPartyShare.class);
+			wsClient.unregisterMessage(GMVGroundMarkerPartyShare.class);
 		}
 		catch (IllegalArgumentException e)
 		{
@@ -186,15 +186,15 @@ public class GroundMarkerPartySharingManager
 
 	private void share(List<GroundMarkerPointData> points)
 	{
-		List<GroundMarkerPartyShare.SharedMarker> shared = new ArrayList<>();
+		List<GMVGroundMarkerPartyShare.SharedMarker> shared = new ArrayList<>();
 		for (GroundMarkerPointData point : points)
 		{
 			WorldPoint worldPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
 			Integer rgb = point.getColor() == null ? null : point.getColor().getRGB();
-			shared.add(new GroundMarkerPartyShare.SharedMarker(worldPoint, rgb, point.getLabel()));
+			shared.add(new GMVGroundMarkerPartyShare.SharedMarker(worldPoint, rgb, point.getLabel()));
 		}
 
-		partyService.send(new GroundMarkerPartyShare(shared));
+		partyService.send(new GMVGroundMarkerPartyShare(shared));
 		sendChatMessage(shared.size() + " ground markers were shared with your party.");
 	}
 
@@ -202,7 +202,7 @@ public class GroundMarkerPartySharingManager
 	// The scheduled removal below is keyed to this exact instance, so a stale timer from a
 	// replaced share can never remove the one that replaced it.
 	@Subscribe
-	public void onGroundMarkerPartyShare(GroundMarkerPartyShare share)
+	public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share)
 	{
 		PartyMember local = partyService.getLocalMember();
 		if (local != null && share.getMemberId() == local.getMemberId())
@@ -223,7 +223,7 @@ public class GroundMarkerPartySharingManager
 	private void promptImport(PendingPartyShare pending)
 	{
 		List<GroundMarkerPointData> points = new ArrayList<>();
-		for (GroundMarkerPartyShare.SharedMarker marker : pending.markers)
+		for (GMVGroundMarkerPartyShare.SharedMarker marker : pending.markers)
 		{
 			WorldPoint point = marker.getPoint();
 			Color color = marker.getColorRgb() == null ? null : new Color(marker.getColorRgb(), true);

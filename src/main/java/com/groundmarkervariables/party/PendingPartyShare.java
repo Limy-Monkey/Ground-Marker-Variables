@@ -12,10 +12,10 @@ class PendingPartyShare
 
 	final long senderMemberId;
 	final String senderName;
-	final List<GroundMarkerPartyShare.SharedMarker> markers;
+	final List<GMVGroundMarkerPartyShare.SharedMarker> markers;
 	final Instant receivedAt;
 
-	PendingPartyShare(long senderMemberId, String senderName, List<GroundMarkerPartyShare.SharedMarker> markers, Instant receivedAt)
+	PendingPartyShare(long senderMemberId, String senderName, List<GMVGroundMarkerPartyShare.SharedMarker> markers, Instant receivedAt)
 	{
 		this.senderMemberId = senderMemberId;
 		this.senderName = senderName;
