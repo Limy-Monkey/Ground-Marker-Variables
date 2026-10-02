@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.Tile;
@@ -33,6 +34,9 @@ import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
+import net.runelite.client.events.PartyChanged;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyMember;
@@ -57,6 +61,10 @@ public class PingedTileManager
 		.expireAfterWrite(2, TimeUnit.SECONDS)
 		.build();
 
+	// Senders with one hide so far this session -- a second hide blocks them.
+	private final Set<Long> hiddenOnceSenderIds = ConcurrentHashMap.newKeySet();
+	private final Set<Long> blockedSenderIds = ConcurrentHashMap.newKeySet();
+
 	private final Client client;
 	private final ClientThread clientThread;
 	private final EventBus eventBus;
@@ -67,11 +75,12 @@ public class PingedTileManager
 	private final LabelResolver labelResolver;
 	private final PartyService partyService;
 	private final WSClient wsClient;
+	private final ChatMessageManager chatMessageManager;
 
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
 		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-		PartyService partyService, WSClient wsClient)
+		PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -83,6 +92,7 @@ public class PingedTileManager
 		this.labelResolver = labelResolver;
 		this.partyService = partyService;
 		this.wsClient = wsClient;
+		this.chatMessageManager = chatMessageManager;
 	}
 
 	public void startUp()
@@ -115,6 +125,19 @@ public class PingedTileManager
 
 		pingedTiles.clear();
 		translatedByWorldView.clear();
+		hiddenOnceSenderIds.clear();
+		blockedSenderIds.clear();
+	}
+
+	// Blocks are scoped to the current party session.
+	@Subscribe
+	public void onPartyChanged(PartyChanged event)
+	{
+		if (event.getPartyId() == null)
+		{
+			hiddenOnceSenderIds.clear();
+			blockedSenderIds.clear();
+		}
 	}
 
 	// Reacts only to our own ping (the relay echoes TilePing back to the sender too) -- shares
@@ -155,6 +178,11 @@ public class PingedTileManager
 	public void onGMVPingedTileShare(GMVPingedTileShare share)
 	{
 		if (!config.showPingedTiles())
+		{
+			return;
+		}
+
+		if (blockedSenderIds.contains(share.getMemberId()))
 		{
 			return;
 		}
@@ -278,11 +306,26 @@ public class PingedTileManager
 			.setOption("Hide " + pinged.senderName + "'s")
 			.setTarget("Tile")
 			.setType(MenuAction.RUNELITE)
-			.onClick(e ->
-			{
-				pingedTiles.remove(worldPoint);
-				retranslate();
-			});
+			.onClick(e -> hide(worldPoint, pinged));
+	}
+
+	// A second hide from the same sender blocks them for the rest of this party session.
+	private void hide(WorldPoint worldPoint, PingedTile pinged)
+	{
+		pingedTiles.remove(worldPoint);
+		retranslate();
+
+		long senderId = pinged.senderMemberId;
+		if (hiddenOnceSenderIds.remove(senderId))
+		{
+			blockedSenderIds.add(senderId);
+			sendChatMessage("Ground Marker Variables: " + pinged.senderName + " blocked. Turn off Show Pinged Tiles to disable this feature.");
+		}
+		else
+		{
+			hiddenOnceSenderIds.add(senderId);
+			sendChatMessage("Ground Marker Variables: Marker hidden from " + pinged.senderName + ". Hide one more to block them for this party session.");
+		}
 	}
 
 	private void save(WorldPoint worldPoint, PingedTile pinged)
@@ -293,6 +336,15 @@ public class PingedTileManager
 		plugin.loadPoints();
 		pingedTiles.remove(worldPoint);
 		retranslate();
+		sendChatMessage("Ground Marker saved from " + pinged.senderName + ".");
+	}
+
+	private void sendChatMessage(String message)
+	{
+		chatMessageManager.queue(QueuedMessage.builder()
+			.type(ChatMessageType.CONSOLE)
+			.runeLiteFormattedMessage(message)
+			.build());
 	}
 
 	public Collection<TranslatedPingedTile> getTranslatedPingedTiles(WorldView wv)

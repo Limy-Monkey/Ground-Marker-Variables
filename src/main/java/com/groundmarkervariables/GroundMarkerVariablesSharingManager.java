@@ -165,7 +165,7 @@ public class GroundMarkerVariablesSharingManager
 			.option("Yes", () ->
 			{
 				importGroundMarkers(importPoints);
-				sendChatMessage(importPoints.size() + " ground markers were imported from the clipboard.");
+				sendChatMessage(nonOverlapping.size() + " ground markers were imported from the clipboard.");
 			})
 			.option("No", Runnables.doNothing())
 			.onClose(importPreviewManager::clear)

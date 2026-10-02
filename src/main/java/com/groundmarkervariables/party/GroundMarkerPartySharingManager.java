@@ -235,7 +235,7 @@ public class GroundMarkerPartySharingManager
 		String count = GroundMarkerVariablesSharingManager.countWithOverlap(points.size(), nonOverlapping.size());
 		chatboxPanelManager.openTextMenuInput(
 				"Are you sure you want to import " + count + " ground markers<br>from " + pending.senderName + "?")
-			.option("Yes", () -> doImport(pending, points))
+			.option("Yes", () -> doImport(pending, nonOverlapping))
 			.option("No", Runnables.doNothing())
 			.onClose(importPreviewManager::clear)
 			.build();
