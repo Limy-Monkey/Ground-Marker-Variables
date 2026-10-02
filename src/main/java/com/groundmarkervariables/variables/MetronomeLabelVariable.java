@@ -35,12 +35,17 @@ public class MetronomeLabelVariable implements LabelVariable
 	// with no new MetronomeSyncResponse.
 	private static final int SYNC_TIMEOUT_TICKS = 50;
 
+	// A new offset only commits after this many consecutive responses agree on it.
+	private static final int CONSECUTIVE_REQUIRED = 4;
+
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
 	private final PartyService partyService;
 	private volatile int offsetTick;
 	private volatile boolean syncedCountDown;
 	private volatile int lastSyncTick = -SYNC_TIMEOUT_TICKS - 1;
+	private volatile int pendingOffset;
+	private volatile int pendingCount;
 
 	@Inject
 	private MetronomeLabelVariable(Client client, GroundMarkerVariablesConfig config, PartyService partyService)
@@ -62,12 +67,34 @@ public class MetronomeLabelVariable implements LabelVariable
 		return client.getTickCount() - offsetTick;
 	}
 
-	// Applies a party member's elapsedTicks/countDown so this client matches theirs.
+	// countDown applies immediately; a new offset needs CONSECUTIVE_REQUIRED matching responses.
 	public void syncTo(int remoteElapsedTicks, boolean remoteCountDown)
 	{
-		offsetTick = client.getTickCount() - remoteElapsedTicks;
-		syncedCountDown = remoteCountDown;
 		lastSyncTick = client.getTickCount();
+		syncedCountDown = remoteCountDown;
+
+		int candidateOffset = client.getTickCount() - remoteElapsedTicks;
+		if (candidateOffset == offsetTick)
+		{
+			pendingCount = 0;
+			return;
+		}
+
+		if (candidateOffset == pendingOffset)
+		{
+			pendingCount++;
+		}
+		else
+		{
+			pendingOffset = candidateOffset;
+			pendingCount = 1;
+		}
+
+		if (pendingCount >= CONSECUTIVE_REQUIRED)
+		{
+			offsetTick = pendingOffset;
+			pendingCount = 0;
+		}
 	}
 
 	// The sync target's countDown, unless stale (no response in SYNC_TIMEOUT_TICKS) or we've
@@ -79,6 +106,7 @@ public class MetronomeLabelVariable implements LabelVariable
 			if (!partyService.isInParty())
 			{
 				lastSyncTick = -SYNC_TIMEOUT_TICKS;
+				pendingCount = 0;
 				return config.countDown();
 			}
 
