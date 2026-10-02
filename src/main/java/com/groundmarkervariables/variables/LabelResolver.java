@@ -18,6 +18,8 @@ import javax.inject.Inject;
 // Per Plugin Hub review, metronomes inside of conditionals are too risky for abuse.
 public class LabelResolver
 {
+	private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
+
 	private final List<LabelVariable> baseVariables;
 	private final BooleanVariable booleanVariable;
 	private final ConditionalVariable conditional;
@@ -40,9 +42,9 @@ public class LabelResolver
 
 	public String resolve(String label)
 	{
-		if (label == null)
+		if (label == null || !HAS_VARIABLE.matcher(label).matches())
 		{
-			return null;
+			return label;
 		}
 
 		String resolved = label;
