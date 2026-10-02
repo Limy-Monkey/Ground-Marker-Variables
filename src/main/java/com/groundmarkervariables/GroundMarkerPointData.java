@@ -9,7 +9,7 @@ import lombok.Value;
 // rather than importing theirs because net.runelite.client.plugins.groundmarkers
 // .GroundMarkerPoint is package-private.
 @Value
-class GroundMarkerPointData
+public class GroundMarkerPointData
 {
 	int regionId;
 	int regionX;

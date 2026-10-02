@@ -4,8 +4,7 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.inject.Provides;
-import com.groundmarkervariables.party.MetronomeSyncRequest;
-import com.groundmarkervariables.party.MetronomeSyncResponse;
+import com.groundmarkervariables.party.*;
 import com.groundmarkervariables.variables.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.MetronomeLabelVariable;
@@ -118,6 +117,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private Gson gson;
+
+	@Inject
+	private MarkerStorage markerStorage;
 
 	@Inject
 	private Provider<AdvancedLabelEditor> advancedLabelEditorProvider;
@@ -319,7 +321,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, selectedSceneTile.getLocalLocation());
-		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 
 		client.createMenuEntry(-1)
 			.setOption(existing != null ? "Unmark" : "Mark")
@@ -345,7 +347,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private void buildColorMenu(WorldPoint worldPoint, GroundMarkerPointData existing)
 	{
 		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> regionPoints = new ArrayList<>(getStoredPoints(regionId));
+		List<GroundMarkerPointData> regionPoints = new ArrayList<>(markerStorage.getStoredPoints(regionId));
 
 		Menu submenu = client.createMenuEntry(-3)
 			.setOption("Color")
@@ -436,7 +438,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private void colorTile(WorldPoint worldPoint, Color newColor)
 	{
 		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
+		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
 
 		for (int i = 0; i < points.size(); i++)
 		{
@@ -468,20 +470,18 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// Mirrors core's markTile().
 	private void toggleMark(WorldPoint worldPoint)
 	{
-		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
-		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 
 		if (existing != null)
 		{
-			points.remove(existing);
+			markerStorage.deletePoints(List.of(existing));
 		}
 		else
 		{
-			points.add(new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), null));
+			int regionId = worldPoint.getRegionID();
+			GroundMarkerPointData point = new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), null);
+			markerStorage.addPoints(List.of(point));
 		}
-
-		savePoints(regionId, points);
 	}
 
 	private void openLabelEditor(WorldPoint worldPoint)
@@ -498,7 +498,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	private void openAdvancedLabelEditor(WorldPoint worldPoint)
 	{
-		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
 		Color tileColor = existing != null && existing.getColor() != null ? existing.getColor() : config.markerColor();
 
@@ -513,7 +513,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// Mirrors core's own labelTile() — used when the Advanced Label Editor is turned off.
 	private void openPlainLabelEditor(WorldPoint worldPoint)
 	{
-		GroundMarkerPointData existing = findStoredPoint(worldPoint);
+		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
 
 		chatboxPanelManager.openTextInput("Tile label")
@@ -589,27 +589,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
 	}
 
-	GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
-	{
-		for (GroundMarkerPointData point : getStoredPoints(worldPoint.getRegionID()))
-		{
-			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
-				&& point.getZ() == worldPoint.getPlane())
-			{
-				return point;
-			}
-		}
-
-		return null;
-	}
-
 	// Mirrors core's labelTile()/savePoints() persistence — we can't call those directly since
 	// they're private on core's plugin instance, but writing to the same config key means our
 	// own onConfigChanged picks this up and refreshes the overlay for free.
 	private void saveLabel(WorldPoint worldPoint, String newLabel)
 	{
 		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(regionId));
+		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
 		String label = newLabel.isEmpty() ? null : newLabel;
 
 		for (int i = 0; i < points.size(); i++)
@@ -824,7 +810,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		return markersByRegion.getOrDefault(regionId, Collections.emptyList());
 	}
 
-	Collection<WorldView> getTrackedWorldViews()
+	public Collection<WorldView> getTrackedWorldViews()
 	{
 		return markersByWorldView.keySet();
 	}
@@ -834,7 +820,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		return markersByWorldView.getOrDefault(wv, Collections.emptyList());
 	}
 
-	void loadPoints()
+	public void loadPoints()
 	{
 		WorldView wv = client.getTopLevelWorldView();
 		if (wv == null)
@@ -922,36 +908,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// partially-built list.
 	private void rebuildRegion(int regionId)
 	{
-		List<CachedMarker> markers = getStoredPoints(regionId).stream()
+		List<CachedMarker> markers = markerStorage.getStoredPoints(regionId).stream()
 			.map(point -> new CachedMarker(point, labelResolver))
 			.collect(Collectors.toList());
 		markersByRegion.put(regionId, markers);
-	}
-
-	Collection<GroundMarkerPointData> getStoredPoints(int regionId)
-	{
-		String json = configManager.getConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
-		if (json == null || json.isEmpty())
-		{
-			return Collections.emptyList();
-		}
-
-		List<GroundMarkerPointData> points = gson.fromJson(json, new TypeToken<List<GroundMarkerPointData>>()
-		{
-		}.getType());
-		return points == null ? Collections.emptyList() : points;
-	}
-
-	// Mirrors core's savePoints() — used by the sharing manager's import/clear, which need to
-	// replace a whole region's point list at once rather than one point at a time.
-	void savePoints(int regionId, Collection<GroundMarkerPointData> points)
-	{
-		if (points == null || points.isEmpty())
-		{
-			configManager.unsetConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
-			return;
-		}
-
-		configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
 	}
 }

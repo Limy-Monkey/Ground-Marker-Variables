@@ -32,13 +32,14 @@ import net.runelite.client.menus.WidgetMenuOption;
 // Mirrors core's GroundMarkerSharingManager — clipboard export/import and a "Clear" confirmation
 // for every currently loaded ground marker, via the world map orb's right-click menu.
 @Slf4j
-class GroundMarkerVariablesSharingManager
+public class GroundMarkerVariablesSharingManager
 {
 	private static final WidgetMenuOption EXPORT_MARKERS_OPTION = new WidgetMenuOption("Export", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
 	private static final WidgetMenuOption IMPORT_MARKERS_OPTION = new WidgetMenuOption("Import", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
 	private static final WidgetMenuOption CLEAR_MARKERS_OPTION = new WidgetMenuOption("Clear", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
 
 	private final GroundMarkerVariablesPlugin plugin;
+	private final MarkerStorage markerStorage;
 	private final Client client;
 	private final ImportPreviewManager importPreviewManager;
 	private final MenuManager menuManager;
@@ -47,10 +48,12 @@ class GroundMarkerVariablesSharingManager
 	private final Gson gson;
 
 	@Inject
-	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, Client client, ImportPreviewManager importPreviewManager,
-		MenuManager menuManager, ChatMessageManager chatMessageManager, ChatboxPanelManager chatboxPanelManager, Gson gson)
+	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, Client client,
+		ImportPreviewManager importPreviewManager, MenuManager menuManager, ChatMessageManager chatMessageManager,
+		ChatboxPanelManager chatboxPanelManager, Gson gson)
 	{
 		this.plugin = plugin;
+		this.markerStorage = markerStorage;
 		this.client = client;
 		this.importPreviewManager = importPreviewManager;
 		this.menuManager = menuManager;
@@ -78,7 +81,7 @@ class GroundMarkerVariablesSharingManager
 	}
 
 	// Also used by GroundMarkerPartySharingManager's "Share to Party".
-	List<GroundMarkerPointData> activePoints()
+	public List<GroundMarkerPointData> activePoints()
 	{
 		int[] regions = client.getMapRegions();
 		if (regions == null)
@@ -87,7 +90,7 @@ class GroundMarkerVariablesSharingManager
 		}
 
 		return Arrays.stream(regions)
-			.mapToObj(regionId -> plugin.getStoredPoints(regionId).stream())
+			.mapToObj(regionId -> markerStorage.getStoredPoints(regionId).stream())
 			.flatMap(Function.identity())
 			.collect(Collectors.toList());
 	}
@@ -170,14 +173,14 @@ class GroundMarkerVariablesSharingManager
 	}
 
 	// "X" or "X (-Y existing)" -- see nonOverlapping().
-	static String countWithOverlap(int total, int nonOverlappingCount)
+	public static String countWithOverlap(int total, int nonOverlappingCount)
 	{
 		int overlapping = total - nonOverlappingCount;
 		return overlapping > 0 ? total + " (-" + overlapping + " existing)" : String.valueOf(total);
 	}
 
 	// Candidates not already at an existing marker's location, per importGroundMarkers' own dedup.
-	List<GroundMarkerPointData> nonOverlapping(Collection<GroundMarkerPointData> candidates)
+	public List<GroundMarkerPointData> nonOverlapping(Collection<GroundMarkerPointData> candidates)
 	{
 		Map<Integer, List<GroundMarkerPointData>> regionGroupedPoints = candidates.stream()
 			.collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId));
@@ -185,7 +188,7 @@ class GroundMarkerVariablesSharingManager
 		List<GroundMarkerPointData> result = new ArrayList<>();
 		regionGroupedPoints.forEach((regionId, groupedPoints) ->
 		{
-			List<GroundMarkerPointData> existing = new ArrayList<>(plugin.getStoredPoints(regionId));
+			List<GroundMarkerPointData> existing = new ArrayList<>(markerStorage.getStoredPoints(regionId));
 			for (GroundMarkerPointData point : groupedPoints)
 			{
 				if (!containsLocation(existing, point))
@@ -200,35 +203,10 @@ class GroundMarkerVariablesSharingManager
 	}
 
 	// Also used by GroundMarkerPartySharingManager's own "Import ... from <user>".
-	void importGroundMarkers(Collection<GroundMarkerPointData> importPoints)
+	public void importGroundMarkers(Collection<GroundMarkerPointData> importPoints)
 	{
-		// Regions being imported may not be loaded on client, so import each bunch directly
-		// into config rather than going through the in-memory cache.
-		Map<Integer, List<GroundMarkerPointData>> regionGroupedPoints = importPoints.stream()
-			.collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId));
-
-		regionGroupedPoints.forEach((regionId, groupedPoints) ->
-		{
-			log.debug("Importing {} points to region {}", groupedPoints.size(), regionId);
-			Collection<GroundMarkerPointData> regionPoints = plugin.getStoredPoints(regionId);
-
-			List<GroundMarkerPointData> mergedList = new ArrayList<>(regionPoints.size() + groupedPoints.size());
-			mergedList.addAll(regionPoints);
-
-			// Duplicate means "already a marker at this location", regardless of color/label —
-			// GroundMarkerPointData's own equals() checks every field, so we can't just use
-			// mergedList.contains(point) the way core does with its own color/label-excluding
-			// equals() (GroundMarkerPointData mirrors the JSON shape, not that equals() choice).
-			for (GroundMarkerPointData point : groupedPoints)
-			{
-				if (!containsLocation(mergedList, point))
-				{
-					mergedList.add(point);
-				}
-			}
-
-			plugin.savePoints(regionId, mergedList);
-		});
+		log.debug("Importing {} points", importPoints.size());
+		markerStorage.addPoints(importPoints);
 
 		log.debug("Reloading points after import");
 		plugin.loadPoints();
@@ -256,23 +234,22 @@ class GroundMarkerVariablesSharingManager
 			return;
 		}
 
-		long numActivePoints = Arrays.stream(regions)
-			.mapToLong(regionId -> plugin.getStoredPoints(regionId).size())
-			.sum();
+		List<GroundMarkerPointData> activePoints = Arrays.stream(regions)
+			.mapToObj(markerStorage::getStoredPoints)
+			.flatMap(Collection::stream)
+			.collect(Collectors.toList());
 
-		if (numActivePoints == 0)
+		if (activePoints.isEmpty())
 		{
 			sendChatMessage("You have no ground markers to clear.");
 			return;
 		}
 
+		int numActivePoints = activePoints.size();
 		chatboxPanelManager.openTextMenuInput("Are you sure you want to clear the<br>" + numActivePoints + " currently loaded ground markers?")
 			.option("Yes", () ->
 			{
-				for (int regionId : regions)
-				{
-					plugin.savePoints(regionId, null);
-				}
+				markerStorage.deletePoints(activePoints);
 
 				plugin.loadPoints();
 				sendChatMessage(numActivePoints + " ground marker"

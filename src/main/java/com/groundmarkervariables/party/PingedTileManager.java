@@ -1,8 +1,12 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.party;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.groundmarkervariables.party.PingedTileShare;
+import com.groundmarkervariables.CachedMarker;
+import com.groundmarkervariables.GroundMarkerPointData;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.GroundMarkerVariablesPlugin;
+import com.groundmarkervariables.MarkerStorage;
 import com.groundmarkervariables.variables.LabelResolver;
 import java.awt.Color;
 import java.time.Instant;
@@ -40,7 +44,7 @@ import net.runelite.client.plugins.party.messages.TilePing;
 // a temporary, fading marker with its own "Save"/"Hide" right-click options. See PINGEDTILE.md.
 @Slf4j
 @Singleton
-class PingedTileManager
+public class PingedTileManager
 {
 	// Arrives on WSClient's own thread, not the client/AWT thread render()/menus run on.
 	private final Map<WorldPoint, PingedTile> pingedTiles = new ConcurrentHashMap<>();
@@ -59,14 +63,15 @@ class PingedTileManager
 	private final ScheduledExecutorService executor;
 	private final GroundMarkerVariablesConfig config;
 	private final GroundMarkerVariablesPlugin plugin;
+	private final MarkerStorage markerStorage;
 	private final LabelResolver labelResolver;
 	private final PartyService partyService;
 	private final WSClient wsClient;
 
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
-		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, LabelResolver labelResolver, PartyService partyService,
-		WSClient wsClient)
+		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
+		PartyService partyService, WSClient wsClient)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -74,12 +79,13 @@ class PingedTileManager
 		this.executor = executor;
 		this.config = config;
 		this.plugin = plugin;
+		this.markerStorage = markerStorage;
 		this.labelResolver = labelResolver;
 		this.partyService = partyService;
 		this.wsClient = wsClient;
 	}
 
-	void startUp()
+	public void startUp()
 	{
 		eventBus.register(this);
 
@@ -94,7 +100,7 @@ class PingedTileManager
 		}
 	}
 
-	void shutDown()
+	public void shutDown()
 	{
 		eventBus.unregister(this);
 
@@ -133,7 +139,7 @@ class PingedTileManager
 			return;
 		}
 
-		GroundMarkerPointData existing = plugin.findStoredPoint(point);
+		GroundMarkerPointData existing = markerStorage.findStoredPoint(point);
 		if (existing == null)
 		{
 			return;
@@ -154,7 +160,7 @@ class PingedTileManager
 		}
 
 		WorldPoint point = share.getPoint();
-		if (plugin.findStoredPoint(point) != null)
+		if (markerStorage.findStoredPoint(point) != null)
 		{
 			return;
 		}
@@ -281,17 +287,15 @@ class PingedTileManager
 
 	private void save(WorldPoint worldPoint, PingedTile pinged)
 	{
-		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(plugin.getStoredPoints(regionId));
-		points.add(new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(),
-			worldPoint.getPlane(), pinged.marker.source.getColor(), pinged.marker.source.getLabel()));
-		plugin.savePoints(regionId, points);
+		GroundMarkerPointData point = new GroundMarkerPointData(worldPoint.getRegionID(), worldPoint.getRegionX(), worldPoint.getRegionY(),
+			worldPoint.getPlane(), pinged.marker.source.getColor(), pinged.marker.source.getLabel());
+		markerStorage.addPoints(List.of(point));
 		plugin.loadPoints();
 		pingedTiles.remove(worldPoint);
 		retranslate();
 	}
 
-	Collection<TranslatedPingedTile> getTranslatedPingedTiles(WorldView wv)
+	public Collection<TranslatedPingedTile> getTranslatedPingedTiles(WorldView wv)
 	{
 		return translatedByWorldView.getOrDefault(wv, Collections.emptyList());
 	}

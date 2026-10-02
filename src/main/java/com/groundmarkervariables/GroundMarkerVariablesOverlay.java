@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+
+import com.groundmarkervariables.party.PingedTileManager;
+import com.groundmarkervariables.party.TranslatedPingedTile;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;

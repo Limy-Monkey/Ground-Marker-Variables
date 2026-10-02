@@ -1,6 +1,5 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.party;
 
-import com.groundmarkervariables.party.GroundMarkerPartyShare;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

@@ -17,7 +17,7 @@ import net.runelite.api.coords.WorldPoint;
 // Unsaved preview of tiles an import confirmation is about to add -- cleared via
 // ChatboxTextMenuInput's own onClose, which fires on every dismissal path.
 @Singleton
-class ImportPreviewManager
+public class ImportPreviewManager
 {
 	private final Map<WorldView, List<TranslatedMarker>> previewByWorldView = new ConcurrentHashMap<>();
 
@@ -32,7 +32,7 @@ class ImportPreviewManager
 	}
 
 	// Mirrors GroundMarkerVariablesPlugin#translateWorldView, one-shot.
-	void show(Collection<GroundMarkerPointData> points)
+	public void show(Collection<GroundMarkerPointData> points)
 	{
 		List<CachedMarker> markers = new ArrayList<>();
 		for (GroundMarkerPointData point : points)
@@ -60,7 +60,7 @@ class ImportPreviewManager
 		previewByWorldView.putAll(rebuilt);
 	}
 
-	void clear()
+	public void clear()
 	{
 		previewByWorldView.clear();
 	}

@@ -4,18 +4,18 @@ import com.groundmarkervariables.variables.LabelResolver;
 
 // Pre-resolved label so render() doesn't re-run LabelResolver every frame.
 // Refreshed once per game tick (see GroundMarkerVariablesPlugin#onGameTick), not per frame.
-class CachedMarker
+public class CachedMarker
 {
-	final GroundMarkerPointData source;
+	public final GroundMarkerPointData source;
 	private volatile String resolvedLabel;
 
-	CachedMarker(GroundMarkerPointData source, LabelResolver labelResolver)
+	public CachedMarker(GroundMarkerPointData source, LabelResolver labelResolver)
 	{
 		this.source = source;
 		this.resolvedLabel = labelResolver.resolve(expandColorAliases(source.getLabel()));
 	}
 
-	void refresh(LabelResolver labelResolver)
+	public void refresh(LabelResolver labelResolver)
 	{
 		resolvedLabel = labelResolver.resolve(expandColorAliases(source.getLabel()));
 	}

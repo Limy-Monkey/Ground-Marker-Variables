@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.party;
 
 import java.awt.AlphaComposite;
 import java.awt.Composite;
@@ -18,7 +18,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 // Badge over the World Map orb's top-left corner, shown when GroundMarkerPartySharingManager
 // receives a party-shared marker set. Opacity comes from its badgeOpacity(now).
-class PartyNotificationOverlay extends Overlay
+public class PartyNotificationOverlay extends Overlay
 {
 	private static final int SPRITE_ID = 937;
 	private static final int WIDTH = 5;

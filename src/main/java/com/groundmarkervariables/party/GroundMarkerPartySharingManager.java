@@ -1,7 +1,10 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.party;
 
 import com.google.common.util.concurrent.Runnables;
-import com.groundmarkervariables.party.GroundMarkerPartyShare;
+import com.groundmarkervariables.GroundMarkerPointData;
+import com.groundmarkervariables.GroundMarkerVariablesSharingManager;
+import com.groundmarkervariables.ImportPreviewManager;
+
 import java.awt.Color;
 import java.time.Duration;
 import java.time.Instant;
@@ -39,7 +42,7 @@ import net.runelite.client.util.ColorUtil;
 // every currently loaded marker; recipients get "Import ... from <user>" for PendingPartyShare.TTL.
 @Slf4j
 @Singleton
-class GroundMarkerPartySharingManager
+public class GroundMarkerPartySharingManager
 {
 	private static final int WIDGET_FIXED = InterfaceID.Orbs.WORLDMAP;
 	private static final int WIDGET_RESIZABLE = InterfaceID.OrbsNomap.WORLDMAP;
@@ -82,7 +85,7 @@ class GroundMarkerPartySharingManager
 		this.wsClient = wsClient;
 	}
 
-	void startUp()
+	public void startUp()
 	{
 		eventBus.register(this);
 
@@ -96,7 +99,7 @@ class GroundMarkerPartySharingManager
 		}
 	}
 
-	void shutDown()
+	public void shutDown()
 	{
 		eventBus.unregister(this);
 		if (badgeClearTask != null)
