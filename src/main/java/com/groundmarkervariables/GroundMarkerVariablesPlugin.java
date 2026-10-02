@@ -9,6 +9,7 @@ import com.groundmarkervariables.party.MetronomeSyncResponse;
 import com.groundmarkervariables.variables.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.RecentLootTracker;
 import com.groundmarkervariables.variables.SixHourTimeRemainingLabelVariable;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -166,6 +167,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private GroundMarkerPartySharingManager groundMarkerPartySharingManager;
 
+	@Inject
+	private RecentLootTracker recentLootTracker;
+
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
 	private final Map<Integer, List<CachedMarker>> markersByRegion = new ConcurrentHashMap<>();
@@ -207,6 +211,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		pingedTileManager.startUp();
 		groundMarkerPartySharingManager.startUp();
+		recentLootTracker.startUp();
 
 		if (config.showImportExport())
 		{
@@ -265,6 +270,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	{
 		pingedTileManager.shutDown();
 		groundMarkerPartySharingManager.shutDown();
+		recentLootTracker.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
 		overlayManager.remove(minimapOverlay);

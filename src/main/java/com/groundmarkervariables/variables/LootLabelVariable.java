@@ -32,14 +32,17 @@ class LootLabelVariable implements LabelVariable
 	private final ConfigManager configManager;
 	private final ItemManager itemManager;
 	private final Gson gson;
+	private final RecentLootTracker recentLootTracker;
 	private final RichText richText;
 
 	@Inject
-	private LootLabelVariable(ConfigManager configManager, ItemManager itemManager, Gson gson, RichText richText)
+	private LootLabelVariable(ConfigManager configManager, ItemManager itemManager, Gson gson, RecentLootTracker recentLootTracker,
+		RichText richText)
 	{
 		this.configManager = configManager;
 		this.itemManager = itemManager;
 		this.gson = gson;
+		this.recentLootTracker = recentLootTracker;
 		this.richText = richText;
 	}
 
@@ -112,23 +115,45 @@ class LootLabelVariable implements LabelVariable
 			}
 		}
 
-		if (key == null)
-		{
-			return new Loot(name, 0, 0, List.of());
-		}
-
-		LootConfigData data = gson.fromJson(configManager.getConfiguration(GROUP, profile, key), LootConfigData.class);
+		int kills = 0;
 		long gp = 0;
 		Map<Integer, Integer> quantityByItem = new LinkedHashMap<>();
-		if (data.drops != null)
+
+		if (key != null)
 		{
-			for (int i = 0; i < data.drops.length - 1; i += 2)
+			LootConfigData data = gson.fromJson(configManager.getConfiguration(GROUP, profile, key), LootConfigData.class);
+			kills = data.kills;
+			if (data.drops != null)
 			{
-				int itemId = data.drops[i];
-				int quantity = data.drops[i + 1];
-				gp += (long) itemManager.getItemPrice(itemId) * quantity;
-				quantityByItem.merge(itemId, quantity, Integer::sum);
+				for (int i = 0; i < data.drops.length - 1; i += 2)
+				{
+					int itemId = data.drops[i];
+					int quantity = data.drops[i + 1];
+					gp += (long) itemManager.getItemPrice(itemId) * quantity;
+					quantityByItem.merge(itemId, quantity, Integer::sum);
+				}
 			}
+		}
+
+		// Loot Tracker hasn't written this kill to config yet -- see RecentLootTracker.
+		PendingNpcLoot recent = recentLootTracker.get(name);
+		if (recent != null)
+		{
+			if (key == null)
+			{
+				name = recent.displayName;
+			}
+			kills += recent.kills;
+			gp += recent.gpValue;
+			for (Map.Entry<Integer, Integer> entry : recent.itemQuantities.entrySet())
+			{
+				quantityByItem.merge(entry.getKey(), entry.getValue(), Integer::sum);
+			}
+		}
+
+		if (key == null && recent == null)
+		{
+			return new Loot(name, 0, 0, List.of());
 		}
 
 		List<ExpensiveItem> expensiveItems = new ArrayList<>();
@@ -146,7 +171,7 @@ class LootLabelVariable implements LabelVariable
 			expensiveItems = expensiveItems.subList(0, MAX_ITEMS_SHOWN);
 		}
 
-		return new Loot(name, data.kills, gp, expensiveItems);
+		return new Loot(name, kills, gp, expensiveItems);
 	}
 
 	// Field names match Loot Tracker's own (package-private) ConfigLoot for Gson.
