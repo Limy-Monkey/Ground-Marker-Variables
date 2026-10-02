@@ -10,7 +10,7 @@ import net.runelite.client.util.ColorUtil;
 // those only expand on the raw label before LabelResolver runs (see CachedMarker), so a
 // variable's own output would never get expanded.
 @Singleton
-class RichText
+public class RichText
 {
 	private final GroundMarkerVariablesConfig config;
 
@@ -20,24 +20,24 @@ class RichText
 		this.config = config;
 	}
 
-	String labeled(String label, String value)
+	public String labeled(String label, String value)
 	{
 		return label + ": " + highlightValue(value);
 	}
 
-	String highlightValue(String value)
+	public String highlightValue(String value)
 	{
 		return config.highlightValue() ? colored(config.highlightColor(), value) : value;
 	}
 
-	String booleanColored(boolean value, String text)
+	public String booleanColored(boolean value, String text)
 	{
 		return colored(value ? config.booleanTrueColor() : config.booleanFalseColor(), text);
 	}
 
-	// Not config-driven, so package-private -- lets a caller force an explicit color (see
+	// Not config-driven -- lets a caller force an explicit color (see
 	// SixHourTimeRemainingLabelVariable/BooleanVariable's warning special case).
-	static String colored(Color color, String text)
+	public static String colored(Color color, String text)
 	{
 		return "<col=" + ColorUtil.colorToHexCode(color) + ">" + text + "</col>";
 	}

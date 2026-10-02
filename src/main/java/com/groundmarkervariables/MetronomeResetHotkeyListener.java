@@ -1,6 +1,6 @@
 package com.groundmarkervariables;
 
-import com.groundmarkervariables.variables.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import javax.inject.Inject;
 import net.runelite.client.util.HotkeyListener;
 

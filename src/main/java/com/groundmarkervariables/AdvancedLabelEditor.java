@@ -1,7 +1,7 @@
 package com.groundmarkervariables;
 
 import com.google.gson.Gson;
-import com.groundmarkervariables.variables.BossAliases;
+import com.groundmarkervariables.variables.support.BossAliases;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;

@@ -1,6 +1,10 @@
 package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.label.BooleanVariable;
+import com.groundmarkervariables.variables.label.ConditionalVariable;
+import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +35,7 @@ public class LabelResolver
 
 	@Inject
 	private LabelResolver(VariableRegistry registry, BooleanVariable booleanVariable, ConditionalVariable conditional,
-		MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config)
+						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config)
 	{
 		this.baseVariables = registry.all();
 		this.booleanVariable = booleanVariable;

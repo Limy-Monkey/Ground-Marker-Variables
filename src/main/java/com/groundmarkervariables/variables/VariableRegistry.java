@@ -1,5 +1,7 @@
 package com.groundmarkervariables.variables;
 
+import com.groundmarkervariables.variables.label.*;
+
 import java.util.List;
 import javax.inject.Inject;
 
@@ -10,7 +12,7 @@ import javax.inject.Inject;
 //
 // MetronomeLabelVariable is deliberately NOT here — see LabelResolver's comment for why it's
 // excluded from conditional support entirely (both as <expr> and inside A/B branches).
-class VariableRegistry
+public class VariableRegistry
 {
 	private final List<LabelVariable> variables;
 
@@ -50,7 +52,7 @@ class VariableRegistry
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot);
 	}
 
-	List<LabelVariable> all()
+	public List<LabelVariable> all()
 	{
 		return variables;
 	}
