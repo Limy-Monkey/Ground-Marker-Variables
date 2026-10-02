@@ -170,6 +170,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private RecentLootTracker recentLootTracker;
 
+	@Inject
+	private ImportPreviewManager importPreviewManager;
+
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
 	private final Map<Integer, List<CachedMarker>> markersByRegion = new ConcurrentHashMap<>();
@@ -714,6 +717,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				}
 			}
 		}
+
+		importPreviewManager.refresh();
 
 		hasRespondedThisTick = false;
 		if (config.enablePartySync() && !config.syncTarget().isEmpty()

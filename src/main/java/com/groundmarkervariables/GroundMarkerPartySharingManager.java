@@ -61,20 +61,22 @@ class GroundMarkerPartySharingManager
 	private final ChatMessageManager chatMessageManager;
 	private final EventBus eventBus;
 	private final ScheduledExecutorService executor;
+	private final ImportPreviewManager importPreviewManager;
 	private final GroundMarkerVariablesSharingManager sharingManager;
 	private final PartyService partyService;
 	private final WSClient wsClient;
 
 	@Inject
 	private GroundMarkerPartySharingManager(Client client, ChatboxPanelManager chatboxPanelManager, ChatMessageManager chatMessageManager,
-		EventBus eventBus, ScheduledExecutorService executor, GroundMarkerVariablesSharingManager sharingManager, PartyService partyService,
-		WSClient wsClient)
+		EventBus eventBus, ScheduledExecutorService executor, ImportPreviewManager importPreviewManager,
+		GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient)
 	{
 		this.client = client;
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.chatMessageManager = chatMessageManager;
 		this.eventBus = eventBus;
 		this.executor = executor;
+		this.importPreviewManager = importPreviewManager;
 		this.sharingManager = sharingManager;
 		this.partyService = partyService;
 		this.wsClient = wsClient;
@@ -217,15 +219,6 @@ class GroundMarkerPartySharingManager
 
 	private void promptImport(PendingPartyShare pending)
 	{
-		chatboxPanelManager.openTextMenuInput(
-				"Are you sure you want to import " + pending.markers.size() + " ground markers from " + pending.senderName + "?")
-			.option("Yes", () -> doImport(pending))
-			.option("No", Runnables.doNothing())
-			.build();
-	}
-
-	private void doImport(PendingPartyShare pending)
-	{
 		List<GroundMarkerPointData> points = new ArrayList<>();
 		for (GroundMarkerPartyShare.SharedMarker marker : pending.markers)
 		{
@@ -234,6 +227,19 @@ class GroundMarkerPartySharingManager
 			points.add(new GroundMarkerPointData(point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, marker.getLabel()));
 		}
 
+		List<GroundMarkerPointData> nonOverlapping = sharingManager.nonOverlapping(points);
+		importPreviewManager.show(nonOverlapping);
+		String count = GroundMarkerVariablesSharingManager.countWithOverlap(points.size(), nonOverlapping.size());
+		chatboxPanelManager.openTextMenuInput(
+				"Are you sure you want to import " + count + " ground markers<br>from " + pending.senderName + "?")
+			.option("Yes", () -> doImport(pending, points))
+			.option("No", Runnables.doNothing())
+			.onClose(importPreviewManager::clear)
+			.build();
+	}
+
+	private void doImport(PendingPartyShare pending, List<GroundMarkerPointData> points)
+	{
 		sharingManager.importGroundMarkers(points);
 		sendChatMessage(points.size() + " ground markers were imported from " + pending.senderName + ".");
 		pendingShares.remove(pending.senderMemberId, pending);

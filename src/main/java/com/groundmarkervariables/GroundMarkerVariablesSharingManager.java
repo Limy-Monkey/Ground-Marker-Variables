@@ -40,17 +40,19 @@ class GroundMarkerVariablesSharingManager
 
 	private final GroundMarkerVariablesPlugin plugin;
 	private final Client client;
+	private final ImportPreviewManager importPreviewManager;
 	private final MenuManager menuManager;
 	private final ChatMessageManager chatMessageManager;
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final Gson gson;
 
 	@Inject
-	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, Client client, MenuManager menuManager,
-		ChatMessageManager chatMessageManager, ChatboxPanelManager chatboxPanelManager, Gson gson)
+	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, Client client, ImportPreviewManager importPreviewManager,
+		MenuManager menuManager, ChatMessageManager chatMessageManager, ChatboxPanelManager chatboxPanelManager, Gson gson)
 	{
 		this.plugin = plugin;
 		this.client = client;
+		this.importPreviewManager = importPreviewManager;
 		this.menuManager = menuManager;
 		this.chatMessageManager = chatMessageManager;
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -153,14 +155,48 @@ class GroundMarkerVariablesSharingManager
 			return;
 		}
 
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to import " + importPoints.size() + " ground markers?")
+		List<GroundMarkerPointData> nonOverlapping = nonOverlapping(importPoints);
+		importPreviewManager.show(nonOverlapping);
+		String count = countWithOverlap(importPoints.size(), nonOverlapping.size());
+		chatboxPanelManager.openTextMenuInput("Are you sure you want to import " + count + " ground markers?")
 			.option("Yes", () ->
 			{
 				importGroundMarkers(importPoints);
 				sendChatMessage(importPoints.size() + " ground markers were imported from the clipboard.");
 			})
 			.option("No", Runnables.doNothing())
+			.onClose(importPreviewManager::clear)
 			.build();
+	}
+
+	// "X" or "X (-Y existing)" -- see nonOverlapping().
+	static String countWithOverlap(int total, int nonOverlappingCount)
+	{
+		int overlapping = total - nonOverlappingCount;
+		return overlapping > 0 ? total + " (-" + overlapping + " existing)" : String.valueOf(total);
+	}
+
+	// Candidates not already at an existing marker's location, per importGroundMarkers' own dedup.
+	List<GroundMarkerPointData> nonOverlapping(Collection<GroundMarkerPointData> candidates)
+	{
+		Map<Integer, List<GroundMarkerPointData>> regionGroupedPoints = candidates.stream()
+			.collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId));
+
+		List<GroundMarkerPointData> result = new ArrayList<>();
+		regionGroupedPoints.forEach((regionId, groupedPoints) ->
+		{
+			List<GroundMarkerPointData> existing = new ArrayList<>(plugin.getStoredPoints(regionId));
+			for (GroundMarkerPointData point : groupedPoints)
+			{
+				if (!containsLocation(existing, point))
+				{
+					existing.add(point);
+					result.add(point);
+				}
+			}
+		});
+
+		return result;
 	}
 
 	// Also used by GroundMarkerPartySharingManager's own "Import ... from <user>".

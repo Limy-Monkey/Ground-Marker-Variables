@@ -33,6 +33,7 @@ import net.runelite.client.util.ColorUtil;
 public class GroundMarkerVariablesOverlay extends Overlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
+	private static final float PREVIEW_OPACITY = 0.5f;
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=[0-9a-fA-F]{2,6}>");
@@ -43,16 +44,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 	private final GroundMarkerVariablesPlugin plugin;
 	private final GroundMarkerVariablesConfig config;
 	private final ItemManager itemManager;
+	private final ImportPreviewManager importPreviewManager;
 	private final PingedTileManager pingedTileManager;
 
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
-		ItemManager itemManager, PingedTileManager pingedTileManager)
+		ItemManager itemManager, ImportPreviewManager importPreviewManager, PingedTileManager pingedTileManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
 		this.itemManager = itemManager;
+		this.importPreviewManager = importPreviewManager;
 		this.pingedTileManager = pingedTileManager;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
@@ -85,6 +88,11 @@ public class GroundMarkerVariablesOverlay extends Overlay
 				{
 					drawTileAt(graphics, wv, translated.worldPoint, translated.tile.marker, borderStroke, opacity);
 				}
+			}
+
+			for (TranslatedMarker translated : importPreviewManager.getPreviewMarkers(wv))
+			{
+				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, PREVIEW_OPACITY);
 			}
 		}
 
