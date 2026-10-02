@@ -116,7 +116,7 @@ class PingedTileManager
 	@Subscribe
 	public void onTilePing(TilePing event)
 	{
-		if (!config.sharePingedTiles())
+		if (!config.sendPingedTiles())
 		{
 			return;
 		}
@@ -148,7 +148,7 @@ class PingedTileManager
 	@Subscribe
 	public void onPingedTileShare(PingedTileShare share)
 	{
-		if (!config.sharePingedTiles())
+		if (!config.showPingedTiles())
 		{
 			return;
 		}
