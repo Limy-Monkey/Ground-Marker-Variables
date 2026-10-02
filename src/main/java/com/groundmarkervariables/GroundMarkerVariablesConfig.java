@@ -395,7 +395,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {time}<br>"
 					+ "- {6HourTimeRemaining &lt; 1.5}<br>"
 					+ "- {metronome4} / {m4_5 - 2}<br>"
-					+ "- {kc &lt;boss&gt;}<br>"
+					+ "- {kc &lt;boss&gt;}, {pb &lt;boss&gt;}<br>"
 					+ "- {loot &lt;monster&gt;}<br><br>"
 					+ "- {slayerTask}<br>"
 					+ "- {slayerPoints}<br>"

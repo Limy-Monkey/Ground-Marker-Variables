@@ -73,7 +73,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "questPoints", "equip_", "kc", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
+		"time24", "questPoints", "equip_", "kc", "pb", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints"
 	);
 
@@ -87,9 +87,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> EQUIP_SLOTS = List.of(
 		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
 
-	// {kc <boss>} — once "kc " is fully typed, autocomplete switches to HiscoreSkill's BOSS
-	// entries (the same names {kc} boss kill counts are tracked/displayed under).
+	// {kc <boss>} / {pb <boss>} — once either is fully typed, autocomplete switches to
+	// HiscoreSkill's BOSS entries (the same boss list both variables use).
 	private static final String KC_PREFIX = "kc ";
+	private static final String PB_PREFIX = "pb ";
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
@@ -739,7 +740,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (partial.length() >= KC_PREFIX.length() && partial.regionMatches(true, 0, KC_PREFIX, 0, KC_PREFIX.length()))
 		{
-			return completeBossName(partial.substring(KC_PREFIX.length()));
+			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX);
+		}
+
+		if (partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
+		{
+			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX);
 		}
 
 		if (partial.length() >= LOOT_PREFIX.length() && partial.regionMatches(true, 0, LOOT_PREFIX, 0, LOOT_PREFIX.length()))
@@ -852,7 +858,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries, BossAliases (both
 	// short forms and canonical names), and EXTRA_BOSS_NAMES.
-	private String completeBossName(String bossPartial)
+	private String completeBossName(String bossPartial, String prefix)
 	{
 		if (bossPartial.isEmpty())
 		{
@@ -911,7 +917,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + KC_PREFIX);
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
 		return chosen.substring(bossPartial.length());
 	}
 

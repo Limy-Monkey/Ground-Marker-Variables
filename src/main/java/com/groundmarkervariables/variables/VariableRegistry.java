@@ -33,6 +33,7 @@ class VariableRegistry
 		QuestPointsLabelVariable questPoints,
 		EquipLabelVariable equip,
 		KcLabelVariable kc,
+		PbLabelVariable pb,
 		AutoRetaliateLabelVariable autoRetaliate,
 		XpRateLabelVariable xpRate,
 		RunEnergyLabelVariable runEnergy,
@@ -45,7 +46,7 @@ class VariableRegistry
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, autoRetaliate, xpRate,
+			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot);
 	}
 
