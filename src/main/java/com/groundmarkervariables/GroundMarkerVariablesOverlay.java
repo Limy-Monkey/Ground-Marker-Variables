@@ -4,7 +4,6 @@ import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
@@ -27,16 +26,14 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.ItemManager;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.util.ColorUtil;
 
-// Singleton so GroundMarkerVariablesLabelOverlay shares this instance instead of getting its own.
+// Shared tile/label drawing code behind GroundMarkerVariablesTileOverlay and
+// GroundMarkerVariablesLabelOverlay -- not an Overlay itself.
 @Singleton
-public class GroundMarkerVariablesOverlay extends Overlay
+public class GroundMarkerVariablesOverlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
 	private static final float PREVIEW_OPACITY = 0.5f;
@@ -63,21 +60,10 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		this.itemManager = itemManager;
 		this.importPreviewManager = importPreviewManager;
 		this.pingedTileManager = pingedTileManager;
-		setPosition(OverlayPosition.DYNAMIC);
-		setPriority(PRIORITY_LOW);
-		setLayer(OverlayLayer.ABOVE_SCENE);
 	}
 
-	@Override
-	public Dimension render(Graphics2D graphics)
-	{
-		renderMarkers(graphics, false);
-		return null;
-	}
-
-	// Tiles and labels are drawn by separate overlays (labels by GroundMarkerVariablesLabelOverlay
-	// at a higher priority), so every label is drawn above every tile and other overlays can be
-	// drawn between the two. Both passes walk the same cached marker lists.
+	// Called by both wrapper overlays, once per pass, so other overlays can draw between tiles
+	// and labels. Both passes walk the same cached marker lists.
 	void renderMarkers(Graphics2D graphics, boolean labels)
 	{
 		if (client.getLocalPlayer() == null)

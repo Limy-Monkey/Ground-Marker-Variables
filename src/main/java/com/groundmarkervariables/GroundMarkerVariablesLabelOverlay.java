@@ -7,8 +7,8 @@ import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
-// Draws marker labels (text, shadows, color runs and inline item icons). Tiles are drawn by
-// GroundMarkerVariablesOverlay at a lower priority, so labels always end up above every tile.
+// Draws marker labels (text, shadows, color runs and inline item icons). Split out from
+// GroundMarkerVariablesTileOverlay so other plugins can tell tiles and labels apart.
 public class GroundMarkerVariablesLabelOverlay extends Overlay
 {
 	private final GroundMarkerVariablesOverlay markerOverlay;
@@ -18,7 +18,7 @@ public class GroundMarkerVariablesLabelOverlay extends Overlay
 	{
 		this.markerOverlay = markerOverlay;
 		setPosition(OverlayPosition.DYNAMIC);
-		setPriority(PRIORITY_HIGH);
+		setPriority(PRIORITY_MED);
 		setLayer(OverlayLayer.ABOVE_SCENE);
 	}
 

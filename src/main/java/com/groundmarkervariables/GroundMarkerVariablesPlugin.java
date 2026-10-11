@@ -143,7 +143,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private WSClient wsClient;
 
 	@Inject
-	private GroundMarkerVariablesOverlay overlay;
+	private GroundMarkerVariablesTileOverlay tileOverlay;
 
 	@Inject
 	private GroundMarkerVariablesLabelOverlay labelOverlay;
@@ -213,7 +213,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			migrateShowCurrentDefault();
 		}
 
-		overlayManager.add(overlay);
+		overlayManager.add(tileOverlay);
 		overlayManager.add(labelOverlay);
 		overlayManager.add(minimapOverlay);
 		overlayManager.add(partyNotificationOverlay);
@@ -281,7 +281,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
-		overlayManager.remove(overlay);
+		overlayManager.remove(tileOverlay);
 		overlayManager.remove(labelOverlay);
 		overlayManager.remove(minimapOverlay);
 		overlayManager.remove(partyNotificationOverlay);
