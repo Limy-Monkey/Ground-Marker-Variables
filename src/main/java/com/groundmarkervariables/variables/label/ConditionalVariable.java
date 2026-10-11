@@ -8,29 +8,15 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {<cond1> [&& or || <cond2>] ? <whenTrue> : <whenFalse>} — each <condN> is
-// "<expr> [<cmp> <value>]", evaluated via ConditionEvaluator (shared with BooleanVariable).
-// && / || combine exactly two conditions (not an arbitrary chain — see PATTERN) using
-// three-valued logic: an unresolvable side still settles the result if the other side already
-// does (false && anything = false, true || anything = true); otherwise the whole conditional
-// is left untouched rather than silently picking a branch.
-//
-// [^{}]+? (not .+?) in every group deliberately stops this from matching at all if an
-// <expr>, <value>, or a branch contains its own '{'/'}' — nested variables inside a
-// conditional aren't supported (regex can't parse nested braces), so this fails safe by
-// leaving the whole expression untouched rather than mis-parsing it. The same non-greedy
-// stopping means a third chained &&/|| (not just two conditions) won't parse as intended
-// either — the second <expr> just swallows the rest as an unresolvable blob.
-//
-// The two branch groups are the one deliberate exception: they also allow a literal
-// {metronomeN} / {metronomeN_M} token (optionally with a "+/- offset" suffix — see
-// MetronomeLabelVariable), or its {mN} / {mN_M} alias, specifically (METRONOME_TOKEN), so a
-// branch containing one doesn't just make the whole conditional fail to match. resolveConditional()
-// neutralizes any such token in the winning branch (see METRONOME_TOKEN_PATTERN), matching
-// every other way metronome is blocked from conditional use (see VariableRegistry).
+// "<expr> [<cmp> <value>]", evaluated via ConditionEvaluator. Nested variables in a branch
+// aren't supported (regex can't parse nested braces), except a literal {metronomeN[_M]} /
+// {mN[_M]} token (METRONOME_TOKEN), which resolveConditional() neutralizes in the winning
+// branch rather than resolving, matching the rest of metronome's conditional block (see
+// VariableRegistry).
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
-		"(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\s*(?:[+-]\\s*\\d+)?\\})";
+		"(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
 	private static final String BRANCH = "(?:[^{}]|" + METRONOME_TOKEN + ")+?";
 
