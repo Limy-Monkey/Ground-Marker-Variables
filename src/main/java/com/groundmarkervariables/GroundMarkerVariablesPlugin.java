@@ -146,6 +146,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private GroundMarkerVariablesOverlay overlay;
 
 	@Inject
+	private GroundMarkerVariablesLabelOverlay labelOverlay;
+
+	@Inject
 	private GroundMarkerVariablesMinimapOverlay minimapOverlay;
 
 	@Inject
@@ -211,6 +214,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 
 		overlayManager.add(overlay);
+		overlayManager.add(labelOverlay);
 		overlayManager.add(minimapOverlay);
 		overlayManager.add(partyNotificationOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
@@ -278,6 +282,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(overlay);
+		overlayManager.remove(labelOverlay);
 		overlayManager.remove(minimapOverlay);
 		overlayManager.remove(partyNotificationOverlay);
 		sharingManager.removeMenuOptions();

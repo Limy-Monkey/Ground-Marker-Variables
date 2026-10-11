@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.groundmarkervariables.party.PingedTileManager;
 import com.groundmarkervariables.party.TranslatedPingedTile;
@@ -33,6 +34,8 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.util.ColorUtil;
 
+// Singleton so GroundMarkerVariablesLabelOverlay shares this instance instead of getting its own.
+@Singleton
 public class GroundMarkerVariablesOverlay extends Overlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
@@ -68,9 +71,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
+		renderMarkers(graphics, false);
+		return null;
+	}
+
+	// Tiles and labels are drawn by separate overlays (labels by GroundMarkerVariablesLabelOverlay
+	// at a higher priority), so every label is drawn above every tile and other overlays can be
+	// drawn between the two. Both passes walk the same cached marker lists.
+	void renderMarkers(Graphics2D graphics, boolean labels)
+	{
 		if (client.getLocalPlayer() == null)
 		{
-			return null;
+			return;
 		}
 
 		// Built once per frame, same as the core overlay, rather than once per tile.
@@ -81,7 +93,7 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		{
 			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
 			{
-				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, 1f);
+				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, 1f, labels);
 			}
 
 			for (TranslatedPingedTile translated : pingedTileManager.getTranslatedPingedTiles(wv))
@@ -89,20 +101,18 @@ public class GroundMarkerVariablesOverlay extends Overlay
 				float opacity = translated.tile.opacity(now);
 				if (opacity > 0f)
 				{
-					drawTileAt(graphics, wv, translated.worldPoint, translated.tile.marker, borderStroke, opacity);
+					drawTileAt(graphics, wv, translated.worldPoint, translated.tile.marker, borderStroke, opacity, labels);
 				}
 			}
 
 			for (TranslatedMarker translated : importPreviewManager.getPreviewMarkers(wv))
 			{
-				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, PREVIEW_OPACITY);
+				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, PREVIEW_OPACITY, labels);
 			}
 		}
-
-		return null;
 	}
 
-	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke, float opacity)
+	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke, float opacity, boolean labels)
 	{
 		if (worldPoint.getPlane() != wv.getPlane())
 		{
@@ -126,13 +136,17 @@ public class GroundMarkerVariablesOverlay extends Overlay
 		Color color = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
 		Color fadedColor = opacity >= 1f ? color : ColorUtil.colorWithAlpha(color, (int) (color.getAlpha() * opacity));
 
-		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
-		if (poly != null)
+		if (!labels)
 		{
-			// Fill is a flat black overlay at the configured opacity, not the marker's own color
-			// at reduced alpha — matches the core overlay's own drawTile() exactly.
-			Color fill = new Color(0, 0, 0, (int) (config.fillOpacity() * opacity));
-			OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, borderStroke);
+			Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
+			if (poly != null)
+			{
+				// Fill is a flat black overlay at the configured opacity, not the marker's own color
+				// at reduced alpha — matches the core overlay's own drawTile() exactly.
+				Color fill = new Color(0, 0, 0, (int) (config.fillOpacity() * opacity));
+				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, borderStroke);
+			}
+			return;
 		}
 
 		// Label rendering doesn't depend on the tile poly resolving — a missing poly only
