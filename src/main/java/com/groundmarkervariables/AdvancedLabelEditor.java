@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -78,6 +79,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"slayerStreak", "slayerPoints"
 	);
 
+	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
+	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
+	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
+		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem");
+
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
 	// these prefixes, autocomplete switches from variable names to skill names.
 	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_");
@@ -105,11 +111,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String LOOT_TRACKER_GROUP = "loottracker";
 	private static final String LOOT_KEY_PREFIX = "drops_";
 
-	// {metronomeN} / {metronomeN_M} — once "metronome" itself is fully typed, the N/N_M
-	// parameter completes from recent/nearby labels' own {metronome...} usage, same idea as
-	// colors: no fixed candidate list, only genuine history.
+	// {metronomeN} / {metronomeN_M} (or its {mN} alias) — the N/N_M parameter completes from
+	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
 	private static final String METRONOME_NAME = "metronome";
-	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile("\\{metronome(\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
+	private static final String METRONOME_ALIAS = "m";
+	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile("\\{(?:metronome|m)(\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
 
 	// <col=RRGGBB> — the literal tag itself completes like a variable name; once "col=" is
 	// fully typed, the hex value completes from recent/nearby labels' own <col=> usage (there's
@@ -820,6 +826,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
 		}
 
+		// "m" alias -- only once a digit follows, so "{mis..." still completes to miscellania.
+		if (!restrictToNumeric && partial.length() >= 2 && partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1) && Character.isDigit(partial.charAt(1)))
+		{
+			return completeMetronomeParams(partial.substring(1));
+		}
+
 		// {col=...} — the {col=} alias for <col=...>, closed with "}" instead of ">".
 		if (!restrictToNumeric && partial.length() >= COLOR_TAG_PREFIX.length() && partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
 		{
@@ -835,6 +847,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (String name : VARIABLE_NAMES)
 		{
 			if (restrictToNumeric && !NumericVariableRegistry.NAMES.contains(name))
@@ -846,15 +859,31 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(partial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch && !isNeedsMoreName(partial) ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{");
 		return chosen.substring(partial.length());
+	}
+
+	private static boolean isNeedsMoreName(String name)
+	{
+		for (String needsMore : VARIABLE_NAMES_NEEDING_MORE)
+		{
+			if (needsMore.equalsIgnoreCase(name))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static int lastMatchEnd(Pattern pattern, String text)
@@ -878,12 +907,17 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (Skill skill : Skill.values())
 		{
 			String name = skill.getName().toLowerCase();
 			if (name.length() > skillPartial.length() && name.regionMatches(true, 0, skillPartial, 0, skillPartial.length()))
 			{
 				candidates.add(name);
+			}
+			else if (name.equalsIgnoreCase(skillPartial))
+			{
+				exactMatch = true;
 			}
 		}
 
@@ -896,12 +930,16 @@ class AdvancedLabelEditor extends ChatboxTextInput
 				{
 					candidates.add(extra);
 				}
+				else if (extra.equalsIgnoreCase(skillPartial))
+				{
+					exactMatch = true;
+				}
 			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
@@ -917,17 +955,22 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (String name : EQUIP_SLOTS)
 		{
 			if (name.length() > slotPartial.length() && name.regionMatches(true, 0, slotPartial, 0, slotPartial.length()))
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(slotPartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + EQUIP_PREFIX);
@@ -939,17 +982,22 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private String completeSpellbookName(String namePartial, String tokenPrefix)
 	{
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (String name : SPELLBOOK_NAMES)
 		{
 			if (name.length() > namePartial.length() && name.regionMatches(true, 0, namePartial, 0, namePartial.length()))
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(namePartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, tokenPrefix);
@@ -966,6 +1014,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (HiscoreSkill skill : HiscoreSkill.values())
 		{
 			if (skill.getType() != HiscoreSkillType.BOSS)
@@ -986,14 +1035,26 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(bossPartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		for (String alias : BossAliases.aliases())
 		{
-			if (alias.length() > bossPartial.length() && !alias.contains(" - ")
-				&& alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			if (alias.contains(" - "))
+			{
+				continue;
+			}
+
+			if (alias.length() > bossPartial.length() && alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
 				candidates.add(alias);
+			}
+			else if (alias.equalsIgnoreCase(bossPartial))
+			{
+				exactMatch = true;
 			}
 		}
 
@@ -1003,6 +1064,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(bossPartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		for (String name : EXTRA_BOSS_NAMES)
@@ -1011,11 +1076,15 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(bossPartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
@@ -1032,17 +1101,22 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
 		for (String name : lootMonsters())
 		{
 			if (name.length() > monsterPartial.length() && name.regionMatches(true, 0, monsterPartial, 0, monsterPartial.length()))
 			{
 				candidates.add(name);
 			}
+			else if (name.equalsIgnoreCase(monsterPartial))
+			{
+				exactMatch = true;
+			}
 		}
 
 		if (candidates.isEmpty())
 		{
-			return null;
+			return exactMatch ? "}" : null;
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
@@ -1147,11 +1221,19 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		String param = findRecentMetronomeParam(paramPartial);
-		if (param == null)
+		if (param != null)
 		{
-			return paramPartial.isEmpty() ? "4" : null;
+			return param.substring(paramPartial.length());
 		}
-		return param.substring(paramPartial.length());
+
+		if (paramPartial.isEmpty())
+		{
+			return "4";
+		}
+
+		// Nothing left to suggest for the number -- if what's typed is already a complete N or
+		// N_M on its own, offer the closing brace instead.
+		return paramPartial.matches("\\d+(_\\d+)?") ? "}" : null;
 	}
 
 	private String findRecentMetronomeParam(String paramPartial)
