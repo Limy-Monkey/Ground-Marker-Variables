@@ -13,6 +13,7 @@ import com.groundmarkervariables.variables.label.SpecLabelVariable;
 import com.groundmarkervariables.variables.label.XpRateLabelVariable;
 
 import java.util.List;
+import java.util.Set;
 import javax.inject.Inject;
 
 // The variables usable as a MathVariable operand -- the ones whose Plain Text is always a
@@ -20,6 +21,11 @@ import javax.inject.Inject;
 // ConditionEvaluator (circular -- see ConditionEvaluator's own comment).
 public class NumericVariableRegistry
 {
+	// AdvancedLabelEditor's own autocomplete name/prefix for each variable above.
+	public static final Set<String> NAMES = Set.of(
+		"kc", "loot", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania"
+	);
+
 	private final List<LabelVariable> variables;
 
 	@Inject

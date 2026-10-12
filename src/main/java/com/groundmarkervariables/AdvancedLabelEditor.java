@@ -1,6 +1,7 @@
 package com.groundmarkervariables;
 
 import com.google.gson.Gson;
+import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.support.BossAliases;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
@@ -126,6 +127,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	// {/col} — the {col=} family's own alias for </col>, closed with "}" instead of ">".
 	private static final String CLOSE_COLOR_ALIAS = "/col}";
+
+	// Tracked separately: a math operand can only be a NumericVariableRegistry name. "(" needs
+	// no padding, matching MathVariable's own paren handling (e.g. "(kc tob").
+	private static final Pattern MATH_OPERATOR_BOUNDARY = Pattern.compile("\\s[+\\-*/]\\s|\\(");
+	private static final Pattern CONDITION_BOUNDARY = Pattern.compile("==|!=|<=|>=|<|>|&&|\\|\\|");
 
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
 	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
@@ -719,8 +725,24 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
+		// {<a> + <b>} / {<expr> < <value> ? ...} -- complete whatever's typed after the last
+		// operator/comparator/&&/||, same as completing right after the opening brace. Whichever
+		// boundary type is actually last determines restrictToNumeric below.
+		int mathBoundaryEnd = lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial);
+		int conditionBoundaryEnd = lastMatchEnd(CONDITION_BOUNDARY, partial);
+		boolean restrictToNumeric = mathBoundaryEnd > conditionBoundaryEnd;
+		int boundaryEnd = restrictToNumeric ? mathBoundaryEnd : conditionBoundaryEnd;
+		if (boundaryEnd >= 0)
+		{
+			partial = partial.substring(boundaryEnd).trim();
+			if (partial.isEmpty())
+			{
+				return null;
+			}
+		}
+
 		// {/col} — diverges from {col=...} at the first character, like "<" into <col=/</col>.
-		if (partial.charAt(0) == '/')
+		if (!restrictToNumeric && partial.charAt(0) == '/')
 		{
 			return completeCloseColorAlias(partial);
 		}
@@ -733,7 +755,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		if (partial.length() >= EQUIP_PREFIX.length() && partial.regionMatches(true, 0, EQUIP_PREFIX, 0, EQUIP_PREFIX.length()))
+		if (!restrictToNumeric && partial.length() >= EQUIP_PREFIX.length() && partial.regionMatches(true, 0, EQUIP_PREFIX, 0, EQUIP_PREFIX.length()))
 		{
 			return completeEquipSlot(partial.substring(EQUIP_PREFIX.length()));
 		}
@@ -743,7 +765,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX);
 		}
 
-		if (partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
+		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
 		{
 			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX);
 		}
@@ -753,13 +775,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeLootMonster(partial.substring(LOOT_PREFIX.length()));
 		}
 
-		if (partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
+		if (!restrictToNumeric && partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
 		}
 
 		// {col=...} — the {col=} alias for <col=...>, closed with "}" instead of ">".
-		if (partial.length() >= COLOR_TAG_PREFIX.length() && partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
+		if (!restrictToNumeric && partial.length() >= COLOR_TAG_PREFIX.length() && partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
 		{
 			return completeColorAliasValue(partial.substring(COLOR_TAG_PREFIX.length()));
 		}
@@ -775,6 +797,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		List<String> candidates = new ArrayList<>();
 		for (String name : VARIABLE_NAMES)
 		{
+			if (restrictToNumeric && !NumericVariableRegistry.NAMES.contains(name))
+			{
+				continue;
+			}
+
 			if (name.length() > partial.length() && name.regionMatches(true, 0, partial, 0, partial.length()))
 			{
 				candidates.add(name);
@@ -788,6 +815,17 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{");
 		return chosen.substring(partial.length());
+	}
+
+	private static int lastMatchEnd(Pattern pattern, String text)
+	{
+		int end = -1;
+		Matcher matcher = pattern.matcher(text);
+		while (matcher.find())
+		{
+			end = matcher.end();
+		}
+		return end;
 	}
 
 	// Same idea as the general variable-name matching above, but against skill names — e.g.
