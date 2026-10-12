@@ -3,16 +3,18 @@ package com.groundmarkervariables.variables.label;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
-// {<cond1> [&& or || <cond2>] ? <whenTrue> : <whenFalse>} — each <condN> is
-// "<expr> [<cmp> <value>]", evaluated via ConditionEvaluator. Nested variables in a branch
-// aren't supported (regex can't parse nested braces), except a literal {metronomeN[_M]} /
-// {mN[_M]} token (METRONOME_TOKEN), which resolveConditional() neutralizes in the winning
-// branch rather than resolving, matching the rest of metronome's conditional block (see
-// VariableRegistry).
+// {<chain> ? <whenTrue> : <whenFalse>} — <chain> is any number of "<expr> [<cmp> <value>]"
+// leaves combined with && / ||, with parens overriding the usual && before || precedence.
+// Nested variables in a branch aren't supported (regex can't parse nested braces), except a
+// literal {metronomeN[_M]} / {mN[_M]} token (METRONOME_TOKEN), which resolveConditional()
+// neutralizes in the winning branch rather than resolving, matching the rest of metronome's
+// conditional block (see VariableRegistry).
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
@@ -20,9 +22,9 @@ public class ConditionalVariable implements LabelVariable
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
 	private static final String BRANCH = "(?:[^{}]|" + METRONOME_TOKEN + ")+?";
 
-	private static final String CONDITION = "([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?";
+	private static final Pattern LEAF = Pattern.compile("([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?");
 	private static final Pattern PATTERN = Pattern.compile(
-		"\\{\\s*" + CONDITION + "(?:(&&|\\|\\|)\\s*" + CONDITION + ")?\\?\\s*(" + BRANCH + ")\\s*:\\s*(" + BRANCH + ")\\s*\\}");
+		"\\{\\s*([^{}]+?)\\?\\s*(" + BRANCH + ")\\s*:\\s*(" + BRANCH + ")\\s*\\}");
 
 	private final ConditionEvaluator evaluator;
 
@@ -53,22 +55,106 @@ public class ConditionalVariable implements LabelVariable
 
 	private String resolveConditional(Matcher matcher)
 	{
-		Boolean result = evaluator.evaluateCondition(matcher.group(1), matcher.group(2), matcher.group(3));
-
-		String logicOp = matcher.group(4);
-		if (logicOp != null)
-		{
-			Boolean second = evaluator.evaluateCondition(matcher.group(5), matcher.group(6), matcher.group(7));
-			result = "&&".equals(logicOp) ? and(result, second) : or(result, second);
-		}
-
+		Boolean result = evaluate(matcher.group(1));
 		if (result == null)
 		{
 			return null;
 		}
 
-		String winner = result ? matcher.group(8) : matcher.group(9);
+		String winner = result ? matcher.group(2) : matcher.group(3);
 		return METRONOME_TOKEN_PATTERN.matcher(winner).replaceAll("ILLEGAL");
+	}
+
+	// Splits on top-level (paren-depth 0) && / ||, then collapses && pairs before || pairs --
+	// same flat two-pass shape as MathVariable's own * / before + -.
+	private Boolean evaluate(String text)
+	{
+		List<Boolean> values = new ArrayList<>();
+		List<String> operators = new ArrayList<>();
+
+		int depth = 0;
+		int last = 0;
+		for (int i = 0; i < text.length(); i++)
+		{
+			char c = text.charAt(i);
+			if (c == '(')
+			{
+				depth++;
+			}
+			else if (c == ')')
+			{
+				depth--;
+			}
+			else if (depth == 0 && (text.startsWith("&&", i) || text.startsWith("||", i)))
+			{
+				values.add(evaluateFactor(text.substring(last, i)));
+				operators.add(text.substring(i, i + 2));
+				i++;
+				last = i + 1;
+			}
+		}
+		values.add(evaluateFactor(text.substring(last)));
+
+		for (int i = 0; i < operators.size(); )
+		{
+			if (!"&&".equals(operators.get(i)))
+			{
+				i++;
+				continue;
+			}
+
+			values.set(i, and(values.get(i), values.get(i + 1)));
+			values.remove(i + 1);
+			operators.remove(i);
+		}
+
+		Boolean result = values.get(0);
+		for (Boolean value : values.subList(1, values.size()))
+		{
+			result = or(result, value);
+		}
+		return result;
+	}
+
+	// A factor fully wrapped in one matching paren pair recurses; otherwise it's a leaf. A
+	// leaf's own <expr>/<value> may still contain balanced parens of its own (e.g. a
+	// MathVariable expression) -- those are left untouched for ConditionEvaluator to resolve.
+	private Boolean evaluateFactor(String text)
+	{
+		String trimmed = text.trim();
+		if (isFullyWrapped(trimmed))
+		{
+			return evaluate(trimmed.substring(1, trimmed.length() - 1));
+		}
+
+		Matcher leaf = LEAF.matcher(trimmed);
+		return leaf.matches() ? evaluator.evaluateCondition(leaf.group(1), leaf.group(2), leaf.group(3)) : null;
+	}
+
+	private static boolean isFullyWrapped(String text)
+	{
+		if (text.length() < 2 || text.charAt(0) != '(' || text.charAt(text.length() - 1) != ')')
+		{
+			return false;
+		}
+
+		int depth = 0;
+		for (int i = 0; i < text.length(); i++)
+		{
+			if (text.charAt(i) == '(')
+			{
+				depth++;
+			}
+			else if (text.charAt(i) == ')')
+			{
+				depth--;
+				if (depth == 0 && i != text.length() - 1)
+				{
+					return false;
+				}
+			}
+		}
+		return depth == 0;
 	}
 
 	// Three-valued AND: false wins regardless of the other side (even if unresolvable);
