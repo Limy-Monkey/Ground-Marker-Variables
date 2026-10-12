@@ -147,6 +147,10 @@ public class GroundMarkerVariablesOverlay
 
 			// Literal "\n" becomes a real line break, split into rows.
 			String[] lines = label.replace("\\n", "\n").split("\n", -1);
+			for (int i = 0; i < lines.length; i++)
+			{
+				lines[i] = lines[i].trim();
+			}
 
 			// A Composite fades every pixel actually drawn -- needed since TextComponent's
 			// shadow and <col=> spans both hardcode full opacity regardless of our own color.

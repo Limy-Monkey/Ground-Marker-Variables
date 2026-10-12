@@ -61,7 +61,7 @@ public class ConditionalVariable implements LabelVariable
 			return null;
 		}
 
-		String winner = result ? matcher.group(2) : matcher.group(3);
+		String winner = (result ? matcher.group(2) : matcher.group(3)).trim();
 		return METRONOME_TOKEN_PATTERN.matcher(winner).replaceAll("ILLEGAL");
 	}
 
