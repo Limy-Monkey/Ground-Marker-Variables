@@ -204,8 +204,9 @@ public interface GroundMarkerVariablesConfig extends Config
 
 	@ConfigSection(
 			name = "Rich Text",
-			description = "Controls the alternate, more descriptive rendering every variable supports.",
-			position = 4
+			description = "Controls text highlighting",
+			position = 4,
+			closedByDefault = true
 	)
 	String richTextSection = "richText";
 
@@ -351,62 +352,23 @@ public interface GroundMarkerVariablesConfig extends Config
 	}
 
 	@ConfigSection(
-			name = "Tips",
-			description = "Quick tips for getting started.",
-			position = 6,
-			closedByDefault = true
-	)
-	String aboutSection = "about";
-
-	// void return type + empty description: renders as a plain HTML label with no input
-	// control (see ConfigPanel's type dispatch), used here purely as inline help text.
-	@ConfigItem(
-			position = 1,
-			keyName = "notesHelp",
-			name = "<html><b>Try labeling a tile:</b><blockquote style=\"margin-left: 10px\">"
-					+ "- {slayerTask}<br>"
-					+ "- {hasItem Salve}<br>"
-					+ "- {kc brutus}"
-					+ "</blockquote>",
-			description = "",
-			section = aboutSection
-	)
-	default void notesHelp()
-	{
-	}
-
-	@ConfigItem(
-			position = 2,
-			keyName = "aboutHelp",
-			name = "<html><b>Pro tips:</b><blockquote style=\"margin-left: 10px\">"
-					+ "- Press tab to autocomplete<br>"
-					+ "- Try {^slayerTask} syntax<br>"
-					+ "- Try {spellbook == Ancient}<br>"
-					+ "- Use \\n for newlines!<br>"
-					+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ? A : B}<br>"
-					+ "</blockquote>",
-			description = "",
-			section = aboutSection
-	)
-	default void aboutHelp()
-	{
-	}
-
-	@ConfigSection(
 			name = "Variables",
 			description = "Quick reference for every available variable — see the README for full details.",
-			position = 7
+			position = 6
 	)
 	String variablesSection = "variables";
 
 	@ConfigItem(
 			position = 1,
 			keyName = "variableHelp1",
-			name = "<html><b>Variables:</b><blockquote style=\"margin-left: 10px\">"
+			name = "<html><blockquote style=\"margin-left: 10px\">"
+					+ "- {^...} = raw variable<br>"
+					+ "- \\n = newline<br>"
+					+ "- {col=red} = Red text<br><br>"
 					+ "- {rsn}<br>"
 					+ "- {time}<br>"
+					+ "- {m4} / {metronome4_5}<br>"
 					+ "- {6HourTimeRemaining &lt; 1.5}<br>"
-					+ "- {metronome4} / {m4_5 - 2}<br>"
 					+ "- {kc &lt;boss&gt;}, {pb &lt;boss&gt;}<br>"
 					+ "- {loot &lt;monster&gt;}<br><br>"
 					+ "- {slayerTask}<br>"
@@ -427,7 +389,10 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {hasFreeze}<br>"
 					+ "- {hasEntangle}<br>"
 					+ "- {autoRetaliate}<br>"
-					+ "- {hasItem &lt;name&gt;}<br>"
+					+ "- {hasItem &lt;name&gt;}<br><br>"
+					+ "- {kc tob + kc hmt}<br>"
+					+ "- {spellbook == Ancient}<br>"
+					+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ? A : B}<br>"
 					+ "</blockquote>",
 			description = "",
 			section = variablesSection
