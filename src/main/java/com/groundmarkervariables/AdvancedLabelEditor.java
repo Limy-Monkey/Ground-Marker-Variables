@@ -133,6 +133,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern MATH_OPERATOR_BOUNDARY = Pattern.compile("\\s[+\\-*/]\\s|\\(");
 	private static final Pattern CONDITION_BOUNDARY = Pattern.compile("==|!=|<=|>=|<|>|&&|\\|\\|");
 
+	// {spellbook == <name>} / {spellbook != <name>} -- the 4 possible spellbook names.
+	private static final Pattern SPELLBOOK_CONDITION = Pattern.compile("(?i)\\bspellbook\\s*(==|!=)\\s*(\\w*)$");
+	private static final List<String> SPELLBOOK_NAMES = List.of("Standard", "Ancient", "Lunar", "Arceuus");
+
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
 	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
 
@@ -755,6 +759,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
+		Matcher spellbookMatcher = SPELLBOOK_CONDITION.matcher(partial);
+		if (spellbookMatcher.find())
+		{
+			return completeSpellbookName(spellbookMatcher.group(2), partial.substring(spellbookMatcher.start(), spellbookMatcher.start(2)));
+		}
+
 		// {<a> + <b>} / {<expr> < <value> ? ...} -- complete whatever's typed after the last
 		// operator/comparator/&&/||, same as completing right after the opening brace. Whichever
 		// boundary type is actually last determines restrictToNumeric below.
@@ -922,6 +932,28 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + EQUIP_PREFIX);
 		return chosen.substring(slotPartial.length());
+	}
+
+	// Same idea as completeEquipSlot, against the 4 spellbook names. Empty partial still
+	// autocompletes, same as colors/metronome.
+	private String completeSpellbookName(String namePartial, String tokenPrefix)
+	{
+		List<String> candidates = new ArrayList<>();
+		for (String name : SPELLBOOK_NAMES)
+		{
+			if (name.length() > namePartial.length() && name.regionMatches(true, 0, namePartial, 0, namePartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, tokenPrefix);
+		return chosen.substring(namePartial.length());
 	}
 
 	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries, BossAliases (both
