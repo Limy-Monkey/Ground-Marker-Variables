@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
 import com.groundmarkervariables.variables.VariableRegistry;
 import net.runelite.client.util.QuantityFormatter;
@@ -36,17 +37,27 @@ public class ConditionEvaluator
 
 	private final List<LabelVariable> variables;
 	private final SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
+	private final MathVariable mathVariable;
 
 	@Inject
-	private ConditionEvaluator(VariableRegistry registry, SixHourTimeRemainingLabelVariable sixHourTimeRemaining)
+	private ConditionEvaluator(VariableRegistry registry, SixHourTimeRemainingLabelVariable sixHourTimeRemaining, MathVariable mathVariable)
 	{
 		this.variables = registry.all();
 		this.sixHourTimeRemaining = sixHourTimeRemaining;
+		this.mathVariable = mathVariable;
 	}
 
 	// <expr>'s own Plain Text value, or null if <expr> doesn't match any base variable.
+	// MathVariable isn't itself in VariableRegistry (it depends on NumericVariableRegistry
+	// instead, to avoid a circular dependency back through here), so it's tried directly.
 	public String resolveExpression(String expr)
 	{
+		Matcher mathMatcher = mathVariable.pattern().matcher("{" + expr + "}");
+		if (mathMatcher.matches())
+		{
+			return mathVariable.resolvePlain(mathMatcher);
+		}
+
 		for (LabelVariable variable : variables)
 		{
 			Matcher wrapped = variable.pattern().matcher("{" + expr + "}");
@@ -193,7 +204,7 @@ public class ConditionEvaluator
 
 	// Falls back to RuneLite's own K/M/B stack-size suffix, e.g. "10.5k" -> 10500, so
 	// {loot monster > 10.5k} works the same way {loot}'s own Rich Text displays gp.
-	private static Double tryParseNumber(String value)
+	public static Double tryParseNumber(String value)
 	{
 		try
 		{

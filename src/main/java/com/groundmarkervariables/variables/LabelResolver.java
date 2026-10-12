@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.label.BooleanVariable;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
+import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 
 import java.util.HashMap;
@@ -25,6 +26,7 @@ public class LabelResolver
 	private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
 
 	private final List<LabelVariable> baseVariables;
+	private final MathVariable math;
 	private final BooleanVariable booleanVariable;
 	private final ConditionalVariable conditional;
 	private final MetronomeLabelVariable metronome;
@@ -34,10 +36,11 @@ public class LabelResolver
 	private final Map<LabelVariable, Pattern> prefixedPatterns = new HashMap<>();
 
 	@Inject
-	private LabelResolver(VariableRegistry registry, BooleanVariable booleanVariable, ConditionalVariable conditional,
+	private LabelResolver(VariableRegistry registry, MathVariable math, BooleanVariable booleanVariable, ConditionalVariable conditional,
 						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config)
 	{
 		this.baseVariables = registry.all();
+		this.math = math;
 		this.booleanVariable = booleanVariable;
 		this.conditional = conditional;
 		this.metronome = metronome;
@@ -51,7 +54,7 @@ public class LabelResolver
 			return label;
 		}
 
-		String resolved = label;
+		String resolved = applyWithMode(math, label);
 		for (LabelVariable variable : baseVariables)
 		{
 			resolved = applyWithMode(variable, resolved);

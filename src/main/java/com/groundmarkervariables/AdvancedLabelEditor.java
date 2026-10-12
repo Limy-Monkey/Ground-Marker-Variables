@@ -890,7 +890,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		for (String alias : BossAliases.aliases())
 		{
-			if (alias.length() > bossPartial.length() && alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
+			if (alias.length() > bossPartial.length() && !alias.contains(" - ")
+				&& alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
 				candidates.add(alias);
 			}

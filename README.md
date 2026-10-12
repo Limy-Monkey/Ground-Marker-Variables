@@ -40,6 +40,7 @@ Supported variables:
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
 | `{<cond1> && / \|\| <cond2> ? A : B}`   | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
+| `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                                 |
 
 ## Examples:
 
