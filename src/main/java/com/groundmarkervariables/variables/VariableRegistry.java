@@ -47,12 +47,14 @@ public class VariableRegistry
 		SlayerStreakLabelVariable slayerStreak,
 		SlayerPointsLabelVariable slayerPoints,
 		LootLabelVariable loot,
-		CombatAchievementsLabelVariable combatAchievements)
+		CombatAchievementsLabelVariable combatAchievements,
+		NumItemLabelVariable numItem,
+		NumDosesLabelVariable numDoses)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
-			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements);
+			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses);
 	}
 
 	public List<LabelVariable> all()
