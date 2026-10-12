@@ -45,31 +45,45 @@ public class MathVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		Long days = evaluateDateCountdown(matcher.group(1));
-		if (days != null)
+		try
 		{
-			return String.valueOf(days);
-		}
+			Long days = evaluateDateCountdown(matcher.group(1));
+			if (days != null)
+			{
+				return String.valueOf(days);
+			}
 
-		Double value = evaluate(matcher.group(1));
-		return value == null ? null : formatPlain(value);
+			Double value = evaluate(matcher.group(1));
+			return value == null ? null : formatPlain(value);
+		}
+		catch (RuntimeException e)
+		{
+			return "NaN";
+		}
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		Long days = evaluateDateCountdown(matcher.group(1));
-
-		// "day(s)" only applies to a bare date pair -- once anything's chained after it
-		// (a second operator), fall through to the normal plain-number formatting below.
-		Matcher opMatcher = OPERATOR.matcher(matcher.group(1));
-		if (days != null && opMatcher.find() && !opMatcher.find())
+		try
 		{
-			return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
-		}
+			Long days = evaluateDateCountdown(matcher.group(1));
 
-		Double value = days != null ? (double) days : evaluate(matcher.group(1));
-		return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
+			// "day(s)" only applies to a bare date pair -- once anything's chained after it
+			// (a second operator), fall through to the normal plain-number formatting below.
+			Matcher opMatcher = OPERATOR.matcher(matcher.group(1));
+			if (days != null && opMatcher.find() && !opMatcher.find())
+			{
+				return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
+			}
+
+			Double value = days != null ? (double) days : evaluate(matcher.group(1));
+			return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
+		}
+		catch (RuntimeException e)
+		{
+			return "NaN";
+		}
 	}
 
 	// Only matches if the FIRST operator is "-" and pairs "date" with a parseable date literal

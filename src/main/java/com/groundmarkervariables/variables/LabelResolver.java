@@ -87,7 +87,15 @@ public class LabelResolver
 
 			String bareToken = prefixChar == null ? matcher.group(0) : "{" + matcher.group(0).substring(2);
 			Matcher bareMatcher = variable.pattern().matcher(bareToken);
-			String value = bareMatcher.matches() ? variable.resolve(bareMatcher, mode) : null;
+			String value;
+			try
+			{
+				value = bareMatcher.matches() ? variable.resolve(bareMatcher, mode) : null;
+			}
+			catch (RuntimeException e)
+			{
+				value = "ERROR";
+			}
 			if (value != null)
 			{
 				matcher.appendReplacement(replaced, Matcher.quoteReplacement(value));
@@ -103,7 +111,15 @@ public class LabelResolver
 		StringBuilder replaced = new StringBuilder();
 		while (matcher.find())
 		{
-			String value = variable.resolvePlain(matcher);
+			String value;
+			try
+			{
+				value = variable.resolvePlain(matcher);
+			}
+			catch (RuntimeException e)
+			{
+				value = "ERROR";
+			}
 			if (value != null)
 			{
 				matcher.appendReplacement(replaced, Matcher.quoteReplacement(value));
