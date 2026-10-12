@@ -8,6 +8,7 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.InventoryID;
@@ -109,10 +110,13 @@ public class EquipLabelVariable implements LabelVariable
 		return itemManager.getItemComposition(item.getId()).getName();
 	}
 
-	// Dizana's Quiver isn't in the equipment ItemContainer — its live ammo type is tracked
-	// as a varp instead (there's no equivalent equipment slot).
 	private String resolveQuiver()
 	{
+		if (!QuiverAmmo.isAvailable(client, itemManager))
+		{
+			return EMPTY;
+		}
+
 		int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
 		return ammoId <= 0 ? EMPTY : itemManager.getItemComposition(ammoId).getName();
 	}

@@ -7,6 +7,7 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
 import net.runelite.api.EnumID;
@@ -15,6 +16,7 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
 
 // {hasItem <name>} -> "true" if the player currently holds an item whose ItemComposition name
@@ -22,9 +24,7 @@ import net.runelite.client.game.ItemManager;
 // "Rune pouch", "Air rune", "Runite ore", ...) in their inventory or equipment, "false"
 // otherwise. <name> is everything after "hasItem " up to the closing brace.
 //
-// Also checks a rune pouch's contents (any variant: regular/looted, divine/looted), but only
-// when the pouch itself is actually in the inventory — same rune/quantity varbits and
-// EnumID.RUNEPOUCH_RUNE lookup core's own RunepouchOverlay uses.
+// Also checks a rune pouch's contents and Dizana's Quiver's active ammo.
 //
 // [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise, as a base variable,
 // this pattern runs before ConditionalVariable/BooleanVariable and would swallow a trailing
@@ -104,7 +104,30 @@ public class HasItemLabelVariable implements LabelVariable
 			return name;
 		}
 
+		name = findInQuiver(search);
+		if (name != null)
+		{
+			return name;
+		}
+
 		return inventoryHasRunePouch(inventory) ? findInRunePouch(search) : null;
+	}
+
+	private String findInQuiver(String search)
+	{
+		if (!QuiverAmmo.isAvailable(client, itemManager))
+		{
+			return null;
+		}
+
+		int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
+		if (ammoId <= 0)
+		{
+			return null;
+		}
+
+		String name = itemManager.getItemComposition(ammoId).getName();
+		return name.toLowerCase(Locale.ROOT).contains(search) ? name : null;
 	}
 
 	private String findInContainer(ItemContainer container, String search)
