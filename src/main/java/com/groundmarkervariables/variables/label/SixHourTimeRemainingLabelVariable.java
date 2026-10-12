@@ -19,7 +19,7 @@ import net.runelite.api.GameState;
 @Singleton
 public class SixHourTimeRemainingLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{6HourTimeRemaining\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{6Hour(?:Time(?:Remaining)?)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Duration SESSION_LIMIT = Duration.ofHours(6);
 	private static final String LABEL = "Six hour log in";
 

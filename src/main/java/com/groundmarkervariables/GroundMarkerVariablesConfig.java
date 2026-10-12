@@ -368,7 +368,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {rsn}<br>"
 					+ "- {date}, {time}, {weekday}<br>"
 					+ "- {m4} / {metronome4_5}<br>"
-					+ "- {6HourTimeRemaining &lt; 1.5}<br>"
+					+ "- {6Hour &lt; 1.5 hrs}<br>"
 					+ "- {kc &lt;boss&gt;}, {pb &lt;boss&gt;}<br>"
 					+ "- {loot &lt;monster&gt;}<br><br>"
 					+ "- {slayerTask}<br>"
