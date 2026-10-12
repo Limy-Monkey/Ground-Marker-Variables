@@ -14,6 +14,8 @@ Supported variables:
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `{rsn}`                                 | Current player's display name                                                                                                                                    |
 | `{time}` / `{time24}`                   | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                                          |
+| `{date}`                                | Today's date, e.g. October 20th 2026                                                                                                                             |
+| `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                    |
 | `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Not usable inside a conditional                                  |
 | `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
@@ -40,7 +42,7 @@ Supported variables:
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
 | `{<cond1> && / \|\| <cond2> ? A : B}`   | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
-| `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                                 |
+| `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
 
 ## Examples:
 

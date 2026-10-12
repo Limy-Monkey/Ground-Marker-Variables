@@ -366,7 +366,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- \\n = newline<br>"
 					+ "- {col=red} = Red text<br><br>"
 					+ "- {rsn}<br>"
-					+ "- {time}<br>"
+					+ "- {date}, {time}, {weekday}<br>"
 					+ "- {m4} / {metronome4_5}<br>"
 					+ "- {6HourTimeRemaining &lt; 1.5}<br>"
 					+ "- {kc &lt;boss&gt;}, {pb &lt;boss&gt;}<br>"
