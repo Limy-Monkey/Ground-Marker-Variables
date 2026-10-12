@@ -3,6 +3,7 @@ package com.groundmarkervariables;
 import com.google.gson.Gson;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.support.BossAliases;
+import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -76,13 +77,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses"
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem", "numItem", "numDoses");
+		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
 	// these prefixes, autocomplete switches from variable names to skill names.
@@ -122,6 +123,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// no fixed candidate list for colors the way Skill.values() is for skills).
 	private static final String COLOR_TAG_PREFIX = "col=";
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
+
+	// {tileCol=<col>} — a named color, a named opacity, or "N%".
+	private static final String TILECOL_PREFIX = "tileCol=";
+	private static final Pattern TILECOL_PERCENT = Pattern.compile("\\d{1,3}%");
 
 	// For underlining only — also matches {col=HEX|NAME}, </col>, and {/col} (no groups means
 	// </col> or {/col}, both reverting to the tile's own color).
@@ -838,6 +843,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeColorAliasValue(partial.substring(COLOR_TAG_PREFIX.length()));
 		}
 
+		if (!restrictToNumeric && partial.length() >= TILECOL_PREFIX.length() && partial.regionMatches(true, 0, TILECOL_PREFIX, 0, TILECOL_PREFIX.length()))
+		{
+			return completeTileColValue(partial.substring(TILECOL_PREFIX.length()));
+		}
+
 		for (int i = 0; i < partial.length(); i++)
 		{
 			if (!Character.isLetterOrDigit(partial.charAt(i)))
@@ -1192,6 +1202,39 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		// suggesting one only ever reflects something the user has genuinely typed before.
 		String hex = findRecentColor(hexPartial);
 		return hex == null ? null : hex.substring(hexPartial.length()) + closer;
+	}
+
+	// {tileCol=...} value completion -- named color/opacity or "N%", closing with "}".
+	private String completeTileColValue(String valuePartial)
+	{
+		if (TILECOL_PERCENT.matcher(valuePartial).matches())
+		{
+			return "}";
+		}
+
+		List<String> candidates = new ArrayList<>();
+		for (String name : NamedColors.OPACITY_BY_NAME.keySet())
+		{
+			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+		for (String name : NamedColors.HEX_BY_NAME.keySet())
+		{
+			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + TILECOL_PREFIX);
+		return chosen.substring(valuePartial.length()) + "}";
 	}
 
 	// "{/col}" completes literally in full.

@@ -1,5 +1,6 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.variables.meta.MetaState;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -16,6 +17,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.util.ColorUtil;
 
 // Mirrors core's GroundMarkerMinimapOverlay — draws every marker's outline on the minimap,
 // gated by the "Draw tiles on minimap" config item.
@@ -54,7 +56,16 @@ class GroundMarkerVariablesMinimapOverlay extends Overlay
 					continue;
 				}
 
-				Color color = translated.marker.source.getColor() != null ? translated.marker.source.getColor() : config.markerColor();
+				MetaState metaState = translated.marker.getMetaState();
+				Color baseColor = translated.marker.source.getColor() != null ? translated.marker.source.getColor() : config.markerColor();
+
+				// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
+				Color color = metaState.getTileColor() != null
+					? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
+				if (metaState.getTileOpacity() != null)
+				{
+					color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
+				}
 				drawOnMinimap(graphics, wv, worldPoint, color);
 			}
 		}

@@ -8,6 +8,7 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.MarkerStorage;
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import java.awt.Color;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ public class PingedTileManager
 	private final GroundMarkerVariablesPlugin plugin;
 	private final MarkerStorage markerStorage;
 	private final LabelResolver labelResolver;
+	private final MetaVariableResolver metaVariableResolver;
 	private final PartyService partyService;
 	private final WSClient wsClient;
 	private final ChatMessageManager chatMessageManager;
@@ -80,7 +82,7 @@ public class PingedTileManager
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
 		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-		PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager)
+		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -90,6 +92,7 @@ public class PingedTileManager
 		this.plugin = plugin;
 		this.markerStorage = markerStorage;
 		this.labelResolver = labelResolver;
+		this.metaVariableResolver = metaVariableResolver;
 		this.partyService = partyService;
 		this.wsClient = wsClient;
 		this.chatMessageManager = chatMessageManager;
@@ -202,7 +205,7 @@ public class PingedTileManager
 		{
 			GroundMarkerPointData transientPoint = new GroundMarkerPointData(
 				point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, share.getLabel());
-			CachedMarker marker = new CachedMarker(transientPoint, labelResolver);
+			CachedMarker marker = new CachedMarker(transientPoint, labelResolver, metaVariableResolver);
 			PingedTile pinged = new PingedTile(marker, share.getMemberId(), senderName, Instant.now());
 			pingedTiles.put(point, pinged);
 			retranslate();
@@ -222,7 +225,7 @@ public class PingedTileManager
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		pingedTiles.values().forEach(tile -> tile.marker.refresh(labelResolver));
+		pingedTiles.values().forEach(tile -> tile.marker.refresh(labelResolver, metaVariableResolver));
 	}
 
 	// Same two hooks GroundMarkerVariablesPlugin uses for its own markersByWorldView.

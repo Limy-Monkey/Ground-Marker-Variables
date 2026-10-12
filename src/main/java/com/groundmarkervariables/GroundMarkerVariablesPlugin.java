@@ -7,6 +7,7 @@ import com.google.inject.Provides;
 import com.groundmarkervariables.party.*;
 import com.groundmarkervariables.variables.support.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
@@ -126,6 +127,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private LabelResolver labelResolver;
+
+	@Inject
+	private MetaVariableResolver metaVariableResolver;
 
 	@Inject
 	private MetronomeLabelVariable metronomeLabelVariable;
@@ -704,7 +708,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 						continue;
 					}
 
-					translated.marker.refresh(labelResolver);
+					translated.marker.refresh(labelResolver, metaVariableResolver);
 				}
 			}
 		}
@@ -914,7 +918,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private void rebuildRegion(int regionId)
 	{
 		List<CachedMarker> markers = markerStorage.getStoredPoints(regionId).stream()
-			.map(point -> new CachedMarker(point, labelResolver))
+			.map(point -> new CachedMarker(point, labelResolver, metaVariableResolver))
 			.collect(Collectors.toList());
 		markersByRegion.put(regionId, markers);
 	}

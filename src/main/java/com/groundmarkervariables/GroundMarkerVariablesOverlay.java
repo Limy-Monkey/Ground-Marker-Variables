@@ -19,6 +19,8 @@ import javax.inject.Singleton;
 
 import com.groundmarkervariables.party.PingedTileManager;
 import com.groundmarkervariables.party.TranslatedPingedTile;
+import com.groundmarkervariables.variables.meta.MetaState;
+import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
@@ -119,8 +121,17 @@ public class GroundMarkerVariablesOverlay
 			return;
 		}
 
-		Color color = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
-		Color fadedColor = opacity >= 1f ? color : ColorUtil.colorWithAlpha(color, (int) (color.getAlpha() * opacity));
+		MetaState metaState = marker.getMetaState();
+		Color baseColor = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
+
+		// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
+		Color color = metaState.getTileColor() != null
+			? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
+
+		// tileOpacity only ever affects the outline below, never the fill or label text.
+		Color outlineColor = metaState.getTileOpacity() != null
+			? ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255)) : color;
+		Color fadedColor = opacity >= 1f ? outlineColor : ColorUtil.colorWithAlpha(outlineColor, (int) (outlineColor.getAlpha() * opacity));
 
 		if (!labels)
 		{

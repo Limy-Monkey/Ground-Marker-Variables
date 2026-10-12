@@ -1,6 +1,7 @@
 package com.groundmarkervariables;
 
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,12 +24,14 @@ public class ImportPreviewManager
 
 	private final GroundMarkerVariablesPlugin plugin;
 	private final LabelResolver labelResolver;
+	private final MetaVariableResolver metaVariableResolver;
 
 	@Inject
-	private ImportPreviewManager(GroundMarkerVariablesPlugin plugin, LabelResolver labelResolver)
+	private ImportPreviewManager(GroundMarkerVariablesPlugin plugin, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
 	{
 		this.plugin = plugin;
 		this.labelResolver = labelResolver;
+		this.metaVariableResolver = metaVariableResolver;
 	}
 
 	// Mirrors GroundMarkerVariablesPlugin#translateWorldView, one-shot.
@@ -37,7 +40,7 @@ public class ImportPreviewManager
 		List<CachedMarker> markers = new ArrayList<>();
 		for (GroundMarkerPointData point : points)
 		{
-			markers.add(new CachedMarker(point, labelResolver));
+			markers.add(new CachedMarker(point, labelResolver, metaVariableResolver));
 		}
 
 		Map<WorldView, List<TranslatedMarker>> rebuilt = new ConcurrentHashMap<>();
@@ -77,7 +80,7 @@ public class ImportPreviewManager
 			}
 		}
 
-		visible.forEach(marker -> marker.refresh(labelResolver));
+		visible.forEach(marker -> marker.refresh(labelResolver, metaVariableResolver));
 	}
 
 	Collection<TranslatedMarker> getPreviewMarkers(WorldView wv)

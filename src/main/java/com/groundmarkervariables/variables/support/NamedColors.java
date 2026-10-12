@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.variables.support;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -9,9 +9,12 @@ import java.util.regex.Pattern;
 // Standard color names usable as <col=NAME>, e.g. <col=red> — expanded to <col=FF0000> at
 // render time (see GroundMarkerVariablesOverlay) and offered as autocomplete candidates once
 // "<col=" has been typed (see AdvancedLabelEditor).
-final class NamedColors
+public final class NamedColors
 {
-	static final Map<String, String> HEX_BY_NAME = createHexByName();
+	public static final Map<String, String> HEX_BY_NAME = createHexByName();
+
+	// Opacity-only names for {tileCol=...} (not valid in <col=...>/{col=...}) -- percent values.
+	public static final Map<String, Integer> OPACITY_BY_NAME = createOpacityByName();
 
 	// <col=NAME>, {col=HEX|NAME} as an alias for <col=...>, and {/col} as an alias for </col>.
 	private static final Pattern COLOR_ALIAS_PATTERN = Pattern.compile(
@@ -45,8 +48,18 @@ final class NamedColors
 		return Collections.unmodifiableMap(colors);
 	}
 
+	private static Map<String, Integer> createOpacityByName()
+	{
+		Map<String, Integer> opacities = new LinkedHashMap<>();
+		opacities.put("invis", 0);
+		opacities.put("translucent", 50);
+		opacities.put("opaque", 100);
+		opacities.put("solid", 100);
+		return Collections.unmodifiableMap(opacities);
+	}
+
 	// <col=NAME>/{col=HEX|NAME} become <col=HEX>; {/col} becomes </col> (still unresolved).
-	static String expandColorAliases(String text)
+	public static String expandColorAliases(String text)
 	{
 		Matcher matcher = COLOR_ALIAS_PATTERN.matcher(text);
 		if (!matcher.find())
