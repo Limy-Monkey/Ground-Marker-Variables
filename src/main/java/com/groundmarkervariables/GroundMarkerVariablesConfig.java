@@ -383,6 +383,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {miscellania} (0-127)<br>"
 					+ "- {runEnergy}<br>"
 					+ "- {spec}<br>"
+					+ "- {combatAchievement}<br>"
 					+ "- {questPoints}<br><br>"
 					+ "- {hasThralls}<br>"
 					+ "- {hasAlchs}<br>"

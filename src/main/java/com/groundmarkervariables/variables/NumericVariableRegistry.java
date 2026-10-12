@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.variables.label.BoostedSkillLevelLabelVariable;
+import com.groundmarkervariables.variables.label.CombatAchievementsLabelVariable;
 import com.groundmarkervariables.variables.label.KcLabelVariable;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.label.MiscellaniaLabelVariable;
@@ -24,7 +25,8 @@ public class NumericVariableRegistry
 {
 	// AdvancedLabelEditor's own autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
-		"kc", "loot", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday"
+		"kc", "loot", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
+		"combatAchievement"
 	);
 
 	private final List<LabelVariable> variables;
@@ -42,10 +44,11 @@ public class NumericVariableRegistry
 		SlayerPointsLabelVariable slayerPoints,
 		SlayerStreakLabelVariable slayerStreak,
 		MiscellaniaLabelVariable miscellania,
-		WeekdayLabelVariable weekday)
+		WeekdayLabelVariable weekday,
+		CombatAchievementsLabelVariable combatAchievements)
 	{
 		this.variables = List.of(kc, loot, skillLevel, boostedSkillLevel, xpRate, runEnergy, spec,
-			questPoints, slayerPoints, slayerStreak, miscellania, weekday);
+			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements);
 	}
 
 	public List<LabelVariable> all()
