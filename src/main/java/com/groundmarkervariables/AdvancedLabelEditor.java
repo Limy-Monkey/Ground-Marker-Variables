@@ -245,9 +245,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// back to the same one-character span every time instead of growing. We track our own
 	// anchor here and drive cursorAt() directly, bypassing that logic entirely for this case;
 	// everything else (typing, non-shift arrows, etc.) still goes through the base class.
-	// Also adds shift+Ctrl/Alt+Left/Right (either modifier) to extend by a whole word instead
-	// of one character — the base class doesn't support this at all (Ctrl+anything other than
-	// X/C/V/A is swallowed and does nothing, per its own keyPressed()).
+	// Also adds Ctrl/Alt+Left/Right (plain or with shift, either modifier) to move/extend by a
+	// whole word instead of one character, and Ctrl/Alt+Backspace to delete back to the
+	// previous word boundary — the base class doesn't support any of this (Ctrl+anything other
+	// than X/C/V/A is swallowed and does nothing, per its own keyPressed()).
 	@Override
 	public void keyPressed(KeyEvent ev)
 	{
@@ -322,6 +323,35 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 
 			cursorAt(shiftSelectionAnchor, caret);
+			return;
+		}
+
+		// Ctrl/Alt+Left/Right with no shift -- move by a whole word instead of one character.
+		// Collapses from whichever edge is being moved toward, same as a plain arrow would.
+		if (!shift && wordJump && (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT))
+		{
+			shiftSelectionAnchor = -1;
+			cursorAt(code == KeyEvent.VK_LEFT
+				? previousWordBoundary(getValue(), getCursorStart())
+				: nextWordBoundary(getValue(), getCursorEnd()));
+			return;
+		}
+
+		// Ctrl/Alt+Backspace -- delete the selection if one exists, otherwise delete back to
+		// the previous word boundary.
+		if (wordJump && code == KeyEvent.VK_BACK_SPACE)
+		{
+			ev.consume();
+			shiftSelectionAnchor = -1;
+			String text = getValue();
+			int start = getCursorStart();
+			int end = getCursorEnd();
+			if (start == end)
+			{
+				start = previousWordBoundary(text, start);
+			}
+			value(text.substring(0, start) + text.substring(end));
+			cursorAt(start);
 			return;
 		}
 
