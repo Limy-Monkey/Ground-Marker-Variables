@@ -77,7 +77,7 @@ public class MathVariable implements LabelVariable
 				return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
 			}
 
-			Double value = days != null ? (double) days : evaluate(matcher.group(1));
+			Double value = days != null ? Double.valueOf(days) : evaluate(matcher.group(1));
 			return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
 		}
 		catch (RuntimeException e)
@@ -171,7 +171,7 @@ public class MathVariable implements LabelVariable
 	private Double evaluateInner(String text)
 	{
 		Long days = evaluateDateCountdown(text);
-		return days != null ? (double) days : evaluateFlat(text);
+		return days != null ? Double.valueOf(days) : evaluateFlat(text);
 	}
 
 	// Splits on whitespace-padded operators, resolves every operand, then applies standard
