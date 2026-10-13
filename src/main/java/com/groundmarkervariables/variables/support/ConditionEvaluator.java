@@ -131,6 +131,12 @@ public class ConditionEvaluator
 			return tryParseBoolean(actual);
 		}
 
+		String resolvedExpected = resolveExpression(expected);
+		if (resolvedExpected != null)
+		{
+			expected = resolvedExpected;
+		}
+
 		if ("==".equals(comparator))
 		{
 			return actual.equalsIgnoreCase(expected);
