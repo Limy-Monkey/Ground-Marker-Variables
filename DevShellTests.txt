@@ -1,0 +1,431 @@
+// Ground Marker Variables -- regression tests for RuneLite's Development Shell
+// (Developer Tools > Shell, JShell-based). Log in to a character, paste this whole file in,
+// and press Ctrl+R / F10. Output goes to the log: one PASS/FAIL line per check, then a summary
+// listing every failed check by name.
+//
+// Every check goes through the public PluginMessage "Resolve" API (PluginMessageHandler), so
+// this is LabelResolver only: meta variables ({tileCol=...}, {highlight...}, {align=...}) are
+// never stripped here, and {col=...} aliases are never expanded to <col=...> (CachedMarker does
+// that for real markers, not LabelResolver).
+//
+// Expected values that depend on live state (kc, weekday, spellbook, equipment...) are read
+// from the same session first, so checks don't hardcode your character's numbers. Checks
+// tagged [data] need specific tracked data (e.g. ToA loot) and fail without it; [hiscores]
+// checks may show animated dots while the hiscores lookup is still loading, which still passes.
+//
+// No imports on purpose: the shell's prelude already imports java.util.* and
+// net.runelite.client.events.*, and adding an import that touches a prelude snippet's types
+// (e.g. EventBus) makes jshell recompile it, resetting the prelude's own $EVENT_BUS to null --
+// subscribe() then throws an NPE. Everything else is fully qualified instead.
+
+var eventBus = inject(net.runelite.client.eventbus.EventBus.class);
+var replies = new HashMap<String, String>();
+var failures = new ArrayList<String>();
+int[] tally = {0, 0};
+
+String rsn = "";
+int toa = 0;
+int weekday = 0;
+
+subscribe(PluginMessage.class, ev -> {
+	if ("gmv-tests".equals(ev.getNamespace()) && "Resolve".equals(ev.getName()))
+	{
+		replies.put(String.valueOf(ev.getData().get("text")), String.valueOf(ev.getData().get("result")));
+	}
+});
+
+// ---------------------------------------------------------------------------------------------
+// Harness
+// ---------------------------------------------------------------------------------------------
+
+// EventBus.post() is synchronous, so the reply has already arrived by the time it returns.
+String resolve(String text)
+{
+	replies.remove(text);
+	eventBus.post(new PluginMessage("ground-marker-variables", "Resolve", Map.of("plugin", "gmv-tests", "text", text)));
+	return replies.get(text);
+}
+
+String strip(String s)
+{
+	return s == null ? null : net.runelite.client.util.Text.removeTags(s);
+}
+
+void record(String name, boolean pass, String detail)
+{
+	if (pass)
+	{
+		tally[0]++;
+		log.info("PASS  {}  |  {}", name, detail);
+	}
+	else
+	{
+		tally[1]++;
+		failures.add(name);
+		log.warn("FAIL  {}  |  {}", name, detail);
+	}
+}
+
+void check(String name, String text, java.util.function.Predicate<String> ok, String expected)
+{
+	String result = resolve(text);
+	boolean pass;
+	try
+	{
+		pass = result != null && ok.test(result);
+	}
+	catch (RuntimeException e)
+	{
+		pass = false;
+	}
+	record(name, pass, text + "  ->  " + result + (pass ? "" : "   (expected " + expected + ")"));
+}
+
+void eq(String name, String text, String expected)
+{
+	check(name, text, r -> r.equals(expected), "\"" + expected + "\"");
+}
+
+// Compares with <col=...> tags stripped, for Rich Text / highlighted values.
+void eqText(String name, String text, String expected)
+{
+	check(name, text, r -> strip(r).equals(expected), "\"" + expected + "\" (tags stripped)");
+}
+
+void regex(String name, String text, String pattern)
+{
+	check(name, text, r -> strip(r).matches(pattern), "/" + pattern + "/ (tags stripped)");
+}
+
+// Reads a condition's truth value back out through a {cond ? T : F} conditional.
+void cond(String name, String condition, boolean expected)
+{
+	eq(name, "{" + condition + " ? T : F}", expected ? "T" : "F");
+}
+
+// LabelResolver leaves anything it can't resolve as the literal token.
+void unresolved(String name, String text)
+{
+	eq(name, text, text);
+}
+
+// Falls back to 0 rather than aborting the whole run when a baseline can't be read.
+int num(String text)
+{
+	String result = resolve(text);
+	try
+	{
+		return (int) Double.parseDouble(strip(result));
+	}
+	catch (RuntimeException e)
+	{
+		log.warn("Couldn't read {} as a number (got {}) -- using 0, dependent checks may fail", text, result);
+		return 0;
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Basics: plain/rich output of individual variables and the ^ & * prefixes
+// ---------------------------------------------------------------------------------------------
+
+void basics()
+{
+	eq("text without variables passes through", "no variables here", "no variables here");
+	unresolved("unknown variable left literal", "{notARealVariable}");
+
+	eq("{^rsn} plain", "{^rsn}", rsn);
+	eqText("{&rsn} rich", "{&rsn}", "RSN: " + rsn);
+	eq("{^weekday} plain", "{^weekday}", String.valueOf(weekday));
+	eqText("{&weekday} rich", "{&weekday}", "Weekday: " + java.time.LocalDate.now().getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH));
+	regex("{time} is 12-hour with am/pm", "{^time}", "\\d{1,2}:\\d{2} (am|pm)");
+	regex("{time24} is 24-hour", "{^time24}", "\\d{2}:\\d{2}");
+	regex("{&date} rich", "{&date}", "Date: [A-Z][a-z]+ \\d{1,2}(st|nd|rd|th) \\d{4}");
+
+	regex("{^combatAchievement} is 0-6", "{^combatAchievement}", "[0-6]");
+	eq("{combatAchievement} alias matches {combatAchievements}", "{^combatAchievement}", resolve("{^combatAchievements}"));
+	eq("{6Hour} alias matches {6HourTimeRemaining}", "{^6Hour}", resolve("{^6HourTimeRemaining}"));
+	eq("{6HourTime} alias matches {6HourTimeRemaining}", "{^6HourTime}", resolve("{^6HourTimeRemaining}"));
+
+	regex("{^lvl_attack}", "{^lvl_attack}", "\\d{1,2}");
+	regex("{^lvl_combat}", "{^lvl_combat}", "\\d{1,3}");
+	regex("{^lvl_total}", "{^lvl_total}", "\\d{2,4}");
+	regex("{&runEnergy} rich", "{&runEnergy}", "Run: \\d{1,3} / 100");
+	regex("{&spec} rich", "{&spec}", "Spec: \\d{1,3}%");
+	regex("{^m4} metronome counts 1-4", "{^m4}", "[1-4]");
+	regex("{^metronome4_2} metronome counts 1-4", "{^metronome4_2}", "[1-4]");
+
+	eq("boss alias matches canonical name", "{^kc toa}", resolve("{^kc Tombs of Amascut}"));
+	eqText("{&kc toa} rich", "{&kc toa}", "Tombs of Amascut kc: " + toa);
+	String defaultKc = resolve("{kc toa}");
+	check("{*kc toa} is the opposite of the default mode", "{*kc toa}", r -> !r.equals(defaultKc), "not \"" + defaultKc + "\"");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: a trailing comparator was swallowed into the boss/monster/item name
+// ({kc cg > 10}, {loot <monster> > 10000}, {hasItem ...})
+// ---------------------------------------------------------------------------------------------
+
+void comparatorsNotInNames()
+{
+	eq("{^kc cg > 10} shows kc, not a boss named 'cg > 10'", "{^kc cg > 10}", resolve("{^kc cg}"));
+	cond("kc with comparator in a conditional", "kc cg >= 0", true);
+	eq("{^hasItem} of a missing item", "{^hasItem zzzz not real}", "false");
+	cond("hasItem with comparator", "hasItem zzzz not real == false", true);
+	regex("[data] {^loot} plain (ToA is an EVENT loot type)", "{^loot Tombs of Amascut}", "\\d+");
+	cond("[data] loot with comparator", "loot Tombs of Amascut >= 0", true);
+
+	// Fixed: hasItem didn't check the quiver.
+	String weapon = resolve("{^weapon}");
+	if (weapon != null && !weapon.equalsIgnoreCase("Unarmed"))
+	{
+		cond("hasItem finds the equipped weapon", "hasItem " + weapon, true);
+	}
+	String quiver = resolve("{^equip_quiver}");
+	if (quiver != null && !quiver.equalsIgnoreCase("Empty"))
+	{
+		cond("hasItem finds quiver ammo", "hasItem " + quiver, true);
+	}
+	else
+	{
+		log.info("SKIP  hasItem quiver check -- nothing in the quiver");
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// MathVariable, including parens and date countdowns
+// ---------------------------------------------------------------------------------------------
+
+void math()
+{
+	eqText("{1 + 2} default mode", "{1 + 2}", "3");
+	eq("{^1 + 2}", "{^1 + 2}", "3");
+	eq("* before +", "{^2 + 3 * 4}", "14");
+	eq("parens override precedence", "{^(10 + 4) / 2}", "7");
+	eq("nested parens", "{^((1 + 2) * (3 + 4)) - 1}", "20");
+	eq("decimal division", "{^10 / 4}", "2.5");
+	eq("stack-size suffix operand", "{^1.5k + 500}", "2000");
+	unresolved("divide by zero left literal", "{^10 / 0}");
+	eq("variable operand", "{^kc toa + 1}", String.valueOf(toa + 1));
+	eq("variable minus itself", "{^kc toa - kc toa}", "0");
+	eq("{weekday} is numeric in math", "{^weekday * 1}", String.valueOf(weekday));
+
+	eq("date literal pair", "{^Oct 20 - Oct 12}", "8");
+	eqText("date pair rich says days", "{&Oct 20 - Oct 12}", "8 days");
+	eqText("date pair rich singular day", "{&Oct 13 - Oct 12}", "1 day");
+	eq("chained date countdown", "{^Oct 20 - Oct 12 + 2}", "10");
+	eqText("chained date countdown drops 'days'", "{&Oct 20 - Oct 12 + 2}", "10");
+	eq("{date - date}", "{^date - date}", "0");
+	long untilDec31 = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), java.time.LocalDate.of(java.time.LocalDate.now().getYear(), 12, 31));
+	eq("date literal minus {date}", "{^Dec 31 - date}", String.valueOf(untilDec31));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: {1 + 2 < 50} showed NaN. resolveRich/evaluateInner mixed a primitive double with
+// evaluate()'s boxed Double in a ternary, so a null result was auto-unboxed -> NPE -> "NaN".
+// ---------------------------------------------------------------------------------------------
+
+void nanRegression()
+{
+	eq("{^1 + 2 < 50} shows 3, not NaN", "{^1 + 2 < 50}", "3");
+	eqText("{1 + 2 < 50} default mode, not NaN", "{1 + 2 < 50}", "3");
+	cond("math < literal", "1 + 2 < 50", true);
+	cond("math > literal", "1 + 2 > 50", false);
+	cond("original report: {1 + 2 + kc toa < 50}", "1 + 2 + kc toa < 50", 3 + toa < 50);
+	eq("math + kc in a boolean", "{^1 + 2 + kc toa < 50}", String.valueOf(3 + toa));
+	cond("parenthesized math in a condition", "(1 + 2) < 50", true);
+	unresolved("comparator inside math parens left literal, not NaN", "{(1 < 2) + 1}");
+	unresolved("comparator inside math parens left literal, not NaN (plain)", "{^(1 < 2) + 1}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: the right-hand side of a comparator was only ever a literal ({kc toa < kc toa expert})
+// ---------------------------------------------------------------------------------------------
+
+void rightHandVariables()
+{
+	cond("variable on both sides ==", "kc toa == kc toa", true);
+	cond("variable on both sides <", "kc toa < kc toa", false);
+	cond("math on the right", "kc toa < kc toa + 1", true);
+	cond("math on both sides", "kc toa + 1 > kc toa", true);
+	int expert = num("{^kc toa expert}");
+	cond("original report: {kc toa < kc toa expert}", "kc toa < kc toa expert", toa < expert);
+	check("original report as a boolean variable", "{kc toa < kc toa expert}",
+		r -> strip(r).equals(String.valueOf(toa)), "\"" + toa + "\" (tags stripped)");
+	eq("boolean variable keeps the left value", "{^kc toa <= kc toa}", String.valueOf(toa));
+	cond("{rsn} on both sides", "rsn == rsn", true);
+
+	String spellbook = resolve("{^spellbook}");
+	cond("literal right side still works", "spellbook == " + spellbook, true);
+	cond("literal right side mismatch", "spellbook == NotASpellbook", false);
+	eq("{^spellbook == Ancient} shows the spellbook", "{^spellbook == Ancient}", spellbook);
+	cond("clock-time literal right side", "time24 >= 0:00", true);
+	cond("stack-size literal right side", "kc toa < 1m", true);
+}
+
+// ---------------------------------------------------------------------------------------------
+// {6HourTimeRemaining}'s BooleanVariable special case
+// ---------------------------------------------------------------------------------------------
+
+void sixHour()
+{
+	check("{6HourTimeRemaining < 2} inside a conditional", "{6HourTimeRemaining < 2 ? T : F}",
+		r -> r.equals("T") || r.equals("F"), "T or F");
+	check("{6HourTimeRemaining < 5:00} h:mm threshold", "{6HourTimeRemaining < 5:00 ? T : F}",
+		r -> r.equals("T") || r.equals("F"), "T or F");
+	eq("unsupported comparator gives the call to action", "{6Hour > 1}", "Use {6HourTimeRemaining < 1.5} for a 1.5 hour warning");
+	regex("under the threshold shows the time (plain)", "{^6Hour < 6.5}", "\\d+:\\d{2}");
+	eq("over the threshold is empty (plain)", "{^6Hour < 0}", "");
+}
+
+// ---------------------------------------------------------------------------------------------
+// ConditionalVariable: chaining, precedence, whitespace, metronome restriction
+// ---------------------------------------------------------------------------------------------
+
+void conditionals()
+{
+	cond("simple true", "weekday >= 1", true);
+	cond("simple false", "weekday < 1", false);
+	eq("branch whitespace trimmed", "{weekday >= 1 ?    yes    : no}", "yes");
+	eq("empty false branch is fully empty", "{weekday < 1 ? yes : }", "");
+
+	cond("&& both true", "weekday >= 1 && weekday <= 7", true);
+	cond("&& one false", "weekday >= 1 && weekday < 1", false);
+	cond("|| one true", "weekday < 1 || weekday >= 1", true);
+	cond("|| both false", "weekday < 1 || weekday > 7", false);
+	cond("&& binds tighter than || (trailing &&)", "weekday >= 1 || weekday < 1 && weekday < 1", true);
+	cond("&& binds tighter than || (leading &&)", "weekday < 1 && weekday < 1 || weekday >= 1", true);
+	cond("parens override && / || precedence", "(weekday >= 1 || weekday < 1) && weekday < 1", false);
+	cond("grouped chains", "(weekday >= 1 && weekday <= 7) || (weekday < 1 && weekday > 7)", true);
+	cond("bare boolean variable", "hasItem zzzz not real", false);
+
+	eq("two conditionals in one label", "{weekday >= 1 ? a : b} {weekday < 1 ? c : d}", "a d");
+	eq("conditional beside a plain variable", "{^rsn} {weekday >= 1 ? a : b}", rsn + " a");
+	eq("<col> tag inside a branch", "{weekday >= 1 ? <col=ff0000>red</col> : no}", "<col=ff0000>red</col>");
+
+	eq("metronome neutralized in the winning branch", "{weekday >= 1 ? {m4} : no}", "ILLEGAL");
+	eq("metronomeN_M neutralized in the winning branch", "{weekday >= 1 ? {metronome4_2} : no}", "ILLEGAL");
+	eq("metronome in the losing branch is just dropped", "{weekday < 1 ? {m4} : no}", "no");
+	unresolved("metronome can't be a condition", "{m4 > 0 ? T : F}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: nested variables in a branch. Base variables used to resolve before the conditional
+// split its branches, so a Rich Text value's own ": " was taken as the branch separator
+// ({kc toa > 5 ? {kc toa} : } gave just "Tombs of Amascut kc").
+// ---------------------------------------------------------------------------------------------
+
+void nestedInBranches()
+{
+	eq("nested plain variable", "{weekday >= 1 ? {^rsn} : }", rsn);
+	eqText("nested Rich Text keeps its ': value'", "{weekday >= 1 ? {&kc toa} : }", "Tombs of Amascut kc: " + toa);
+	eq("original report: {kc toa > 5 ? {kc toa} : }", "{kc toa > 5 ? {kc toa} : }", toa > 5 ? resolve("{kc toa}") : "");
+	eq("original report: {kc toa > 5 ? {rsn} : }", "{kc toa > 5 ? {rsn} : }", toa > 5 ? resolve("{rsn}") : "");
+	eq("several nested variables plus text", "{weekday >= 1 ? {^rsn} has {^kc toa} toa : none}", rsn + " has " + toa + " toa");
+	eq("nested math", "{weekday >= 1 ? {^kc toa + 1} : }", String.valueOf(toa + 1));
+	eq("nested boolean", "{weekday >= 1 ? {^kc toa >= 0} : }", String.valueOf(toa));
+	eq("nested variable in the false branch", "{weekday < 1 ? no : {^weekday}}", String.valueOf(weekday));
+	eq("nested token containing ':'", "{weekday >= 1 ? {time24 > 0:00} : no}", resolve("{time24 > 0:00}"));
+	eq("losing branch's nested variable isn't leaked", "{weekday < 1 ? {^rsn} : x}", "x");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: a meta variable in a branch broke the conditional's own match, so it was applied
+// unconditionally ({kc toa < 50 ? {tilecol=red} : no} always colored the tile red). Through
+// this API the winning branch's meta token should come back literally.
+// ---------------------------------------------------------------------------------------------
+
+void metaInBranches()
+{
+	eq("tileCol passes through when true", "{weekday >= 1 ? {tileCol=red} : no}", "{tileCol=red}");
+	eq("tileCol dropped when false", "{weekday < 1 ? {tileCol=red} : no}", "no");
+	eq("original report: {kc toa < 50 ? {tilecol=red} : no}", "{kc toa < 50 ? {tilecol=red} : no}", toa < 50 ? "{tilecol=red}" : "no");
+	eq("highlight in the false branch", "{weekday < 1 ? no : {highlightSW=red}}", "{highlightSW=red}");
+	eq("align block in a branch", "{weekday >= 1 ? {align=left}hi{/align} : no}", "{align=left}hi{/align}");
+	eq("meta variables aren't stripped by the plugin API", "{tileCol=red}hello", "{tileCol=red}hello");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed: {rank Lunar Chests} -- kc's canonical name is singular, the hiscores entry plural
+// ---------------------------------------------------------------------------------------------
+
+void rank()
+{
+	check("[hiscores] {rank Lunar Chests}", "{&rank Lunar Chests}", r -> strip(r).startsWith("Lunar Chest: "), "starts with \"Lunar Chest: \"");
+	check("[hiscores] {rank perilous moons} alias", "{&rank perilous moons}", r -> strip(r).startsWith("Lunar Chest: "), "starts with \"Lunar Chest: \"");
+	check("[hiscores] {rank toa}", "{&rank toa}", r -> strip(r).startsWith("Tombs of Amascut: "), "starts with \"Tombs of Amascut: \"");
+	unresolved("{rank} of a boss not on the hiscores is left literal", "{&rank tob em}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// PluginMessage protocol itself
+// ---------------------------------------------------------------------------------------------
+
+void protocol()
+{
+	record("reply echoes the original text", resolve("{^weekday}") != null, "reply keyed by request text");
+
+	replies.clear();
+	eventBus.post(new PluginMessage("not-gmv", "Resolve", Map.of("plugin", "gmv-tests", "text", "{^weekday}")));
+	record("other namespace ignored", replies.isEmpty(), "replies: " + replies);
+
+	replies.clear();
+	eventBus.post(new PluginMessage("ground-marker-variables", "resolve", Map.of("plugin", "gmv-tests", "text", "{^weekday}")));
+	record("event name is case-sensitive", replies.isEmpty(), "replies: " + replies);
+
+	replies.clear();
+	eventBus.post(new PluginMessage("ground-marker-variables", "Resolve", Map.of("plugin", "gmv-tests")));
+	record("missing \"text\" is ignored", replies.isEmpty(), "replies: " + replies);
+
+	replies.clear();
+	eventBus.post(new PluginMessage("ground-marker-variables", "Resolve", Map.of("plugin", "gmv-tests", "text", 42)));
+	record("non-string \"text\" is ignored", replies.isEmpty(), "replies: " + replies);
+
+	replies.clear();
+	eventBus.post(new PluginMessage("ground-marker-variables", "Resolve", Map.of("plugin", "someone-else", "text", "{^weekday}")));
+	record("reply goes only to the requester's namespace", replies.isEmpty(), "replies: " + replies);
+}
+
+// ---------------------------------------------------------------------------------------------
+
+void runAll()
+{
+	tally[0] = 0;
+	tally[1] = 0;
+	failures.clear();
+
+	if (resolve("{^weekday}") == null)
+	{
+		log.error("No Resolve reply -- is Ground Marker Variables enabled?");
+		return;
+	}
+
+	if (client.getLocalPlayer() == null)
+	{
+		log.warn("Not logged in -- most checks need a logged-in character and will fail.");
+	}
+
+	rsn = client.getLocalPlayer() == null ? "" : client.getLocalPlayer().getName();
+	weekday = java.time.LocalDate.now().getDayOfWeek().getValue();
+	toa = num("{^kc toa}");
+	log.info("==== Ground Marker Variables tests -- rsn={}, kc toa={}, weekday={} ====", rsn, toa, weekday);
+
+	basics();
+	comparatorsNotInNames();
+	math();
+	nanRegression();
+	rightHandVariables();
+	sixHour();
+	conditionals();
+	nestedInBranches();
+	metaInBranches();
+	rank();
+	protocol();
+
+	log.info("==== {} passed, {} failed ====", tally[0], tally[1]);
+	if (!failures.isEmpty())
+	{
+		log.warn("Failed: {}", failures);
+	}
+}
+
+runAll();
