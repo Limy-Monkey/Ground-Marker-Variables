@@ -47,6 +47,13 @@ Supported variables:
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
 | `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
 
+Meta variables configure the tile's own rendering instead of substituting into the label text, and are stripped from it.
+
+| Meta Variable                                        | Description                                                                                                          |
+|-------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `{tileCol=<col>}`                                     | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity.      |
+| `{highlight<corner>}` / `{highlight<corner>=<col>}`   | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                     |
+
 ## Examples:
 
 - `{equip_helm}`

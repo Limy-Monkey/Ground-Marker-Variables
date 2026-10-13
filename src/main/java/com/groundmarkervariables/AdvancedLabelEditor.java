@@ -77,13 +77,13 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol="
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight"
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=");
+		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
 	// these prefixes, autocomplete switches from variable names to skill names.
@@ -127,6 +127,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// {tileCol=<col>} — a named color, a named opacity, or "N%".
 	private static final String TILECOL_PREFIX = "tileCol=";
 	private static final Pattern TILECOL_PERCENT = Pattern.compile("\\d{1,3}%");
+
+	// {highlight<corner>} / {highlight<corner>=<col>} — <col> is a named color/opacity.
+	private static final String HIGHLIGHT_NAME = "highlight";
+	private static final List<String> HIGHLIGHT_CORNERS = List.of("SW", "NW", "NE", "SE", "Corners", "All");
 
 	// For underlining only — also matches {col=HEX|NAME}, </col>, and {/col} (no groups means
 	// </col> or {/col}, both reverting to the tile's own color).
@@ -848,6 +852,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeTileColValue(partial.substring(TILECOL_PREFIX.length()));
 		}
 
+		if (!restrictToNumeric && partial.length() >= HIGHLIGHT_NAME.length() && partial.regionMatches(true, 0, HIGHLIGHT_NAME, 0, HIGHLIGHT_NAME.length()))
+		{
+			return completeHighlight(partial.substring(HIGHLIGHT_NAME.length()));
+		}
+
 		for (int i = 0; i < partial.length(); i++)
 		{
 			if (!Character.isLetterOrDigit(partial.charAt(i)))
@@ -1234,6 +1243,62 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + TILECOL_PREFIX);
+		return chosen.substring(valuePartial.length()) + "}";
+	}
+
+	// {highlight<corner>[=<col>]} — corner name completes/closes like a variable name; once an
+	// "=" follows a complete corner name, the value completes like completeTileColValue (named
+	// color/opacity only, no hex/percent).
+	private String completeHighlight(String rest)
+	{
+		int eq = rest.indexOf('=');
+		if (eq >= 0)
+		{
+			String cornerPart = rest.substring(0, eq);
+			boolean validCorner = HIGHLIGHT_CORNERS.stream().anyMatch(name -> name.equalsIgnoreCase(cornerPart));
+			return validCorner ? completeHighlightValue(rest.substring(eq + 1)) : null;
+		}
+
+		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
+		for (String name : HIGHLIGHT_CORNERS)
+		{
+			if (name.length() > rest.length() && name.regionMatches(true, 0, rest, 0, rest.length()))
+			{
+				candidates.add(name);
+			}
+			else if (name.equalsIgnoreCase(rest))
+			{
+				exactMatch = true;
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return exactMatch ? "}" : null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + HIGHLIGHT_NAME);
+		return chosen.substring(rest.length());
+	}
+
+	private String completeHighlightValue(String valuePartial)
+	{
+		List<String> candidates = new ArrayList<>();
+		for (String name : NamedColors.HEX_BY_NAME.keySet())
+		{
+			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + HIGHLIGHT_NAME);
 		return chosen.substring(valuePartial.length()) + "}";
 	}
 

@@ -12,6 +12,7 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -19,6 +20,7 @@ import javax.inject.Singleton;
 
 import com.groundmarkervariables.party.PingedTileManager;
 import com.groundmarkervariables.party.TranslatedPingedTile;
+import com.groundmarkervariables.variables.meta.HighlightCorner;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
@@ -142,6 +144,7 @@ public class GroundMarkerVariablesOverlay
 				// at reduced alpha — matches the core overlay's own drawTile() exactly.
 				Color fill = new Color(0, 0, 0, (int) (config.fillOpacity() * opacity));
 				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, borderStroke);
+				drawHighlights(graphics, poly, metaState.getHighlights(), borderStroke, opacity);
 			}
 			return;
 		}
@@ -175,6 +178,36 @@ public class GroundMarkerVariablesOverlay
 
 			graphics.setComposite(originalComposite);
 		}
+	}
+
+	// poly's vertex order is SW, NW, NE, SE, matching HighlightCorner's ordinals.
+	private static void drawHighlights(Graphics2D graphics, Polygon poly, Map<HighlightCorner, Color> highlights, Stroke stroke, float opacity)
+	{
+		if (highlights.isEmpty())
+		{
+			return;
+		}
+
+		graphics.setStroke(stroke);
+		for (Map.Entry<HighlightCorner, Color> entry : highlights.entrySet())
+		{
+			int i = entry.getKey().ordinal();
+			Color color = entry.getValue();
+			graphics.setColor(opacity >= 1f ? color : ColorUtil.colorWithAlpha(color, (int) (color.getAlpha() * opacity)));
+
+			drawCornerEdge(graphics, poly, i, (i + 1) % 4);
+			drawCornerEdge(graphics, poly, i, (i + 3) % 4);
+		}
+	}
+
+	// Draws 1/4 of the edge from poly[from] toward poly[to].
+	private static void drawCornerEdge(Graphics2D graphics, Polygon poly, int from, int to)
+	{
+		int x1 = poly.xpoints[from];
+		int y1 = poly.ypoints[from];
+		int x2 = x1 + (poly.xpoints[to] - x1) / 4;
+		int y2 = y1 + (poly.ypoints[to] - y1) / 4;
+		graphics.drawLine(x1, y1, x2, y2);
 	}
 
 	// One line per row, each centered on its own width (text plus any inline item icons),
