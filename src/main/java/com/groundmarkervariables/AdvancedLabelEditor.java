@@ -3,6 +3,7 @@ package com.groundmarkervariables;
 import com.google.gson.Gson;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.support.BossAliases;
+import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
@@ -833,12 +834,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (partial.length() >= KC_PREFIX.length() && partial.regionMatches(true, 0, KC_PREFIX, 0, KC_PREFIX.length()))
 		{
-			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX);
+			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX, false);
 		}
 
 		if (!restrictToNumeric && partial.length() >= RANK_PREFIX.length() && partial.regionMatches(true, 0, RANK_PREFIX, 0, RANK_PREFIX.length()))
 		{
-			return completeBossName(partial.substring(RANK_PREFIX.length()), RANK_PREFIX);
+			return completeBossName(partial.substring(RANK_PREFIX.length()), RANK_PREFIX, true);
 		}
 
 		if (!restrictToNumeric && partial.length() >= PARTY_PREFIX.length() && partial.regionMatches(true, 0, PARTY_PREFIX, 0, PARTY_PREFIX.length()))
@@ -853,7 +854,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
 		{
-			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX);
+			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX, false);
 		}
 
 		if (partial.length() >= LOOT_PREFIX.length() && partial.regionMatches(true, 0, LOOT_PREFIX, 0, LOOT_PREFIX.length()))
@@ -1060,8 +1061,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries, BossAliases (both
-	// short forms and canonical names), and EXTRA_BOSS_NAMES.
-	private String completeBossName(String bossPartial, String prefix)
+	// short forms and canonical names), and EXTRA_BOSS_NAMES. onlyHiscoreTracked is true for
+	// {rank}, which only works for bosses actually on the hiscores (e.g. not "tob em").
+	private String completeBossName(String bossPartial, String prefix, boolean onlyHiscoreTracked)
 	{
 		if (bossPartial.isEmpty())
 		{
@@ -1098,7 +1100,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		for (String alias : BossAliases.aliases())
 		{
-			if (alias.contains(" - "))
+			if (alias.contains(" - ") || (onlyHiscoreTracked && BossHiscoreSkill.find(BossAliases.resolve(alias)) == null))
 			{
 				continue;
 			}
@@ -1115,6 +1117,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		for (String name : BossAliases.canonicalNames())
 		{
+			if (onlyHiscoreTracked && BossHiscoreSkill.find(name) == null)
+			{
+				continue;
+			}
+
 			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
 				candidates.add(name);
@@ -1125,7 +1132,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		for (String name : EXTRA_BOSS_NAMES)
+		for (String name : onlyHiscoreTracked ? List.<String>of() : EXTRA_BOSS_NAMES)
 		{
 			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
 			{
