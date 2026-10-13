@@ -348,14 +348,17 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			.setType(MenuAction.RUNELITE)
 			.onClick(e -> toggleMark(worldPoint));
 
-		if (existing != null)
+		if (existing != null || config.labelUnmarkedTiles())
 		{
 			client.createMenuEntry(-2)
 				.setOption("Label")
 				.setTarget("Tile")
 				.setType(MenuAction.RUNELITE)
 				.onClick(e -> openLabelEditor(worldPoint));
+		}
 
+		if (existing != null)
+		{
 			buildColorMenu(worldPoint, existing);
 		}
 	}
@@ -505,6 +508,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	private void openLabelEditor(WorldPoint worldPoint)
 	{
+		// Unmarked tile (labelUnmarkedTiles) -- show it faded until the editor closes.
+		if (markerStorage.findStoredPoint(worldPoint) == null)
+		{
+			importPreviewManager.show(List.of(new GroundMarkerPointData(worldPoint.getRegionID(), worldPoint.getRegionX(),
+				worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), null)));
+		}
+
 		if (config.useAdvancedLabelEditor())
 		{
 			openAdvancedLabelEditor(worldPoint);
@@ -526,6 +536,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			.prompt("Tile label")
 			.value(currentLabel)
 			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
+			.onClose(importPreviewManager::clear)
 			.build();
 	}
 
@@ -538,6 +549,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		chatboxPanelManager.openTextInput("Tile label")
 			.value(currentLabel)
 			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
+			.onClose(importPreviewManager::clear)
 			.build();
 	}
 
@@ -631,6 +643,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				}
 				return;
 			}
+		}
+
+		// Unmarked tile, labeled via labelUnmarkedTiles -- an empty label leaves it unmarked.
+		if (label != null)
+		{
+			markerStorage.addPoints(List.of(new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), label)));
+			recordRecentLabel(label);
 		}
 	}
 

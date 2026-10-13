@@ -15,8 +15,8 @@ import javax.inject.Singleton;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 
-// Unsaved preview of tiles an import confirmation is about to add -- cleared via
-// ChatboxTextMenuInput's own onClose, which fires on every dismissal path.
+// Unsaved preview of tiles an import (or an unmarked tile's label) is about to add -- cleared
+// via the chatbox input's own onClose, which fires on every dismissal path.
 @Singleton
 public class ImportPreviewManager
 {

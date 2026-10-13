@@ -409,4 +409,16 @@ public interface GroundMarkerVariablesConfig extends Config
 	default void variableHelp2()
 	{
 	}
+
+	@ConfigItem(
+			position = 2,
+			keyName = "labelUnmarkedTiles",
+			name = "Label unmarked tiles",
+			description = "Show option to mark and label a tile together all at once.",
+			section = variablesSection
+	)
+	default boolean labelUnmarkedTiles()
+	{
+		return false;
+	}
 }
