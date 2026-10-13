@@ -4,6 +4,7 @@ import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
@@ -44,9 +45,10 @@ public class GroundMarkerVariablesOverlay
 	private static final float PREVIEW_OPACITY = 0.5f;
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
-	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=[0-9a-fA-F]{2,6}>");
-	// LootLabelVariable's own inline-icon tag -- see its resolveRich for where this is emitted.
-	private static final Pattern ITEM_ICON_PATTERN = Pattern.compile("<item=(\\d+)>");
+	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
+	// LootLabelVariable's <item=ID> icon, or a {b}/{/b}/{i}/{/i} toggle (left in the label by
+	// MetaVariableResolver, since it applies from its own position onward).
+	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile("<item=(\\d+)>|\\{(/?)([bi])\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final GroundMarkerVariablesPlugin plugin;
@@ -144,8 +146,9 @@ public class GroundMarkerVariablesOverlay
 				// Fill is a flat black overlay at the configured opacity, not the marker's own color
 				// at reduced alpha — matches the core overlay's own drawTile() exactly.
 				Color fill = new Color(0, 0, 0, (int) (config.fillOpacity() * opacity));
-				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, borderStroke);
-				drawHighlights(graphics, poly, metaState.getHighlights(), borderStroke, opacity);
+				Stroke stroke = metaState.getBorderWidth() != null ? new BasicStroke(metaState.getBorderWidth()) : borderStroke;
+				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, stroke);
+				drawHighlights(graphics, poly, metaState.getHighlights(), stroke, opacity);
 			}
 			return;
 		}
@@ -220,10 +223,14 @@ public class GroundMarkerVariablesOverlay
 		int lineHeight = graphics.getFontMetrics().getHeight();
 		int startY = -((lines.length - 1) * lineHeight) / 2;
 
+		// {b}/{i} carry across lines until closed.
 		List<LineLayout> layouts = new ArrayList<>();
+		int style = Font.PLAIN;
 		for (String line : lines)
 		{
-			layouts.add(layoutLine(graphics, line));
+			LineLayout layout = layoutLine(graphics, line, style);
+			layouts.add(layout);
+			style = layout.endStyle;
 		}
 
 		int[] blockMaxWidths = blockMaxWidths(layouts, alignments);
@@ -267,32 +274,56 @@ public class GroundMarkerVariablesOverlay
 		return index < alignments.size() ? alignments.get(index) : TextAlign.CENTER;
 	}
 
-	// A line's text runs and <item=ID> icon images, pre-measured once so both the per-line
-	// width (for maxWidth) and the actual draw pass can reuse the same icon lookups.
+	// A line's text runs, <item=ID> icon images and {b}/{i} toggles, pre-measured once so both
+	// the per-line width (for maxWidth) and the actual draw pass can reuse the same icon lookups.
 	private static final class LineLayout
 	{
 		private final List<Object> segments;
 		private final List<BufferedImage> images;
 		private final List<Integer> iconWidths;
 		private final int width;
+		// Font style bits in effect at the start/end of this line.
+		private final int startStyle;
+		private final int endStyle;
 
-		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width)
+		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width, int startStyle, int endStyle)
 		{
 			this.segments = segments;
 			this.images = images;
 			this.iconWidths = iconWidths;
 			this.width = width;
+			this.startStyle = startStyle;
+			this.endStyle = endStyle;
 		}
 	}
 
-	private LineLayout layoutLine(Graphics2D graphics, String line)
+	// {b}/{/b}/{i}/{/i} -- switches one Font style bit on or off from here onward.
+	private static final class StyleToggle
 	{
-		List<Object> segments = splitIconSegments(line);
+		private final int bit;
+		private final boolean on;
+
+		private StyleToggle(int bit, boolean on)
+		{
+			this.bit = bit;
+			this.on = on;
+		}
+
+		private int apply(int style)
+		{
+			return on ? style | bit : style & ~bit;
+		}
+	}
+
+	private LineLayout layoutLine(Graphics2D graphics, String line, int startStyle)
+	{
+		List<Object> segments = splitSegments(line);
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 
 		// Icons are scaled to font height (aspect preserved), not drawn at native sprite size.
 		int iconHeight = lineHeight(fontMetrics);
 
+		int style = startStyle;
 		int totalWidth = 0;
 		List<BufferedImage> images = new ArrayList<>();
 		List<Integer> iconWidths = new ArrayList<>();
@@ -307,16 +338,28 @@ public class GroundMarkerVariablesOverlay
 				int iconWidth = image == null ? 0 : image.getWidth() * iconHeight / image.getHeight();
 				iconWidths.add(iconWidth);
 				totalWidth += iconWidth;
+				continue;
+			}
+
+			images.add(null);
+			iconWidths.add(0);
+			if (segment instanceof StyleToggle)
+			{
+				style = ((StyleToggle) segment).apply(style);
 			}
 			else
 			{
-				images.add(null);
-				iconWidths.add(0);
-				totalWidth += fontMetrics.stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
+				Font font = styledFont(graphics.getFont(), style);
+				totalWidth += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
 			}
 		}
 
-		return new LineLayout(segments, images, iconWidths, totalWidth);
+		return new LineLayout(segments, images, iconWidths, totalWidth, startStyle, style);
+	}
+
+	private static Font styledFont(Font base, int style)
+	{
+		return style == Font.PLAIN ? base : base.deriveFont(base.getStyle() | style);
 	}
 
 	// center: same tile-anchored canvas point plain text lines have always centered against.
@@ -345,14 +388,23 @@ public class GroundMarkerVariablesOverlay
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 		int x = lineX(anchor.getX(), align, layout.width, maxWidth);
 		int y = anchor.getY() + yOffset;
-		int imageIndex = 0;
 
-		for (Object segment : layout.segments)
+		// Full opacity regardless of the marker's own (possibly transparent) color -- the
+		// caller's Composite (see drawTileAt) is what applies any fade, not this.
+		Color textColor = ColorUtil.colorWithAlpha(color, 0xFF);
+		int style = layout.startStyle;
+
+		for (int i = 0; i < layout.segments.size(); i++)
 		{
-			if (segment instanceof Integer)
+			Object segment = layout.segments.get(i);
+			if (segment instanceof StyleToggle)
 			{
-				BufferedImage image = layout.images.get(imageIndex);
-				int iconWidth = layout.iconWidths.get(imageIndex++);
+				style = ((StyleToggle) segment).apply(style);
+			}
+			else if (segment instanceof Integer)
+			{
+				BufferedImage image = layout.images.get(i);
+				int iconWidth = layout.iconWidths.get(i);
 				if (image != null)
 				{
 					int iconHeight = lineHeight(fontMetrics);
@@ -364,14 +416,21 @@ public class GroundMarkerVariablesOverlay
 			else
 			{
 				String text = (String) segment;
-				// Full opacity regardless of the marker's own (possibly transparent) color --
-				// the caller's Composite (see drawTileAt) is what applies any fade, not this.
+				Font font = styledFont(graphics.getFont(), style);
 				TextComponent textComponent = new TextComponent();
 				textComponent.setText(text);
-				textComponent.setColor(ColorUtil.colorWithAlpha(color, 0xFF));
+				textComponent.setFont(font);
+				textComponent.setColor(textColor);
 				textComponent.setPosition(x, y);
 				textComponent.render(graphics);
-				x += fontMetrics.stringWidth(COLOR_TAG_PATTERN.matcher(text).replaceAll(""));
+				x += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher(text).replaceAll(""));
+
+				// An open <col=> carries past a toggle into the next run instead of resetting.
+				Matcher colorTag = COLOR_TAG_PATTERN.matcher(text);
+				while (colorTag.find())
+				{
+					textColor = Color.decode("#" + colorTag.group(1));
+				}
 			}
 		}
 	}
@@ -381,12 +440,12 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into an ordered mix of text runs (String) and item icon tags (Integer item
-	// id), so drawLine can measure and draw each in place without a second regex pass.
-	private static List<Object> splitIconSegments(String line)
+	// Splits a line into an ordered mix of text runs (String), item icon tags (Integer item id)
+	// and style toggles (StyleToggle), so drawLine can measure and draw each in place.
+	private static List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
-		Matcher matcher = ITEM_ICON_PATTERN.matcher(line);
+		Matcher matcher = INLINE_TAG_PATTERN.matcher(line);
 		int last = 0;
 		while (matcher.find())
 		{
@@ -394,7 +453,15 @@ public class GroundMarkerVariablesOverlay
 			{
 				segments.add(line.substring(last, matcher.start()));
 			}
-			segments.add(Integer.valueOf(matcher.group(1)));
+
+			if (matcher.group(1) != null)
+			{
+				segments.add(Integer.valueOf(matcher.group(1)));
+			}
+			else
+			{
+				segments.add(new StyleToggle("b".equalsIgnoreCase(matcher.group(3)) ? Font.BOLD : Font.ITALIC, matcher.group(2).isEmpty()));
+			}
 			last = matcher.end();
 		}
 		if (last < line.length())

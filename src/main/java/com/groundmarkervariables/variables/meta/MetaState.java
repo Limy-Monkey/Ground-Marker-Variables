@@ -14,6 +14,8 @@ public class MetaState
 	private Color tileColor;
 	@Nullable
 	private Float tileOpacity;
+	@Nullable
+	private Float borderWidth;
 	private final Map<HighlightCorner, Color> highlights = new EnumMap<>(HighlightCorner.class);
 	private List<TextAlign> lineAlignments = List.of();
 
@@ -38,6 +40,18 @@ public class MetaState
 	public void setTileOpacity(Float tileOpacity)
 	{
 		this.tileOpacity = tileOpacity;
+	}
+
+	// Overrides the Border width config for the outline and {highlight} brackets.
+	@Nullable
+	public Float getBorderWidth()
+	{
+		return borderWidth;
+	}
+
+	public void setBorderWidth(Float borderWidth)
+	{
+		this.borderWidth = borderWidth;
 	}
 
 	public Map<HighlightCorner, Color> getHighlights()

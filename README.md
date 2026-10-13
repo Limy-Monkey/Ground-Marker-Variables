@@ -58,6 +58,8 @@ Meta variables configure the tile's own rendering instead of substituting into t
 | `{tileCol=<col>}`                                     | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity.      |
 | `{highlight<corner>}` / `{highlight<corner>=<col>}`   | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                     |
 | `{align=left/right/center}` / `{/align}`              | Changes text alignment from this line onward, until the next \{align}/\{/align} (which resets to center).           |
+| `{b}` / `{/b}`, `{i}` / `{/i}`                        | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                         |
+| `{borderWidth=<width>}`                               | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                            |
 
 ## Examples:
 

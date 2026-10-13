@@ -78,14 +78,15 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "divine"
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "divine",
+		"borderWidth="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
 		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight",
-		"align=", "divine");
+		"align=", "divine", "borderWidth=");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
 	// past any of these prefixes, autocomplete switches from variable names to skill names.
@@ -153,8 +154,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			+ "|</col>|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
 
-	// {/col} / {/align} — diverge from their own "{x=" family at the leading "/".
-	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}");
+	// {/col} / {/align} / {/b} / {/i} — diverge from their own opening token at the leading "/".
+	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}");
 
 	// {align=<align>} — fixed value set, closed with "}" immediately like {col=}.
 	private static final String ALIGN_PREFIX = "align=";
