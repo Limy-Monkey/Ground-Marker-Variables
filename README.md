@@ -25,10 +25,12 @@ Supported variables:
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
 | `{xpRate_<skill>}`                      | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                                                 |
+| `{xp_<skill>}`                          | Exact experience in \<skill>. Rich Text also shows level and hiscore rank                                                                                        |
 | `{miscellania}`                         | Kingdom of Miscellania approval rating, 0-127                                                                                                                    |
 | `{questPoints}`                         | Current quest points                                                                                                                                             |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
+| `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
 | `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot Tormented Demon}                                                            |
 | `{slayerTask}`                          | Current slayer task. Requires Slayer plugin to be running.                                                                                                       |
 | `{slayerStreak}`                        | Current slayer task streak (tasks completed in a row)                                                                                                            |

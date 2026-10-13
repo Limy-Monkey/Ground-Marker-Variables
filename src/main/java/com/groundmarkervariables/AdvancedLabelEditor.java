@@ -75,19 +75,19 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// trailing underscore/equals, since a skill name or color value follows them.
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
-		"lvl_", "boost_", "xpRate_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
-		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
+		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
+		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight"
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "equip_", "col=", "kc", "pb", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight");
+		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight");
 
-	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} — once typing continues past any of
-	// these prefixes, autocomplete switches from variable names to skill names.
-	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_");
+	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
+	// past any of these prefixes, autocomplete switches from variable names to skill names.
+	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_", "xp_");
 
 	// {equip_<slot>} — once "equip_" is fully typed, autocomplete switches to this fixed slot
 	// list (EquipLabelVariable's own SLOTS keys, plus "quiver").
@@ -95,10 +95,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> EQUIP_SLOTS = List.of(
 		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
 
-	// {kc <boss>} / {pb <boss>} — once either is fully typed, autocomplete switches to
-	// HiscoreSkill's BOSS entries (the same boss list both variables use).
+	// {kc <boss>} / {pb <boss>} / {rank <boss>} — once any is fully typed, autocomplete
+	// switches to HiscoreSkill's BOSS entries (the same boss list all three use).
 	private static final String KC_PREFIX = "kc ";
 	private static final String PB_PREFIX = "pb ";
+	private static final String RANK_PREFIX = "rank ";
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
@@ -818,6 +819,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (partial.length() >= KC_PREFIX.length() && partial.regionMatches(true, 0, KC_PREFIX, 0, KC_PREFIX.length()))
 		{
 			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX);
+		}
+
+		if (!restrictToNumeric && partial.length() >= RANK_PREFIX.length() && partial.regionMatches(true, 0, RANK_PREFIX, 0, RANK_PREFIX.length()))
+		{
+			return completeBossName(partial.substring(RANK_PREFIX.length()), RANK_PREFIX);
 		}
 
 		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
