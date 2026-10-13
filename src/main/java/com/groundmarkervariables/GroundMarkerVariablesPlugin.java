@@ -94,9 +94,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	// Bump alongside runelite-plugin.properties/build.gradle's version to show the message
 	// again on the next update.
-	private static final String NEW_VERSION = "1.3.0";
+	private static final String NEW_VERSION = "1.4.0";
 	private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
-	private static final String UPDATE_MESSAGE = "<col=008800>Ground Marker Variables v1.3: Party Sync overhaul. Share tiles via pings and via right click world map.";
+	private static final String UPDATE_MESSAGE = "<col=008800>Ground Marker Variables v1.4: New variables and extended conditionals - Try {highlightCorners} or {oct 20 - date} until raids 4";
 
 	@Inject
 	private ChatboxPanelManager chatboxPanelManager;
