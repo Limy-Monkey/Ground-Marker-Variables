@@ -286,6 +286,24 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// whole word instead of one character, and Ctrl/Alt+Backspace to delete back to the
 	// previous word boundary — the base class doesn't support any of this (Ctrl+anything other
 	// than X/C/V/A is swallowed and does nothing, per its own keyPressed()).
+	// Ctrl+Space accepts autocomplete like Tab -- its key-typed ' ' must not also insert a space.
+	@Override
+	public void keyTyped(KeyEvent ev)
+	{
+		if (ev.isControlDown() && ev.getKeyChar() == ' ')
+		{
+			ev.consume();
+			return;
+		}
+
+		super.keyTyped(ev);
+	}
+
+	private static boolean isCtrlSpace(KeyEvent ev)
+	{
+		return ev.getKeyCode() == KeyEvent.VK_SPACE && ev.isControlDown();
+	}
+
 	@Override
 	public void keyPressed(KeyEvent ev)
 	{
@@ -296,7 +314,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		int code = ev.getKeyCode();
 
-		if (code == KeyEvent.VK_TAB)
+		if (code == KeyEvent.VK_TAB || isCtrlSpace(ev))
 		{
 			String completion = pendingCompletion();
 			if (completion != null && !completion.isEmpty())
