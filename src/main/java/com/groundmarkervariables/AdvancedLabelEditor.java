@@ -77,14 +77,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party"
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "divine"
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
 		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight",
-		"align=");
+		"align=", "divine");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
 	// past any of these prefixes, autocomplete switches from variable names to skill names.
@@ -106,6 +106,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String PARTY_PREFIX = "party ";
 	private static final List<String> PARTY_KEYWORDS = List.of("num", "name", "hp", "prayer");
 	private static final Pattern PARTY_WORD = Pattern.compile("[a-zA-Z]*$");
+
+	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.
+	private static final String DIVINE_PREFIX = "divine ";
+	private static final List<String> DIVINE_POTIONS = List.of(
+		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage");
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
@@ -841,6 +846,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completePartyKeyword(partial.substring(PARTY_PREFIX.length()));
 		}
 
+		if (!restrictToNumeric && partial.length() >= DIVINE_PREFIX.length() && partial.regionMatches(true, 0, DIVINE_PREFIX, 0, DIVINE_PREFIX.length()))
+		{
+			return completeDivinePotion(partial.substring(DIVINE_PREFIX.length()));
+		}
+
 		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
 		{
 			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX);
@@ -1398,6 +1408,31 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + PARTY_PREFIX);
 		return chosen.substring(wordPartial.length());
+	}
+
+	private String completeDivinePotion(String potionPartial)
+	{
+		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
+		for (String name : DIVINE_POTIONS)
+		{
+			if (name.length() > potionPartial.length() && name.regionMatches(true, 0, potionPartial, 0, potionPartial.length()))
+			{
+				candidates.add(name);
+			}
+			else if (name.equalsIgnoreCase(potionPartial))
+			{
+				exactMatch = true;
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return exactMatch ? "}" : null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + DIVINE_PREFIX);
+		return chosen.substring(potionPartial.length());
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally
