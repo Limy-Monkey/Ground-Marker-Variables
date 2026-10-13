@@ -77,7 +77,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align="
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party"
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
@@ -101,6 +101,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String KC_PREFIX = "kc ";
 	private static final String PB_PREFIX = "pb ";
 	private static final String RANK_PREFIX = "rank ";
+
+	// {party <template>} — completes whichever keyword is currently being typed.
+	private static final String PARTY_PREFIX = "party ";
+	private static final List<String> PARTY_KEYWORDS = List.of("num", "name", "hp", "prayer");
+	private static final Pattern PARTY_WORD = Pattern.compile("[a-zA-Z]*$");
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
@@ -831,6 +836,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeBossName(partial.substring(RANK_PREFIX.length()), RANK_PREFIX);
 		}
 
+		if (!restrictToNumeric && partial.length() >= PARTY_PREFIX.length() && partial.regionMatches(true, 0, PARTY_PREFIX, 0, PARTY_PREFIX.length()))
+		{
+			return completePartyKeyword(partial.substring(PARTY_PREFIX.length()));
+		}
+
 		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
 		{
 			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX);
@@ -1356,6 +1366,38 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + ALIGN_PREFIX);
 		return chosen.substring(valuePartial.length()) + "}";
+	}
+
+	// Completes only the trailing word being typed -- no closer, since more may follow.
+	private String completePartyKeyword(String templatePartial)
+	{
+		Matcher wordMatcher = PARTY_WORD.matcher(templatePartial);
+		wordMatcher.find();
+		String wordPartial = wordMatcher.group();
+
+		// Empty only because the cursor sits right after a separator (e.g. "num.") -- nothing
+		// new is being typed yet, unlike a genuinely empty templatePartial ("{party ").
+		if (wordPartial.isEmpty() && !templatePartial.isEmpty())
+		{
+			return null;
+		}
+
+		List<String> candidates = new ArrayList<>();
+		for (String keyword : PARTY_KEYWORDS)
+		{
+			if (keyword.length() > wordPartial.length() && keyword.regionMatches(true, 0, wordPartial, 0, wordPartial.length()))
+			{
+				candidates.add(keyword);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + PARTY_PREFIX);
+		return chosen.substring(wordPartial.length());
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally

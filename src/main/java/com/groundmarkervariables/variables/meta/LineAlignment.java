@@ -52,6 +52,16 @@ final class LineAlignment
 			alignments.add(current);
 		}
 
+		// Trailing lines left empty by stripping (e.g. a final "{/align}" on its own line)
+		// would otherwise render as blank rows.
+		int lastIndex = strippedLines.size() - 1;
+		while (lastIndex >= 0 && strippedLines.get(lastIndex).isEmpty())
+		{
+			strippedLines.remove(lastIndex);
+			alignments.remove(lastIndex);
+			lastIndex--;
+		}
+
 		return new Result(String.join("\\n", strippedLines), alignments);
 	}
 }

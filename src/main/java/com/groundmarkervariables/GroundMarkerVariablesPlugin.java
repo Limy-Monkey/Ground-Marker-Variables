@@ -174,6 +174,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private PingedTileManager pingedTileManager;
 
 	@Inject
+	private PartyStatusTracker partyStatusTracker;
+
+	@Inject
 	private GroundMarkerPartySharingManager groundMarkerPartySharingManager;
 
 	@Inject
@@ -223,6 +226,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.add(partyNotificationOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		pingedTileManager.startUp();
+		partyStatusTracker.startUp();
 		groundMarkerPartySharingManager.startUp();
 		recentLootTracker.startUp();
 
@@ -282,6 +286,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	protected void shutDown()
 	{
 		pingedTileManager.shutDown();
+		partyStatusTracker.shutDown();
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
