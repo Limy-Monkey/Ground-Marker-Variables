@@ -54,7 +54,12 @@ public class LabelResolver
 			return label;
 		}
 
-		String resolved = applyWithMode(math, label);
+		// Runs first, while a branch's own nested token is still literal -- otherwise its
+		// resolved text (e.g. a colon in Rich Text) could corrupt the ?/: split. Also forces
+		// Plain for its own <expr> internally (no ^/&/* support).
+		String resolved = applyPlain(conditional, label);
+
+		resolved = applyWithMode(math, resolved);
 		for (LabelVariable variable : baseVariables)
 		{
 			resolved = applyWithMode(variable, resolved);
@@ -62,9 +67,6 @@ public class LabelResolver
 
 		// {expr cmp value} with no ?/: — disjoint from conditional's own ?/:-requiring pattern.
 		resolved = applyWithMode(booleanVariable, resolved);
-
-		// Conditional has no ^/&/* support -- it forces Plain for its own <expr> internally.
-		resolved = applyPlain(conditional, resolved);
 
 		// Metronome stays last, same as today — see the class comment on why.
 		resolved = applyWithMode(metronome, resolved);

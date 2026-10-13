@@ -10,17 +10,18 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {<chain> ? <whenTrue> : <whenFalse>} — <chain> is any number of "<expr> [<cmp> <value>]"
-// leaves combined with && / ||, with parens overriding the usual && before || precedence.
-// Nested variables in a branch aren't supported (regex can't parse nested braces), except a
-// literal {metronomeN[_M]} / {mN[_M]} token (METRONOME_TOKEN), which resolveConditional()
-// neutralizes in the winning branch rather than resolving, matching the rest of metronome's
-// conditional block (see VariableRegistry).
+// leaves combined with && / ||, with parens overriding the usual && before || precedence. A
+// branch may contain a nested {...} token (one level deep) -- NESTED_TOKEN treats it as
+// opaque. A normal base variable nested this way already resolved in an earlier pass (see
+// LabelResolver); metronome is explicitly neutralized here, a metavariable left as-is for
+// MetaVariableResolver afterward.
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
 		"(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
-	private static final String BRANCH = "(?:[^{}]|" + METRONOME_TOKEN + ")+?";
+	private static final String NESTED_TOKEN = "\\{[^{}]*\\}";
+	private static final String BRANCH = "(?:[^{}]|" + NESTED_TOKEN + ")+?";
 
 	private static final Pattern LEAF = Pattern.compile("([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?");
 	private static final Pattern PATTERN = Pattern.compile(
