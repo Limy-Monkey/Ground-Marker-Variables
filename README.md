@@ -2,13 +2,20 @@
 
 Overrides the default Ground Marker plugin with a version that supports variables in labels.
 
-Supported variables:
+<details>
+<summary>Supported variables:</summary>
 
 | Modifiers | Description                                                                                         |
 |-----------|-----------------------------------------------------------------------------------------------------|
 | `{^...}`  | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                      |
 | `{&...}`  | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385` |
 | `\n`      | Newline.                                                                                            |
+| `{col=<col>}`                                         | Changes the text color. \<col>: named color or 6-digit hex.      |
+| `{tileCol=<col>}`                                     | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity.      |
+| `{highlightSW=<col>}`                                 | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                     |
+| `{align=left/right/center}`                           | Changes text alignment from this line onward, until the next \{align}/\{/align} (which resets to center).           |
+| `{b}Bold{/b}`, `{i}Italics{/i}`                       | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                         |
+| `{borderWidth=2.5}`                                   | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                            |
 
 | Variable                                | Description                                                                                                                                                      |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -51,17 +58,9 @@ Supported variables:
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
 | `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
 
-Meta variables configure the tile's own rendering instead of substituting into the label text, and are stripped from it.
-
-| Meta Variable                                        | Description                                                                                                          |
-|-------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `{tileCol=<col>}`                                     | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity.      |
-| `{highlight<corner>}` / `{highlight<corner>=<col>}`   | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                     |
-| `{align=left/right/center}` / `{/align}`              | Changes text alignment from this line onward, until the next \{align}/\{/align} (which resets to center).           |
-| `{b}` / `{/b}`, `{i}` / `{/i}`                        | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                         |
-| `{borderWidth=<width>}`                               | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                            |
-
-## Examples:
+</details>
+<details>
+<summary>Examples:</summary>
 
 - `{equip_helm}`
   - Helm: Helm of Neitiznot
@@ -74,14 +73,16 @@ Meta variables configure the tile's own rendering instead of substituting into t
   - 4 tick metronome on the tile
   - Cannot be used inside of a \<cond\>.
   - `{m4}` works as an alias as well.
-- `{time > 10pm ? Go to bed : One more raid!}`
+- `{(weekday <= 4 || weekday == 7) && time > 10pm ? Go to bed : One more raid!}`
+- `{Oct 20 - date} to Raids 4 release!`
 - `This text is {col=cyan}cyan!`
   - Changes color of the word "cyan!" to `#00FFFF`
+</details>
 
 ## Images:
-<img align="left" height="516" alt="image" src="https://github.com/user-attachments/assets/9e285de3-1774-468a-8b42-2bcbcb64e134" /> ToB Entry Check
+<img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check
 
-```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{spellbook} \\n {hasItem Salve} \\n {equip_ammo !\u003d Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align\u003dleft}{spellbook} {spellbook \u003d\u003d Ancient ? -- {hasFreeze} : }{spellbook \u003d\u003d Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo !\u003d Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
 
 <br clear="left"/><br />
 
