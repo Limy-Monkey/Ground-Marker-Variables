@@ -77,13 +77,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType",
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight"
+		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight");
+		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "numItem", "numDoses", "tileCol=", "highlight",
+		"align=");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
 	// past any of these prefixes, autocomplete switches from variable names to skill names.
@@ -141,8 +142,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			+ "|</col>|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
 
-	// {/col} — the {col=} family's own alias for </col>, closed with "}" instead of ">".
-	private static final String CLOSE_COLOR_ALIAS = "/col}";
+	// {/col} / {/align} — diverge from their own "{x=" family at the leading "/".
+	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}");
+
+	// {align=<align>} — fixed value set, closed with "}" immediately like {col=}.
+	private static final String ALIGN_PREFIX = "align=";
+	private static final List<String> ALIGN_VALUES = List.of("Left", "Right", "Center");
 
 	// Tracked separately: a math operand can only be a NumericVariableRegistry name. "(" needs
 	// no padding, matching MathVariable's own paren handling (e.g. "(kc tob").
@@ -797,10 +802,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		// {/col} — diverges from {col=...} at the first character, like "<" into <col=/</col>.
+		// {/col} / {/align} — diverge from {col=...}/{align=...} at the first character.
 		if (!restrictToNumeric && partial.charAt(0) == '/')
 		{
-			return completeCloseColorAlias(partial);
+			return completeCloseAlias(partial);
 		}
 
 		for (String prefix : SKILL_PREFIXES)
@@ -861,6 +866,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (!restrictToNumeric && partial.length() >= HIGHLIGHT_NAME.length() && partial.regionMatches(true, 0, HIGHLIGHT_NAME, 0, HIGHLIGHT_NAME.length()))
 		{
 			return completeHighlight(partial.substring(HIGHLIGHT_NAME.length()));
+		}
+
+		if (!restrictToNumeric && partial.length() >= ALIGN_PREFIX.length() && partial.regionMatches(true, 0, ALIGN_PREFIX, 0, ALIGN_PREFIX.length()))
+		{
+			return completeAlignValue(partial.substring(ALIGN_PREFIX.length()));
 		}
 
 		for (int i = 0; i < partial.length(); i++)
@@ -1308,16 +1318,44 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(valuePartial.length()) + "}";
 	}
 
-	// "{/col}" completes literally in full.
-	private String completeCloseColorAlias(String partial)
+	private String completeCloseAlias(String partial)
 	{
-		if (partial.length() >= CLOSE_COLOR_ALIAS.length()
-			|| !CLOSE_COLOR_ALIAS.regionMatches(true, 0, partial, 0, partial.length()))
+		List<String> candidates = new ArrayList<>();
+		for (String alias : CLOSE_ALIASES)
+		{
+			if (alias.length() > partial.length() && alias.regionMatches(true, 0, partial, 0, partial.length()))
+			{
+				candidates.add(alias);
+			}
+		}
+
+		if (candidates.isEmpty())
 		{
 			return null;
 		}
 
-		return CLOSE_COLOR_ALIAS.substring(partial.length());
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{");
+		return chosen.substring(partial.length());
+	}
+
+	private String completeAlignValue(String valuePartial)
+	{
+		List<String> candidates = new ArrayList<>();
+		for (String name : ALIGN_VALUES)
+		{
+			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
+			{
+				candidates.add(name);
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + ALIGN_PREFIX);
+		return chosen.substring(valuePartial.length()) + "}";
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally

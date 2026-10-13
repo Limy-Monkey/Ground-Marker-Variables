@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.meta;
 
 import java.awt.Color;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -14,6 +15,7 @@ public class MetaState
 	@Nullable
 	private Float tileOpacity;
 	private final Map<HighlightCorner, Color> highlights = new EnumMap<>(HighlightCorner.class);
+	private List<TextAlign> lineAlignments = List.of();
 
 	@Nullable
 	public Color getTileColor()
@@ -46,5 +48,16 @@ public class MetaState
 	public void setHighlight(HighlightCorner corner, Color color)
 	{
 		highlights.put(corner, color);
+	}
+
+	// One entry per rendered line; a line past the end of this list uses TextAlign.CENTER.
+	public List<TextAlign> getLineAlignments()
+	{
+		return lineAlignments;
+	}
+
+	void setLineAlignments(List<TextAlign> lineAlignments)
+	{
+		this.lineAlignments = lineAlignments;
 	}
 }

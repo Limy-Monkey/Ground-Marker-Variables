@@ -365,6 +365,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {^...} = raw variable<br>"
 					+ "- \\n = newline<br>"
 					+ "- {col=red} = Red text<br>"
+					+ "- {align=left} = Left-align<br>"
 					+ "- {tileCol=invis}<br>"
 					+ "- {highlightSW}<br><br>"
 					+ "- {rsn}<br>"

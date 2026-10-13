@@ -22,6 +22,7 @@ import com.groundmarkervariables.party.PingedTileManager;
 import com.groundmarkervariables.party.TranslatedPingedTile;
 import com.groundmarkervariables.variables.meta.HighlightCorner;
 import com.groundmarkervariables.variables.meta.MetaState;
+import com.groundmarkervariables.variables.meta.TextAlign;
 import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -174,7 +175,7 @@ public class GroundMarkerVariablesOverlay
 				graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
 			}
 
-			drawLines(graphics, localPoint, lines, color);
+			drawLines(graphics, localPoint, lines, color, metaState.getLineAlignments());
 
 			graphics.setComposite(originalComposite);
 		}
@@ -210,23 +211,81 @@ public class GroundMarkerVariablesOverlay
 		graphics.drawLine(x1, y1, x2, y2);
 	}
 
-	// One line per row, each centered on its own width (text plus any inline item icons),
-	// stacked as a block centered on localPoint (not anchored at the first line).
-	private void drawLines(Graphics2D graphics, LocalPoint localPoint, String[] lines, Color color)
+	// One line per row, stacked as a block centered on localPoint (not anchored at the first
+	// line). Each line's own X then depends on its alignment -- center (the default) centers
+	// it on its own width like before, left/right hug the widest line's own edge instead, but
+	// only among the contiguous run of lines sharing that same alignment (see blockMaxWidths).
+	private void drawLines(Graphics2D graphics, LocalPoint localPoint, String[] lines, Color color, List<TextAlign> alignments)
 	{
 		int lineHeight = graphics.getFontMetrics().getHeight();
 		int startY = -((lines.length - 1) * lineHeight) / 2;
 
+		List<LineLayout> layouts = new ArrayList<>();
+		for (String line : lines)
+		{
+			layouts.add(layoutLine(graphics, line));
+		}
+
+		int[] blockMaxWidths = blockMaxWidths(layouts, alignments);
+
 		for (int i = 0; i < lines.length; i++)
 		{
-			drawLine(graphics, localPoint, lines[i], color, startY + i * lineHeight);
+			drawLine(graphics, localPoint, layouts.get(i), blockMaxWidths[i], lineAlign(alignments, i), color, startY + i * lineHeight);
 		}
 	}
 
-	// A line is a sequence of text runs and <item=ID> icon tags. Both are measured up front so
-	// the whole line -- icons included -- can be centered on the tile the same way a plain text
-	// line always has been, then drawn left to right.
-	private void drawLine(Graphics2D graphics, LocalPoint localPoint, String line, Color color, int yOffset)
+	// For each line, the max width among the contiguous run of lines sharing its own
+	// alignment -- not the whole label, so separate {align} blocks don't affect each other.
+	private static int[] blockMaxWidths(List<LineLayout> layouts, List<TextAlign> alignments)
+	{
+		int n = layouts.size();
+		int[] result = new int[n];
+
+		int i = 0;
+		while (i < n)
+		{
+			TextAlign align = lineAlign(alignments, i);
+			int max = 0;
+			int j = i;
+			while (j < n && lineAlign(alignments, j) == align)
+			{
+				max = Math.max(max, layouts.get(j).width);
+				j++;
+			}
+			for (int k = i; k < j; k++)
+			{
+				result[k] = max;
+			}
+			i = j;
+		}
+
+		return result;
+	}
+
+	private static TextAlign lineAlign(List<TextAlign> alignments, int index)
+	{
+		return index < alignments.size() ? alignments.get(index) : TextAlign.CENTER;
+	}
+
+	// A line's text runs and <item=ID> icon images, pre-measured once so both the per-line
+	// width (for maxWidth) and the actual draw pass can reuse the same icon lookups.
+	private static final class LineLayout
+	{
+		private final List<Object> segments;
+		private final List<BufferedImage> images;
+		private final List<Integer> iconWidths;
+		private final int width;
+
+		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width)
+		{
+			this.segments = segments;
+			this.images = images;
+			this.iconWidths = iconWidths;
+			this.width = width;
+		}
+	}
+
+	private LineLayout layoutLine(Graphics2D graphics, String line)
 	{
 		List<Object> segments = splitIconSegments(line);
 		FontMetrics fontMetrics = graphics.getFontMetrics();
@@ -251,30 +310,52 @@ public class GroundMarkerVariablesOverlay
 			}
 			else
 			{
+				images.add(null);
+				iconWidths.add(0);
 				totalWidth += fontMetrics.stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
 			}
 		}
 
-		// An empty string has zero width, so this is the same tile-anchored canvas point plain
-		// text lines have always centered against -- just without Perspective doing the centering.
+		return new LineLayout(segments, images, iconWidths, totalWidth);
+	}
+
+	// center: same tile-anchored canvas point plain text lines have always centered against.
+	// left/right instead hug maxWidth's own edge, so every line lines up along a shared margin.
+	private static int lineX(int anchorX, TextAlign align, int lineWidth, int maxWidth)
+	{
+		switch (align)
+		{
+			case LEFT:
+				return anchorX - maxWidth / 2;
+			case RIGHT:
+				return anchorX + maxWidth / 2 - lineWidth;
+			default:
+				return anchorX - lineWidth / 2;
+		}
+	}
+
+	private void drawLine(Graphics2D graphics, LocalPoint localPoint, LineLayout layout, int maxWidth, TextAlign align, Color color, int yOffset)
+	{
 		Point anchor = Perspective.getCanvasTextLocation(client, graphics, localPoint, "", 0);
 		if (anchor == null)
 		{
 			return;
 		}
 
-		int x = anchor.getX() - totalWidth / 2;
+		FontMetrics fontMetrics = graphics.getFontMetrics();
+		int x = lineX(anchor.getX(), align, layout.width, maxWidth);
 		int y = anchor.getY() + yOffset;
 		int imageIndex = 0;
 
-		for (Object segment : segments)
+		for (Object segment : layout.segments)
 		{
 			if (segment instanceof Integer)
 			{
-				BufferedImage image = images.get(imageIndex);
-				int iconWidth = iconWidths.get(imageIndex++);
+				BufferedImage image = layout.images.get(imageIndex);
+				int iconWidth = layout.iconWidths.get(imageIndex++);
 				if (image != null)
 				{
+					int iconHeight = lineHeight(fontMetrics);
 					int imageY = y - fontMetrics.getAscent();
 					graphics.drawImage(image, x, imageY, iconWidth, iconHeight, null);
 					x += iconWidth;

@@ -42,7 +42,10 @@ public class MetaVariableResolver
 		{
 			remaining = strip(meta, remaining, state);
 		}
-		return new Result(remaining, state);
+
+		LineAlignment.Result aligned = LineAlignment.strip(remaining);
+		state.setLineAlignments(aligned.lineAlignments);
+		return new Result(aligned.label, state);
 	}
 
 	private static String strip(MetaVariable meta, String text, MetaState state)
