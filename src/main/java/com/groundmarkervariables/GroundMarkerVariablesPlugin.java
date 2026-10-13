@@ -185,6 +185,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private ImportPreviewManager importPreviewManager;
 
+	@Inject
+	private PluginMessageHandler pluginMessageHandler;
+
 	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
 	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
 	private final Map<Integer, List<CachedMarker>> markersByRegion = new ConcurrentHashMap<>();
@@ -229,6 +232,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		partyStatusTracker.startUp();
 		groundMarkerPartySharingManager.startUp();
 		recentLootTracker.startUp();
+		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())
 		{
@@ -289,6 +293,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		partyStatusTracker.shutDown();
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
+		pluginMessageHandler.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(tileOverlay);
 		overlayManager.remove(labelOverlay);
