@@ -48,6 +48,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasAlchs}`                            | true if on Standard Spellbook and has nature and fire runes for High Alchemy                                                                                     |
 | `{hasFreeze}`                           | true if Ice Barrage is castable (Level not checked)                                                                                                              |
 | `{hasEntangle}`                         | true if Entangle is castable (Level not checked)                                                                                                                 |
+| `{hasVileVigour}`                       | true if Vile Vigour is castable (Level not checked)                                                                                                              |
 | `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
 | `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |

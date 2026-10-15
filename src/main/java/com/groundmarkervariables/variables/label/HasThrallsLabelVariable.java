@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -7,19 +8,19 @@ import javax.inject.Inject;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.RuneCounter;
+import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.VarbitID;
 
 // {hasThralls} — true only while the player could cast an Arceuus Conjure spell right now:
-// Arceuus spellbook active, Book of the Dead owned (equipped or carried), and at least one
+// Arceuus spellbook (or Spellbook Swap) active, Book of the Dead owned (equipped or carried), and at least one
 // fire, blood, and cosmic rune available (RuneCounter — inventory + rune pouch, infinite
 // sources, and combo runes). Doesn't check Magic level.
 public class HasThrallsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasThralls\\}", Pattern.CASE_INSENSITIVE);
-	private static final int ARCEUUS_SPELLBOOK = 3;
+	private static final Map<Integer, Integer> THRALL_RUNES = Map.of(ItemID.FIRERUNE, 1, ItemID.BLOODRUNE, 1, ItemID.COSMICRUNE, 1);
 
 	private final Client client;
 	private final RichText richText;
@@ -51,11 +52,7 @@ public class HasThrallsLabelVariable implements LabelVariable
 
 	private boolean hasThralls()
 	{
-		return client.getVarbitValue(VarbitID.SPELLBOOK) == ARCEUUS_SPELLBOOK
-			&& hasBookOfTheDead()
-			&& RuneCounter.hasAtLeast(client, ItemID.FIRERUNE, 1)
-			&& RuneCounter.hasAtLeast(client, ItemID.BLOODRUNE, 1)
-			&& RuneCounter.hasAtLeast(client, ItemID.COSMICRUNE, 1);
+		return hasBookOfTheDead() && Spellbooks.canCast(client, Spellbooks.ARCEUUS, THRALL_RUNES);
 	}
 
 	private boolean hasBookOfTheDead()

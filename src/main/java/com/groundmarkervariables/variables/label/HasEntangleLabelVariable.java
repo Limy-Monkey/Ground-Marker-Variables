@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -7,13 +8,14 @@ import javax.inject.Inject;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.RuneCounter;
+import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
 
 // {hasEntangle} — true if the player could cast Entangle right now, via either path:
-//  - Standard spellbook + enough runes for Entangle (5 earth, 5 water, 4 nature —
+//  - Standard spellbook (or Spellbook Swap) + enough runes for Entangle (5 earth, 5 water, 4 nature —
 //    RuneCounter accounts for infinite-source weapons and combo runes; nature has neither), or
 //  - a Blighted entangle sack (acts like the runes for Entangle/Snare/Bind while on the
 //    standard spellbook) while in the Wilderness.
@@ -22,7 +24,7 @@ import net.runelite.api.gameval.VarbitID;
 public class HasEntangleLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasEntangle\\}", Pattern.CASE_INSENSITIVE);
-	private static final int STANDARD_SPELLBOOK = 0;
+	private static final Map<Integer, Integer> ENTANGLE_RUNES = Map.of(ItemID.EARTHRUNE, 5, ItemID.WATERRUNE, 5, ItemID.NATURERUNE, 4);
 
 	private final Client client;
 	private final RichText richText;
@@ -54,19 +56,7 @@ public class HasEntangleLabelVariable implements LabelVariable
 
 	private boolean hasEntangle()
 	{
-		return (onStandardSpellbook() && hasEntangleRunes()) || (hasBlightedEntangleSack() && inWilderness());
-	}
-
-	private boolean onStandardSpellbook()
-	{
-		return client.getVarbitValue(VarbitID.SPELLBOOK) == STANDARD_SPELLBOOK;
-	}
-
-	private boolean hasEntangleRunes()
-	{
-		return RuneCounter.hasAtLeast(client, ItemID.EARTHRUNE, 5)
-			&& RuneCounter.hasAtLeast(client, ItemID.WATERRUNE, 5)
-			&& RuneCounter.hasAtLeast(client, ItemID.NATURERUNE, 4);
+		return Spellbooks.canCast(client, Spellbooks.STANDARD, ENTANGLE_RUNES) || (hasBlightedEntangleSack() && inWilderness());
 	}
 
 	private boolean hasBlightedEntangleSack()

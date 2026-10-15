@@ -471,7 +471,7 @@ String expectedWorldType()
 	var types = client.getWorldType();
 	Object[][] names = {
 		{WorldType.BETA_WORLD, "Beta"}, {WorldType.TOURNAMENT_WORLD, "Tournament"}, {WorldType.SEASONAL, "Seasonal"},
-		{WorldType.DEADMAN, "Deadman"}, {WorldType.FRESH_START_WORLD, "Fresh Start"}, {WorldType.HARDCORE_MAIN, "Hardcore Main"},
+		{WorldType.DEADMAN, "Deadman"}, {WorldType.FRESH_START_WORLD, "Fresh Start"}, {WorldType.HARDCORE_MAIN, "Hardcore"},
 		{WorldType.LAST_MAN_STANDING, "LMS"}, {WorldType.BOUNTY, "Bounty Hunter"}, {WorldType.PVP_ARENA, "PvP Arena"},
 		{WorldType.QUEST_SPEEDRUNNING, "Quest"}, {WorldType.NOSAVE_MODE, "No Save"}, {WorldType.HIGH_RISK, "High Risk"},
 		{WorldType.PVP, "PvP"}};

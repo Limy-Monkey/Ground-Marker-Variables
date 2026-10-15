@@ -1,23 +1,23 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
-import com.groundmarkervariables.variables.support.RuneCounter;
+import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.VarbitID;
 
 // {hasAlchs} — true only while the player could cast High Level Alchemy right now: Standard
-// spellbook active, and at least one nature and fire rune available (RuneCounter —
+// spellbook (or Spellbook Swap) active, and at least one nature and fire rune available (RuneCounter —
 // inventory + rune pouch, plus an infinite source for fire). Doesn't check Magic level.
 public class HasAlchsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasAlchs\\}", Pattern.CASE_INSENSITIVE);
-	private static final int STANDARD_SPELLBOOK = 0;
+	private static final Map<Integer, Integer> ALCH_RUNES = Map.of(ItemID.NATURERUNE, 1, ItemID.FIRERUNE, 1);
 
 	private final Client client;
 	private final RichText richText;
@@ -49,8 +49,6 @@ public class HasAlchsLabelVariable implements LabelVariable
 
 	private boolean hasAlchs()
 	{
-		return client.getVarbitValue(VarbitID.SPELLBOOK) == STANDARD_SPELLBOOK
-			&& RuneCounter.hasAtLeast(client, ItemID.NATURERUNE, 1)
-			&& RuneCounter.hasAtLeast(client, ItemID.FIRERUNE, 1);
+		return Spellbooks.canCast(client, Spellbooks.STANDARD, ALCH_RUNES);
 	}
 }
