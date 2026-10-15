@@ -22,9 +22,10 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{rsn}`                                 | Current player's display name                                                                                                                                    |
 | `{time}` / `{time24}`                   | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                                          |
 | `{date}`                                | Today's date, e.g. October 20th 2026                                                                                                                             |
-| `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                    |
+| `{world}` / `{worldInfo}`               | Current world number. Rich Text shows the world type; \{worldInfo} adds the region flag, player count and ping (rounded up, avg over 10 ticks)                   |
+| `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                   |
 | `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
-| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Not usable inside a conditional                                  |
+| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Not usable inside a conditional                                                              |
 | `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
 | `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
 | `{attackStyle}`                         | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                                                    |
@@ -49,10 +50,10 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasEntangle}`                         | true if Entangle is castable (Level not checked)                                                                                                                 |
 | `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
-| `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                          |
-| `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                               |
+| `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |
+| `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                              |
 | `{combatAchievement}`                   | Current Combat Achievement tier, 0 (none) through 6 (Grandmaster)                                                                                                |
-| `{party <template>}`                    | Optional template as parameter (default "num. name \| hp \| prayer")                                                                                            |
+| `{party <template>}`                    | Optional template as parameter (default "num. name \| hp \| prayer")                                                                                             |
 | `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
 | `{<cond1> && / \|\| <cond2> ? A : B}`   | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |

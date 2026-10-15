@@ -19,7 +19,6 @@ import net.runelite.client.hiscore.HiscoreSkill;
 public class XpLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{xp_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
-	private static final int DOT_COUNT = 3;
 
 	private final Client client;
 	private final RichText richText;
@@ -61,22 +60,10 @@ public class XpLabelVariable implements LabelVariable
 		}
 
 		Long rank = rankLookup.rank(HiscoreSkill.valueOf(skill.name()));
-		String rankText = rank == null ? animatedDots() : richText.highlightValue(String.format("%,d", rank));
+		String rankText = rank == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(String.format("%,d", rank));
 
 		return skill.getName() + " Level: " + richText.highlightValue(String.valueOf(client.getRealSkillLevel(skill)))
 			+ " | Experience: " + richText.highlightValue(String.format("%,d", client.getSkillExperience(skill)))
 			+ " | Rank: " + rankText;
-	}
-
-	// One dot highlighted, cycling each game tick: "<col>.</col>..", ".<col>.</col>.", ...
-	private String animatedDots()
-	{
-		int active = client.getTickCount() % DOT_COUNT;
-		StringBuilder dots = new StringBuilder();
-		for (int i = 0; i < DOT_COUNT; i++)
-		{
-			dots.append(i == active ? richText.highlightValue(".") : ".");
-		}
-		return dots.toString();
 	}
 }

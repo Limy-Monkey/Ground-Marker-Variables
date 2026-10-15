@@ -12,7 +12,9 @@ import java.awt.Stroke;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,10 +33,13 @@ import net.runelite.api.Point;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.util.ColorUtil;
+import net.runelite.client.util.ImageUtil;
 
 // Shared tile/label drawing code behind GroundMarkerVariablesTileOverlay and
 // GroundMarkerVariablesLabelOverlay -- not an Overlay itself.
@@ -46,25 +51,42 @@ public class GroundMarkerVariablesOverlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
-	// LootLabelVariable's <item=ID> icon, or a {b}/{/b}/{i}/{/i} toggle (left in the label by
-	// MetaVariableResolver, since it applies from its own position onward).
-	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile("<item=(\\d+)>|\\{(/?)([bi])\\}", Pattern.CASE_INSENSITIVE);
+	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, or <flag=region> icon.
+	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
+		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>", Pattern.CASE_INSENSITIVE);
+	// The game's own world switcher flags, drawn at native size.
+	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
+		"us", SpriteID.WorldswitcherFlags._1,
+		"uk", SpriteID.WorldswitcherFlags._3,
+		"aus", SpriteID.WorldswitcherFlags._5,
+		"ger", SpriteID.WorldswitcherFlags._8,
+		"us_west", SpriteID.WorldswitcherFlags._9,
+		"us_east", SpriteID.WorldswitcherFlags._10,
+		"br", SpriteID.WorldswitcherFlags._11,
+		"jp", SpriteID.WorldswitcherFlags._12,
+		"sg", SpriteID.WorldswitcherFlags._13,
+		"za", SpriteID.WorldswitcherFlags._15);
 
 	private final Client client;
 	private final GroundMarkerVariablesPlugin plugin;
 	private final GroundMarkerVariablesConfig config;
 	private final ItemManager itemManager;
+	private final SpriteManager spriteManager;
 	private final ImportPreviewManager importPreviewManager;
 	private final PingedTileManager pingedTileManager;
 
+	// Keyed by SpriteManager's own (cached) flag image.
+	private final Map<BufferedImage, BufferedImage> scaledFlags = new IdentityHashMap<>();
+
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
-		ItemManager itemManager, ImportPreviewManager importPreviewManager, PingedTileManager pingedTileManager)
+		ItemManager itemManager, SpriteManager spriteManager, ImportPreviewManager importPreviewManager, PingedTileManager pingedTileManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
 		this.itemManager = itemManager;
+		this.spriteManager = spriteManager;
 		this.importPreviewManager = importPreviewManager;
 		this.pingedTileManager = pingedTileManager;
 	}
@@ -341,6 +363,15 @@ public class GroundMarkerVariablesOverlay
 				continue;
 			}
 
+			if (segment instanceof BufferedImage)
+			{
+				BufferedImage flag = scaledFlag((BufferedImage) segment, iconHeight);
+				images.add(flag);
+				iconWidths.add(flag.getWidth());
+				totalWidth += flag.getWidth();
+				continue;
+			}
+
 			images.add(null);
 			iconWidths.add(0);
 			if (segment instanceof StyleToggle)
@@ -355,6 +386,24 @@ public class GroundMarkerVariablesOverlay
 		}
 
 		return new LineLayout(segments, images, iconWidths, totalWidth, startStyle, style);
+	}
+
+	// Native size, or smoothly scaled down to the text height when that's shorter.
+	private BufferedImage scaledFlag(BufferedImage flag, int textHeight)
+	{
+		if (textHeight >= flag.getHeight())
+		{
+			return flag;
+		}
+
+		BufferedImage scaled = scaledFlags.get(flag);
+		if (scaled == null || scaled.getHeight() != textHeight)
+		{
+			int width = Math.round(flag.getWidth() * textHeight / (float) flag.getHeight());
+			scaled = ImageUtil.resizeImage(flag, width, textHeight);
+			scaledFlags.put(flag, scaled);
+		}
+		return scaled;
 	}
 
 	private static Font styledFont(Font base, int style)
@@ -401,6 +450,13 @@ public class GroundMarkerVariablesOverlay
 			{
 				style = ((StyleToggle) segment).apply(style);
 			}
+			else if (segment instanceof BufferedImage)
+			{
+				BufferedImage flag = layout.images.get(i);
+				int flagY = y - fontMetrics.getAscent() + (lineHeight(fontMetrics) - flag.getHeight()) / 2;
+				graphics.drawImage(flag, x, flagY, null);
+				x += flag.getWidth();
+			}
 			else if (segment instanceof Integer)
 			{
 				BufferedImage image = layout.images.get(i);
@@ -440,9 +496,8 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into an ordered mix of text runs (String), item icon tags (Integer item id)
-	// and style toggles (StyleToggle), so drawLine can measure and draw each in place.
-	private static List<Object> splitSegments(String line)
+	// Splits a line into text (String), item ids (Integer), flags (BufferedImage) and StyleToggles.
+	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
 		Matcher matcher = INLINE_TAG_PATTERN.matcher(line);
@@ -457,6 +512,14 @@ public class GroundMarkerVariablesOverlay
 			if (matcher.group(1) != null)
 			{
 				segments.add(Integer.valueOf(matcher.group(1)));
+			}
+			else if (matcher.group(4) != null)
+			{
+				BufferedImage flag = spriteManager.getSprite(FLAG_SPRITES.get(matcher.group(4).toLowerCase(Locale.ROOT)), 0);
+				if (flag != null)
+				{
+					segments.add(flag);
+				}
 			}
 			else
 			{

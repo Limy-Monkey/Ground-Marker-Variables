@@ -12,6 +12,8 @@ import net.runelite.client.util.ColorUtil;
 @Singleton
 public class RichText
 {
+	private static final int DOT_COUNT = 3;
+
 	private final GroundMarkerVariablesConfig config;
 
 	@Inject
@@ -28,6 +30,17 @@ public class RichText
 	public String highlightValue(String value)
 	{
 		return config.highlightValue() ? colored(config.highlightColor(), value) : value;
+	}
+
+	// Loading placeholder: one highlighted dot cycling each tick, e.g. ".<col>.</col>.".
+	public String animatedDots(int tickCount)
+	{
+		StringBuilder dots = new StringBuilder();
+		for (int i = 0; i < DOT_COUNT; i++)
+		{
+			dots.append(i == tickCount % DOT_COUNT ? highlightValue(".") : ".");
+		}
+		return dots.toString();
 	}
 
 	public String booleanColored(boolean value, String text)

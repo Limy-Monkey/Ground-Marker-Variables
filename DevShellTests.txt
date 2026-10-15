@@ -460,6 +460,62 @@ void lootCombined()
 }
 
 // ---------------------------------------------------------------------------------------------
+// {world} / {worldInfo}. [world list] checks need RuneLite's world list, which is only requested
+// on the first resolve -- rerun if they fail right after starting. Ping needs 5+ ticks of samples,
+// so it shows dots unless a {worldInfo} marker has been on screen for a few ticks.
+// ---------------------------------------------------------------------------------------------
+
+// Mirrors WorldLabelVariable's own most-specific-first order.
+String expectedWorldType()
+{
+	var types = client.getWorldType();
+	Object[][] names = {
+		{WorldType.BETA_WORLD, "Beta"}, {WorldType.TOURNAMENT_WORLD, "Tournament"}, {WorldType.SEASONAL, "Seasonal"},
+		{WorldType.DEADMAN, "Deadman"}, {WorldType.FRESH_START_WORLD, "Fresh Start"}, {WorldType.HARDCORE_MAIN, "Hardcore Main"},
+		{WorldType.LAST_MAN_STANDING, "LMS"}, {WorldType.BOUNTY, "Bounty Hunter"}, {WorldType.PVP_ARENA, "PvP Arena"},
+		{WorldType.QUEST_SPEEDRUNNING, "Quest"}, {WorldType.NOSAVE_MODE, "No Save"}, {WorldType.HIGH_RISK, "High Risk"},
+		{WorldType.PVP, "PvP"}};
+	for (Object[] entry : names)
+	{
+		if (types.contains(entry[0]))
+		{
+			return (String) entry[1];
+		}
+	}
+	return types.contains(WorldType.MEMBERS) ? null : "F2P";
+}
+
+void worldVariables()
+{
+	int world = client.getWorld();
+	String type = expectedWorldType();
+	String header = "World " + world + (type == null ? "" : " (" + type + ")");
+
+	eq("{^world} is the world number", "{^world}", String.valueOf(world));
+	eq("{^worldInfo} is the world number", "{^worldInfo}", String.valueOf(world));
+	check("{&world} header and world type", "{&world}", r -> strip(r).trim().equals(header), "\"" + header + "\" (tags stripped)");
+	check("{&worldInfo} format", "{&worldInfo}",
+		r -> strip(r).trim().matches(java.util.regex.Pattern.quote(header) + ": (\\?|[\\d,]+) Players \\| (\\.\\.\\.|\\d+ms)"),
+		header + ": <players> Players | <ping>ms (or ...)");
+	check("{&worldInfo} ping is dots or a number", "{&worldInfo}", r -> strip(r).matches(".*\\| (\\.\\.\\.|\\d+ms)$"), "... or Nms");
+
+	check("{&world} has no region flag", "{&world}", r -> !r.contains("<flag="), "no <flag=...>");
+	check("[world list] {&worldInfo} has a region flag", "{&worldInfo}",
+		r -> r.matches("<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)> World .*"), "starts with <flag=region>");
+	var worlds = inject(net.runelite.client.game.WorldService.class).getWorlds();
+	var listed = worlds == null ? null : worlds.findWorld(world);
+	if (listed != null)
+	{
+		String players = net.runelite.client.util.QuantityFormatter.formatNumber(listed.getPlayers());
+		check("[world list] {&worldInfo} player count", "{&worldInfo}", r -> strip(r).contains(": " + players + " Players"), players + " Players");
+	}
+
+	cond("{world} in a condition", "world == " + world, true);
+	cond("{world} compared to a number", "world > 0", true);
+	eq("{world} nested in a branch", "{world > 0 ? {&world} : no}", resolve("{&world}"));
+}
+
+// ---------------------------------------------------------------------------------------------
 // PluginMessage protocol itself
 // ---------------------------------------------------------------------------------------------
 
@@ -524,6 +580,7 @@ void runAll()
 	rank();
 	lootOptions();
 	lootCombined();
+	worldVariables();
 	protocol();
 
 	log.info("==== {} passed, {} failed ====", tally[0], tally[1]);

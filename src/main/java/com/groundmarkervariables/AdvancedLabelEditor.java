@@ -80,7 +80,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "divine",
-		"borderWidth="
+		"borderWidth=", "world", "worldInfo"
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/

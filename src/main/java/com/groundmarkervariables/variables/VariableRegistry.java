@@ -53,13 +53,14 @@ public class VariableRegistry
 		XpLabelVariable xp,
 		RankLabelVariable rank,
 		PartyLabelVariable party,
-		DivineLabelVariable divine)
+		DivineLabelVariable divine,
+		WorldLabelVariable world)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
-			party, divine);
+			party, divine, world);
 	}
 
 	public List<LabelVariable> all()

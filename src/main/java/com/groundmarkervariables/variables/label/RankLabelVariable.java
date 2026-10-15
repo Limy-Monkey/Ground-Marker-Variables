@@ -19,7 +19,6 @@ import net.runelite.client.hiscore.HiscoreSkill;
 public class RankLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{rank\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
-	private static final int DOT_COUNT = 3;
 
 	private final Client client;
 	private final BossKillCountTracker tracker;
@@ -66,7 +65,7 @@ public class RankLabelVariable implements LabelVariable
 		String canonicalBoss = BossAliases.resolve(matcher.group(1).trim());
 		Integer kc = tracker.getKc(canonicalBoss);
 		Long rank = rankLookup.rank(skill);
-		String rankText = rank == null ? animatedDots() : richText.highlightValue(String.format("%,d", rank));
+		String rankText = rank == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(String.format("%,d", rank));
 
 		return canonicalBoss + ": " + richText.highlightValue(String.valueOf(kc == null ? 0 : kc)) + " Rank: " + rankText;
 	}
@@ -80,17 +79,5 @@ public class RankLabelVariable implements LabelVariable
 
 		String boss = matcher.group(1).trim();
 		return boss.isEmpty() ? null : BossHiscoreSkill.find(BossAliases.resolve(boss));
-	}
-
-	// One dot highlighted, cycling each game tick: "<col>.</col>..", ".<col>.</col>.", ...
-	private String animatedDots()
-	{
-		int active = client.getTickCount() % DOT_COUNT;
-		StringBuilder dots = new StringBuilder();
-		for (int i = 0; i < DOT_COUNT; i++)
-		{
-			dots.append(i == active ? richText.highlightValue(".") : ".");
-		}
-		return dots.toString();
 	}
 }
