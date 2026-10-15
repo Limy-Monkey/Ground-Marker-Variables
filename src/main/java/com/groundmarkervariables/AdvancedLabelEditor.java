@@ -2,6 +2,7 @@ package com.groundmarkervariables;
 
 import com.google.gson.Gson;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
+import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -125,6 +126,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String LOOT_PREFIX = "loot ";
 	private static final String LOOT_TRACKER_GROUP = "loottracker";
 	private static final String LOOT_KEY_PREFIX = "drops_";
+	// {loot <monster>, items=N, lines=N} -- see LootLabelVariable.
+	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:items|lines)=\\d+", Pattern.CASE_INSENSITIVE);
+	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2");
 
 	// {metronomeN} / {metronomeN_M} (or its {mN} alias) — the N/N_M parameter completes from
 	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
@@ -1172,8 +1176,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(bossPartial.length());
 	}
 
-	// Same idea as completeBossName, but candidates come from lootMonsters() instead of a fixed
-	// list.
+	// Same idea as completeBossName, but candidates come from lootMonsters() (plus any BossAliases
+	// short name for one of them) instead of a fixed list.
 	private String completeLootMonster(String monsterPartial)
 	{
 		if (monsterPartial.isEmpty())
@@ -1181,9 +1185,49 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
+		List<String> monsters = lootMonsters();
+		List<String> names = new ArrayList<>();
+		for (String monster : monsters)
+		{
+			names.add(monster);
+			for (String alias : BossAliases.aliases())
+			{
+				if (!alias.contains(" - ") && !alias.equalsIgnoreCase(monster) && BossAliases.resolve(alias).equalsIgnoreCase(monster))
+				{
+					names.add(alias);
+				}
+			}
+		}
+
+		for (Map.Entry<String, List<String>> combined : LootLabelVariable.COMBINED_MONSTERS.entrySet())
+		{
+			if (monsters.stream().anyMatch(monster -> combined.getValue().stream().anyMatch(monster::equalsIgnoreCase)))
+			{
+				names.add(combined.getKey());
+			}
+		}
+
+		String playerKeyPrefix = LOOT_KEY_PREFIX + LootLabelVariable.PLAYER_TYPE + "_";
+		if (!configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, configManager.getRSProfileKey(), playerKeyPrefix).isEmpty())
+		{
+			names.addAll(LootLabelVariable.PLAYER_NAMES);
+		}
+
+		// After a full monster name (and any finished options), complete an option instead.
+		int split = Math.max(monsterPartial.lastIndexOf(' '), monsterPartial.lastIndexOf(','));
+		if (split >= 0)
+		{
+			String head = LOOT_OPTION.matcher(monsterPartial.substring(0, split)).replaceAll("").replaceAll("[\\s,]+$", "");
+			String option = completeLootOption(monsterPartial.substring(split + 1));
+			if (option != null && names.stream().anyMatch(head::equalsIgnoreCase))
+			{
+				return option;
+			}
+		}
+
 		List<String> candidates = new ArrayList<>();
 		boolean exactMatch = false;
-		for (String name : lootMonsters())
+		for (String name : names)
 		{
 			if (name.length() > monsterPartial.length() && name.regionMatches(true, 0, monsterPartial, 0, monsterPartial.length()))
 			{
@@ -1202,6 +1246,29 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
 		return chosen.substring(monsterPartial.length());
+	}
+
+	// "lines" completes straight to lines=2, since 1 is the default.
+	private static String completeLootOption(String word)
+	{
+		if (word.isEmpty())
+		{
+			return null;
+		}
+
+		if (LOOT_OPTION.matcher(word).matches())
+		{
+			return "}";
+		}
+
+		for (String option : LOOT_OPTION_COMPLETIONS)
+		{
+			if (word.length() < option.length() && option.regionMatches(true, 0, word, 0, word.length()))
+			{
+				return option.substring(word.length());
+			}
+		}
+		return null;
 	}
 
 	// Every monster Loot Tracker has recorded loot for, most recent first (only used to

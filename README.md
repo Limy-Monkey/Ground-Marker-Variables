@@ -38,7 +38,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
-| `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot Tormented Demon}                                                            |
+| `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot toa, items=6, lines=2}                                                      |
 | `{slayerTask}`                          | Current slayer task. Requires Slayer plugin to be running.                                                                                                       |
 | `{slayerStreak}`                        | Current slayer task streak (tasks completed in a row)                                                                                                            |
 | `{slayerPoints}`                        | Current slayer points                                                                                                                                            |

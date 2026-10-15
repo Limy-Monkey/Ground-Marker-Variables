@@ -357,6 +357,109 @@ void rank()
 }
 
 // ---------------------------------------------------------------------------------------------
+// {loot <monster>, items=N, lines=N}. Item counts come from this session's own output: pets
+// (uncapped) are whatever items=0 still shows.
+// ---------------------------------------------------------------------------------------------
+
+int occurrences(String s, String sub)
+{
+	int n = 0;
+	for (int i = s.indexOf(sub); i >= 0; i = s.indexOf(sub, i + sub.length()))
+	{
+		n++;
+	}
+	return n;
+}
+
+void lootOptions()
+{
+	String gp = resolve("{^loot toa}");
+	eq("[data] {loot} short name matches the full name", "{^loot toa}", resolve("{^loot Tombs of Amascut}"));
+	eq("[data] options don't change the plain value", "{^loot toa, items=6, lines=2}", gp);
+	eq("[data] options without commas", "{^loot toa items=6 lines=2}", gp);
+	eq("[data] trailing comma allowed", "{^loot toa,}", gp);
+	eq("[data] options inside math", "{^loot toa, items=3 + 0}", gp);
+	cond("[data] options inside a condition", "loot toa, lines=2 >= 0", true);
+	eq("[data] large items= resolves", "{^loot toa, items=1000}", gp);
+	eq("[data] items= too big for an int still resolves", "{^loot toa, items=99999999999}", gp);
+
+	String oneLine = resolve("{&loot toa}");
+	check("[data] default is a single line", "{&loot toa}", r -> !r.contains("\\n") && !r.contains("{align"), "no \\n or {align}");
+	eq("[data] lines=1 is the default", "{&loot toa, lines=1}", oneLine);
+	eq("[data] option names ignore case", "{&loot toa LINES=2}", resolve("{&loot toa, lines=2}"));
+
+	int all = occurrences(oneLine, "<item=");
+	int pets = occurrences(resolve("{&loot toa, items=0}"), "<item=");
+	check("[data] items=0 keeps only pets", "{&loot toa, items=0}", r -> occurrences(r, "<item=") <= all, "no more icons than the default");
+	check("[data] items=2 caps non-pet items", "{&loot toa, items=2}",
+		r -> occurrences(r, "<item=") == pets + Math.min(2, all - pets), (pets + Math.min(2, all - pets)) + " icons");
+
+	check("[data] lines=2 is a left-aligned block", "{&loot toa, lines=2}",
+		r -> r.startsWith("{align=left}") && r.endsWith("\\n{/align}"), "{align=left}...\\n{/align}");
+	check("[data] lines=2 puts every item on line 2", "{&loot toa, lines=2}",
+		r -> occurrences(r, "\\n") == (all > 0 ? 2 : 1) && occurrences(r, "<item=") == all, all + " icons on one item line");
+
+	// items=4 over 2 item lines: earlier lines take the extra item, and no empty lines.
+	int shown = pets + Math.min(4, all - pets);
+	int itemLines = Math.min(2, shown);
+	check("[data] lines=3 splits items evenly", "{&loot toa, items=4, lines=3}", r ->
+	{
+		String[] parts = r.split("\\\\n");
+		if (parts.length != itemLines + 2)
+		{
+			return false;
+		}
+		for (int i = 1; i < itemLines; i++)
+		{
+			int diff = occurrences(parts[i], "<item=") - occurrences(parts[i + 1], "<item=");
+			if (diff < 0 || diff > 1)
+			{
+				return false;
+			}
+		}
+		return occurrences(r, "<item=") == shown;
+	}, shown + " icons over " + itemLines + " item line(s), earlier lines fuller");
+}
+
+// ---------------------------------------------------------------------------------------------
+// {loot Royal Titans} (Eldric + Branda) and {loot players}/{loot pk}/{loot pker} (every PLAYER entry)
+// ---------------------------------------------------------------------------------------------
+
+long gpOf(String text)
+{
+	String result = resolve(text);
+	try
+	{
+		return Long.parseLong(strip(result));
+	}
+	catch (RuntimeException e)
+	{
+		log.warn("Couldn't read {} as a number (got {}) -- using 0", text, result);
+		return 0;
+	}
+}
+
+void lootCombined()
+{
+	long titans = gpOf("{^loot Eldric the Ice King}") + gpOf("{^loot Branda the Fire Queen}");
+	eq("[data] Royal Titans adds Eldric and Branda", "{^loot Royal Titans}", String.valueOf(titans));
+	eq("[data] Royal Titans ignores case", "{^loot royal titans}", String.valueOf(titans));
+	check("[data] Royal Titans rich header", "{&loot Royal Titans}", r -> strip(r).startsWith("Royal Titans ("), "starts with \"Royal Titans (\"");
+	eq("[data] Royal Titans takes options", "{^loot Royal Titans, items=2, lines=2}", String.valueOf(titans));
+
+	long pks = 0;
+	String profile = configManager.getRSProfileKey();
+	for (String key : configManager.getRSProfileConfigurationKeys("loottracker", profile, "drops_PLAYER_"))
+	{
+		pks += gpOf("{^loot " + key.substring("drops_PLAYER_".length()) + "}");
+	}
+	eq("[data] {loot players} adds every PLAYER entry", "{^loot players}", String.valueOf(pks));
+	eq("{loot pk} matches {loot players}", "{^loot pk}", resolve("{^loot players}"));
+	eq("{loot pker} matches {loot players}", "{^loot pker}", resolve("{^loot players}"));
+	check("{loot pk} rich header says PKs", "{&loot pk}", r -> strip(r).startsWith("PKs ("), "starts with \"PKs (\"");
+}
+
+// ---------------------------------------------------------------------------------------------
 // PluginMessage protocol itself
 // ---------------------------------------------------------------------------------------------
 
@@ -419,6 +522,8 @@ void runAll()
 	nestedInBranches();
 	metaInBranches();
 	rank();
+	lootOptions();
+	lootCombined();
 	protocol();
 
 	log.info("==== {} passed, {} failed ====", tally[0], tally[1]);
