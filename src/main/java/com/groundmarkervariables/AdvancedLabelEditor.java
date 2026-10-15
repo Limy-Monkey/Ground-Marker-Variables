@@ -5,6 +5,7 @@ import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
+import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,6 +132,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:items|lines)=\\d+", Pattern.CASE_INSENSITIVE);
 	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2");
 
+	// ":<partial emoji name>" at the cursor. The colon can't follow a name character, so a
+	// finished ":name:", a "9:30" time, or a conditional's " : " never starts one.
+	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
+
 	// {metronomeN} / {metronomeN_M} (or its {mN} alias) — the N/N_M parameter completes from
 	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
 	private static final String METRONOME_NAME = "metronome";
@@ -222,6 +228,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private final GroundMarkerVariablesConfig config;
 	private final ConfigManager configManager;
 	private final Gson gson;
+	private final Emojis emojis;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -241,13 +248,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, Gson gson)
+		ConfigManager configManager, Gson gson, Emojis emojis)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.config = config;
 		this.configManager = configManager;
 		this.gson = gson;
+		this.emojis = emojis;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
 	}
@@ -777,6 +785,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
+		Matcher emojiPartial = EMOJI_PARTIAL.matcher(text.substring(0, cursor));
+		if (emojiPartial.find())
+		{
+			return completeEmoji(emojiPartial.group(1));
+		}
+
 		int open = -1;
 		for (int i = cursor - 1; i >= 0; i--)
 		{
@@ -1246,6 +1260,33 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
 		return chosen.substring(monsterPartial.length());
+	}
+
+	// Shortest matching name first, unless a recent/nearby label already uses one; ":" closes an exact name.
+	private String completeEmoji(String partial)
+	{
+		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
+		for (String name : emojis.names())
+		{
+			if (name.length() > partial.length() && name.startsWith(partial))
+			{
+				candidates.add(name);
+			}
+			else if (name.equals(partial))
+			{
+				exactMatch = true;
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return exactMatch ? ":" : null;
+		}
+
+		candidates.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, ":");
+		return chosen.substring(partial.length()) + ":";
 	}
 
 	// "lines" completes straight to lines=2, since 1 is the default.

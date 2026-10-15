@@ -26,6 +26,7 @@ import com.groundmarkervariables.party.TranslatedPingedTile;
 import com.groundmarkervariables.variables.meta.HighlightCorner;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.meta.TextAlign;
+import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -51,9 +52,9 @@ public class GroundMarkerVariablesOverlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
-	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, or <flag=region> icon.
+	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, or <emoji=codepoint> icon.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
-		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>", Pattern.CASE_INSENSITIVE);
+		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)>", Pattern.CASE_INSENSITIVE);
 	// The game's own world switcher flags, drawn at native size.
 	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
 		"us", SpriteID.WorldswitcherFlags._1,
@@ -72,21 +73,24 @@ public class GroundMarkerVariablesOverlay
 	private final GroundMarkerVariablesConfig config;
 	private final ItemManager itemManager;
 	private final SpriteManager spriteManager;
+	private final Emojis emojis;
 	private final ImportPreviewManager importPreviewManager;
 	private final PingedTileManager pingedTileManager;
 
-	// Keyed by SpriteManager's own (cached) flag image.
-	private final Map<BufferedImage, BufferedImage> scaledFlags = new IdentityHashMap<>();
+	// Keyed by the (already cached) flag or emoji image.
+	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
 
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
-		ItemManager itemManager, SpriteManager spriteManager, ImportPreviewManager importPreviewManager, PingedTileManager pingedTileManager)
+		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
+		PingedTileManager pingedTileManager)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
 		this.itemManager = itemManager;
 		this.spriteManager = spriteManager;
+		this.emojis = emojis;
 		this.importPreviewManager = importPreviewManager;
 		this.pingedTileManager = pingedTileManager;
 	}
@@ -365,7 +369,7 @@ public class GroundMarkerVariablesOverlay
 
 			if (segment instanceof BufferedImage)
 			{
-				BufferedImage flag = scaledFlag((BufferedImage) segment, iconHeight);
+				BufferedImage flag = scaledIcon((BufferedImage) segment, iconHeight);
 				images.add(flag);
 				iconWidths.add(flag.getWidth());
 				totalWidth += flag.getWidth();
@@ -389,19 +393,19 @@ public class GroundMarkerVariablesOverlay
 	}
 
 	// Native size, or smoothly scaled down to the text height when that's shorter.
-	private BufferedImage scaledFlag(BufferedImage flag, int textHeight)
+	private BufferedImage scaledIcon(BufferedImage icon, int textHeight)
 	{
-		if (textHeight >= flag.getHeight())
+		if (textHeight >= icon.getHeight())
 		{
-			return flag;
+			return icon;
 		}
 
-		BufferedImage scaled = scaledFlags.get(flag);
+		BufferedImage scaled = scaledIcons.get(icon);
 		if (scaled == null || scaled.getHeight() != textHeight)
 		{
-			int width = Math.round(flag.getWidth() * textHeight / (float) flag.getHeight());
-			scaled = ImageUtil.resizeImage(flag, width, textHeight);
-			scaledFlags.put(flag, scaled);
+			int width = Math.round(icon.getWidth() * textHeight / (float) icon.getHeight());
+			scaled = ImageUtil.resizeImage(icon, width, textHeight);
+			scaledIcons.put(icon, scaled);
 		}
 		return scaled;
 	}
@@ -496,7 +500,7 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into text (String), item ids (Integer), flags (BufferedImage) and StyleToggles.
+	// Splits a line into text (String), item ids (Integer), flags/emojis (BufferedImage) and StyleToggles.
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
@@ -519,6 +523,14 @@ public class GroundMarkerVariablesOverlay
 				if (flag != null)
 				{
 					segments.add(flag);
+				}
+			}
+			else if (matcher.group(5) != null)
+			{
+				BufferedImage emoji = emojis.image(matcher.group(5).toLowerCase(Locale.ROOT));
+				if (emoji != null)
+				{
+					segments.add(emoji);
 				}
 			}
 			else

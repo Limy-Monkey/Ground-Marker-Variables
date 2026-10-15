@@ -5,6 +5,8 @@ import com.groundmarkervariables.variables.label.BooleanVariable;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.support.Emojis;
+import com.groundmarkervariables.variables.support.NamedColors;
 
 import java.util.HashMap;
 import java.util.List;
@@ -31,13 +33,14 @@ public class LabelResolver
 	private final ConditionalVariable conditional;
 	private final MetronomeLabelVariable metronome;
 	private final GroundMarkerVariablesConfig config;
+	private final Emojis emojis;
 
 	// Built lazily per variable, then reused -- this instance is shared by every CachedMarker.
 	private final Map<LabelVariable, Pattern> prefixedPatterns = new HashMap<>();
 
 	@Inject
 	private LabelResolver(VariableRegistry registry, MathVariable math, BooleanVariable booleanVariable, ConditionalVariable conditional,
-						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config)
+						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config, Emojis emojis)
 	{
 		this.baseVariables = registry.all();
 		this.math = math;
@@ -45,6 +48,14 @@ public class LabelResolver
 		this.conditional = conditional;
 		this.metronome = metronome;
 		this.config = config;
+		this.emojis = emojis;
+	}
+
+	// A marker's own raw label: {col=} and :emoji: aliases expand first, so neither is mistaken
+	// for {variable} / {cond ? a : b} syntax.
+	public String resolveMarker(String label)
+	{
+		return resolve(emojis.expand(label == null ? null : NamedColors.expandColorAliases(label)));
 	}
 
 	public String resolve(String label)
