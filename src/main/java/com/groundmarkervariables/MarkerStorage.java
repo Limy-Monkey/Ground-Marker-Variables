@@ -29,6 +29,25 @@ public class MarkerStorage
 		this.gson = gson;
 	}
 
+	// Every region with saved markers, from the "groundMarker.region_<id>" config keys.
+	public List<Integer> storedRegionIds()
+	{
+		String prefix = CORE_CONFIG_GROUP + "." + REGION_PREFIX;
+		List<Integer> regionIds = new ArrayList<>();
+		for (String key : configManager.getConfigurationKeys(prefix))
+		{
+			try
+			{
+				regionIds.add(Integer.parseInt(key.substring(prefix.length())));
+			}
+			catch (NumberFormatException e)
+			{
+				// Not one of ours.
+			}
+		}
+		return regionIds;
+	}
+
 	public Collection<GroundMarkerPointData> getStoredPoints(int regionId)
 	{
 		String json = configManager.getConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);

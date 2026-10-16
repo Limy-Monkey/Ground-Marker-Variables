@@ -46,11 +46,12 @@ public class GroundMarkerVariablesSharingManager
 	private final ChatMessageManager chatMessageManager;
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final Gson gson;
+	private final DeletedMarkers deletedMarkers;
 
 	@Inject
 	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, Client client,
 		ImportPreviewManager importPreviewManager, MenuManager menuManager, ChatMessageManager chatMessageManager,
-		ChatboxPanelManager chatboxPanelManager, Gson gson)
+		ChatboxPanelManager chatboxPanelManager, Gson gson, DeletedMarkers deletedMarkers)
 	{
 		this.plugin = plugin;
 		this.markerStorage = markerStorage;
@@ -60,6 +61,7 @@ public class GroundMarkerVariablesSharingManager
 		this.chatMessageManager = chatMessageManager;
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.gson = gson;
+		this.deletedMarkers = deletedMarkers;
 	}
 
 	void addImportExportMenuOptions()
@@ -158,6 +160,12 @@ public class GroundMarkerVariablesSharingManager
 			return;
 		}
 
+		confirmImport(importPoints, " ground markers were imported from the clipboard.", Runnables.doNothing(), Runnables.doNothing());
+	}
+
+	// Previews importPoints and asks before importing them -- also MarkerManager's Undo.
+	void confirmImport(List<GroundMarkerPointData> importPoints, String importedMessage, Runnable onImported, Runnable onCancelled)
+	{
 		List<GroundMarkerPointData> nonOverlapping = nonOverlapping(importPoints);
 		importPreviewManager.show(nonOverlapping);
 		String count = countWithOverlap(importPoints.size(), nonOverlapping.size());
@@ -165,9 +173,10 @@ public class GroundMarkerVariablesSharingManager
 			.option("Yes", () ->
 			{
 				importGroundMarkers(importPoints);
-				sendChatMessage(nonOverlapping.size() + " ground markers were imported from the clipboard.");
+				sendChatMessage(nonOverlapping.size() + importedMessage);
+				onImported.run();
 			})
-			.option("No", Runnables.doNothing())
+			.option("No", onCancelled)
 			.onClose(importPreviewManager::clear)
 			.build();
 	}
@@ -249,6 +258,7 @@ public class GroundMarkerVariablesSharingManager
 		chatboxPanelManager.openTextMenuInput("Are you sure you want to clear the<br>" + numActivePoints + " currently loaded ground markers?")
 			.option("Yes", () ->
 			{
+				deletedMarkers.remember(activePoints);
 				markerStorage.deletePoints(activePoints);
 
 				plugin.loadPoints();

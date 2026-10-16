@@ -81,6 +81,16 @@ Overrides the default Ground Marker plugin with a version that supports variable
 - `This text is {col=cyan}cyan!`
   - Changes color of the word "cyan!" to `#00FFFF`
 </details>
+<details>
+<summary>Uninstalling:</summary>
+
+Because Ground Marker Variables replaces RuneLite Core's Ground Marker render functionality, uninstalling Ground Marker Variables 
+and using core's Ground Markers plugin again will continue to render tiles with variables in their label.
+
+To make it easy to remove markers with variables, type `::manageGroundMarkerVariables` in chat to open the Manager Window.
+
+From here, you can select ground markers by region, or filter to only markers with variables using `{ }` and then select them all with `All`, to export and/or delete.
+</details>
 
 ## Images:
 <img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check

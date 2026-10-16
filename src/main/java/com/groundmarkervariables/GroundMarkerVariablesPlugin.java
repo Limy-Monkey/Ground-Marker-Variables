@@ -37,6 +37,7 @@ import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
@@ -81,6 +82,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int RECENT_LABELS_MAX = 3;
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
+	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
 	// section — see migrateConfigFromCore().
@@ -124,6 +126,12 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private Provider<AdvancedLabelEditor> advancedLabelEditorProvider;
+
+	@Inject
+	private Provider<MarkerManager> markerManagerProvider;
+
+	@Inject
+	private DeletedMarkers deletedMarkers;
 
 	@Inject
 	private LabelResolver labelResolver;
@@ -653,11 +661,24 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onCommandExecuted(CommandExecuted event)
+	{
+		if (MANAGE_COMMAND.equalsIgnoreCase(event.getCommand()))
+		{
+			MarkerManager manager = markerManagerProvider.get();
+			manager.load();
+			chatboxPanelManager.openInput(manager);
+		}
+	}
+
 	// Fired from ConfigManager's profile-switch methods, called from the config panel's AWT
 	// thread — same reasoning as startUp() and onConfigChanged() below.
 	@Subscribe
 	public void onProfileChanged(ProfileChanged event)
 	{
+		// Undo would otherwise restore the old profile's markers into this one.
+		deletedMarkers.clear();
 		clientThread.invoke(() -> loadPoints());
 	}
 
