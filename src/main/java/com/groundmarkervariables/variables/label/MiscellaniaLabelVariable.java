@@ -6,22 +6,21 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
-import net.runelite.api.Client;
-import net.runelite.api.gameval.VarbitID;
+import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 
-// {miscellania} -> the player's Kingdom of Miscellania approval/favour rating, 0-127.
+// {miscellania} -> the player's Kingdom of Miscellania approval/favour rating, 0-127 -- live in the
+// kingdom, estimated elsewhere (see MiscellaniaTracker).
 public class MiscellaniaLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{miscellania\\}", Pattern.CASE_INSENSITIVE);
-	private static final int MAX_APPROVAL = 127;
 
-	private final Client client;
+	private final MiscellaniaTracker tracker;
 	private final RichText richText;
 
 	@Inject
-	private MiscellaniaLabelVariable(Client client, RichText richText)
+	private MiscellaniaLabelVariable(MiscellaniaTracker tracker, RichText richText)
 	{
-		this.client = client;
+		this.tracker = tracker;
 		this.richText = richText;
 	}
 
@@ -34,15 +33,16 @@ public class MiscellaniaLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		return String.valueOf(client.getVarbitValue(VarbitID.MISC_APPROVAL));
+		return String.valueOf(tracker.approval());
 	}
 
 	// Only highlighted at the 127 cap, and only the number, not the /127.
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		int approval = client.getVarbitValue(VarbitID.MISC_APPROVAL);
+		int approval = tracker.approval();
 		String value = String.valueOf(approval);
-		return (approval == MAX_APPROVAL ? richText.highlightValue(value) : value) + " / " + MAX_APPROVAL;
+		int max = MiscellaniaTracker.MAX_APPROVAL;
+		return (approval == max ? richText.highlightValue(value) : value) + " / " + max;
 	}
 }
