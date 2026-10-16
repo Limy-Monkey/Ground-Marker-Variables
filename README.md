@@ -26,7 +26,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{world}` / `{worldInfo}`               | Current world number. Rich Text shows the world type; \{worldInfo} adds the region flag, player count and ping (rounded up, avg over 10 ticks)                   |
 | `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                   |
 | `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
-| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). Not usable inside a conditional                                                              |
+| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
 | `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
 | `{attackStyle}`                         | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                                                    |

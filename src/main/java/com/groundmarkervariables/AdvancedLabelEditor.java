@@ -140,7 +140,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
 	private static final String METRONOME_NAME = "metronome";
 	private static final String METRONOME_ALIAS = "m";
-	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile("\\{(?:metronome|m)(\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile("\\{(?:metronome|m)([+-]?\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
 
 	// <col=RRGGBB> — the literal tag itself completes like a variable name; once "col=" is
 	// fully typed, the hex value completes from recent/nearby labels' own <col=> usage (there's
@@ -904,8 +904,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
 		}
 
-		// "m" alias -- only once a digit follows, so "{mis..." still completes to miscellania.
-		if (!restrictToNumeric && partial.length() >= 2 && partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1) && Character.isDigit(partial.charAt(1)))
+		// "m" alias -- only once a digit or +/- follows, so "{mis..." still completes to miscellania.
+		if (!restrictToNumeric && partial.length() >= 2 && partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1)
+			&& (Character.isDigit(partial.charAt(1)) || partial.charAt(1) == '+' || partial.charAt(1) == '-'))
 		{
 			return completeMetronomeParams(partial.substring(1));
 		}
@@ -1574,10 +1575,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// reasoning as colors.
 	private String completeMetronomeParams(String paramPartial)
 	{
+		// Optional leading +/- direction.
 		for (int i = 0; i < paramPartial.length(); i++)
 		{
 			char c = paramPartial.charAt(i);
-			if (!Character.isDigit(c) && c != '_')
+			if (!Character.isDigit(c) && c != '_' && !(i == 0 && (c == '+' || c == '-')))
 			{
 				return null;
 			}
@@ -1589,14 +1591,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return param.substring(paramPartial.length());
 		}
 
-		if (paramPartial.isEmpty())
+		if (paramPartial.isEmpty() || paramPartial.equals("+") || paramPartial.equals("-"))
 		{
 			return "4";
 		}
 
 		// Nothing left to suggest for the number -- if what's typed is already a complete N or
 		// N_M on its own, offer the closing brace instead.
-		return paramPartial.matches("\\d+(_\\d+)?") ? "}" : null;
+		return paramPartial.matches("[+-]?\\d+(_\\d+)?") ? "}" : null;
 	}
 
 	private String findRecentMetronomeParam(String paramPartial)

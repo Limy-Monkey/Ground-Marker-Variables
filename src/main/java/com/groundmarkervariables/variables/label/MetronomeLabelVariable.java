@@ -27,8 +27,9 @@ import net.runelite.client.util.ColorUtil;
 @Singleton
 public class MetronomeLabelVariable implements LabelVariable
 {
+	// Optional +/- before N forces counting up/down, over both config and party sync.
 	private static final Pattern PATTERN = Pattern.compile(
-		"\\{(?:metronome|m)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
+		"\\{(?:metronome|m)([+-]?)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
 	// Sync target's "Count Down" stops overriding our own config after this many ticks (30s)
 	// with no new GMVMetronomeSyncResponse.
@@ -124,21 +125,24 @@ public class MetronomeLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		int max = parseGroup(matcher, 1, -1);
+		int max = parseGroup(matcher, 2, -1);
 		if (max <= 0)
 		{
 			return null;
 		}
 
-		int ticksPerStep = matcher.group(2) == null ? 1 : parseGroup(matcher, 2, -1);
+		int ticksPerStep = matcher.group(3) == null ? 1 : parseGroup(matcher, 3, -1);
 		if (ticksPerStep <= 0)
 		{
 			return null;
 		}
 
+		String direction = matcher.group(1);
+		boolean countDown = direction.isEmpty() ? effectiveCountDown() : direction.equals("-");
+
 		int step = Math.floorDiv(client.getTickCount() - offsetTick, ticksPerStep);
 		int position = Math.floorMod(step, max);
-		String value = String.valueOf(effectiveCountDown() ? max - position : position + 1);
+		String value = String.valueOf(countDown ? max - position : position + 1);
 
 		if (config.highlightFinalTick() && position == max - 1)
 		{

@@ -18,7 +18,7 @@ import javax.inject.Inject;
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
-		"(?i:\\{(?:metronome|m)\\d+(?:_\\d+)?\\})";
+		"(?i:\\{(?:metronome|m)[+-]?\\d+(?:_\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
 	private static final String NESTED_TOKEN = "\\{[^{}]*\\}";
 	private static final String BRANCH = "(?:[^{}]|" + NESTED_TOKEN + ")+?";
