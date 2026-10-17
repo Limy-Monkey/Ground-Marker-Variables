@@ -418,6 +418,18 @@ public final class RegionNames
 
 		// Not in the Discord plugin's list.
 		add("Mastering Mixology", 5521);
+		add("Doom of Mokhaiotl", 5269, 13668, 14180);
+		add("Neypotzli", 5012, 5526, 5783, 6038);
+		add("Tlati Rainforest", 4911, 4910, 5167, 5168, 5169);
+		add("Kastori", 5423);
+		add("Tal Teklan", 4656, 4912, 4913);
+		add("Gloomthorn Trail", 5426);
+		add("Nemus Retreat", 5427);
+		add("Auburnvale", 5428, 5684, 5683, 5172);
+		add("Tonali Cavern", 5268);
+		add("Amoxliatl", 5446);
+		add("Ruins of Tapoyauik", 6806);
+		add("The Abyss", 12107);
 	}
 
 	private RegionNames()
