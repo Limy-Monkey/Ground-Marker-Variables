@@ -98,6 +98,9 @@ and using core's Ground Markers plugin again will continue to render tiles with 
 To make it easy to remove markers with variables, type `::manageGroundMarkerVariables` in chat to open the Manager Window.
 
 From here, you can select ground markers by region, or filter to only markers with variables using `{ }` and then select them all with `All`, to export and/or delete.
+
+<img width="857" height="234" alt="java_ZgXhq7fRF6" src="https://github.com/user-attachments/assets/3b62431e-3d08-4ccb-ada5-eed6a8a5faee" />
+
 </details>
 
 <details>
