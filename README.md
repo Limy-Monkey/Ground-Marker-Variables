@@ -16,7 +16,6 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{^...}`                        | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                                  |
 | `{&...}`                        | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385`             |
 | `\n`                            | Newline.                                                                                                        |
-| `:emoji:`                       | Emoji, e.g. `:balloon:`. Requires RuneLite's Emojis plugin to have been enabled.                                |
 | `{col=<col>}`                   | Changes the text color. \<col>: named color or 6-digit hex.                                                     |
 | `{tileCol=<col>}`               | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity. |
 | `{highlightSW=<col>}`           | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                |
