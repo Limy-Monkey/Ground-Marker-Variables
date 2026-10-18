@@ -7,6 +7,7 @@ import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
+import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -116,6 +117,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String DIVINE_PREFIX = "divine ";
 	private static final List<String> DIVINE_POTIONS = List.of(
 		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage");
+
+	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>} -- names from WeaponStyleTracker.
+	private static final Pattern WEAPON_OPTION = Pattern.compile("(?i)^(attack(?:Style|Type)(?:\\s*,\\s*|\\s+))(\\w*)$");
+	private static final Pattern WEAPON_VALUE = Pattern.compile("(?i)^attack(?:Style|Type)\\s*,?\\s*weapon\\s*=\\s*(.*)$");
+	private static final String WEAPON_OPTION_NAME = "weapon=";
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
@@ -229,6 +235,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private final ConfigManager configManager;
 	private final Gson gson;
 	private final Emojis emojis;
+	private final WeaponStyleTracker weaponStyleTracker;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -248,7 +255,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, Gson gson, Emojis emojis)
+		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -256,6 +263,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		this.configManager = configManager;
 		this.gson = gson;
 		this.emojis = emojis;
+		this.weaponStyleTracker = weaponStyleTracker;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
 	}
@@ -887,6 +895,19 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (!restrictToNumeric && partial.length() >= DIVINE_PREFIX.length() && partial.regionMatches(true, 0, DIVINE_PREFIX, 0, DIVINE_PREFIX.length()))
 		{
 			return completeDivinePotion(partial.substring(DIVINE_PREFIX.length()));
+		}
+
+		Matcher weaponValue = WEAPON_VALUE.matcher(partial);
+		if (!restrictToNumeric && weaponValue.matches())
+		{
+			return completeWeaponName(weaponValue.group(1), partial.substring(0, weaponValue.start(1)));
+		}
+
+		Matcher weaponOption = WEAPON_OPTION.matcher(partial);
+		if (!restrictToNumeric && weaponOption.matches())
+		{
+			String word = weaponOption.group(2);
+			return WEAPON_OPTION_NAME.regionMatches(true, 0, word, 0, word.length()) ? WEAPON_OPTION_NAME.substring(word.length()) : null;
 		}
 
 		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
@@ -1568,6 +1589,31 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + DIVINE_PREFIX);
 		return chosen.substring(potionPartial.length());
+	}
+
+	private String completeWeaponName(String weaponPartial, String tokenPrefix)
+	{
+		List<String> candidates = new ArrayList<>();
+		boolean exactMatch = false;
+		for (String name : weaponStyleTracker.weaponNames())
+		{
+			if (name.length() > weaponPartial.length() && name.regionMatches(true, 0, weaponPartial, 0, weaponPartial.length()))
+			{
+				candidates.add(name);
+			}
+			else if (name.equalsIgnoreCase(weaponPartial))
+			{
+				exactMatch = true;
+			}
+		}
+
+		if (candidates.isEmpty())
+		{
+			return exactMatch ? "}" : null;
+		}
+
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + tokenPrefix);
+		return chosen.substring(weaponPartial.length());
 	}
 
 	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally

@@ -29,8 +29,8 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
 | `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
-| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Aggressive, Casting                                                                                                    |
-| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic                                                                                       |
+| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid, Casting. Optional `weapon=<name>` for that weapon's last seen style, e.g. `{attackStyle weapon=Scythe}`         |
+| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
 | `{xpRate_<skill>}`                      | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                                                 |

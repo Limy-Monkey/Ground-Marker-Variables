@@ -7,25 +7,26 @@ import javax.inject.Inject;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.WeaponAttackType;
-import com.groundmarkervariables.variables.support.WeaponAttackTypes;
+import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import net.runelite.api.Client;
-import net.runelite.api.gameval.VarPlayerID;
-import net.runelite.api.gameval.VarbitID;
 
-// {attackType} -> current combat style's damage type (Stab/Slash/Crush/Ranged/Magic), or
-// "None" if the current style has no notable type -- see WeaponAttackTypes.
+// {attackType} -> current style's damage type (Stab/Slash/Crush/Ranged/Magic), or "None".
+// {attackType, weapon=<name>} -> the last type seen on that weapon this session.
 public class AttackTypeLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{attackType\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile(
+		"\\{attackType(?:\\s*,?\\s*weapon\\s*=\\s*([^{}]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
+	private final WeaponStyleTracker tracker;
 
 	@Inject
-	private AttackTypeLabelVariable(Client client, RichText richText)
+	private AttackTypeLabelVariable(Client client, RichText richText, WeaponStyleTracker tracker)
 	{
 		this.client = client;
 		this.richText = richText;
+		this.tracker = tracker;
 	}
 
 	@Override
@@ -42,32 +43,29 @@ public class AttackTypeLabelVariable implements LabelVariable
 			return null;
 		}
 
-		return typeName();
+		WeaponStyleTracker.Style style = AttackStyleLabelVariable.style(tracker, matcher);
+		if (style == null)
+		{
+			return AttackStyleLabelVariable.notSeenText(matcher);
+		}
+
+		return style.type == null ? WeaponAttackType.NONE.displayName() : style.type.displayName();
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		String name = resolvePlain(matcher);
-		return name == null ? null : richText.labeled("Attack Type", name);
-	}
-
-	private String typeName()
-	{
-		int weaponCategory = client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
-		WeaponAttackType type = WeaponAttackTypes.forStyle(weaponCategory, resolveAttackStyleIndex());
-		return type == null ? WeaponAttackType.NONE.displayName() : type.displayName();
-	}
-
-	// Mirrors AttackStyleLabelVariable#resolveAttackStyleIndex -- see its own comment.
-	private int resolveAttackStyleIndex()
-	{
-		int styleIndex = client.getVarpValue(VarPlayerID.COM_MODE);
-		if (styleIndex == 4)
+		if (client.getLocalPlayer() == null)
 		{
-			styleIndex += client.getVarbitValue(VarbitID.AUTOCAST_DEFMODE);
+			return null;
 		}
 
-		return styleIndex;
+		WeaponStyleTracker.Style style = AttackStyleLabelVariable.style(tracker, matcher);
+		if (style == null)
+		{
+			return AttackStyleLabelVariable.notSeenText(matcher);
+		}
+
+		return richText.labeled(AttackStyleLabelVariable.label(tracker, matcher, "Type", "Attack Type"), resolvePlain(matcher));
 	}
 }

@@ -7,33 +7,26 @@ import javax.inject.Inject;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.WeaponAttackType;
-import com.groundmarkervariables.variables.support.WeaponAttackTypes;
+import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import net.runelite.api.Client;
-import net.runelite.api.EnumID;
-import net.runelite.api.ParamID;
-import net.runelite.api.gameval.VarPlayerID;
-import net.runelite.api.gameval.VarbitID;
 
-// {attackStyle} -> the player's current combat style name (e.g. "Accurate", "Aggressive",
-// "Defensive Casting"), or "None" if the equipped weapon has no notable style right now
-// (e.g. nothing equipped). Ported from gearscape's own resolveAttackStyleIndex/
-// buildAttackStyle/weaponTypeStyleNames, which mirror RuneLite core's own
-// AttackStylesPlugin#updateAttackStyle/#getWeaponTypeStyles (package-private there, so not
-// directly reusable) — looks the equipped weapon's style set up via
-// EnumID.WEAPON_STYLES -> a per-style StructComposition -> ParamID.ATTACK_STYLE_NAME.
+// {attackStyle} -> current combat style name, or "None". {attackStyle, weapon=<name>} -> the
+// last style seen on that weapon this session.
 public class AttackStyleLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{attackStyle\\}", Pattern.CASE_INSENSITIVE);
-	private static final String NO_STYLE = "None";
+	private static final Pattern PATTERN = Pattern.compile(
+		"\\{attackStyle(?:\\s*,?\\s*weapon\\s*=\\s*([^{}]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
+	private final WeaponStyleTracker tracker;
 
 	@Inject
-	private AttackStyleLabelVariable(Client client, RichText richText)
+	private AttackStyleLabelVariable(Client client, RichText richText, WeaponStyleTracker tracker)
 	{
 		this.client = client;
 		this.richText = richText;
+		this.tracker = tracker;
 	}
 
 	@Override
@@ -50,11 +43,11 @@ public class AttackStyleLabelVariable implements LabelVariable
 			return null;
 		}
 
-		String style = buildAttackStyle(resolveWeaponCategory(), resolveAttackStyleIndex());
-		return style == null ? NO_STYLE : style;
+		WeaponStyleTracker.Style style = style(tracker, matcher);
+		return style == null ? notSeenText(matcher) : style.name;
 	}
 
-	// Appends the damage type in parens, e.g. "Aggressive (Slash)" -- see WeaponAttackTypes.
+	// Appends the damage type, e.g. "Aggressive (Slash)".
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
@@ -63,86 +56,28 @@ public class AttackStyleLabelVariable implements LabelVariable
 			return null;
 		}
 
-		int weaponCategory = resolveWeaponCategory();
-		int styleIndex = resolveAttackStyleIndex();
-		String style = buildAttackStyle(weaponCategory, styleIndex);
-		String name = style == null ? NO_STYLE : style;
-
-		WeaponAttackType type = WeaponAttackTypes.forStyle(weaponCategory, styleIndex);
-		String value = (type == null || type == WeaponAttackType.NONE) ? name : name + " (" + type.displayName() + ")";
-
-		return richText.labeled("Attack Style", value);
-	}
-
-	private int resolveWeaponCategory()
-	{
-		return client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
-	}
-
-	// COM_MODE is the 0-based index of the currently selected combat style among the
-	// equipped weapon's own style set. Staves are the one wrinkle -- index 4 covers both
-	// Casting and Defensive Casting, disambiguated by AUTOCAST_DEFMODE -- so this folds that
-	// in, giving a single index that uniquely identifies the selected style slot even for
-	// weapons like partisans where more than one slot shares the same displayed name.
-	private int resolveAttackStyleIndex()
-	{
-		int styleIndex = client.getVarpValue(VarPlayerID.COM_MODE);
-		if (styleIndex == 4)
+		WeaponStyleTracker.Style style = style(tracker, matcher);
+		if (style == null)
 		{
-			styleIndex += client.getVarbitValue(VarbitID.AUTOCAST_DEFMODE);
+			return notSeenText(matcher);
 		}
 
-		return styleIndex;
+		String value = (style.type == null || style.type == WeaponAttackType.NONE) ? style.name : style.name + " (" + style.type.displayName() + ")";
+		return richText.labeled(label(tracker, matcher, "Style", "Attack Style"), value);
 	}
 
-	// Null if the resolved style is "Other" (no notable style, e.g. an empty weapon slot) or
-	// the weapon type isn't in the style table at all.
-	private String buildAttackStyle(int weaponCategory, int attackStyleIndex)
+	static String label(WeaponStyleTracker tracker, Matcher matcher, String suffix, String defaultLabel)
 	{
-		String[] styleNames = weaponTypeStyleNames(weaponCategory);
-		if (attackStyleIndex < 0 || attackStyleIndex >= styleNames.length)
-		{
-			return null;
-		}
-
-		return styleNames[attackStyleIndex];
+		return matcher.group(1) == null ? defaultLabel : tracker.weaponName(matcher.group(1)) + " " + suffix;
 	}
 
-	// weaponType == -1 in EnumID.WEAPON_STYLES for a couple of weapon types RuneLite core
-	// itself special-cases (blue moon spear, partisan) -- same fallback arrays
-	// AttackStylesPlugin uses.
-	private String[] weaponTypeStyleNames(int weaponType)
+	static WeaponStyleTracker.Style style(WeaponStyleTracker tracker, Matcher matcher)
 	{
-		int weaponStyleEnumId = client.getEnum(EnumID.WEAPON_STYLES).getIntValue(weaponType);
-		if (weaponStyleEnumId == -1)
-		{
-			if (weaponType == 22) // Blue moon spear
-			{
-				return new String[] {"Accurate", "Aggressive", null, "Defensive", "Casting", "Defensive Casting"};
-			}
+		return matcher.group(1) == null ? tracker.current() : tracker.forWeapon(matcher.group(1));
+	}
 
-			if (weaponType == 30) // Partisan
-			{
-				return new String[] {"Accurate", "Aggressive", "Aggressive", "Defensive"};
-			}
-
-			return new String[0];
-		}
-
-		int[] weaponStyleStructs = client.getEnum(weaponStyleEnumId).getIntVals();
-		String[] styleNames = new String[weaponStyleStructs.length];
-		for (int i = 0; i < weaponStyleStructs.length; i++)
-		{
-			String name = client.getStructComposition(weaponStyleStructs[i]).getStringValue(ParamID.ATTACK_STYLE_NAME);
-			if ("Other".equals(name))
-			{
-				continue; // Leave this slot null -- no notable style, matches AttackStylesPlugin.
-			}
-
-			// Index 5 reuses the "Defensive" label for a staff's defensive-casting mode.
-			styleNames[i] = (i == 5 && "Defensive".equals(name)) ? "Defensive Casting" : name;
-		}
-
-		return styleNames;
+	static String notSeenText(Matcher matcher)
+	{
+		return "Equip " + matcher.group(1).trim() + " first";
 	}
 }

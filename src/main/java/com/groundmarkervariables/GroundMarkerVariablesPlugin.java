@@ -10,6 +10,7 @@ import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
+import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
 import java.awt.Color;
@@ -195,6 +196,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private MiscellaniaTracker miscellaniaTracker;
 
 	@Inject
+	private WeaponStyleTracker weaponStyleTracker;
+
+	@Inject
 	private ImportPreviewManager importPreviewManager;
 
 	@Inject
@@ -245,6 +249,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		groundMarkerPartySharingManager.startUp();
 		recentLootTracker.startUp();
 		miscellaniaTracker.startUp();
+		weaponStyleTracker.startUp();
 		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())
@@ -307,6 +312,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
+		weaponStyleTracker.shutDown();
 		pluginMessageHandler.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(tileOverlay);
