@@ -116,7 +116,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.
 	private static final String DIVINE_PREFIX = "divine ";
 	private static final List<String> DIVINE_POTIONS = List.of(
-		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage");
+		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage", "Salts", "Overload");
 
 	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>} -- names from WeaponStyleTracker.
 	private static final Pattern WEAPON_OPTION = Pattern.compile("(?i)^(attack(?:Style|Type)(?:\\s*,\\s*|\\s+))(\\w*)$");
