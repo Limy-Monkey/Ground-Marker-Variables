@@ -7,9 +7,11 @@ import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.DateLiteralParser;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +29,7 @@ public class MathVariable implements LabelVariable
 	private static final Pattern OPERATOR = Pattern.compile("\\s([+\\-*/])\\s");
 	private static final String DATE_VARIABLE = "date";
 	private static final String TIME_VARIABLE = "time";
+	private static final String NOW_VARIABLE = "now";
 
 	private final List<LabelVariable> numericVariables;
 	private final RichText richText;
@@ -49,10 +52,10 @@ public class MathVariable implements LabelVariable
 	{
 		try
 		{
-			String countdown = evaluateTimeCountdown(matcher.group(1));
-			if (countdown != null)
+			Long minutes = evaluateTimeCountdown(matcher.group(1));
+			if (minutes != null)
 			{
-				return countdown;
+				return formatMinutes(minutes, false);
 			}
 
 			Long days = evaluateDateCountdown(matcher.group(1));
@@ -75,10 +78,10 @@ public class MathVariable implements LabelVariable
 	{
 		try
 		{
-			String countdown = evaluateTimeCountdown(matcher.group(1));
-			if (countdown != null)
+			Long minutes = evaluateTimeCountdown(matcher.group(1));
+			if (minutes != null)
 			{
-				return richText.highlightValue(countdown);
+				return richText.highlightValue(formatMinutes(minutes, true));
 			}
 
 			Long days = evaluateDateCountdown(matcher.group(1));
@@ -145,8 +148,9 @@ public class MathVariable implements LabelVariable
 		return result == null ? null : Math.round(result);
 	}
 
-	// "<a> - <b>" with both times ("time" or a literal), as h:mm from b to a, wrapping past midnight.
-	private static String evaluateTimeCountdown(String expression)
+	// "<a> - <b>" in minutes, between times (wrapping past midnight) or date times. Date pairs are
+	// left to evaluateDateCountdown.
+	private static Long evaluateTimeCountdown(String expression)
 	{
 		Matcher opMatcher = OPERATOR.matcher(expression);
 		if (!opMatcher.find() || !"-".equals(opMatcher.group(1)))
@@ -156,26 +160,59 @@ public class MathVariable implements LabelVariable
 
 		String first = expression.substring(0, opMatcher.start()).trim();
 		String second = expression.substring(opMatcher.end()).trim();
-		if (opMatcher.find())
+		if (opMatcher.find() || dateValueOf(first) != null && dateValueOf(second) != null)
 		{
 			return null;
 		}
 
-		Integer to = minuteOfDay(first);
-		Integer from = minuteOfDay(second);
-		if (to == null || from == null)
+		Integer toMinute = minuteOfDay(first);
+		Integer fromMinute = minuteOfDay(second);
+		if (toMinute != null && fromMinute != null)
 		{
-			return null;
+			return (long) Math.floorMod(toMinute - fromMinute, 24 * 60);
 		}
 
-		int minutes = Math.floorMod(to - from, 24 * 60);
-		return String.format("%d:%02d", minutes / 60, minutes % 60);
+		LocalDateTime to = dateTimeValueOf(first);
+		LocalDateTime from = dateTimeValueOf(second);
+		return to == null || from == null ? null : ChronoUnit.MINUTES.between(from, to);
 	}
 
-	// "time" is now. Bare numbers stay numbers, so {5 - 3} is still 2.
+	// "now", "<date>" (midnight) or "<date> <time>", e.g. "oct 30 7am".
+	private static LocalDateTime dateTimeValueOf(String text)
+	{
+		if (NOW_VARIABLE.equalsIgnoreCase(text))
+		{
+			return LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
+		}
+
+		String[] words = text.split("\\s+");
+		for (int split = words.length; split > 0; split--)
+		{
+			LocalDate date = DateLiteralParser.parse(String.join(" ", Arrays.copyOfRange(words, 0, split)));
+			String timeText = String.join(" ", Arrays.copyOfRange(words, split, words.length));
+			Integer minute = timeText.isEmpty() ? Integer.valueOf(0) : minuteOfDay(timeText);
+			if (date != null && minute != null)
+			{
+				return date.atStartOfDay().plusMinutes(minute);
+			}
+		}
+		return null;
+	}
+
+	// h:mm, negative in the past. Rich splits off days, e.g. "3 days 3:12".
+	private static String formatMinutes(long minutes, boolean rich)
+	{
+		long abs = Math.abs(minutes);
+		long days = rich ? abs / (24 * 60) : 0;
+		long rest = abs - days * 24 * 60;
+		String time = String.format("%d:%02d", rest / 60, rest % 60);
+		return (minutes < 0 ? "-" : "") + (days == 0 ? time : days + (days == 1 ? " day " : " days ") + time);
+	}
+
+	// "time"/"now" is the current time. Bare numbers stay numbers, so {5 - 3} is still 2.
 	private static Integer minuteOfDay(String text)
 	{
-		if (TIME_VARIABLE.equalsIgnoreCase(text))
+		if (TIME_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text))
 		{
 			return LocalTime.now().toSecondOfDay() / 60;
 		}
@@ -189,10 +226,10 @@ public class MathVariable implements LabelVariable
 		return time == null ? null : time.toSecondOfDay() / 60;
 	}
 
-	// "date" means today; otherwise must parse as a date literal.
+	// "date"/"now" means today; otherwise must parse as a date literal.
 	private static LocalDate dateValueOf(String text)
 	{
-		return DATE_VARIABLE.equalsIgnoreCase(text) ? LocalDate.now() : DateLiteralParser.parse(text);
+		return DATE_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text) ? LocalDate.now() : DateLiteralParser.parse(text);
 	}
 
 	// Reduces the innermost "(...)" first, then moves outwards. Paren is always space padded.

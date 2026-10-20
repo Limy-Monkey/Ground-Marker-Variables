@@ -268,6 +268,41 @@ void timeMath()
 }
 
 // ---------------------------------------------------------------------------------------------
+// "now" math: date times as total h:mm (rich splits off days), negative once past. "now" also
+// works as {date} in date math and as {time} in time math.
+// ---------------------------------------------------------------------------------------------
+
+String signedHm(long minutes)
+{
+	long abs = Math.abs(minutes);
+	return (minutes < 0 ? "-" : "") + String.format("%d:%02d", abs / 60, abs % 60);
+}
+
+void nowMath()
+{
+	eq("date time literal pair", "{^oct 30 7am - oct 29 10pm}", "9:00");
+	eq("same day date times", "{^oct 30 7:30 pm - oct 30 7am}", "12:30");
+	eq("date-only side is midnight", "{^oct 30 7am - oct 29}", "31:00");
+	eqText("rich splits off days", "{&oct 30 7am - oct 29}", "1 day 7:00");
+	eqText("rich plural days", "{&oct 30 7am - oct 27 6am}", "3 days 1:00");
+	eqText("rich under a day has no days", "{&oct 30 7am - oct 29 10pm}", "9:00");
+	eq("negative once past", "{^oct 29 10pm - oct 30 7am}", "-9:00");
+	eq("numeric date and 24-hour time", "{^10/10/2026 19:00 - 10/10/2026 7am}", "12:00");
+	eq("explicit year", "{^oct 30 2026 7am - oct 29 2026 7am}", "24:00");
+
+	java.time.LocalDateTime now = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+	java.time.LocalDateTime target = java.time.LocalDate.of(now.getYear(), 12, 31).atTime(7, 0);
+	eq("until a date time", "{^dec 31 7am - now}", signedHm(java.time.temporal.ChronoUnit.MINUTES.between(now, target)));
+	java.time.LocalDateTime start = java.time.LocalDate.of(now.getYear(), 1, 1).atTime(9, 0);
+	eq("since a date time", "{^now - jan 1 9am}", signedHm(java.time.temporal.ChronoUnit.MINUTES.between(start, now)));
+
+	eq("now works as {date}", "{^dec 31 - now}", resolve("{^dec 31 - date}"));
+	eq("now works as {time}", "{^7am - now}", resolve("{^7am - time}"));
+	eq("{now - now} is a day count", "{^now - now}", "0");
+	eq("bare number isn't a time", "{^oct 30 7 - oct 29}", "{^oct 30 7 - oct 29}");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Fixed: the right-hand side of a comparator was only ever a literal ({kc toa < kc toa expert})
 // ---------------------------------------------------------------------------------------------
 
@@ -603,6 +638,7 @@ void runAll()
 	math();
 	nanRegression();
 	timeMath();
+	nowMath();
 	rightHandVariables();
 	sixHour();
 	conditionals();

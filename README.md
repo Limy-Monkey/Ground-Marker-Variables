@@ -65,6 +65,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |
 | `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                              |
 | `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
+| `{<when> - now}`                        | Countdown as d days h:mm, e.g. `{nov 4 7am - now}`, `{now - 10/20/2026 6am}`, `{dec 25 - now}`, `{6pm - now}`                                                    |
 | `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
 | `{<cond1> && / \|\| <cond2> ? A : B}`   | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
 
