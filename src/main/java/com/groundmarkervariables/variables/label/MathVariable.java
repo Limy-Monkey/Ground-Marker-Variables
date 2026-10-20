@@ -7,6 +7,7 @@ import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.DateLiteralParser;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ public class MathVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+?(?:\\s[+\\-*/]\\s[^{}]+?)+)\\}");
 	private static final Pattern OPERATOR = Pattern.compile("\\s([+\\-*/])\\s");
 	private static final String DATE_VARIABLE = "date";
+	private static final String TIME_VARIABLE = "time";
 
 	private final List<LabelVariable> numericVariables;
 	private final RichText richText;
@@ -47,6 +49,12 @@ public class MathVariable implements LabelVariable
 	{
 		try
 		{
+			String countdown = evaluateTimeCountdown(matcher.group(1));
+			if (countdown != null)
+			{
+				return countdown;
+			}
+
 			Long days = evaluateDateCountdown(matcher.group(1));
 			if (days != null)
 			{
@@ -67,6 +75,12 @@ public class MathVariable implements LabelVariable
 	{
 		try
 		{
+			String countdown = evaluateTimeCountdown(matcher.group(1));
+			if (countdown != null)
+			{
+				return richText.highlightValue(countdown);
+			}
+
 			Long days = evaluateDateCountdown(matcher.group(1));
 
 			// "day(s)" only applies to a bare date pair -- once anything's chained after it
@@ -129,6 +143,50 @@ public class MathVariable implements LabelVariable
 
 		Double result = evaluate(dayCount + remainder);
 		return result == null ? null : Math.round(result);
+	}
+
+	// "<a> - <b>" with both times ("time" or a literal), as h:mm from b to a, wrapping past midnight.
+	private static String evaluateTimeCountdown(String expression)
+	{
+		Matcher opMatcher = OPERATOR.matcher(expression);
+		if (!opMatcher.find() || !"-".equals(opMatcher.group(1)))
+		{
+			return null;
+		}
+
+		String first = expression.substring(0, opMatcher.start()).trim();
+		String second = expression.substring(opMatcher.end()).trim();
+		if (opMatcher.find())
+		{
+			return null;
+		}
+
+		Integer to = minuteOfDay(first);
+		Integer from = minuteOfDay(second);
+		if (to == null || from == null)
+		{
+			return null;
+		}
+
+		int minutes = Math.floorMod(to - from, 24 * 60);
+		return String.format("%d:%02d", minutes / 60, minutes % 60);
+	}
+
+	// "time" is now. Bare numbers stay numbers, so {5 - 3} is still 2.
+	private static Integer minuteOfDay(String text)
+	{
+		if (TIME_VARIABLE.equalsIgnoreCase(text))
+		{
+			return LocalTime.now().toSecondOfDay() / 60;
+		}
+
+		if (ConditionEvaluator.tryParseNumber(text) != null)
+		{
+			return null;
+		}
+
+		LocalTime time = ConditionEvaluator.tryParseTime(text);
+		return time == null ? null : time.toSecondOfDay() / 60;
 	}
 
 	// "date" means today; otherwise must parse as a date literal.

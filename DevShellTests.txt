@@ -238,6 +238,36 @@ void nanRegression()
 }
 
 // ---------------------------------------------------------------------------------------------
+// Time math: "<a> - <b>" with times ("time" or a literal) as h:mm, wrapping past midnight
+// ---------------------------------------------------------------------------------------------
+
+String hm(int minutes)
+{
+	int wrapped = Math.floorMod(minutes, 24 * 60);
+	return String.format("%d:%02d", wrapped / 60, wrapped % 60);
+}
+
+void timeMath()
+{
+	eq("time literal pair", "{^6am - 2am}", "4:00");
+	eqText("time literal pair rich", "{&6am - 2am}", "4:00");
+	eq("time pair wraps past midnight", "{^2am - 11pm}", "3:00");
+	eq("same time is 0:00", "{^6am - 6am}", "0:00");
+	eq("spaced am/pm literals", "{^8 pm - 7:30 pm}", "0:30");
+	eq("24-hour literals", "{^15:00 - 9:00}", "6:00");
+	eq("a.m. with periods", "{^6:30 a.m. - 6am}", "0:30");
+	eq("{time - time}", "{^time - time}", "0:00");
+
+	int now = java.time.LocalTime.now().toSecondOfDay() / 60;
+	eq("until a time", "{^6am - time}", hm(6 * 60 - now));
+	eq("since a time", "{^time - 2am}", hm(now - 2 * 60));
+	eq("until a 24-hour time", "{^15:00 - time}", hm(15 * 60 - now));
+
+	eq("bare numbers are still numbers", "{^5 - 3}", "2");
+	eq("stack-size numbers are still numbers", "{^10k - 500}", "9500");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Fixed: the right-hand side of a comparator was only ever a literal ({kc toa < kc toa expert})
 // ---------------------------------------------------------------------------------------------
 
@@ -572,6 +602,7 @@ void runAll()
 	comparatorsNotInNames();
 	math();
 	nanRegression();
+	timeMath();
 	rightHandVariables();
 	sixHour();
 	conditionals();

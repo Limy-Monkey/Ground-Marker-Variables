@@ -181,7 +181,7 @@ public class ConditionEvaluator
 		}
 	}
 
-	private static LocalTime tryParseTime(String value)
+	public static LocalTime tryParseTime(String value)
 	{
 		String normalized = value.trim().toLowerCase(Locale.ENGLISH).replace(".", "").replaceAll("\\s+", "");
 		if (normalized.isEmpty())
