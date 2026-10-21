@@ -10,6 +10,7 @@ import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
+import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -60,6 +62,7 @@ import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.slayer.SlayerPlugin;
 import net.runelite.client.plugins.xptracker.XpTrackerPlugin;
+import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -85,6 +88,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
+	private static final Pattern DPS_TOKEN = Pattern.compile("\\{[\\^&*]?dps\\}", Pattern.CASE_INSENSITIVE);
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
 	// section — see migrateConfigFromCore().
@@ -199,6 +203,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private WeaponStyleTracker weaponStyleTracker;
 
 	@Inject
+	private DpsTracker dpsTracker;
+
+	@Inject
 	private ImportPreviewManager importPreviewManager;
 
 	@Inject
@@ -250,6 +257,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.startUp();
 		miscellaniaTracker.startUp();
 		weaponStyleTracker.startUp();
+		dpsTracker.startUp();
 		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())
@@ -313,6 +321,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
 		weaponStyleTracker.shutDown();
+		dpsTracker.shutDown();
 		pluginMessageHandler.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(tileOverlay);
@@ -380,7 +389,39 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		if (existing != null)
 		{
 			buildColorMenu(worldPoint, existing);
+			buildConfigureMenu(existing);
 		}
+	}
+
+	// Per-variable options for the tile's label, if it has any.
+	private void buildConfigureMenu(GroundMarkerPointData existing)
+	{
+		String label = existing.getLabel() == null ? "" : existing.getLabel();
+		Menu submenu = null;
+		if (DPS_TOKEN.matcher(label).find())
+		{
+			submenu = addVariableOption(submenu, "Reset", "DPS", dpsTracker::reset);
+		}
+	}
+
+	// e.g. "Reset DPS" with an orange "DPS". Creates the "Tile Variables" submenu on first use.
+	private Menu addVariableOption(Menu submenu, String option, String variable, Runnable action)
+	{
+		if (submenu == null)
+		{
+			submenu = client.createMenuEntry(-4)
+				.setOption("Tile Variables")
+				.setTarget("")
+				.setType(MenuAction.RUNELITE)
+				.createSubMenu();
+		}
+
+		submenu.createMenuEntry(-1)
+			.setOption(option)
+			.setTarget(JagexColors.MENU_TARGET_TAG + variable)
+			.setType(MenuAction.RUNELITE)
+			.onClick(e -> action.run());
+		return submenu;
 	}
 
 	// Mirrors core's "Color" submenu build: Reset all (only when the region has more than one
