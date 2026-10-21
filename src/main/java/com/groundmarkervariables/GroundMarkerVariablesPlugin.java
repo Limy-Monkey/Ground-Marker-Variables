@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -88,7 +87,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
-	private static final Pattern DPS_TOKEN = Pattern.compile("\\{[\\^&*]?dps\\}", Pattern.CASE_INSENSITIVE);
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
 	// section — see migrateConfigFromCore().
@@ -389,34 +387,35 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		if (existing != null)
 		{
 			buildColorMenu(worldPoint, existing);
-			buildConfigureMenu(existing);
+			buildConfigureMenu(existing, selectedSceneTile.getWorldLocation());
 		}
 	}
 
 	// Per-variable options for the tile's label, if it has any.
-	private void buildConfigureMenu(GroundMarkerPointData existing)
+	private void buildConfigureMenu(GroundMarkerPointData existing, WorldPoint tile)
 	{
 		String label = existing.getLabel() == null ? "" : existing.getLabel();
 		Menu submenu = null;
-		if (DPS_TOKEN.matcher(label).find())
+		if (DpsTracker.DPS_TOKEN.matcher(label).find())
 		{
-			submenu = addVariableOption(submenu, "Reset", "DPS", dpsTracker::reset);
+			submenu = addVariableOption(submenu, "Reset", "DPS", () -> dpsTracker.reset(tile));
+			submenu = addVariableOption(submenu, "Export to Chat", "DPS", () -> dpsTracker.exportToChat(tile));
 		}
 	}
 
-	// e.g. "Reset DPS" with an orange "DPS". Creates the "Tile Variables" submenu on first use.
+	// e.g. "Reset DPS" with an orange "DPS". Creates the "Variables" submenu on first use.
 	private Menu addVariableOption(Menu submenu, String option, String variable, Runnable action)
 	{
 		if (submenu == null)
 		{
 			submenu = client.createMenuEntry(-4)
-				.setOption("Tile Variables")
-				.setTarget("")
+				.setOption("Tile")
+				.setTarget("Variables")
 				.setType(MenuAction.RUNELITE)
 				.createSubMenu();
 		}
 
-		submenu.createMenuEntry(-1)
+		submenu.createMenuEntry(0)
 			.setOption(option)
 			.setTarget(JagexColors.MENU_TARGET_TAG + variable)
 			.setType(MenuAction.RUNELITE)
@@ -811,9 +810,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 						continue;
 					}
 
+					dpsTracker.resolvingTile = translated.worldPoint;
 					translated.marker.refresh(labelResolver, metaVariableResolver);
 				}
 			}
+			dpsTracker.resolvingTile = null;
 		}
 
 		importPreviewManager.refresh();

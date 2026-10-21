@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.support;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.TreeMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.EnumID;
 import net.runelite.api.EquipmentInventorySlot;
@@ -28,6 +30,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.RuneScapeProfileChanged;
 
 // Current attack style, plus each weapon's category and each category's last style seen this session.
+@Slf4j
 @Singleton
 public class WeaponStyleTracker
 {
@@ -164,24 +167,33 @@ public class WeaponStyleTracker
 		return styleIndex >= 0 && styleIndex < names.length ? names[styleIndex] : null;
 	}
 
-	// Button names by style slot, from the combat tab's own DB table.
+	// Button names by style slot. getDBTableField returns one field (0 = slot, 1 = name) of every button.
 	private String[] loadCombatTabNames(int category)
 	{
 		String[] names = new String[6];
-		List<Integer> rows = client.getDBRowsByValue(DBTableID.CombatInterfaceWeaponCategory.ID, DBTableID.CombatInterfaceWeaponCategory.COL_ID, 0, category);
-		for (int i = 0; !rows.isEmpty() && i < names.length; i++)
+		try
 		{
-			Object[] button = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, i);
-			if (button == null || button.length < 2)
+			List<Integer> rows = client.getDBRowsByValue(DBTableID.CombatInterfaceWeaponCategory.ID, DBTableID.CombatInterfaceWeaponCategory.COL_ID, 0, category);
+			if (rows.isEmpty())
 			{
-				break;
+				return names;
 			}
 
-			int slot = (Integer) button[0];
-			if (slot >= 0 && slot < names.length)
+			Object[] slots = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, 0);
+			Object[] buttonNames = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, 1);
+			for (int i = 0; i < Math.min(slots.length, buttonNames.length); i++)
 			{
-				names[slot] = (String) button[1];
+				int slot = (Integer) slots[i];
+				if (slot >= 0 && slot < names.length)
+				{
+					names[slot] = (String) buttonNames[i];
+				}
 			}
+		}
+		catch (RuntimeException e)
+		{
+			log.warn("Couldn't read combat tab names for weapon category {}", category, e);
+			Arrays.fill(names, null);
 		}
 		return names;
 	}

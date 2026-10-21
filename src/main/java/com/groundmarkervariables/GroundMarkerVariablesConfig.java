@@ -370,7 +370,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {world}, {worldInfo}<br>"
 					+ "- {m4} / {metronome-4_5}<br>"
 					+ "- {6Hour &lt; 1.5 hrs}<br>"
-					+ "- {dps}<br><br>"
+					+ "- {dps}, {dps report}<br><br>"
 					+ "- {kc &lt;boss&gt;}, {pb &lt;boss&gt;}<br>"
 					+ "- {rank &lt;boss&gt;}<br>"
 					+ "- {loot &lt;monster&gt;}<br>"

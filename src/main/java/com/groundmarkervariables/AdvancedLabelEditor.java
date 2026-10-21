@@ -113,6 +113,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> PARTY_KEYWORDS = List.of("num", "name", "hp", "prayer");
 	private static final Pattern PARTY_WORD = Pattern.compile("[a-zA-Z]*$");
 
+	// {dps <template>} -- same keyword completion as {party}. <N>s isn't completed.
+	private static final String DPS_PREFIX = "dps ";
+	private static final List<String> DPS_KEYWORDS = List.of(
+		"avgDps", "report", "theoryDps", "shareDps", "totalDamage", "takenDamage", "acc",
+		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses");
+
 	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.
 	private static final String DIVINE_PREFIX = "divine ";
 	private static final List<String> DIVINE_POTIONS = List.of(
@@ -889,7 +895,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (!restrictToNumeric && partial.length() >= PARTY_PREFIX.length() && partial.regionMatches(true, 0, PARTY_PREFIX, 0, PARTY_PREFIX.length()))
 		{
-			return completePartyKeyword(partial.substring(PARTY_PREFIX.length()));
+			return completeTemplateKeyword(partial.substring(PARTY_PREFIX.length()), PARTY_KEYWORDS, PARTY_PREFIX);
+		}
+
+		if (!restrictToNumeric && partial.length() >= DPS_PREFIX.length() && partial.regionMatches(true, 0, DPS_PREFIX, 0, DPS_PREFIX.length()))
+		{
+			return completeTemplateKeyword(partial.substring(DPS_PREFIX.length()), DPS_KEYWORDS, DPS_PREFIX);
 		}
 
 		if (!restrictToNumeric && partial.length() >= DIVINE_PREFIX.length() && partial.regionMatches(true, 0, DIVINE_PREFIX, 0, DIVINE_PREFIX.length()))
@@ -1535,7 +1546,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Completes only the trailing word being typed -- no closer, since more may follow.
-	private String completePartyKeyword(String templatePartial)
+	// Completes whichever keyword is being typed in a {party}/{dps} template.
+	private String completeTemplateKeyword(String templatePartial, List<String> keywords, String prefix)
 	{
 		Matcher wordMatcher = PARTY_WORD.matcher(templatePartial);
 		wordMatcher.find();
@@ -1549,7 +1561,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		List<String> candidates = new ArrayList<>();
-		for (String keyword : PARTY_KEYWORDS)
+		for (String keyword : keywords)
 		{
 			if (keyword.length() > wordPartial.length() && keyword.regionMatches(true, 0, wordPartial, 0, wordPartial.length()))
 			{
@@ -1562,7 +1574,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return null;
 		}
 
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + PARTY_PREFIX);
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
 		return chosen.substring(wordPartial.length());
 	}
 
