@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Named;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.FontID;
@@ -68,8 +69,10 @@ class MarkerManager extends ChatboxInput implements KeyListener
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
 	private int scrollOffset;
-	// { } toggle: only rows whose label has a variable (and the areas containing them).
-	private boolean variablesOnly;
+	// { } toggle: only rows whose label has a variable (and the areas containing them). The
+	// toggle is developer mode only.
+	private boolean variablesOnly = true;
+	private final boolean developerMode;
 
 	// Every region sharing one RegionNames name, or a single unnamed region.
 	private static final class Group
@@ -113,7 +116,8 @@ class MarkerManager extends ChatboxInput implements KeyListener
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, Gson gson, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager)
+		Client client, Gson gson, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager,
+		@Named("developerMode") boolean developerMode)
 	{
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.markerStorage = markerStorage;
@@ -122,6 +126,7 @@ class MarkerManager extends ChatboxInput implements KeyListener
 		this.gson = gson;
 		this.deletedMarkers = deletedMarkers;
 		this.sharingManager = sharingManager;
+		this.developerMode = developerMode;
 	}
 
 	// Rebuilds the list from storage, clearing the selection.
@@ -241,14 +246,17 @@ class MarkerManager extends ChatboxInput implements KeyListener
 		}
 		rightX = nextX(addButton(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
 		rightX = nextX(addButton(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, this::exportSelected));
-		Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
-			!entries.isEmpty(), rightX, this::toggleVariablesFilter);
-		if (variablesOnly)
+		if (developerMode)
 		{
-			filter.setTextColor(ACTIVE_COLOR);
-			filter.setOnMouseLeaveListener((JavaScriptCallback) ev -> filter.setTextColor(ACTIVE_COLOR));
+			Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
+				!entries.isEmpty(), rightX, this::toggleVariablesFilter);
+			if (variablesOnly)
+			{
+				filter.setTextColor(ACTIVE_COLOR);
+				filter.setOnMouseLeaveListener((JavaScriptCallback) ev -> filter.setTextColor(ACTIVE_COLOR));
+			}
+			rightX = nextX(filter);
 		}
-		rightX = nextX(filter);
 
 		Widget all = addButton(container, font, "All", allSelected ? "Deselect all" : "Select all", "", !visible.isEmpty(), rightX,
 			allSelected ? this::deselectAll : this::selectAll);
