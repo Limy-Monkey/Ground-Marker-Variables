@@ -459,11 +459,14 @@ public class DpsTracker
 	{
 		private final int tick;
 		private final int weapon;
+		// Before landing effects, see landingSpeed().
+		private final int speed;
 
-		private PendingAttack(int tick, int weapon)
+		private PendingAttack(int tick, int weapon, int speed)
 		{
 			this.tick = tick;
 			this.weapon = weapon;
+			this.speed = speed;
 		}
 	}
 
@@ -664,7 +667,7 @@ public class DpsTracker
 				weaponDamage += hit.amount;
 			}
 		}
-		return weaponHit && player != null ? landAttack(attackSpeed(player, target, type, tick, weaponDamage), tick, player, target, type) : null;
+		return weaponHit && player != null ? landAttack(tick, player, target, type, weaponDamage) : null;
 	}
 
 	// A splash has no hitsplat, so your target newly splashing counts as a 0.
@@ -706,7 +709,7 @@ public class DpsTracker
 		boolean attackStarted = lastCombatXp >= 0 && (combatXp > lastCombatXp || magicAttack && magicXp > lastMagicXp);
 		if (attackStarted)
 		{
-			pendingAttacks.addLast(new PendingAttack(tick, equippedWeaponId()));
+			pendingAttacks.addLast(new PendingAttack(tick, equippedWeaponId(), baseSpeed(type)));
 		}
 		lastCombatXp = combatXp;
 		lastMagicXp = magicXp;
@@ -742,9 +745,12 @@ public class DpsTracker
 	// too soon after the last is part of it (e.g. claws) unless it came from XP: then it's a faster
 	// attack. Null if merged.
 	@Nullable
-	private Attack landAttack(int speed, int tick, Player player, @Nullable Actor target, WeaponAttackType type)
+	private Attack landAttack(int tick, Player player, @Nullable Actor target, WeaponAttackType type, int weaponDamage)
 	{
 		PendingAttack pending = pendingAttacks.peekFirst();
+		// A miss gives no XP, so its weapon and speed are whatever's equipped as it lands.
+		int weapon = pending != null ? pending.weapon : equippedWeaponId();
+		int speed = landingSpeed(pending != null ? pending.speed : baseSpeed(type), weapon, target, tick, weaponDamage);
 		int start = pending != null ? pending.tick : tick - hitDelay(player, target, type);
 		int previousTick = lastAttackTick;
 		int correction = 0;
@@ -764,8 +770,6 @@ public class DpsTracker
 		}
 		lastAttackTick = start;
 		lastAttackSpeed = speed;
-		// A miss gives no XP, so its weapon is whatever's equipped as it lands.
-		int weapon = pending != null ? pending.weapon : equippedWeaponId();
 		return new Attack(speed, start, weapon, previousTick, correction);
 	}
 
@@ -799,19 +803,11 @@ public class DpsTracker
 		return xp;
 	}
 
-	// Speed of the attack landing now. Rules ported from Attack Timer Metronome
-	// (github.com/ngraves95/attacktimer, BSD 2-Clause), weapon effects only.
-	private int attackSpeed(Player player, @Nullable Actor target, WeaponAttackType type, int tick, int weaponDamage)
+	// Speed of an attack as it starts, from what's equipped. Rules ported from Attack Timer
+	// Metronome (github.com/ngraves95/attacktimer, BSD 2-Clause), weapon effects only.
+	private int baseSpeed(WeaponAttackType type)
 	{
-		// Eye of ayak spec sets the speed. Magic lands a few ticks after the cast.
-		if (tick - ayakSpecTick <= MAGIC_SPEC_LAND_TICKS)
-		{
-			return 5;
-		}
-
-		ItemContainer worn = client.getItemContainer(InventoryID.WORN);
-		Item weapon = worn == null ? null : worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
-		int weaponId = weapon == null ? -1 : weapon.getId();
+		int weaponId = equippedWeaponId();
 		int category = client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
 		int styleIndex = client.getVarpValue(VarPlayerID.COM_MODE);
 
@@ -831,8 +827,7 @@ public class DpsTracker
 		}
 		else if (weaponId == ItemID.ZORYAS_TOME)
 		{
-			// 3 ticks, or 2 for the empowered attacks after a landed spec.
-			speed = target != null && target.hasSpotAnim(SpotanimID.VFX_ZORYA_TOME_SPECIAL_FOLLOW_UP_IMPACT) ? 2 : 3;
+			speed = 3;
 		}
 		else
 		{
@@ -844,15 +839,29 @@ public class DpsTracker
 		{
 			speed--;
 		}
-		if (player.hasSpotAnim(SpotanimID.SPECIAL_DUAL_MACUAHUITL_SPOTANIM)) // Blood moon set
+		Player player = client.getLocalPlayer();
+		if (player != null && player.hasSpotAnim(SpotanimID.SPECIAL_DUAL_MACUAHUITL_SPOTANIM)) // Blood moon set
 		{
 			speed--;
 		}
-		if (tick - kerisSpecTick <= 1 && weaponDamage > 0) // Red keris spec that hit
-		{
-			speed += 4;
-		}
 		return speed;
+	}
+
+	// Effects only known once the attack lands.
+	private int landingSpeed(int speed, int weapon, @Nullable Actor target, int tick, int weaponDamage)
+	{
+		// Eye of ayak spec sets the speed. Magic lands a few ticks after the cast.
+		if (tick - ayakSpecTick <= MAGIC_SPEC_LAND_TICKS)
+		{
+			return 5;
+		}
+		// Zorya's tome empowered attacks after a landed spec.
+		if (weapon == ItemID.ZORYAS_TOME && target != null && target.hasSpotAnim(SpotanimID.VFX_ZORYA_TOME_SPECIAL_FOLLOW_UP_IMPACT))
+		{
+			return 2;
+		}
+		// Red keris spec that hit.
+		return tick - kerisSpecTick <= 1 && weaponDamage > 0 ? speed + 4 : speed;
 	}
 
 	private static boolean claim(List<Hit> hits, Source source, int amount)

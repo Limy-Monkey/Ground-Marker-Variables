@@ -801,20 +801,26 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
 			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
-			for (WorldView wv : getTrackedWorldViews())
+			try
 			{
-				for (TranslatedMarker translated : getTranslatedMarkers(wv))
+				for (WorldView wv : getTrackedWorldViews())
 				{
-					if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
+					for (TranslatedMarker translated : getTranslatedMarkers(wv))
 					{
-						continue;
-					}
+						if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
+						{
+							continue;
+						}
 
-					dpsTracker.resolvingTile = translated.worldPoint;
-					translated.marker.refresh(labelResolver, metaVariableResolver);
+						dpsTracker.resolvingTile = translated.worldPoint;
+						translated.marker.refresh(labelResolver, metaVariableResolver);
+					}
 				}
 			}
-			dpsTracker.resolvingTile = null;
+			finally
+			{
+				dpsTracker.resolvingTile = null;
+			}
 		}
 
 		importPreviewManager.refresh();
