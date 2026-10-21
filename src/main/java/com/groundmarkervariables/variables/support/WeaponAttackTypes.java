@@ -46,11 +46,13 @@ public final class WeaponAttackTypes
 		{CRUSH, null, null, NONE}, // 28
 		{MAGIC, MAGIC, null, MAGIC}, // 29
 		{STAB, STAB, CRUSH, STAB}, // 30 -- Partisan's fallback slot
-		null, // 31
-		null, // 32
-		null, // 33
-		null, // 34
+		{STAB, RANGED, MAGIC, null}, // 31 Salamander
+		{CRUSH, CRUSH, null, CRUSH}, // 32 Egg
+		{NONE}, // 33 Sailing cannon
+		{STAB, SLASH, CRUSH, SLASH}, // 34 Multi-melee
 		{SLASH, SLASH, null, SLASH}, // 35
+		{CRUSH, CRUSH, CRUSH, null}, // 36 Obligator
+		{MAGIC, MAGIC, null, MAGIC}, // 37 Self-powering book
 	};
 
 	private WeaponAttackTypes()

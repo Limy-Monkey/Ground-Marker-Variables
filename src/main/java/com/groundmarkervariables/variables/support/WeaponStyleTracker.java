@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.support;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +17,7 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.ParamID;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
@@ -28,6 +30,8 @@ import net.runelite.client.events.RuneScapeProfileChanged;
 public class WeaponStyleTracker
 {
 	private static final String NO_STYLE = "None";
+	// Autocast spell index -> spell obj.
+	private static final int AUTOCAST_SPELLS = 1986;
 
 	public static final class Style
 	{
@@ -47,6 +51,7 @@ public class WeaponStyleTracker
 
 	private final TreeMap<String, Integer> categoryByWeapon = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 	private final Map<Integer, Style> styleByCategory = new HashMap<>();
+	private final Map<Integer, String[]> tabNamesByCategory = new HashMap<>();
 
 	private int trackedWeaponId = -1;
 	private int trackedStyleIndex = -1;
@@ -99,12 +104,58 @@ public class WeaponStyleTracker
 		}
 	}
 
+	// Melee styles keep their style name (Accurate, Aggressive...). Autocast is the spell's name,
+	// anything else the combat tab's button name, e.g. Rapid or Longrange.
 	public Style current()
 	{
 		int category = weaponCategory();
 		int styleIndex = attackStyleIndex();
-		String name = buildAttackStyle(category, styleIndex);
-		return new Style(name == null ? NO_STYLE : name, WeaponAttackTypes.forStyle(category, styleIndex));
+		WeaponAttackType type = WeaponAttackTypes.forStyle(category, styleIndex);
+		String name = styleIndex >= 4 ? autocastName(styleIndex == 5)
+			: type == WeaponAttackType.STAB || type == WeaponAttackType.SLASH || type == WeaponAttackType.CRUSH ? null
+			: combatTabName(category, styleIndex);
+		if (name == null)
+		{
+			name = buildAttackStyle(category, styleIndex);
+		}
+		return new Style(name == null ? NO_STYLE : name, type);
+	}
+
+	@Nullable
+	private String autocastName(boolean defensive)
+	{
+		int spell = client.getEnum(AUTOCAST_SPELLS).getIntValue(client.getVarbitValue(VarbitID.AUTOCAST_SPELL));
+		String name = spell <= 0 ? null : client.getItemDefinition(spell).getStringValue(ParamID.SPELL_NAME);
+		return name == null || name.isEmpty() ? null : defensive ? name + " (def)" : name;
+	}
+
+	@Nullable
+	private String combatTabName(int category, int styleIndex)
+	{
+		String[] names = tabNamesByCategory.computeIfAbsent(category, this::loadCombatTabNames);
+		return styleIndex >= 0 && styleIndex < names.length ? names[styleIndex] : null;
+	}
+
+	// Button names by style slot, from the combat tab's own DB table.
+	private String[] loadCombatTabNames(int category)
+	{
+		String[] names = new String[6];
+		List<Integer> rows = client.getDBRowsByValue(DBTableID.CombatInterfaceWeaponCategory.ID, DBTableID.CombatInterfaceWeaponCategory.COL_ID, 0, category);
+		for (int i = 0; !rows.isEmpty() && i < names.length; i++)
+		{
+			Object[] button = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, i);
+			if (button == null || button.length < 2)
+			{
+				break;
+			}
+
+			int slot = (Integer) button[0];
+			if (slot >= 0 && slot < names.length)
+			{
+				names[slot] = (String) button[1];
+			}
+		}
+		return names;
 	}
 
 	// Equipped this session, alphabetical.
@@ -181,14 +232,9 @@ public class WeaponStyleTracker
 	// Mirrors core's AttackStylesPlugin, including its blue moon spear and partisan fallbacks.
 	private String[] weaponTypeStyleNames(int weaponType)
 	{
-		if (weaponType == 3 || weaponType == 5 || weaponType == 19) // Bow, crossbow, thrown
+		if (weaponType == 36) // Obligator
 		{
-			return new String[] {"Accurate", "Rapid", null, "Longrange"};
-		}
-
-		if (weaponType == 7) // Chinchompas
-		{
-			return new String[] {"Short Fuse", "Medium Fuse", null, "Long Fuse"};
+			return new String[] {"5t Accurate", "5t Aggressive", "3t Aggressive"};
 		}
 
 		int weaponStyleEnumId = client.getEnum(EnumID.WEAPON_STYLES).getIntValue(weaponType);
