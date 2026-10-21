@@ -1,5 +1,7 @@
 package com.groundmarkervariables.variables.support;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -171,27 +173,59 @@ public class WeaponStyleTracker
 		return weapon == null ? null : styleByCategory.get(categoryByWeapon.get(weapon));
 	}
 
-	// The equipped weapon's own name matching search, exact first, else substring.
-	// Null if no match has been equipped.
+	// A seen weapon's name matching search: the worn weapon first, then inventory items, then
+	// any other. Exact before substring within each. Null if no match has been equipped.
 	@Nullable
 	public String weaponName(String search)
 	{
-		String trimmed = search.trim();
-		if (categoryByWeapon.containsKey(trimmed))
+		String needle = search.trim();
+		String match = bestMatch(itemNames(client.getItemContainer(InventoryID.WORN), EquipmentInventorySlot.WEAPON.getSlotIdx()), needle);
+		if (match == null)
 		{
-			return categoryByWeapon.ceilingKey(trimmed);
+			match = bestMatch(itemNames(client.getItemContainer(InventoryID.INV), -1), needle);
 		}
+		return match != null ? match : bestMatch(categoryByWeapon.keySet(), needle);
+	}
 
-		String needle = trimmed.toLowerCase(Locale.ROOT);
-		for (String name : categoryByWeapon.keySet())
+	// Only names with a saved state, returned in their saved casing.
+	@Nullable
+	private String bestMatch(Collection<String> names, String needle)
+	{
+		String substring = null;
+		for (String name : names)
 		{
-			if (name.toLowerCase(Locale.ROOT).contains(needle))
+			String saved = categoryByWeapon.containsKey(name) ? categoryByWeapon.ceilingKey(name) : null;
+			if (saved == null)
 			{
-				return name;
+				continue;
+			}
+
+			if (saved.equalsIgnoreCase(needle))
+			{
+				return saved;
+			}
+
+			if (substring == null && saved.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT)))
+			{
+				substring = saved;
 			}
 		}
+		return substring;
+	}
 
-		return null;
+	// All item names in container, or just slot's when slot >= 0.
+	private List<String> itemNames(@Nullable ItemContainer container, int slot)
+	{
+		List<String> names = new ArrayList<>();
+		Item[] items = container == null ? new Item[0] : container.getItems();
+		for (int i = 0; i < items.length; i++)
+		{
+			if ((slot < 0 || i == slot) && items[i].getId() > 0)
+			{
+				names.add(client.getItemDefinition(items[i].getId()).getName());
+			}
+		}
+		return names;
 	}
 
 	private int weaponCategory()
