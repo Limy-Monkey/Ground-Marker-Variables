@@ -410,6 +410,42 @@ void metaInBranches()
 }
 
 // ---------------------------------------------------------------------------------------------
+// Conditionals nested in braces inside branches, to any depth: {a ? {b ? X : Y} : Z}. The
+// else is optional. An unbraced ? in a branch is just text.
+// ---------------------------------------------------------------------------------------------
+
+void nestedConditionals()
+{
+	String t = "weekday >= 1";
+	String f = "weekday < 1";
+
+	eq("nested in true branch, inner true", "{" + t + " ? {" + t + " ? X : Y} : Z}", "X");
+	eq("nested in true branch, inner false", "{" + t + " ? {" + f + " ? X : Y} : Z}", "Y");
+	eq("nested in true branch, outer false", "{" + f + " ? {" + t + " ? X : Y} : Z}", "Z");
+	eq("nested in false branch", "{" + f + " ? X : {" + t + " ? Y : Z}}", "Y");
+	eq("nested in false branch, inner false", "{" + f + " ? X : {" + f + " ? Y : Z}}", "Z");
+	eq("three levels deep", "{" + t + " ? {" + t + " ? {" + f + " ? A : B} : C} : D}", "B");
+	eq("kc toa buckets", "{kc toa > 50 ? toa master : {kc toa > 25 ? 25 to 50 kills : <25}}",
+		toa > 50 ? "toa master" : toa > 25 ? "25 to 50 kills" : "<25");
+	eq("variable inside a nested branch", "{" + t + " ? {" + t + " ? {^weekday} : no} : no}", String.valueOf(weekday));
+	eq("nested conditional beside text and a variable", "{" + t + " ? day {^weekday}, {" + f + " ? odd : even} : no}", "day " + weekday + ", even");
+	eq("losing branch's nested conditional isn't resolved", "{" + f + " ? {" + t + " ? X : Y} : Z}", "Z");
+	eq("time literal colon in a nested condition", "{" + t + " ? {time24 >= 0:00 ? yes : no} : no}", "yes");
+	eq("clock text in a branch", "{" + t + " ? 10:30 : no}", "10:30");
+	eq("&& inside a nested condition", "{" + t + " ? {weekday >= 1 && weekday <= 7 ? yes : no} : no}", "yes");
+	eq("unbraced ? in a branch is text", "{" + t + " ? Ready? : No}", "Ready?");
+	eq("two nested conditionals in one branch", "{" + t + " ? {" + t + " ? A : B}{" + f + " ? C : D} : no}", "AD");
+
+	eq("no else, true", "{" + t + " ? X}", "X");
+	eq("no else, false is empty", "{" + f + " ? X}", "");
+	eq("no else nested, both true", "{" + t + " ? {" + t + " ? X}}", "X");
+	eq("no else nested, inner false", "{" + t + " ? {" + f + " ? X}}", "");
+	eq("no else nested, outer false", "{" + f + " ? {" + t + " ? X}}", "");
+	eq("no else in a nested false branch", "{" + f + " ? X : {" + t + " ? Y}}", "Y");
+	eq("metronome neutralized in a nested winning branch", "{" + t + " ? {" + t + " ? {m4} : no} : no}", "ILLEGAL");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Fixed: {rank Lunar Chests} -- kc's canonical name is singular, the hiscores entry plural
 // ---------------------------------------------------------------------------------------------
 
@@ -644,6 +680,7 @@ void runAll()
 	conditionals();
 	nestedInBranches();
 	metaInBranches();
+	nestedConditionals();
 	rank();
 	lootOptions();
 	lootCombined();

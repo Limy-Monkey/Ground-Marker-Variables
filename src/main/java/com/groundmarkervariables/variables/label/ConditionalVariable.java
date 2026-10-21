@@ -9,23 +9,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
-// {<chain> ? <whenTrue> : <whenFalse>} — <chain> is any number of "<expr> [<cmp> <value>]"
-// leaves combined with && / ||, with parens overriding the usual && before || precedence. A
-// branch may contain a nested {...} token (one level deep) -- NESTED_TOKEN treats it as
-// opaque. A normal base variable nested this way already resolved in an earlier pass (see
-// LabelResolver); metronome is explicitly neutralized here, a metavariable left as-is for
-// MetaVariableResolver afterward.
+// {<chain> ? <whenTrue> [: <whenFalse>]} — <chain> is any number of "<expr> [<cmp> <value>]"
+// leaves combined with && / ||, with parens overriding the usual && before || precedence.
+// Branches may contain {...} tokens nested to any depth, including conditionals, e.g.
+// {a ? {b ? X : Y} : Z}. Base variables in the winning branch resolve in LabelResolver's later
+// passes; metronome is neutralized here, a metavariable left for MetaVariableResolver.
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
 		"(?i:\\{(?:metronome|m)[+-]?\\d+(?:_\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
 	private static final String NESTED_TOKEN = "\\{[^{}]*\\}";
-	private static final String BRANCH = "(?:[^{}]|" + NESTED_TOKEN + ")+?";
 
 	private static final Pattern LEAF = Pattern.compile("([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?");
 	private static final Pattern PATTERN = Pattern.compile(
-		"\\{\\s*([^{}]+?)\\?\\s*(" + BRANCH + ")\\s*:\\s*(" + BRANCH + ")\\s*\\}");
+		"\\{([^{}?]+\\?(?:[^{}]|" + NESTED_TOKEN + ")+)\\}");
 
 	private final ConditionEvaluator evaluator;
 
@@ -56,14 +54,109 @@ public class ConditionalVariable implements LabelVariable
 
 	private String resolveConditional(Matcher matcher)
 	{
-		Boolean result = evaluate(matcher.group(1));
+		return resolveToken(matcher.group());
+	}
+
+	// Resolves each top-level {...} conditional in text. Other tokens are left as-is.
+	public String resolveAll(String text)
+	{
+		StringBuilder out = new StringBuilder();
+		int i = 0;
+		while (i < text.length())
+		{
+			int open = text.indexOf('{', i);
+			int close = open < 0 ? -1 : matchingBrace(text, open);
+			if (close < 0)
+			{
+				out.append(text, i, text.length());
+				break;
+			}
+
+			String token = text.substring(open, close + 1);
+			String resolved;
+			try
+			{
+				resolved = resolveToken(token);
+			}
+			catch (RuntimeException e)
+			{
+				resolved = "ERROR";
+			}
+			out.append(text, i, open).append(resolved == null ? token : resolved);
+			i = close + 1;
+		}
+		return out.toString();
+	}
+
+	// Null if token isn't a resolvable conditional. Only the winning branch's own nested
+	// conditionals are resolved.
+	private String resolveToken(String token)
+	{
+		String inner = token.substring(1, token.length() - 1);
+		int question = topLevel(inner, 0, '?');
+		if (question < 0 || inner.substring(0, question).contains("{"))
+		{
+			return null;
+		}
+
+		Boolean result = evaluate(inner.substring(0, question));
 		if (result == null)
 		{
 			return null;
 		}
 
-		String winner = (result ? matcher.group(2) : matcher.group(3)).trim();
-		return METRONOME_TOKEN_PATTERN.matcher(winner).replaceAll("ILLEGAL");
+		// No : means an empty else.
+		int colon = topLevel(inner, question + 1, ':');
+		String whenTrue = colon < 0 ? inner.substring(question + 1) : inner.substring(question + 1, colon);
+		String whenFalse = colon < 0 ? "" : inner.substring(colon + 1);
+		String winner = METRONOME_TOKEN_PATTERN.matcher((result ? whenTrue : whenFalse).trim()).replaceAll("ILLEGAL");
+		return resolveAll(winner);
+	}
+
+	private static int matchingBrace(String text, int open)
+	{
+		int depth = 0;
+		for (int i = open; i < text.length(); i++)
+		{
+			char c = text.charAt(i);
+			if (c == '{')
+			{
+				depth++;
+			}
+			else if (c == '}' && --depth == 0)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	// First c outside any {...} at or after from. A : between digits (9:00) doesn't count.
+	private static int topLevel(String text, int from, char c)
+	{
+		int depth = 0;
+		for (int i = from; i < text.length(); i++)
+		{
+			char ch = text.charAt(i);
+			if (ch == '{')
+			{
+				depth++;
+			}
+			else if (ch == '}')
+			{
+				depth--;
+			}
+			else if (depth == 0 && ch == c && !(c == ':' && isClockColon(text, i)))
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private static boolean isClockColon(String text, int i)
+	{
+		return i > 0 && i + 1 < text.length() && Character.isDigit(text.charAt(i - 1)) && Character.isDigit(text.charAt(i + 1));
 	}
 
 	// Splits on top-level (paren-depth 0) && / ||, then collapses && pairs before || pairs --

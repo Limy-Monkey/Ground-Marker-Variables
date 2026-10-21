@@ -68,7 +68,7 @@ public class LabelResolver
 		// Runs first, while a branch's own nested token is still literal -- otherwise its
 		// resolved text (e.g. a colon in Rich Text) could corrupt the ?/: split. Also forces
 		// Plain for its own <expr> internally (no ^/&/* support).
-		String resolved = applyPlain(conditional, label);
+		String resolved = conditional.resolveAll(label);
 
 		resolved = applyWithMode(math, resolved);
 		for (LabelVariable variable : baseVariables)
@@ -104,30 +104,6 @@ public class LabelResolver
 			try
 			{
 				value = bareMatcher.matches() ? variable.resolve(bareMatcher, mode) : null;
-			}
-			catch (RuntimeException e)
-			{
-				value = "ERROR";
-			}
-			if (value != null)
-			{
-				matcher.appendReplacement(replaced, Matcher.quoteReplacement(value));
-			}
-		}
-		matcher.appendTail(replaced);
-		return replaced.toString();
-	}
-
-	private String applyPlain(LabelVariable variable, String text)
-	{
-		Matcher matcher = variable.pattern().matcher(text);
-		StringBuilder replaced = new StringBuilder();
-		while (matcher.find())
-		{
-			String value;
-			try
-			{
-				value = variable.resolvePlain(matcher);
 			}
 			catch (RuntimeException e)
 			{
