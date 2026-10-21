@@ -55,11 +55,12 @@ public class VariableRegistry
 		PartyLabelVariable party,
 		DivineLabelVariable divine,
 		WorldLabelVariable world,
-		HasVileVigourLabelVariable hasVileVigour)
+		HasVileVigourLabelVariable hasVileVigour,
+		AutocastLabelVariable autocast)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, attackType, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
+			attackStyle, attackType, autocast, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
 			party, divine, world, hasVileVigour);
 	}

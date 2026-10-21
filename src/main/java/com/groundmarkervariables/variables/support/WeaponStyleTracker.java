@@ -57,6 +57,9 @@ public class WeaponStyleTracker
 
 	private int trackedWeaponId = -1;
 	private int trackedStyleIndex = -1;
+	private int trackedAutocastSpell = -1;
+	@Nullable
+	private String lastAutocast;
 
 	@Inject
 	private WeaponStyleTracker(Client client, EventBus eventBus)
@@ -82,6 +85,8 @@ public class WeaponStyleTracker
 		styleByCategory.clear();
 		trackedWeaponId = -1;
 		trackedStyleIndex = -1;
+		trackedAutocastSpell = -1;
+		lastAutocast = null;
 	}
 
 	// Before the plugin's own onGameTick refreshes labels.
@@ -90,15 +95,22 @@ public class WeaponStyleTracker
 	{
 		int weaponId = equippedWeaponId();
 		int styleIndex = attackStyleIndex();
-		if (weaponId == trackedWeaponId && styleIndex == trackedStyleIndex)
+		int autocastSpell = client.getVarbitValue(VarbitID.AUTOCAST_SPELL);
+		if (weaponId == trackedWeaponId && styleIndex == trackedStyleIndex && autocastSpell == trackedAutocastSpell)
 		{
 			return;
 		}
 
 		trackedWeaponId = weaponId;
 		trackedStyleIndex = styleIndex;
+		trackedAutocastSpell = autocastSpell;
 
 		int category = weaponCategory();
+		if (buildAttackStyle(category, 4) != null)
+		{
+			lastAutocast = styleIndex >= 4 ? autocastName(styleIndex == 5) : null;
+		}
+
 		styleByCategory.put(category, current());
 		if (weaponId > 0)
 		{
@@ -126,9 +138,23 @@ public class WeaponStyleTracker
 	@Nullable
 	private String autocastName(boolean defensive)
 	{
+		String name = autocastSpell();
+		return name == null ? null : defensive ? name + " (def)" : name;
+	}
+
+	// e.g. "Fire Surge" or "Fire Surge (def)". Null if not autocasting.
+	@Nullable
+	public String lastAutocast()
+	{
+		return lastAutocast;
+	}
+
+	@Nullable
+	private String autocastSpell()
+	{
 		int spell = client.getEnum(AUTOCAST_SPELLS).getIntValue(client.getVarbitValue(VarbitID.AUTOCAST_SPELL));
 		String name = spell <= 0 ? null : client.getItemDefinition(spell).getStringValue(ParamID.SPELL_NAME);
-		return name == null || name.isEmpty() ? null : defensive ? name + " (def)" : name;
+		return name == null || name.isEmpty() ? null : name;
 	}
 
 	@Nullable
