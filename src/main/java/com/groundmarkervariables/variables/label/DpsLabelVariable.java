@@ -21,11 +21,12 @@ import net.runelite.client.util.QuantityFormatter;
 public class DpsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
+	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
-		"\\b(avgDps|shareDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|numAttacks|numMisses|numHits|(\\d+)s)\\b", Pattern.CASE_INSENSITIVE);
+		"(?<![\\w:])(avgDps|shareDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (shareDps | acc)";
-	private static final Pattern REPORT_WORD = Pattern.compile("\\breport\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String PAUSED = " <col=" + NamedColors.HEX_BY_NAME.get("gray") + ">(paused)</col>";
 
 	private final Client client;
