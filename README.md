@@ -139,19 +139,19 @@ Rich Text shows `Party (N)` and a row per party member, using the template with 
 Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
 - Keywords, replaced in the template like `{party}`:
 
-| Keyword                                | Value                                                                                     | Per-Weapon                          |
-|----------------------------------------|-------------------------------------------------------------------------------------------|-------------------------------------|
-| `avgDps`                               | Damage per second since your first hit until now, includes time spent not attacking.      | Yes                                 |
-| `theoryDps`                            | DPS using your weapon's attack speed, ignoring lost ticks                                 | Yes                                 |
-| `pureTheoryDps`                        | DPS as `theoryDps`, but also ignoring tick-reducing boss mechanics                        | Yes                                 |
-| `shareDps`                             | % of everyone's damage on the enemies you attacked, including other players / actors      | Yes                                 |
-| `splitDps`                             | % of your own total damage. Always 100% on the top row, so it shows `-` there             | Yes                                 |
-| `totalDamage`                          | The total amount of damage you dealt                                                      | Yes                                 |
-| `takenDamage`                          | The total amount of damage you took                                                       | No                                  |
-| `acc`                                  | Weapon accuracy                                                                           | Yes                                 |
-| `<N>s`                                 | Damage per second over the last N seconds, e.g. `10s`                                     | Yes                                 |
-| `thrallDps` / `recoilDps`              | Damage per second from your thrall / ring of recoil                                       | No                                  |
-| `numAttacks` / `numHits` / `numMisses` | Number of attacks you did / number of hitsplats above zero / number of zeros and splashes | Yes                                 |
+| Keyword                                | Value                                                                                     | Per-Weapon / NPC |
+|----------------------------------------|-------------------------------------------------------------------------------------------|------------------|
+| `avgDps`                               | Damage per second since your first hit until now, includes time spent not attacking.      | Yes              |
+| `theoryDps`                            | DPS using your weapon's attack speed, ignoring lost ticks                                 | Yes              |
+| `pureTheoryDps`                        | DPS as `theoryDps`, but also ignoring tick-reducing boss mechanics                        | Yes              |
+| `shareDps`                             | % of everyone's damage on the enemies you attacked, including other players / actors      | Yes              |
+| `splitDps`                             | % of your own personal total damage.                                                      | Yes              |
+| `totalDamage`                          | The total amount of damage you dealt                                                      | Yes              |
+| `takenDamage`                          | The total amount of damage you took                                                       | No               |
+| `acc`                                  | Weapon accuracy                                                                           | Yes              |
+| `<N>s`                                 | Damage per second over the last N seconds, e.g. `10s`                                     | Yes              |
+| `thrallDps` / `recoilDps`              | Damage per second from your thrall / ring of recoil                                       | No               |
+| `numAttacks` / `numHits` / `numMisses` | Number of attacks you did / number of hitsplats above zero / number of zeros and splashes | Yes              |
 
 - `{dps}` is equal to `{dps avgDps shareDps}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
@@ -159,7 +159,6 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
 - **Per-NPC report**: `{dps <top line> npcReport <per NPC>}` adds a line per NPC name you've damaged, sorted by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
   - `{dps npcReport}` is equal to `{dps avgDps shareDps npcReport totalDamage (shareDps | theoryDps)}`.
-  - Per NPC, `avgDps` runs from your first hit on it to your last. Thrall, recoil and vengeance damage counts toward the NPC it hit.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
 - **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, or **Export to Chat DPS** to send the current numbers to your chatbox.
 
