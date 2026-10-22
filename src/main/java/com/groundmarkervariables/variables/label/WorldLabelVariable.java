@@ -14,10 +14,10 @@ import net.runelite.api.Client;
 import net.runelite.api.WorldType;
 
 // {world} / {worldInfo} -> current world number. Rich: "World N (type)"; {worldInfo} adds a
-// leading region flag and ": <players> Players | <ping>ms".
+// leading region flag and ": <players> Players | <ping>ms". hideWorld leaves out the number.
 public class WorldLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{world(Info)?\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{world(Info(?:\\s*,?\\s*(hideWorld))?)?\\}", Pattern.CASE_INSENSITIVE);
 
 	// Most specific first. Members/skill total worlds show no type.
 	private static final List<Map.Entry<WorldType, String>> TYPE_NAMES = List.of(
@@ -69,6 +69,7 @@ public class WorldLabelVariable implements LabelVariable
 
 		int world = client.getWorld();
 		boolean info = matcher.group(1) != null;
+		boolean hideWorld = matcher.group(2) != null;
 		StringBuilder sb = new StringBuilder();
 
 		String flag = info ? worldInfo.flagKey(world) : null;
@@ -77,19 +78,27 @@ public class WorldLabelVariable implements LabelVariable
 			sb.append("<flag=").append(flag).append("> ");
 		}
 
-		sb.append("World ").append(richText.highlightValue(String.valueOf(world)));
-
 		String type = typeName(client.getWorldType());
-		if (type != null)
+		if (hideWorld)
 		{
-			sb.append(" (").append(type).append(')');
+			// e.g. "Seasonal: 642 Players | 23ms", or just "642 Players | 23ms".
+			sb.append(type == null ? "" : type + ": ");
+		}
+		else
+		{
+			sb.append("World ").append(richText.highlightValue(String.valueOf(world)));
+			if (type != null)
+			{
+				sb.append(" (").append(type).append(')');
+			}
+			sb.append(info ? ": " : "");
 		}
 
 		if (info)
 		{
 			Integer players = worldInfo.players(world);
 			Integer ping = worldInfo.averagePing();
-			sb.append(": ").append(players == null ? "?" : String.valueOf(players))
+			sb.append(players == null ? "?" : String.valueOf(players))
 				.append(" Players | ")
 				.append(ping == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(String.valueOf(ping)) + "ms");
 		}

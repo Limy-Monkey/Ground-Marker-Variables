@@ -30,6 +30,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{time}` / `{time24}`                   | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                                          |
 | `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                   |
 | `{world}` / `{worldInfo}`               | Current world number. Rich Text shows the world type; `{worldInfo}` adds the region flag, player count and ping (rounded up, avg over 10 ticks)                  |
+| `{worldInfo hideWorld}`                 | `{worldInfo}` without the world number, e.g. for streaming                                                                                                       |
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
 | `{dps <template>}`                      | Damage near the tile. Keywords: avgDps, shareDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, numAttacks, numHits, numMisses          |

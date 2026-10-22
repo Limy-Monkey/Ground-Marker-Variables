@@ -129,6 +129,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern WEAPON_VALUE = Pattern.compile("(?i)^attack(?:Style|Type)\\s*,?\\s*weapon\\s*=\\s*(.*)$");
 	private static final String WEAPON_OPTION_NAME = "weapon=";
 
+	// {worldInfo hideWorld}
+	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
+	private static final String HIDE_WORLD = "hideWorld";
+
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
 	private static final List<String> EXTRA_BOSS_NAMES = List.of(
@@ -912,6 +916,17 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		if (!restrictToNumeric && weaponValue.matches())
 		{
 			return completeWeaponName(weaponValue.group(1), partial.substring(0, weaponValue.start(1)));
+		}
+
+		Matcher worldInfoOption = WORLD_INFO_OPTION.matcher(partial);
+		if (!restrictToNumeric && worldInfoOption.matches())
+		{
+			String word = worldInfoOption.group(1);
+			if (word.equalsIgnoreCase(HIDE_WORLD))
+			{
+				return "}";
+			}
+			return HIDE_WORLD.regionMatches(true, 0, word, 0, word.length()) ? HIDE_WORLD.substring(word.length()) : null;
 		}
 
 		Matcher weaponOption = WEAPON_OPTION.matcher(partial);
