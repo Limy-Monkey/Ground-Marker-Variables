@@ -84,13 +84,18 @@ public class DpsTracker
 	{
 		private final int npc;
 		private final String name;
+		// The boss name with its stage, or name if it isn't a boss.
+		private final String bossName;
+		private final boolean boss;
 		private final int amount;
 		private Source source = Source.WEAPON;
 
-		private Hit(NPC npc, int amount)
+		private Hit(NPC npc, @Nullable String bossName, int amount)
 		{
 			this.npc = npc.getIndex();
 			this.name = npc.getName() == null ? "Unknown" : npc.getName();
+			this.bossName = bossName == null ? name : bossName;
+			this.boss = bossName != null;
 			this.amount = amount;
 		}
 	}
@@ -118,8 +123,10 @@ public class DpsTracker
 		private int thrallTicks;
 		// NPC name -> its numbers, for {dps npcReport}.
 		private final Map<String, NpcStats> npcStats = new LinkedHashMap<>();
+		// for {dps bossReport}
+		private final Map<String, NpcStats> bossStats = new LinkedHashMap<>();
 		@Nullable
-		private String lastAttackNpc;
+		private Hit lastAttackHit;
 
 		private boolean isActive(int tick)
 		{
@@ -153,7 +160,8 @@ public class DpsTracker
 
 			for (Hit hit : hits)
 			{
-				npcStats.computeIfAbsent(hit.name, NpcStats::new).add(hit, tick);
+				npcStats.computeIfAbsent(hit.name, name -> new NpcStats(name, false)).add(hit, tick);
+				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss)).add(hit, tick);
 				damageByNpc.computeIfAbsent(hit.npc, k -> new int[2])[0] += hit.amount;
 				damageBySource[hit.source.ordinal()] += hit.amount;
 				myDamage += hit.amount;
@@ -186,11 +194,7 @@ public class DpsTracker
 				if (previous != null && lastAttackTick >= 0 && lastAttackTick == attack.previousTick)
 				{
 					previous[1] += attack.previousCorrection;
-					NpcStats previousNpc = npcStats.get(lastAttackNpc);
-					if (previousNpc != null)
-					{
-						previousNpc.theoryTicks += attack.previousCorrection;
-					}
+					addNpcTicks(lastAttackHit, attack.previousCorrection, 0);
 				}
 				int[] totals = theoryByWeapon.computeIfAbsent(attack.weapon, k -> new int[6]);
 				totals[1] += attack.speed;
@@ -200,25 +204,39 @@ public class DpsTracker
 				lastAttackWeapon = attack.weapon;
 
 				// The attack's NPC is the one its first weapon hit landed on.
-				lastAttackNpc = hits.stream().filter(hit -> hit.source == Source.WEAPON).map(hit -> hit.name).findFirst().orElse(null);
-				NpcStats npc = npcStats.get(lastAttackNpc);
-				if (npc != null)
+				lastAttackHit = hits.stream().filter(hit -> hit.source == Source.WEAPON).findFirst().orElse(null);
+				addNpcTicks(lastAttackHit, attack.speed, attack.speed);
+			}
+		}
+
+		private void addNpcTicks(@Nullable Hit hit, int theoryTicks, int pureTicks)
+		{
+			if (hit == null)
+			{
+				return;
+			}
+
+			for (NpcStats stats : new NpcStats[] {npcStats.get(hit.name), bossStats.get(hit.bossName)})
+			{
+				if (stats != null)
 				{
-					npc.theoryTicks += attack.speed;
-					npc.pureTicks += attack.speed;
+					stats.theoryTicks += theoryTicks;
+					stats.pureTicks += pureTicks;
 				}
 			}
 		}
 
-		private void othersHit(NPC npc, int amount, int tick)
+		private void othersHit(Hit hit, int tick)
 		{
-			if (pausedTick < 0 && damageByNpc.containsKey(npc.getIndex()))
+			if (pausedTick < 0 && damageByNpc.containsKey(hit.npc))
 			{
-				damageByNpc.get(npc.getIndex())[1] += amount;
-				NpcStats stats = npcStats.get(npc.getName());
-				if (stats != null)
+				damageByNpc.get(hit.npc)[1] += hit.amount;
+				for (NpcStats stats : new NpcStats[] {npcStats.get(hit.name), bossStats.get(hit.bossName)})
 				{
-					stats.others += amount;
+					if (stats != null)
+					{
+						stats.others += hit.amount;
+					}
 				}
 				lastDamageTick = tick;
 			}
@@ -255,7 +273,8 @@ public class DpsTracker
 			theoryByWeapon.clear();
 			thrallTicks = 0;
 			npcStats.clear();
-			lastAttackNpc = null;
+			bossStats.clear();
+			lastAttackHit = null;
 		}
 
 		// Damage per second since your first hit, all sources.
@@ -384,10 +403,17 @@ public class DpsTracker
 			return new ArrayList<>(npcStats.values());
 		}
 
-		// Every NPC with one name, e.g. a wave of adds, for {dps npcReport}.
+		public List<NpcStats> bossStats()
+		{
+			return new ArrayList<>(bossStats.values());
+		}
+
+		// Every NPC with one name, e.g. a wave of adds, for {dps npcReport} and {dps bossReport}.
 		public final class NpcStats
 		{
 			private final String name;
+			// A boss stage from BossNames, not just an NPC name.
+			private final boolean boss;
 			private final Set<Integer> indexes = new HashSet<>();
 			// All your sources.
 			private int damage;
@@ -398,9 +424,15 @@ public class DpsTracker
 			private int firstTick = -1;
 			private int lastTick;
 
-			private NpcStats(String name)
+			private NpcStats(String name, boolean boss)
 			{
 				this.name = name;
+				this.boss = boss;
+			}
+
+			public boolean isBoss()
+			{
+				return boss;
 			}
 
 			private void add(Hit hit, int tick)
@@ -558,6 +590,7 @@ public class DpsTracker
 	private final MarkerStorage markerStorage;
 	// A Provider since LabelResolver depends on this, through DpsLabelVariable.
 	private final Provider<LabelResolver> labelResolver;
+	private final BossNames bossNames;
 
 	// The tile whose label is being resolved, set by the plugin's refresh loop. Null elsewhere.
 	@Nullable
@@ -642,7 +675,7 @@ public class DpsTracker
 
 	@Inject
 	private DpsTracker(Client client, EventBus eventBus, WeaponStyleTracker weaponStyleTracker, ItemManager itemManager,
-		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver)
+		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, BossNames bossNames)
 	{
 		this.client = client;
 		this.eventBus = eventBus;
@@ -650,11 +683,13 @@ public class DpsTracker
 		this.itemManager = itemManager;
 		this.markerStorage = markerStorage;
 		this.labelResolver = labelResolver;
+		this.bossNames = bossNames;
 	}
 
 	public void startUp()
 	{
 		eventBus.register(this);
+		bossNames.load();
 	}
 
 	public void shutDown()
@@ -690,10 +725,10 @@ public class DpsTracker
 			return;
 		}
 
-		NPC npc = (NPC) actor;
+		Hit hit = new Hit((NPC) actor, bossNames.name(((NPC) actor).getId()), hitsplat.getAmount());
 		if (hitsplat.isMine())
 		{
-			pendingHits.add(new Hit(npc, hitsplat.getAmount()));
+			pendingHits.add(hit);
 		}
 		else if (hitsplat.isOthers())
 		{
@@ -701,7 +736,7 @@ public class DpsTracker
 			{
 				if (stats.isActive(tick))
 				{
-					stats.othersHit(npc, hitsplat.getAmount(), tick);
+					stats.othersHit(hit, tick);
 				}
 			}
 		}
@@ -828,7 +863,7 @@ public class DpsTracker
 		// After the thrall claim, so the 0 can't be taken for a thrall hit.
 		if (newSplash)
 		{
-			hits.add(new Hit((NPC) target, 0));
+			hits.add(new Hit((NPC) target, bossNames.name(((NPC) target).getId()), 0));
 		}
 		noteSpecAnimations(player, tick);
 

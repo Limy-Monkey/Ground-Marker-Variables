@@ -29,6 +29,7 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_NPC_TEMPLATE = "totalDamage (shareDps | theoryDps)";
 	private static final Pattern NPC_REPORT_WORD = Pattern.compile("(?<![\\w:])npcReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final Pattern BOSS_REPORT_WORD = Pattern.compile("(?<![\\w:])bossReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String PAUSED = " <col=" + NamedColors.HEX_BY_NAME.get("gray") + ">(paused)</col>";
 
 	private final Client client;
@@ -72,13 +73,15 @@ public class DpsLabelVariable implements LabelVariable
 		DpsTracker.Stats stats = tracker.markActive();
 		String template = matcher.group(1) == null ? DEFAULT_TEMPLATE : matcher.group(1).trim();
 		String paused = rich && stats.isPaused() ? PAUSED : "";
+		Matcher bossReport = BOSS_REPORT_WORD.matcher(template);
 		Matcher npcReport = NPC_REPORT_WORD.matcher(template);
-		if (npcReport.find())
+		Matcher npcWord = bossReport.find() ? bossReport : npcReport.find() ? npcReport : null;
+		if (npcWord != null)
 		{
-			String topLine = template.substring(0, npcReport.start()).trim();
-			String npcLine = template.substring(npcReport.end()).trim();
+			String topLine = template.substring(0, npcWord.start()).trim();
+			String npcLine = template.substring(npcWord.end()).trim();
 			return npcReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, npcLine.isEmpty() ? DEFAULT_NPC_TEMPLATE : npcLine,
-				stats, format, paused);
+				npcWord == bossReport ? stats.bossStats() : stats.npcStats(), stats, format, paused);
 		}
 
 		Matcher report = REPORT_WORD.matcher(template);
@@ -120,12 +123,14 @@ public class DpsLabelVariable implements LabelVariable
 	}
 
 	// {dps <top> npcReport <npc>}: the top line, then <npc> for each NPC name you've damaged (by damage).
-	private static String npcReport(String topLine, String npcLine, DpsTracker.Stats stats, Function<String, String> format, String paused)
+	// {dps bossReport} is the same, split by boss stage, with bosses first.
+	private static String npcReport(String topLine, String npcLine, List<DpsTracker.Stats.NpcStats> npcs, DpsTracker.Stats stats,
+		Function<String, String> format, String paused)
 	{
 		StringBuilder report = new StringBuilder("{align=left}DPS: ")
 			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
-		List<DpsTracker.Stats.NpcStats> npcs = stats.npcStats();
-		npcs.sort(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed());
+		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
+			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
 		for (DpsTracker.Stats.NpcStats npc : npcs)
 		{
 			report.append("\\n").append(npc.name()).append(npc.count() > 1 ? " x" + npc.count() : "")

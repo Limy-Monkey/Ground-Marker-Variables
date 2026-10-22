@@ -36,6 +36,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{dps <template>}`                      | Keywords: avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses       |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
 | `{dps npcReport <template>}`            | A dps report with a line per NPC name, e.g. `{dps npcReport totalDamage}`. Defaults to `totalDamage (shareDps \| theoryDps)`                                     |
+| `{dps bossReport <template>}`           | Like npcReport, but split by boss stage, e.g. `Phantom Muspah (Ranged)`. Defaults to `totalDamage (shareDps \| theoryDps)`                                       |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
