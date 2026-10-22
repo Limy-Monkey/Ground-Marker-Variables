@@ -97,19 +97,44 @@ public class DpsLabelVariable implements LabelVariable
 			report.append("\\n").append(weapon < 0 ? "Unarmed" : client.getItemDefinition(weapon).getName())
 				.append(": ").append(renderTemplate(weaponLine, keyword -> weaponValue(keyword, entry.getValue()), format, false));
 		}
-		if (stats.damage(DpsTracker.Source.THRALL) > 0)
-		{
-			report.append("\\nThralls: ").append(format.apply(decimal(stats.thrallTheoryDps())));
-		}
-		if (stats.damage(DpsTracker.Source.RECOIL) > 0)
-		{
-			report.append("\\nRecoil: ").append(format.apply(decimal(stats.dps(DpsTracker.Source.RECOIL))));
-		}
-		if (stats.damage(DpsTracker.Source.VENGEANCE) > 0)
-		{
-			report.append("\\nVengeance: ").append(format.apply(decimal(stats.dps(DpsTracker.Source.VENGEANCE))));
-		}
+		appendSourceLine(report, "Thralls", DpsTracker.Source.THRALL, weaponLine, stats, format);
+		appendSourceLine(report, "Recoil", DpsTracker.Source.RECOIL, weaponLine, stats, format);
+		appendSourceLine(report, "Vengeance", DpsTracker.Source.VENGEANCE, weaponLine, stats, format);
 		return report.append("\\n{/align}").toString();
+	}
+
+	// The per-weapon template for a non-weapon source, once it's done damage.
+	private static void appendSourceLine(StringBuilder report, String name, DpsTracker.Source source, String weaponLine,
+		DpsTracker.Stats stats, Function<String, String> format)
+	{
+		if (stats.damage(source) > 0)
+		{
+			report.append("\\n").append(name).append(": ")
+				.append(renderTemplate(weaponLine, keyword -> sourceValue(keyword, source, stats), format, false));
+		}
+	}
+
+	// theoryDps is the same as avgDps here, except for thralls.
+	private static String sourceValue(Matcher keyword, DpsTracker.Source source, DpsTracker.Stats stats)
+	{
+		if (keyword.group(2) != null)
+		{
+			return "-";
+		}
+
+		switch (keyword.group(1).toLowerCase(Locale.ROOT))
+		{
+			case "theorydps":
+				return decimal(source == DpsTracker.Source.THRALL ? stats.thrallTheoryDps() : stats.dps(source));
+			case "avgdps":
+				return decimal(stats.dps(source));
+			case "sharedps":
+				return percent(stats.total() == 0 ? 0 : stats.damage(source) / (double) stats.total());
+			case "totaldamage":
+				return QuantityFormatter.formatNumber(stats.damage(source));
+			default:
+				return "-";
+		}
 	}
 
 	// value gives each keyword's text, "" to drop it. shareInParens wraps shareDps in "( )".
