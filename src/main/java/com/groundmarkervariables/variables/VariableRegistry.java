@@ -56,6 +56,7 @@ public class VariableRegistry
 		DivineLabelVariable divine,
 		WorldLabelVariable world,
 		HasVileVigourLabelVariable hasVileVigour,
+		HasVengeanceLabelVariable hasVengeance,
 		AutocastLabelVariable autocast,
 		DpsLabelVariable dps)
 	{
@@ -63,7 +64,7 @@ public class VariableRegistry
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, autocast, dps, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
-			party, divine, world, hasVileVigour);
+			party, divine, world, hasVileVigour, hasVengeance);
 	}
 
 	public List<LabelVariable> all()

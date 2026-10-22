@@ -394,6 +394,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {hasFreeze}<br>"
 					+ "- {hasEntangle}<br>"
 					+ "- {hasVileVigour}<br>"
+					+ "- {hasVengeance}<br>"
 					+ "- {autoRetaliate}<br>"
 					+ "- {divine &lt;potion&gt;}<br>"
 					+ "- {hasItem &lt;name&gt;}<br>"

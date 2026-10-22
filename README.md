@@ -64,6 +64,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasFreeze}`                           | true if Ice Barrage is castable (Level not checked)                                                                                                              |
 | `{hasEntangle}`                         | true if Entangle is castable (Level not checked)                                                                                                                 |
 | `{hasVileVigour}`                       | true if Vile Vigour is castable (Level not checked)                                                                                                              |
+| `{hasVengeance}`                        | true if Vengeance is castable (Level and cooldown not checked)                                                                                                   |
 | `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
 | `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
