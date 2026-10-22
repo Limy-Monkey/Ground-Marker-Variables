@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.support;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +37,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.HitsplatApplied;
+import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
@@ -82,6 +84,7 @@ public class DpsTracker
 
 	private static final class Hit
 	{
+		private final NPC actor;
 		private final int npc;
 		private final String name;
 		// The boss name with its stage, or name if it isn't a boss.
@@ -92,11 +95,77 @@ public class DpsTracker
 
 		private Hit(NPC npc, @Nullable String bossName, int amount)
 		{
+			this.actor = npc;
 			this.npc = npc.getIndex();
 			this.name = npc.getName() == null ? "Unknown" : npc.getName();
 			this.bossName = bossName == null ? name : bossName;
 			this.boss = bossName != null;
 			this.amount = amount;
+		}
+	}
+
+	// One NPC from the first attack that hit it until it died or despawned, for npcReport's timeSpent.
+	private static final class NpcLife
+	{
+		private final NPC npc;
+		private final int start;
+		private int end = -1;
+
+		private NpcLife(NPC npc, int start)
+		{
+			this.npc = npc;
+			this.start = start;
+		}
+	}
+
+	// bossReport's timeSpent: a run on one name lasts until the first attack on another, or the NPC it
+	// was attacking dies. Runs on the same name add up.
+	private static final class RunTime
+	{
+		private final Map<String, Integer> closedTicks = new HashMap<>();
+		@Nullable
+		private String name;
+		private int start;
+		private int npc;
+
+		private void attack(String attackName, int attackNpc, int attackStart)
+		{
+			if (!attackName.equals(name))
+			{
+				close(attackStart);
+				name = attackName;
+				start = attackStart;
+			}
+			npc = attackNpc;
+		}
+
+		private void died(int deadNpc, int tick)
+		{
+			if (deadNpc == npc)
+			{
+				close(tick);
+			}
+		}
+
+		private void close(int end)
+		{
+			if (name != null)
+			{
+				closedTicks.merge(name, Math.max(0, end - start), Integer::sum);
+				name = null;
+			}
+		}
+
+		private int ticks(String forName, int end)
+		{
+			int ticks = closedTicks.getOrDefault(forName, 0);
+			return forName.equals(name) ? ticks + Math.max(0, end - start) : ticks;
+		}
+
+		private void clear()
+		{
+			closedTicks.clear();
+			name = null;
 		}
 	}
 
@@ -127,6 +196,13 @@ public class DpsTracker
 		private final Map<String, NpcStats> bossStats = new LinkedHashMap<>();
 		@Nullable
 		private Hit lastAttackHit;
+		// For timeSpent.
+		private int firstAttackTick = -1;
+		private int lastCountedTick;
+		private final Map<Integer, Integer> ticksByWeapon = new HashMap<>();
+		private final Map<String, List<NpcLife>> livesByName = new HashMap<>();
+		private final Map<Integer, NpcLife> lifeByIndex = new HashMap<>();
+		private final RunTime bossTime = new RunTime();
 
 		private boolean isActive(int tick)
 		{
@@ -160,8 +236,12 @@ public class DpsTracker
 
 			for (Hit hit : hits)
 			{
-				npcStats.computeIfAbsent(hit.name, name -> new NpcStats(name, false)).add(hit, tick);
-				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss)).add(hit, tick);
+				npcStats.computeIfAbsent(hit.name, name -> new NpcStats(name, false, false)).add(hit, tick);
+				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss, true)).add(hit, tick);
+				if (hit.source == Source.WEAPON)
+				{
+					startLife(hit, attack != null ? attack.startTick : lastAttackTick);
+				}
 				damageByNpc.computeIfAbsent(hit.npc, k -> new int[2])[0] += hit.amount;
 				damageBySource[hit.source.ordinal()] += hit.amount;
 				myDamage += hit.amount;
@@ -206,7 +286,78 @@ public class DpsTracker
 				// The attack's NPC is the one its first weapon hit landed on.
 				lastAttackHit = hits.stream().filter(hit -> hit.source == Source.WEAPON).findFirst().orElse(null);
 				addNpcTicks(lastAttackHit, attack.speed, attack.speed);
+
+				if (firstAttackTick < 0)
+				{
+					firstAttackTick = attack.startTick;
+					lastCountedTick = attack.startTick;
+				}
+				if (lastAttackHit != null)
+				{
+					bossTime.attack(lastAttackHit.bossName, lastAttackHit.npc, attack.startTick);
+				}
 			}
+		}
+
+		// A new life the first time a weapon hit lands on this NPC (index reuse is a new NPC).
+		private void startLife(Hit hit, int start)
+		{
+			NpcLife life = lifeByIndex.get(hit.npc);
+			if (life == null || life.npc != hit.actor)
+			{
+				life = new NpcLife(hit.actor, Math.max(0, start));
+				lifeByIndex.put(hit.npc, life);
+				livesByName.computeIfAbsent(hit.name, k -> new ArrayList<>()).add(life);
+			}
+		}
+
+		// Each tick after the attacks: the equipped weapon gets the tick, and NPCs that died stop counting.
+		private void countTime(int tick, int weapon)
+		{
+			if (firstAttackTick < 0 || pausedTick >= 0)
+			{
+				return;
+			}
+
+			ticksByWeapon.merge(weapon, tick - lastCountedTick, Integer::sum);
+			lastCountedTick = tick;
+			for (NpcLife life : lifeByIndex.values())
+			{
+				if (life.end < 0 && life.npc.isDead())
+				{
+					npcGone(life.npc, tick);
+				}
+			}
+		}
+
+		private void npcGone(NPC npc, int tick)
+		{
+			NpcLife life = lifeByIndex.get(npc.getIndex());
+			if (life != null && life.npc == npc && life.end < 0 && pausedTick < 0)
+			{
+				life.end = tick;
+				bossTime.died(npc.getIndex(), tick);
+			}
+		}
+
+		// Union of this name's lives, so overlapping ones count once.
+		private int lifeTicks(String name, int end)
+		{
+			List<NpcLife> lives = new ArrayList<>(livesByName.getOrDefault(name, List.of()));
+			lives.sort(Comparator.comparingInt(life -> life.start));
+			int ticks = 0;
+			int coveredTo = Integer.MIN_VALUE;
+			for (NpcLife life : lives)
+			{
+				int lifeEnd = life.end < 0 ? end : Math.min(life.end, end);
+				int from = Math.max(life.start, coveredTo);
+				if (lifeEnd > from)
+				{
+					ticks += lifeEnd - from;
+					coveredTo = lifeEnd;
+				}
+			}
+			return ticks;
 		}
 
 		private void addNpcTicks(@Nullable Hit hit, int theoryTicks, int pureTicks)
@@ -275,6 +426,11 @@ public class DpsTracker
 			npcStats.clear();
 			bossStats.clear();
 			lastAttackHit = null;
+			firstAttackTick = -1;
+			ticksByWeapon.clear();
+			livesByName.clear();
+			lifeByIndex.clear();
+			bossTime.clear();
 		}
 
 		// Damage per second since your first hit, all sources.
@@ -396,6 +552,12 @@ public class DpsTracker
 			{
 				return totals[3];
 			}
+
+			// Ticks wielded since your first attack.
+			public int timeSpentTicks()
+			{
+				return ticksByWeapon.getOrDefault(weapon, 0);
+			}
 		}
 
 		public List<NpcStats> npcStats()
@@ -414,20 +576,30 @@ public class DpsTracker
 			private final String name;
 			// A boss stage from BossNames, not just an NPC name.
 			private final boolean boss;
+			// A bossReport row, so timeSpent counts runs instead of lives.
+			private final boolean byRun;
 			private final Set<Integer> indexes = new HashSet<>();
 			// All your sources.
 			private int damage;
 			private int others;
 			private int weaponDamage;
+			private int weaponHits;
+			private int weaponLanded;
 			private int theoryTicks;
 			private int pureTicks;
 			private int firstTick = -1;
 			private int lastTick;
 
-			private NpcStats(String name, boolean boss)
+			private NpcStats(String name, boolean boss, boolean byRun)
 			{
 				this.name = name;
 				this.boss = boss;
+				this.byRun = byRun;
+			}
+
+			public int timeSpentTicks()
+			{
+				return byRun ? bossTime.ticks(name, endTick()) : lifeTicks(name, endTick());
 			}
 
 			public boolean isBoss()
@@ -439,9 +611,20 @@ public class DpsTracker
 			{
 				indexes.add(hit.npc);
 				damage += hit.amount;
-				weaponDamage += hit.source == Source.WEAPON ? hit.amount : 0;
+				if (hit.source == Source.WEAPON)
+				{
+					weaponDamage += hit.amount;
+					weaponHits++;
+					weaponLanded += hit.amount > 0 ? 1 : 0;
+				}
 				firstTick = firstTick < 0 ? tick : firstTick;
 				lastTick = tick;
+			}
+
+			// Weapon hits on it that did damage, or -1 before any.
+			public double accuracy()
+			{
+				return weaponHits == 0 ? -1 : weaponLanded / (double) weaponHits;
 			}
 
 			public String name()
@@ -576,10 +759,20 @@ public class DpsTracker
 			return group;
 		}
 
+		// From your first attack's start until now, or 0 before it.
+		public int timeSpentTicks()
+		{
+			return firstAttackTick < 0 ? 0 : Math.max(0, endTick() - firstAttackTick);
+		}
+
+		private int endTick()
+		{
+			return pausedTick >= 0 ? pausedTick : client.getTickCount();
+		}
+
 		private int elapsedTicks()
 		{
-			int end = pausedTick >= 0 ? pausedTick : client.getTickCount();
-			return Math.max(1, end - firstHitTick);
+			return Math.max(1, endTick() - firstHitTick);
 		}
 	}
 
@@ -698,6 +891,19 @@ public class DpsTracker
 		statsByTile.clear();
 		pendingHits.clear();
 		pendingTaken.clear();
+	}
+
+	@Subscribe
+	public void onNpcDespawned(NpcDespawned event)
+	{
+		int tick = client.getTickCount();
+		for (Stats stats : statsByTile.values())
+		{
+			if (stats.isActive(tick))
+			{
+				stats.npcGone(event.getNpc(), tick);
+			}
+		}
 	}
 
 	@Subscribe
@@ -841,6 +1047,7 @@ public class DpsTracker
 			if (stats.isActive(tick))
 			{
 				stats.apply(hits, taken, tick, attack);
+				stats.countTime(tick, equippedWeaponId());
 			}
 		}
 	}

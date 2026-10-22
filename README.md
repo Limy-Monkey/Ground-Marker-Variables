@@ -33,10 +33,10 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{worldInfo hideWorld}`                 | `{worldInfo}` without the world number, e.g. for streaming                                                                                                       |
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
-| `{dps <template>}`                      | Keywords: avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses       |
+| `{dps <template>}`                      | avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses, timeSpent      |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
 | `{dps npcReport <template>}`            | A dps report with a line per NPC name, e.g. `{dps npcReport totalDamage}`. Defaults to `totalDamage (shareDps \| theoryDps)`                                     |
-| `{dps bossReport <template>}`           | Like npcReport, but split by boss stage, e.g. `Phantom Muspah (Ranged)`. Defaults to `totalDamage (shareDps \| theoryDps)`                                       |
+| `{dps bossReport <template>}`           | Like npcReport, but split by boss stage, e.g. `Phantom Muspah (Ranged)`. Defaults to `timeSpent (theoryDps \| acc)`                                              |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
@@ -153,11 +153,16 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 | `<N>s`                                 | Damage per second over the last N seconds, e.g. `10s`                                     | Yes              |
 | `thrallDps` / `recoilDps`              | Damage per second from your thrall / ring of recoil                                       | No               |
 | `numAttacks` / `numHits` / `numMisses` | Number of attacks you did / number of hitsplats above zero / number of zeros and splashes | Yes              |
+| `timeSpent`                            | Time since your first attack, as m:ss. In reports: per weapon, NPC or boss stage (below)  | Yes              |
 
 - `{dps}` is equal to `{dps avgDps shareDps}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
   - `{dps report}` is equal to `{dps avgDps shareDps report theoryDps (splitDps | acc)}`.
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
+- **`timeSpent` in reports**:
+  - `report`: time the weapon was wielded since your first attack.
+  - `npcReport`: from the first attack on each NPC until it died. NPCs with the same name add up, without counting overlapping time twice.
+  - `bossReport`: from the first attack on a boss stage until you attack a different stage or NPC, or it dies. Returning to a stage adds to its time.
 - **Per-NPC report**: `{dps <top line> npcReport <per NPC>}` adds a line per NPC name you've damaged, sorted by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
   - `{dps npcReport}` is equal to `{dps avgDps shareDps npcReport totalDamage (shareDps | theoryDps)}`.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.

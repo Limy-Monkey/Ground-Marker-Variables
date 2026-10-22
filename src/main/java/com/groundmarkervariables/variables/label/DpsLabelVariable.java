@@ -23,11 +23,12 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
-		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
+		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|timeSpent|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (splitDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_NPC_TEMPLATE = "totalDamage (shareDps | theoryDps)";
+	private static final String DEFAULT_BOSS_TEMPLATE = "timeSpent (theoryDps | acc)";
 	private static final Pattern NPC_REPORT_WORD = Pattern.compile("(?<![\\w:])npcReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final Pattern BOSS_REPORT_WORD = Pattern.compile("(?<![\\w:])bossReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String PAUSED = " <col=" + NamedColors.HEX_BY_NAME.get("gray") + ">(paused)</col>";
@@ -80,8 +81,10 @@ public class DpsLabelVariable implements LabelVariable
 		{
 			String topLine = template.substring(0, npcWord.start()).trim();
 			String npcLine = template.substring(npcWord.end()).trim();
-			return npcReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, npcLine.isEmpty() ? DEFAULT_NPC_TEMPLATE : npcLine,
-				npcWord == bossReport ? stats.bossStats() : stats.npcStats(), stats, format, paused);
+			boolean boss = npcWord == bossReport;
+			String defaultLine = boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_NPC_TEMPLATE;
+			return npcReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, npcLine.isEmpty() ? defaultLine : npcLine,
+				boss ? stats.bossStats() : stats.npcStats(), stats, format, paused);
 		}
 
 		Matcher report = REPORT_WORD.matcher(template);
@@ -161,6 +164,10 @@ public class DpsLabelVariable implements LabelVariable
 				return npc.theoryDps() < 0 ? "-" : decimal(npc.theoryDps());
 			case "puretheorydps":
 				return npc.pureTheoryDps() < 0 ? "-" : decimal(npc.pureTheoryDps());
+			case "timespent":
+				return duration(npc.timeSpentTicks());
+			case "acc":
+				return npc.accuracy() < 0 ? "-" : percent(npc.accuracy());
 			default:
 				return "-";
 		}
@@ -262,6 +269,8 @@ public class DpsLabelVariable implements LabelVariable
 				return String.valueOf(stats.numMisses());
 			case "numhits":
 				return String.valueOf(stats.numHits());
+			case "timespent":
+				return duration(stats.timeSpentTicks());
 			default:
 				return decimal(stats.dps());
 		}
@@ -295,6 +304,8 @@ public class DpsLabelVariable implements LabelVariable
 				return String.valueOf(weapon.numMisses());
 			case "numhits":
 				return String.valueOf(weapon.numHits());
+			case "timespent":
+				return duration(weapon.timeSpentTicks());
 			case "avgdps":
 				return decimal(weapon.avgDps());
 			default:
@@ -305,6 +316,15 @@ public class DpsLabelVariable implements LabelVariable
 	private static String decimal(double value)
 	{
 		return String.format(Locale.ROOT, "%.2f", value);
+	}
+
+	// m:ss, or h:mm:ss from an hour.
+	private static String duration(int ticks)
+	{
+		long seconds = Math.round(ticks * 0.6);
+		return seconds >= 3600
+			? String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+			: String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
 	}
 
 	private static String percent(double fraction)
