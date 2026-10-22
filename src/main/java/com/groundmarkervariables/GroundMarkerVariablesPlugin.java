@@ -981,18 +981,29 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			return;
 		}
 
+		// Resolved here rather than in rebuildRegion(), since only now is each marker's real
+		// (instance) tile known, which {dps} keeps its stats by.
 		List<TranslatedMarker> translated = new ArrayList<>();
-		for (int regionId : regions)
+		try
 		{
-			for (CachedMarker marker : getMarkers(regionId))
+			for (int regionId : regions)
 			{
-				GroundMarkerPointData point = marker.source;
-				WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-				for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
+				for (CachedMarker marker : getMarkers(regionId))
 				{
-					translated.add(new TranslatedMarker(worldPoint, marker));
+					GroundMarkerPointData point = marker.source;
+					WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+					for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
+					{
+						dpsTracker.resolvingTile = worldPoint;
+						marker.refresh(labelResolver, metaVariableResolver);
+						translated.add(new TranslatedMarker(worldPoint, marker));
+					}
 				}
 			}
+		}
+		finally
+		{
+			dpsTracker.resolvingTile = null;
 		}
 
 		markersByWorldView.put(wv, translated);
@@ -1028,7 +1039,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private void rebuildRegion(int regionId)
 	{
 		List<CachedMarker> markers = markerStorage.getStoredPoints(regionId).stream()
-			.map(point -> new CachedMarker(point, labelResolver, metaVariableResolver))
+			.map(CachedMarker::new)
 			.collect(Collectors.toList());
 		markersByRegion.put(regionId, markers);
 	}

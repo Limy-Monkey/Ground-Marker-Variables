@@ -14,8 +14,14 @@ public class CachedMarker
 
 	public CachedMarker(GroundMarkerPointData source, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
 	{
-		this.source = source;
+		this(source);
 		refresh(labelResolver, metaVariableResolver);
+	}
+
+	// Unresolved until refresh(), e.g. once its tile is known.
+	public CachedMarker(GroundMarkerPointData source)
+	{
+		this.source = source;
 	}
 
 	// Meta variables strip from the resolved text, not the raw label, so one written inside a
