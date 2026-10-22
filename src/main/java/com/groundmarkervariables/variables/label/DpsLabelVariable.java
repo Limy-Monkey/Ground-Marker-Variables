@@ -23,7 +23,7 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
-		"(?<![\\w:])(avgDps|shareDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
+		"(?<![\\w:])(avgDps|shareDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (shareDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
@@ -125,6 +125,7 @@ public class DpsLabelVariable implements LabelVariable
 		switch (keyword.group(1).toLowerCase(Locale.ROOT))
 		{
 			case "theorydps":
+			case "puretheorydps":
 				return decimal(source == DpsTracker.Source.THRALL ? stats.thrallTheoryDps() : stats.dps(source));
 			case "avgdps":
 				return decimal(stats.dps(source));
@@ -181,6 +182,8 @@ public class DpsLabelVariable implements LabelVariable
 				return decimal(stats.dps(DpsTracker.Source.RECOIL));
 			case "theorydps":
 				return decimal(stats.theoryDps());
+			case "puretheorydps":
+				return decimal(stats.pureTheoryDps());
 			case "numattacks":
 				return String.valueOf(stats.numAttacks());
 			case "nummisses":
@@ -210,6 +213,8 @@ public class DpsLabelVariable implements LabelVariable
 				return weapon.accuracy() < 0 ? "-" : percent(weapon.accuracy());
 			case "theorydps":
 				return decimal(weapon.theoryDps());
+			case "puretheorydps":
+				return decimal(weapon.pureTheoryDps());
 			case "numattacks":
 				return String.valueOf(weapon.numAttacks());
 			case "nummisses":

@@ -106,8 +106,8 @@ public class DpsTracker
 		private int takenDamage;
 		private int lastAttackTick = -1;
 		private int lastAttackWeapon = NO_WEAPON;
-		// Weapon item id (-1 unarmed) -> {damage, theory ticks, hits, hits that did damage, attacks}, in the
-		// order first used.
+		// Weapon item id (-1 unarmed) -> {damage, theory ticks, hits, hits that did damage, attacks,
+		// theory ticks without early-attack corrections}, in the order first used.
 		private final Map<Integer, int[]> theoryByWeapon = new LinkedHashMap<>();
 		private int thrallTicks;
 
@@ -151,7 +151,7 @@ public class DpsTracker
 				{
 					if (weapon != NO_WEAPON)
 					{
-						int[] totals = theoryByWeapon.computeIfAbsent(weapon, k -> new int[5]);
+						int[] totals = theoryByWeapon.computeIfAbsent(weapon, k -> new int[6]);
 						totals[0] += hit.amount;
 						totals[2]++;
 						totals[3] += hit.amount > 0 ? 1 : 0;
@@ -176,9 +176,10 @@ public class DpsTracker
 				{
 					previous[1] += attack.previousCorrection;
 				}
-				int[] totals = theoryByWeapon.computeIfAbsent(attack.weapon, k -> new int[5]);
+				int[] totals = theoryByWeapon.computeIfAbsent(attack.weapon, k -> new int[6]);
 				totals[1] += attack.speed;
 				totals[4]++;
+				totals[5] += attack.speed;
 				lastAttackTick = attack.startTick;
 				lastAttackWeapon = attack.weapon;
 			}
@@ -293,6 +294,12 @@ public class DpsTracker
 				return totals[1] == 0 ? 0 : totals[0] / (totals[1] * SECONDS_PER_TICK);
 			}
 
+			// theoryDps without attacks sped up by things we don't model, e.g. boss mechanics.
+			public double pureTheoryDps()
+			{
+				return totals[5] == 0 ? 0 : totals[0] / (totals[5] * SECONDS_PER_TICK);
+			}
+
 			public double avgDps()
 			{
 				return firstHitTick < 0 ? 0 : totals[0] / (elapsedTicks() * SECONDS_PER_TICK);
@@ -353,6 +360,12 @@ public class DpsTracker
 		public double theoryDps()
 		{
 			int ticks = weaponTotal(1);
+			return ticks == 0 ? 0 : weaponTotal(0) / (ticks * SECONDS_PER_TICK);
+		}
+
+		public double pureTheoryDps()
+		{
+			int ticks = weaponTotal(5);
 			return ticks == 0 ? 0 : weaponTotal(0) / (ticks * SECONDS_PER_TICK);
 		}
 

@@ -33,7 +33,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{worldInfo hideWorld}`                 | `{worldInfo}` without the world number, e.g. for streaming                                                                                                       |
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
-| `{dps <template>}`                      | Damage near the tile. Keywords: avgDps, shareDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, numAttacks, numHits, numMisses          |
+| `{dps <template>}`                      | Your damage. Keywords: avgDps, shareDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses    |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (shareDps \| acc)`                                                  |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
@@ -137,17 +137,18 @@ Rich Text shows `Party (N)` and a row per party member, using the template with 
 Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
 - Keywords, replaced in the template like `{party}`:
 
-| Keyword | Value |
-|---|---|
-| `avgDps` | Damage per second since your first hit, all sources |
-| `shareDps` | Your % of the group's damage on your targets, e.g. `(61%)`. Hidden when it's 100% |
-| `totalDamage` | Your total damage |
-| `takenDamage` | Damage you've taken |
-| `acc` | Weapon accuracy (0s and splashes count as misses) |
-| `<N>s` | Damage per second over the last N seconds, e.g. `10s` |
-| `theoryDps` | Weapon damage per second if you never lost an attack tick to eating or moving |
-| `thrallDps` / `recoilDps` | Damage per second from your thrall / ring of recoil |
-| `numAttacks` / `numHits` / `numMisses` | Weapon attacks (claws count once), hits that did damage, and 0s/splashes |
+| Keyword                                | Value                                                                                         |
+|----------------------------------------|-----------------------------------------------------------------------------------------------|
+| `avgDps`                               | Damage per second since your first hit, all sources                                           |
+| `shareDps`                             | Your % of the group's damage on your targets, e.g. `(61%)`. Hidden when it's 100%             |
+| `totalDamage`                          | Your total damage                                                                             |
+| `takenDamage`                          | Damage you've taken                                                                           |
+| `acc`                                  | Weapon accuracy (0s and splashes count as misses)                                             |
+| `<N>s`                                 | Damage per second over the last N seconds, e.g. `10s`                                         |
+| `theoryDps`                            | Weapon damage per second if you never lost an attack tick to eating or moving                 |
+| `pureTheoryDps`                        | `theoryDps` at your weapon's normal speed, ignoring boss mechanics that speed up your attacks |
+| `thrallDps` / `recoilDps`              | Damage per second from your thrall / ring of recoil                                           |
+| `numAttacks` / `numHits` / `numMisses` | Weapon attacks (claws count once), hits that did damage, and 0s/splashes                      |
 
 - `{dps}` is `{dps avgDps shareDps}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by share, then thrall, recoil and vengeance lines.
