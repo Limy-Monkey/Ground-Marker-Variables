@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +34,7 @@ import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.InventoryID;
@@ -614,6 +616,30 @@ public class DpsTracker
 	private int kerisSpecTick = -100;
 	private int ayakSpecTick = -100;
 
+	// What you held on one recent tick, for misses (no XP) that land after a weapon switch.
+	private static final class WeaponTick
+	{
+		private final int tick;
+		private final int weapon;
+		private final WeaponAttackType type;
+		private final int speed;
+		// You started an animation this tick.
+		private final boolean animated;
+
+		private WeaponTick(int tick, int weapon, WeaponAttackType type, int speed, boolean animated)
+		{
+			this.tick = tick;
+			this.weapon = weapon;
+			this.type = type;
+			this.speed = speed;
+			this.animated = animated;
+		}
+	}
+
+	// Oldest first.
+	private final Deque<WeaponTick> weaponHistory = new ArrayDeque<>();
+	private int lastAnimationTick = -1;
+
 	@Inject
 	private DpsTracker(Client client, EventBus eventBus, WeaponStyleTracker weaponStyleTracker, ItemManager itemManager,
 		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver)
@@ -678,6 +704,18 @@ public class DpsTracker
 					stats.othersHit(npc, hitsplat.getAmount(), tick);
 				}
 			}
+		}
+	}
+
+	// Eating and drinking potions share these.
+	@Subscribe
+	public void onAnimationChanged(AnimationChanged event)
+	{
+		Actor actor = event.getActor();
+		int animation = actor.getAnimation();
+		if (actor == client.getLocalPlayer() && animation != -1 && animation != AnimationID.HUMAN_EAT && animation != AnimationID.HUMAN_EAT_WITHSOUND)
+		{
+			lastAnimationTick = client.getTickCount();
 		}
 	}
 
@@ -780,6 +818,8 @@ public class DpsTracker
 		Player player = client.getLocalPlayer();
 		Actor target = player == null ? null : player.getInteracting();
 		WeaponAttackType type = weaponStyleTracker.current().type;
+		weaponHistory.addLast(new WeaponTick(tick, equippedWeaponId(), type, baseSpeed(type), lastAnimationTick == tick));
+		weaponHistory.removeIf(entry -> tick - entry.tick > MAX_HIT_DELAY_TICKS);
 
 		boolean newSplash = detectSplash(target, type);
 		claimVengeanceAndRecoil(hits, taken);
@@ -883,10 +923,30 @@ public class DpsTracker
 	private Attack landAttack(int tick, Player player, @Nullable Actor target, WeaponAttackType type, int weaponDamage)
 	{
 		PendingAttack pending = pendingAttacks.peekFirst();
-		// A miss gives no XP, so its weapon and speed are whatever's equipped as it lands.
-		int weapon = pending != null ? pending.weapon : equippedWeaponId();
-		int speed = landingSpeed(pending != null ? pending.speed : baseSpeed(type), weapon, target, tick, weaponDamage);
-		int start = pending != null ? pending.tick : tick - hitDelay(player, target, type);
+		WeaponTick fired = pending == null ? firedWeapon(tick, player, target) : null;
+		int weapon;
+		int baseSpeed;
+		int start;
+		if (pending != null)
+		{
+			weapon = pending.weapon;
+			baseSpeed = pending.speed;
+			start = pending.tick;
+		}
+		else if (fired != null)
+		{
+			weapon = fired.weapon;
+			baseSpeed = fired.speed;
+			start = fired.tick;
+		}
+		else
+		{
+			// Nothing matched: assume what's equipped as it lands.
+			weapon = equippedWeaponId();
+			baseSpeed = baseSpeed(type);
+			start = tick - hitDelay(player, target, type);
+		}
+		int speed = landingSpeed(baseSpeed, weapon, target, tick, weaponDamage);
 		int previousTick = lastAttackTick;
 		int correction = 0;
 		boolean early = previousTick >= 0 && start - previousTick < Math.max(2, lastAttackSpeed - 1);
@@ -906,6 +966,27 @@ public class DpsTracker
 		lastAttackTick = start;
 		lastAttackSpeed = speed;
 		return new Attack(speed, start, weapon, previousTick, correction);
+	}
+
+	// A miss gives no XP, so find the recent tick that fired it: you animated then, and that tick's
+	// weapon's hit delay lands now. Projectiles can be a tick off if either of you moved.
+	@Nullable
+	private WeaponTick firedWeapon(int tick, Player player, @Nullable Actor target)
+	{
+		for (int slack = 0; slack <= 1; slack++)
+		{
+			Iterator<WeaponTick> newestFirst = weaponHistory.descendingIterator();
+			while (newestFirst.hasNext())
+			{
+				WeaponTick entry = newestFirst.next();
+				int delay = hitDelay(player, target, entry.type);
+				if (entry.animated && (slack == 0 || delay > 0) && Math.abs(entry.tick + delay - tick) <= slack)
+				{
+					return entry;
+				}
+			}
+		}
+		return null;
 	}
 
 	// -1 when unarmed.
