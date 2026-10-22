@@ -23,10 +23,12 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
-		"(?<![\\w:])(avgDps|shareDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
+		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
-	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (shareDps | acc)";
+	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (splitDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final String DEFAULT_NPC_TEMPLATE = "totalDamage (shareDps | theoryDps)";
+	private static final Pattern NPC_REPORT_WORD = Pattern.compile("(?<![\\w:])npcReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String PAUSED = " <col=" + NamedColors.HEX_BY_NAME.get("gray") + ">(paused)</col>";
 
 	private final Client client;
@@ -70,6 +72,15 @@ public class DpsLabelVariable implements LabelVariable
 		DpsTracker.Stats stats = tracker.markActive();
 		String template = matcher.group(1) == null ? DEFAULT_TEMPLATE : matcher.group(1).trim();
 		String paused = rich && stats.isPaused() ? PAUSED : "";
+		Matcher npcReport = NPC_REPORT_WORD.matcher(template);
+		if (npcReport.find())
+		{
+			String topLine = template.substring(0, npcReport.start()).trim();
+			String npcLine = template.substring(npcReport.end()).trim();
+			return npcReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, npcLine.isEmpty() ? DEFAULT_NPC_TEMPLATE : npcLine,
+				stats, format, paused);
+		}
+
 		Matcher report = REPORT_WORD.matcher(template);
 		if (!report.find())
 		{
@@ -83,24 +94,76 @@ public class DpsLabelVariable implements LabelVariable
 			stats, format, paused);
 	}
 
-	// {dps <top> report <weapon>}: the top line, then <weapon> for each weapon used (by share), then
+	// {dps <top> report <weapon>}: the top line, then <weapon> for each weapon used (by split), then
 	// thralls, recoil and vengeance once they've done damage.
 	private String report(String topLine, String weaponLine, DpsTracker.Stats stats, Function<String, String> format, String paused)
 	{
 		StringBuilder report = new StringBuilder("{align=left}DPS: ")
 			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
 		List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = new ArrayList<>(stats.weaponStats().entrySet());
-		weapons.sort(Comparator.comparingDouble((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().share()).reversed());
+		weapons.sort(Comparator.comparingDouble((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().split()).reversed());
 		for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : weapons)
 		{
-			int weapon = entry.getKey();
-			report.append("\\n").append(weapon < 0 ? "Unarmed" : client.getItemDefinition(weapon).getName())
+			report.append("\\n").append(weaponName(entry.getKey()))
 				.append(": ").append(renderTemplate(weaponLine, keyword -> weaponValue(keyword, entry.getValue()), format, false));
+		}
+		// Nothing yet: the current weapon with every value "-".
+		if (weapons.isEmpty())
+		{
+			report.append("\\n").append(weaponName(tracker.equippedWeaponId()))
+				.append(": ").append(renderTemplate(weaponLine, keyword -> "-", format, false));
 		}
 		appendSourceLine(report, "Thralls", DpsTracker.Source.THRALL, weaponLine, stats, format);
 		appendSourceLine(report, "Recoil", DpsTracker.Source.RECOIL, weaponLine, stats, format);
 		appendSourceLine(report, "Vengeance", DpsTracker.Source.VENGEANCE, weaponLine, stats, format);
 		return report.append("\\n{/align}").toString();
+	}
+
+	// {dps <top> npcReport <npc>}: the top line, then <npc> for each NPC name you've damaged (by damage).
+	private static String npcReport(String topLine, String npcLine, DpsTracker.Stats stats, Function<String, String> format, String paused)
+	{
+		StringBuilder report = new StringBuilder("{align=left}DPS: ")
+			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
+		List<DpsTracker.Stats.NpcStats> npcs = stats.npcStats();
+		npcs.sort(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed());
+		for (DpsTracker.Stats.NpcStats npc : npcs)
+		{
+			report.append("\\n").append(npc.name()).append(npc.count() > 1 ? " x" + npc.count() : "")
+				.append(": ").append(renderTemplate(npcLine, keyword -> npcValue(keyword, npc), format, false));
+		}
+		return report.append("\\n{/align}").toString();
+	}
+
+	// One NPC name's values.
+	private static String npcValue(Matcher keyword, DpsTracker.Stats.NpcStats npc)
+	{
+		if (keyword.group(2) != null)
+		{
+			return "-";
+		}
+
+		switch (keyword.group(1).toLowerCase(Locale.ROOT))
+		{
+			case "sharedps":
+				return percent(npc.share());
+			case "splitdps":
+				return percent(npc.split());
+			case "totaldamage":
+				return QuantityFormatter.formatNumber(npc.damage());
+			case "avgdps":
+				return decimal(npc.avgDps());
+			case "theorydps":
+				return npc.theoryDps() < 0 ? "-" : decimal(npc.theoryDps());
+			case "puretheorydps":
+				return npc.pureTheoryDps() < 0 ? "-" : decimal(npc.pureTheoryDps());
+			default:
+				return "-";
+		}
+	}
+
+	private String weaponName(int weapon)
+	{
+		return weapon < 0 ? "Unarmed" : client.getItemDefinition(weapon).getName();
 	}
 
 	// The per-weapon template for a non-weapon source, once it's done damage.
@@ -130,6 +193,8 @@ public class DpsLabelVariable implements LabelVariable
 			case "avgdps":
 				return decimal(stats.dps(source));
 			case "sharedps":
+				return percent(stats.groupTotal() == 0 ? 0 : stats.damage(source) / (double) stats.groupTotal());
+			case "splitdps":
 				return percent(stats.total() == 0 ? 0 : stats.damage(source) / (double) stats.total());
 			case "totaldamage":
 				return QuantityFormatter.formatNumber(stats.damage(source));
@@ -169,6 +234,8 @@ public class DpsLabelVariable implements LabelVariable
 			case "sharedps":
 				double share = stats.share();
 				return share < 0 || Math.round(share * 100) == 100 ? "" : percent(share);
+			case "splitdps":
+				return "-";
 			case "totaldamage":
 				return QuantityFormatter.formatNumber(stats.total());
 			case "takendamage":
@@ -207,6 +274,8 @@ public class DpsLabelVariable implements LabelVariable
 		{
 			case "sharedps":
 				return percent(weapon.share());
+			case "splitdps":
+				return percent(weapon.split());
 			case "totaldamage":
 				return QuantityFormatter.formatNumber(weapon.damage());
 			case "acc":

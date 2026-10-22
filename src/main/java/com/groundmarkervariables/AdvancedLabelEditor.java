@@ -116,7 +116,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// {dps <template>} -- same keyword completion as {party}. <N>s isn't completed.
 	private static final String DPS_PREFIX = "dps ";
 	private static final List<String> DPS_KEYWORDS = List.of(
-		"avgDps", "report", "theoryDps", "pureTheoryDps", "shareDps", "totalDamage", "takenDamage", "acc",
+		"avgDps", "report", "npcReport", "theoryDps", "pureTheoryDps", "shareDps", "splitDps", "totalDamage", "takenDamage", "acc",
 		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses");
 
 	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.

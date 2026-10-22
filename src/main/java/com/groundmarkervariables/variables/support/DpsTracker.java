@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -79,12 +81,14 @@ public class DpsTracker
 	private static final class Hit
 	{
 		private final int npc;
+		private final String name;
 		private final int amount;
 		private Source source = Source.WEAPON;
 
-		private Hit(int npc, int amount)
+		private Hit(NPC npc, int amount)
 		{
-			this.npc = npc;
+			this.npc = npc.getIndex();
+			this.name = npc.getName() == null ? "Unknown" : npc.getName();
 			this.amount = amount;
 		}
 	}
@@ -110,6 +114,10 @@ public class DpsTracker
 		// theory ticks without early-attack corrections}, in the order first used.
 		private final Map<Integer, int[]> theoryByWeapon = new LinkedHashMap<>();
 		private int thrallTicks;
+		// NPC name -> its numbers, for {dps npcReport}.
+		private final Map<String, NpcStats> npcStats = new LinkedHashMap<>();
+		@Nullable
+		private String lastAttackNpc;
 
 		private boolean isActive(int tick)
 		{
@@ -143,6 +151,7 @@ public class DpsTracker
 
 			for (Hit hit : hits)
 			{
+				npcStats.computeIfAbsent(hit.name, NpcStats::new).add(hit, tick);
 				damageByNpc.computeIfAbsent(hit.npc, k -> new int[2])[0] += hit.amount;
 				damageBySource[hit.source.ordinal()] += hit.amount;
 				myDamage += hit.amount;
@@ -175,6 +184,11 @@ public class DpsTracker
 				if (previous != null && lastAttackTick >= 0 && lastAttackTick == attack.previousTick)
 				{
 					previous[1] += attack.previousCorrection;
+					NpcStats previousNpc = npcStats.get(lastAttackNpc);
+					if (previousNpc != null)
+					{
+						previousNpc.theoryTicks += attack.previousCorrection;
+					}
 				}
 				int[] totals = theoryByWeapon.computeIfAbsent(attack.weapon, k -> new int[6]);
 				totals[1] += attack.speed;
@@ -182,14 +196,28 @@ public class DpsTracker
 				totals[5] += attack.speed;
 				lastAttackTick = attack.startTick;
 				lastAttackWeapon = attack.weapon;
+
+				// The attack's NPC is the one its first weapon hit landed on.
+				lastAttackNpc = hits.stream().filter(hit -> hit.source == Source.WEAPON).map(hit -> hit.name).findFirst().orElse(null);
+				NpcStats npc = npcStats.get(lastAttackNpc);
+				if (npc != null)
+				{
+					npc.theoryTicks += attack.speed;
+					npc.pureTicks += attack.speed;
+				}
 			}
 		}
 
-		private void othersHit(int npc, int amount, int tick)
+		private void othersHit(NPC npc, int amount, int tick)
 		{
-			if (pausedTick < 0 && damageByNpc.containsKey(npc))
+			if (pausedTick < 0 && damageByNpc.containsKey(npc.getIndex()))
 			{
-				damageByNpc.get(npc)[1] += amount;
+				damageByNpc.get(npc.getIndex())[1] += amount;
+				NpcStats stats = npcStats.get(npc.getName());
+				if (stats != null)
+				{
+					stats.others += amount;
+				}
 				lastDamageTick = tick;
 			}
 		}
@@ -224,6 +252,8 @@ public class DpsTracker
 			lastAttackWeapon = NO_WEAPON;
 			theoryByWeapon.clear();
 			thrallTicks = 0;
+			npcStats.clear();
+			lastAttackNpc = null;
 		}
 
 		// Damage per second since your first hit, all sources.
@@ -310,8 +340,15 @@ public class DpsTracker
 				return Stats.this.recentDps(seconds, weapon);
 			}
 
-			// Of all your damage, including thralls etc.
+			// Of everyone's damage on your targets.
 			public double share()
+			{
+				long group = groupTotal();
+				return group == 0 ? 0 : totals[0] / (double) group;
+			}
+
+			// Of all your damage, including thralls etc.
+			public double split()
 			{
 				return myDamage == 0 ? 0 : totals[0] / (double) myDamage;
 			}
@@ -337,6 +374,84 @@ public class DpsTracker
 			public int numHits()
 			{
 				return totals[3];
+			}
+		}
+
+		public List<NpcStats> npcStats()
+		{
+			return new ArrayList<>(npcStats.values());
+		}
+
+		// Every NPC with one name, e.g. a wave of adds, for {dps npcReport}.
+		public final class NpcStats
+		{
+			private final String name;
+			private final Set<Integer> indexes = new HashSet<>();
+			// All your sources.
+			private int damage;
+			private int others;
+			private int weaponDamage;
+			private int theoryTicks;
+			private int pureTicks;
+			private int firstTick = -1;
+			private int lastTick;
+
+			private NpcStats(String name)
+			{
+				this.name = name;
+			}
+
+			private void add(Hit hit, int tick)
+			{
+				indexes.add(hit.npc);
+				damage += hit.amount;
+				weaponDamage += hit.source == Source.WEAPON ? hit.amount : 0;
+				firstTick = firstTick < 0 ? tick : firstTick;
+				lastTick = tick;
+			}
+
+			public String name()
+			{
+				return name;
+			}
+
+			public int count()
+			{
+				return indexes.size();
+			}
+
+			public int damage()
+			{
+				return damage;
+			}
+
+			// Your % of everyone's damage on it.
+			public double share()
+			{
+				return damage + others == 0 ? 1 : damage / (double) (damage + others);
+			}
+
+			// Its part of all your damage.
+			public double split()
+			{
+				return myDamage == 0 ? 0 : damage / (double) myDamage;
+			}
+
+			// From your first hit on it to your last.
+			public double avgDps()
+			{
+				return damage / (Math.max(1, lastTick - firstTick) * SECONDS_PER_TICK);
+			}
+
+			// -1 before a weapon attack on it.
+			public double theoryDps()
+			{
+				return theoryTicks <= 0 ? -1 : weaponDamage / (theoryTicks * SECONDS_PER_TICK);
+			}
+
+			public double pureTheoryDps()
+			{
+				return pureTicks <= 0 ? -1 : weaponDamage / (pureTicks * SECONDS_PER_TICK);
 			}
 		}
 
@@ -412,12 +527,19 @@ public class DpsTracker
 		// Your share of all damage dealt to the NPCs you hit, or -1 if nobody else hit them.
 		public double share()
 		{
-			long others = 0;
+			long group = groupTotal();
+			return group == myDamage ? -1 : myDamage / (double) group;
+		}
+
+		// Your damage plus everyone else's on the NPCs you hit.
+		public long groupTotal()
+		{
+			long group = myDamage;
 			for (int[] damage : damageByNpc.values())
 			{
-				others += damage[1];
+				group += damage[1];
 			}
-			return others == 0 ? -1 : myDamage / (double) (myDamage + others);
+			return group;
 		}
 
 		private int elapsedTicks()
@@ -542,7 +664,7 @@ public class DpsTracker
 			return;
 		}
 
-		int npc = ((NPC) actor).getIndex();
+		NPC npc = (NPC) actor;
 		if (hitsplat.isMine())
 		{
 			pendingHits.add(new Hit(npc, hitsplat.getAmount()));
@@ -666,7 +788,7 @@ public class DpsTracker
 		// After the thrall claim, so the 0 can't be taken for a thrall hit.
 		if (newSplash)
 		{
-			hits.add(new Hit(((NPC) target).getIndex(), 0));
+			hits.add(new Hit((NPC) target, 0));
 		}
 		noteSpecAnimations(player, tick);
 
@@ -787,7 +909,7 @@ public class DpsTracker
 	}
 
 	// -1 when unarmed.
-	private int equippedWeaponId()
+	public int equippedWeaponId()
 	{
 		ItemContainer worn = client.getItemContainer(InventoryID.WORN);
 		Item weapon = worn == null ? null : worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
