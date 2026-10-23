@@ -154,16 +154,16 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 | `numAttacks` / `numHits` / `numMisses` | Number of attacks you did / number of hitsplats above zero / number of zeros and splashes | Yes              |
 | `timeSpent`                            | Time since your first attack, as m:ss. In reports: per weapon, NPC or boss stage (below)  | Yes              |
 
-- `{dps}` is equal to `{dps avgDps shareDps}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
+- `{dps}` is equal to `{dps avgDps (acc)}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
-  - `{dps report}` is equal to `{dps avgDps shareDps report theoryDps (splitDps | acc)}`.
+  - `{dps report}` is equal to `{dps theoryDps (shareDps | acc) report theoryDps (splitDps | acc)}`. The top row is labelled `Overall`.
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
 - **Legend**: add `legend` anywhere after `report`, `groupReport` or `bossReport` for a gray line naming each row's values, e.g. `{dps report legend}` adds `weapon: DPS (%ofDmg | Accuracy)`.
 - **`timeSpent` in reports**:
   - `report`: time the weapon was wielded since your first attack.
   - `groupReport` / `bossReport`: from the first attack on a boss stage or NPC until you attack a different one, or it dies. Returning to it adds to its time.
 - **Group report**: `{dps <top line> groupReport <per NPC>}` adds a line per boss stage or NPC name you've damaged, bosses first, then by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
-  - `{dps groupReport}` is equal to `{dps avgDps shareDps groupReport totalDamage (shareDps | theoryDps)}`.
+  - `{dps groupReport}` is equal to `{dps totalDamage (shareDps | theoryDps) groupReport totalDamage (shareDps | theoryDps)}`, and `{dps bossReport}` to `{dps timeSpent (theoryDps | acc) bossReport timeSpent (theoryDps | acc)}`.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
 - **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, or **Export to Chat DPS** to send the current numbers to your chatbox.
 

@@ -17,15 +17,16 @@ import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
 import net.runelite.client.util.QuantityFormatter;
 
-// {dps <template>} -> template keywords replaced by values, like {party}. {dps} is {dps avgDps shareDps}.
+// {dps <template>} -> template keywords replaced by values, like {party}. {dps} is {dps avgDps (acc)}.
 public class DpsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
 		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|timeSpent|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
-	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
+	private static final String DEFAULT_TEMPLATE = "avgDps (acc)";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (splitDps | acc)";
+	private static final String DEFAULT_REPORT_TOP = "theoryDps (shareDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_GROUP_TEMPLATE = "totalDamage (shareDps | theoryDps)";
 	private static final String DEFAULT_BOSS_TEMPLATE = "timeSpent (theoryDps | acc)";
@@ -87,7 +88,8 @@ public class DpsLabelVariable implements LabelVariable
 			boolean boss = npcWord == bossReport;
 			String rowLine = withoutLegend(npcLine).isEmpty() ? (boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_GROUP_TEMPLATE) : withoutLegend(npcLine);
 			String legend = LEGEND_WORD.matcher(npcLine).find() ? legendLine(boss ? "Phase" : "NPC", rowLine, format, rich) : null;
-			return groupReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, rowLine, legend, stats.bossStats(), stats, format, paused);
+			String defaultTop = boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_GROUP_TEMPLATE;
+			return groupReport(topLine.isEmpty() ? defaultTop : topLine, rowLine, legend, stats.bossStats(), stats, format, paused);
 		}
 
 		Matcher report = REPORT_WORD.matcher(template);
@@ -101,7 +103,7 @@ public class DpsLabelVariable implements LabelVariable
 		String afterReport = template.substring(report.end());
 		String weaponLine = withoutLegend(afterReport).isEmpty() ? DEFAULT_WEAPON_TEMPLATE : withoutLegend(afterReport);
 		String legend = LEGEND_WORD.matcher(afterReport).find() ? legendLine("Weapon", weaponLine, format, rich) : null;
-		return report(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, weaponLine, legend, stats, format, paused);
+		return report(topLine.isEmpty() ? DEFAULT_REPORT_TOP : topLine, weaponLine, legend, stats, format, paused);
 	}
 
 	private static String withoutLegend(String line)
@@ -158,8 +160,8 @@ public class DpsLabelVariable implements LabelVariable
 	// thralls, recoil and vengeance once they've done damage. legend is a line under the top one, or null.
 	private String report(String topLine, String weaponLine, String legend, DpsTracker.Stats stats, Function<String, String> format, String paused)
 	{
-		StringBuilder report = new StringBuilder("{align=left}DPS: ")
-			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
+		StringBuilder report = new StringBuilder("{align=left}Overall: ")
+			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
 		if (legend != null)
 		{
 			report.append("\\n").append(legend);
@@ -188,8 +190,8 @@ public class DpsLabelVariable implements LabelVariable
 	private static String groupReport(String topLine, String npcLine, String legend, List<DpsTracker.Stats.NpcStats> npcs,
 		DpsTracker.Stats stats, Function<String, String> format, String paused)
 	{
-		StringBuilder report = new StringBuilder("{align=left}DPS: ")
-			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
+		StringBuilder report = new StringBuilder("{align=left}Overall: ")
+			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
 		if (legend != null)
 		{
 			report.append("\\n").append(legend);
@@ -275,6 +277,16 @@ public class DpsLabelVariable implements LabelVariable
 			default:
 				return "-";
 		}
+	}
+
+	// A report's "Overall" line: like the rows, shareDps shows 100% when solo instead of hiding.
+	private static String overallValue(Matcher keyword, DpsTracker.Stats stats)
+	{
+		if ("shareDps".equalsIgnoreCase(keyword.group(1)))
+		{
+			return stats.total() == 0 ? "-" : percent(stats.share() < 0 ? 1 : stats.share());
+		}
+		return value(keyword, stats);
 	}
 
 	// value gives each keyword's text, "" to drop it. shareInParens wraps shareDps in "( )".
