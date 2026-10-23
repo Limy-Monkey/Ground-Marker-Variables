@@ -13,6 +13,12 @@ SMALL_WORDS = {"of", "the", "and", "a"}
 
 # Our own changes on top of the API, by NPC id. None drops an id.
 OVERRIDES = {
+    9021: {"name": "Crystalline Hunllef (Melee)"},
+    9022: {"name": "Crystalline Hunllef (Ranged)"},
+    9023: {"name": "Crystalline Hunllef (Magic)"},
+    9035: {"name": "Corrupted Hunllef (Melee)"},
+    9036: {"name": "Corrupted Hunllef (Ranged)"},
+    9037: {"name": "Corrupted Hunllef (Magic)"},
 }
 
 
