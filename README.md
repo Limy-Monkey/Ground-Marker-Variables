@@ -156,8 +156,9 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 
 - `{dps}` is equal to `{dps avgDps (acc)}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
-  - `{dps report}` is equal to `{dps theoryDps (shareDps | acc) report theoryDps (splitDps | acc)}`. The top row is labelled `Overall`.
+  - `{dps report}` is equal to `{dps theoryDps (splitDps | acc) report theoryDps (splitDps | acc)}`. The top row is labelled `Overall`.
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
+  - With no top line, the top row uses the per-row keywords: `{dps report theoryDps}` is equal to `{dps theoryDps report theoryDps}`. The same goes for `groupReport` and `bossReport`.
 - **Legend**: reports start with a line naming the row values. Add `noLegend` after the report word to hide it.
 - **`timeSpent` in reports**:
   - `report`: time the weapon was wielded since your first attack.
