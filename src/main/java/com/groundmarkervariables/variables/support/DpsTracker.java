@@ -3,7 +3,6 @@ package com.groundmarkervariables.variables.support;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -104,17 +103,15 @@ public class DpsTracker
 		}
 	}
 
-	// One NPC from the first attack that hit it until it died or despawned, for npcReport's timeSpent.
+	// An NPC you attacked, until it died or despawned, so its death can end a timeSpent run.
 	private static final class NpcLife
 	{
 		private final NPC npc;
-		private final int start;
 		private int end = -1;
 
-		private NpcLife(NPC npc, int start)
+		private NpcLife(NPC npc)
 		{
 			this.npc = npc;
-			this.start = start;
 		}
 	}
 
@@ -190,9 +187,7 @@ public class DpsTracker
 		// theory ticks without early-attack corrections}, in the order first used.
 		private final Map<Integer, int[]> theoryByWeapon = new LinkedHashMap<>();
 		private int thrallTicks;
-		// NPC name -> its numbers, for {dps npcReport}.
-		private final Map<String, NpcStats> npcStats = new LinkedHashMap<>();
-		// for {dps bossReport}
+		// for {dps groupReport} and {dps bossReport}
 		private final Map<String, NpcStats> bossStats = new LinkedHashMap<>();
 		@Nullable
 		private Hit lastAttackHit;
@@ -200,7 +195,6 @@ public class DpsTracker
 		private int firstAttackTick = -1;
 		private int lastCountedTick;
 		private final Map<Integer, Integer> ticksByWeapon = new HashMap<>();
-		private final Map<String, List<NpcLife>> livesByName = new HashMap<>();
 		private final Map<Integer, NpcLife> lifeByIndex = new HashMap<>();
 		private final RunTime bossTime = new RunTime();
 
@@ -236,11 +230,10 @@ public class DpsTracker
 
 			for (Hit hit : hits)
 			{
-				npcStats.computeIfAbsent(hit.name, name -> new NpcStats(name, false, false)).add(hit, tick);
-				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss, true)).add(hit, tick);
+				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss)).add(hit, tick);
 				if (hit.source == Source.WEAPON)
 				{
-					startLife(hit, attack != null ? attack.startTick : lastAttackTick);
+					startLife(hit);
 				}
 				damageByNpc.computeIfAbsent(hit.npc, k -> new int[2])[0] += hit.amount;
 				damageBySource[hit.source.ordinal()] += hit.amount;
@@ -300,14 +293,12 @@ public class DpsTracker
 		}
 
 		// A new life the first time a weapon hit lands on this NPC (index reuse is a new NPC).
-		private void startLife(Hit hit, int start)
+		private void startLife(Hit hit)
 		{
 			NpcLife life = lifeByIndex.get(hit.npc);
 			if (life == null || life.npc != hit.actor)
 			{
-				life = new NpcLife(hit.actor, Math.max(0, start));
-				lifeByIndex.put(hit.npc, life);
-				livesByName.computeIfAbsent(hit.name, k -> new ArrayList<>()).add(life);
+				lifeByIndex.put(hit.npc, new NpcLife(hit.actor));
 			}
 		}
 
@@ -340,40 +331,13 @@ public class DpsTracker
 			}
 		}
 
-		// Union of this name's lives, so overlapping ones count once.
-		private int lifeTicks(String name, int end)
-		{
-			List<NpcLife> lives = new ArrayList<>(livesByName.getOrDefault(name, List.of()));
-			lives.sort(Comparator.comparingInt(life -> life.start));
-			int ticks = 0;
-			int coveredTo = Integer.MIN_VALUE;
-			for (NpcLife life : lives)
-			{
-				int lifeEnd = life.end < 0 ? end : Math.min(life.end, end);
-				int from = Math.max(life.start, coveredTo);
-				if (lifeEnd > from)
-				{
-					ticks += lifeEnd - from;
-					coveredTo = lifeEnd;
-				}
-			}
-			return ticks;
-		}
-
 		private void addNpcTicks(@Nullable Hit hit, int theoryTicks, int pureTicks)
 		{
-			if (hit == null)
+			NpcStats stats = hit == null ? null : bossStats.get(hit.bossName);
+			if (stats != null)
 			{
-				return;
-			}
-
-			for (NpcStats stats : new NpcStats[] {npcStats.get(hit.name), bossStats.get(hit.bossName)})
-			{
-				if (stats != null)
-				{
-					stats.theoryTicks += theoryTicks;
-					stats.pureTicks += pureTicks;
-				}
+				stats.theoryTicks += theoryTicks;
+				stats.pureTicks += pureTicks;
 			}
 		}
 
@@ -382,12 +346,10 @@ public class DpsTracker
 			if (pausedTick < 0 && damageByNpc.containsKey(hit.npc))
 			{
 				damageByNpc.get(hit.npc)[1] += hit.amount;
-				for (NpcStats stats : new NpcStats[] {npcStats.get(hit.name), bossStats.get(hit.bossName)})
+				NpcStats stats = bossStats.get(hit.bossName);
+				if (stats != null)
 				{
-					if (stats != null)
-					{
-						stats.others += hit.amount;
-					}
+					stats.others += hit.amount;
 				}
 				lastDamageTick = tick;
 			}
@@ -423,12 +385,10 @@ public class DpsTracker
 			lastAttackWeapon = NO_WEAPON;
 			theoryByWeapon.clear();
 			thrallTicks = 0;
-			npcStats.clear();
 			bossStats.clear();
 			lastAttackHit = null;
 			firstAttackTick = -1;
 			ticksByWeapon.clear();
-			livesByName.clear();
 			lifeByIndex.clear();
 			bossTime.clear();
 		}
@@ -560,24 +520,17 @@ public class DpsTracker
 			}
 		}
 
-		public List<NpcStats> npcStats()
-		{
-			return new ArrayList<>(npcStats.values());
-		}
-
 		public List<NpcStats> bossStats()
 		{
 			return new ArrayList<>(bossStats.values());
 		}
 
-		// Every NPC with one name, e.g. a wave of adds, for {dps npcReport} and {dps bossReport}.
+		// Every NPC with one name, e.g. a wave of adds, for {dps groupReport} and {dps bossReport}.
 		public final class NpcStats
 		{
 			private final String name;
 			// A boss stage from BossNames, not just an NPC name.
 			private final boolean boss;
-			// A bossReport row, so timeSpent counts runs instead of lives.
-			private final boolean byRun;
 			private final Set<Integer> indexes = new HashSet<>();
 			// All your sources.
 			private int damage;
@@ -590,16 +543,15 @@ public class DpsTracker
 			private int firstTick = -1;
 			private int lastTick;
 
-			private NpcStats(String name, boolean boss, boolean byRun)
+			private NpcStats(String name, boolean boss)
 			{
 				this.name = name;
 				this.boss = boss;
-				this.byRun = byRun;
 			}
 
 			public int timeSpentTicks()
 			{
-				return byRun ? bossTime.ticks(name, endTick()) : lifeTicks(name, endTick());
+				return bossTime.ticks(name, endTick());
 			}
 
 			public boolean isBoss()

@@ -27,11 +27,14 @@ public class DpsLabelVariable implements LabelVariable
 	private static final String DEFAULT_TEMPLATE = "avgDps shareDps";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (splitDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
-	private static final String DEFAULT_NPC_TEMPLATE = "totalDamage (shareDps | theoryDps)";
+	private static final String DEFAULT_GROUP_TEMPLATE = "totalDamage (shareDps | theoryDps)";
 	private static final String DEFAULT_BOSS_TEMPLATE = "timeSpent (theoryDps | acc)";
-	private static final Pattern NPC_REPORT_WORD = Pattern.compile("(?<![\\w:])npcReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final Pattern GROUP_REPORT_WORD = Pattern.compile("(?<![\\w:])groupReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final Pattern BOSS_REPORT_WORD = Pattern.compile("(?<![\\w:])bossReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
-	private static final String PAUSED = " <col=" + NamedColors.HEX_BY_NAME.get("gray") + ">(paused)</col>";
+	// Anywhere after a report word: adds a line naming the row template's values.
+	private static final Pattern LEGEND_WORD = Pattern.compile("(?<![\\w:])legend(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final String GRAY = NamedColors.HEX_BY_NAME.get("gray");
+	private static final String PAUSED = " <col=" + GRAY + ">(paused)</col>";
 
 	private final Client client;
 	private final RichText richText;
@@ -75,16 +78,16 @@ public class DpsLabelVariable implements LabelVariable
 		String template = matcher.group(1) == null ? DEFAULT_TEMPLATE : matcher.group(1).trim();
 		String paused = rich && stats.isPaused() ? PAUSED : "";
 		Matcher bossReport = BOSS_REPORT_WORD.matcher(template);
-		Matcher npcReport = NPC_REPORT_WORD.matcher(template);
-		Matcher npcWord = bossReport.find() ? bossReport : npcReport.find() ? npcReport : null;
+		Matcher groupReport = GROUP_REPORT_WORD.matcher(template);
+		Matcher npcWord = bossReport.find() ? bossReport : groupReport.find() ? groupReport : null;
 		if (npcWord != null)
 		{
 			String topLine = template.substring(0, npcWord.start()).trim();
-			String npcLine = template.substring(npcWord.end()).trim();
+			String npcLine = template.substring(npcWord.end());
 			boolean boss = npcWord == bossReport;
-			String defaultLine = boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_NPC_TEMPLATE;
-			return npcReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, npcLine.isEmpty() ? defaultLine : npcLine,
-				boss ? stats.bossStats() : stats.npcStats(), stats, format, paused);
+			String rowLine = withoutLegend(npcLine).isEmpty() ? (boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_GROUP_TEMPLATE) : withoutLegend(npcLine);
+			String legend = LEGEND_WORD.matcher(npcLine).find() ? legendLine(boss ? "Phase" : "NPC", rowLine, format, rich) : null;
+			return groupReport(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, rowLine, legend, stats.bossStats(), stats, format, paused);
 		}
 
 		Matcher report = REPORT_WORD.matcher(template);
@@ -95,17 +98,72 @@ public class DpsLabelVariable implements LabelVariable
 		}
 
 		String topLine = template.substring(0, report.start()).trim();
-		String weaponLine = template.substring(report.end()).trim();
-		return report(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, weaponLine.isEmpty() ? DEFAULT_WEAPON_TEMPLATE : weaponLine,
-			stats, format, paused);
+		String afterReport = template.substring(report.end());
+		String weaponLine = withoutLegend(afterReport).isEmpty() ? DEFAULT_WEAPON_TEMPLATE : withoutLegend(afterReport);
+		String legend = LEGEND_WORD.matcher(afterReport).find() ? legendLine("Weapon", weaponLine, format, rich) : null;
+		return report(topLine.isEmpty() ? DEFAULT_TEMPLATE : topLine, weaponLine, legend, stats, format, paused);
+	}
+
+	private static String withoutLegend(String line)
+	{
+		return LEGEND_WORD.matcher(line).replaceAll("").trim();
+	}
+
+	// e.g. "weapon: Dps (SplitOfYourDamage | acc)". Rich: gray, with the names colored like the rows' values.
+	private static String legendLine(String rows, String rowLine, Function<String, String> format, boolean rich)
+	{
+		String gray = "<col=" + GRAY + ">";
+		Function<String, String> name = rich ? value -> format.apply(value) + gray : value -> value;
+		String text = rows + ": " + renderTemplate(rowLine, DpsLabelVariable::shortName, name, false);
+		return rich ? gray + text + "</col>" : text;
+	}
+
+	private static String shortName(Matcher keyword)
+	{
+		if (keyword.group(2) != null)
+		{
+			return keyword.group();
+		}
+
+		switch (keyword.group(1).toLowerCase(Locale.ROOT))
+		{
+			case "avgdps":
+				return "AvgDps";
+			case "sharedps":
+				return "%OfGroup";
+			case "splitdps":
+				return "%OfDmg";
+			case "totaldamage":
+				return "Dmg";
+			case "theorydps":
+				return "DPS";
+			case "puretheorydps":
+				return "PureDps";
+			case "numattacks":
+				return "#Attacks";
+			case "nummisses":
+				return "#Misses";
+			case "numhits":
+				return "#Hits";
+			case "timespent":
+				return "Time";
+			case "acc":
+				return "Accuracy";
+			default:
+				return keyword.group();
+		}
 	}
 
 	// {dps <top> report <weapon>}: the top line, then <weapon> for each weapon used (by split), then
-	// thralls, recoil and vengeance once they've done damage.
-	private String report(String topLine, String weaponLine, DpsTracker.Stats stats, Function<String, String> format, String paused)
+	// thralls, recoil and vengeance once they've done damage. legend is a line under the top one, or null.
+	private String report(String topLine, String weaponLine, String legend, DpsTracker.Stats stats, Function<String, String> format, String paused)
 	{
 		StringBuilder report = new StringBuilder("{align=left}DPS: ")
 			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
+		if (legend != null)
+		{
+			report.append("\\n").append(legend);
+		}
 		List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = new ArrayList<>(stats.weaponStats().entrySet());
 		weapons.sort(Comparator.comparingDouble((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().split()).reversed());
 		for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : weapons)
@@ -125,13 +183,17 @@ public class DpsLabelVariable implements LabelVariable
 		return report.append("\\n{/align}").toString();
 	}
 
-	// {dps <top> npcReport <npc>}: the top line, then <npc> for each NPC name you've damaged (by damage).
-	// {dps bossReport} is the same, split by boss stage, with bosses first.
-	private static String npcReport(String topLine, String npcLine, List<DpsTracker.Stats.NpcStats> npcs, DpsTracker.Stats stats,
-		Function<String, String> format, String paused)
+	// {dps <top> groupReport <npc>}: the top line, then <npc> for each boss stage or NPC name you've damaged,
+	// bosses first, then by damage. {dps bossReport} is the same with another default <npc>.
+	private static String groupReport(String topLine, String npcLine, String legend, List<DpsTracker.Stats.NpcStats> npcs,
+		DpsTracker.Stats stats, Function<String, String> format, String paused)
 	{
 		StringBuilder report = new StringBuilder("{align=left}DPS: ")
 			.append(renderTemplate(topLine, keyword -> value(keyword, stats), format, true)).append(paused);
+		if (legend != null)
+		{
+			report.append("\\n").append(legend);
+		}
 		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
 			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
 		for (DpsTracker.Stats.NpcStats npc : npcs)

@@ -35,8 +35,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
 | `{dps <template>}`                      | avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses, timeSpent      |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
-| `{dps npcReport <template>}`            | A dps report with a line per NPC name, e.g. `{dps npcReport totalDamage}`. Defaults to `totalDamage (shareDps \| theoryDps)`                                     |
-| `{dps bossReport <template>}`           | Like npcReport, but split by boss stage, e.g. `Phantom Muspah (Ranged)`. Defaults to `timeSpent (theoryDps \| acc)`                                              |
+| `{dps groupReport/bossReport}`          | A line per boss stage or NPC name. Template defaults: groupReport `totalDamage (shareDps \| theoryDps)`, bossReport `timeSpent (theoryDps \| acc)`               |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
@@ -159,12 +158,12 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
   - `{dps report}` is equal to `{dps avgDps shareDps report theoryDps (splitDps | acc)}`.
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
+- **Legend**: add `legend` anywhere after `report`, `groupReport` or `bossReport` for a gray line naming each row's values, e.g. `{dps report legend}` adds `weapon: DPS (%ofDmg | Accuracy)`.
 - **`timeSpent` in reports**:
   - `report`: time the weapon was wielded since your first attack.
-  - `npcReport`: from the first attack on each NPC until it died. NPCs with the same name add up, without counting overlapping time twice.
-  - `bossReport`: from the first attack on a boss stage until you attack a different stage or NPC, or it dies. Returning to a stage adds to its time.
-- **Per-NPC report**: `{dps <top line> npcReport <per NPC>}` adds a line per NPC name you've damaged, sorted by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
-  - `{dps npcReport}` is equal to `{dps avgDps shareDps npcReport totalDamage (shareDps | theoryDps)}`.
+  - `groupReport` / `bossReport`: from the first attack on a boss stage or NPC until you attack a different one, or it dies. Returning to it adds to its time.
+- **Group report**: `{dps <top line> groupReport <per NPC>}` adds a line per boss stage or NPC name you've damaged, bosses first, then by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
+  - `{dps groupReport}` is equal to `{dps avgDps shareDps groupReport totalDamage (shareDps | theoryDps)}`.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
 - **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, or **Export to Chat DPS** to send the current numbers to your chatbox.
 
