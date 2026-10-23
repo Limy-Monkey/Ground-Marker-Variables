@@ -31,6 +31,7 @@ import net.runelite.api.Hitsplat;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.NPC;
+import net.runelite.api.NPCComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
@@ -47,6 +48,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStats;
+import net.runelite.client.util.Text;
 
 // Damage for {dps}, kept per tile and only counted while that tile's label is resolving (i.e.
 // you're near it). A tile resets once it hasn't resolved for a couple of ticks.
@@ -96,7 +98,8 @@ public class DpsTracker
 		{
 			this.actor = npc;
 			this.npc = npc.getIndex();
-			this.name = npc.getName() == null ? "Unknown" : npc.getName();
+			String shownName = shown(npc).getName() == null ? null : Text.removeTags(shown(npc).getName());
+			this.name = shownName == null || shownName.isEmpty() || shownName.equals("null") ? "Unknown" : shownName;
 			this.bossName = bossName == null ? name : bossName;
 			this.boss = bossName != null;
 			this.amount = amount;
@@ -164,6 +167,13 @@ public class DpsTracker
 			closedTicks.clear();
 			name = null;
 		}
+	}
+
+	// The form shown in game. A transforming NPC's own definition is a placeholder named "null".
+	private static NPCComposition shown(NPC npc)
+	{
+		NPCComposition transformed = npc.getTransformedComposition();
+		return transformed != null ? transformed : npc.getComposition();
 	}
 
 	// One {dps} tile's numbers.
@@ -883,7 +893,7 @@ public class DpsTracker
 			return;
 		}
 
-		Hit hit = new Hit((NPC) actor, bossNames.name(((NPC) actor).getId()), hitsplat.getAmount());
+		Hit hit = new Hit((NPC) actor, bossNames.name(shown((NPC) actor).getId()), hitsplat.getAmount());
 		if (hitsplat.isMine())
 		{
 			pendingHits.add(hit);
@@ -1022,7 +1032,7 @@ public class DpsTracker
 		// After the thrall claim, so the 0 can't be taken for a thrall hit.
 		if (newSplash)
 		{
-			hits.add(new Hit((NPC) target, bossNames.name(((NPC) target).getId()), 0));
+			hits.add(new Hit((NPC) target, bossNames.name(shown((NPC) target).getId()), 0));
 		}
 		noteSpecAnimations(player, tick);
 

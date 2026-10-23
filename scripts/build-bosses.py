@@ -19,6 +19,10 @@ OVERRIDES = {
     9035: {"name": "Corrupted Hunllef (Melee)"},
     9036: {"name": "Corrupted Hunllef (Ranged)"},
     9037: {"name": "Corrupted Hunllef (Magic)"},
+    16673: {"name": "Ocellus (Phase 1)"},
+    16674: {"name": "Ocellus (Phase 1)"},
+    16675: {"name": "Ocellus (Phase 2) (The Blade)"},
+    16676: {"name": "Ocellus (Phase 2) (The Blade)"},
 }
 
 
