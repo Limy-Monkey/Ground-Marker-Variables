@@ -176,6 +176,12 @@ public class DpsTracker
 		return transformed != null ? transformed : npc.getComposition();
 	}
 
+	private static boolean hasName(NPC npc)
+	{
+		String name = shown(npc).getName();
+		return name != null && !Text.removeTags(name).isEmpty() && !name.equals("null");
+	}
+
 	// One {dps} tile's numbers.
 	public final class Stats
 	{
@@ -888,7 +894,8 @@ public class DpsTracker
 			return;
 		}
 
-		if (!(actor instanceof NPC))
+		// Nameless NPCs (e.g. hidden fight helpers) can't be attacked.
+		if (!(actor instanceof NPC) || !hasName((NPC) actor))
 		{
 			return;
 		}
