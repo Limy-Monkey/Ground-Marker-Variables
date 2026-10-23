@@ -965,7 +965,8 @@ public class DpsTracker
 				{
 					if (!line.isBlank())
 					{
-						client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line.trim(), null);
+						// Chat only shows what's after the last "|".
+						client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line.trim().replace('|', '/'), null);
 					}
 				}
 			}
