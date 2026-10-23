@@ -170,6 +170,7 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 ### Other parameters
 - `{attackStyle weapon=Twisted bow}` / `{attackType weapon=...}`: the style or type you last used with that weapon this session.
 - `{loot <monster>, items=6, lines=2}`: how many items to list, and over how many lines.
+- `{loot <monster>, itemsOnly}`: only the items and how many of each, without the name, kill count or gp value.
 </details>
 <details>
 <summary>Managing Ground Markers:</summary>

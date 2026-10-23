@@ -23,15 +23,16 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.util.QuantityFormatter;
 
-// {loot <monster>[, items=N][, lines=N]} -> gp value of loot Loot Tracker has recorded for
-// <monster> (or the boss it's a BossAliases short name for), or 0 if none.
+// {loot <monster>[, items=N][, lines=N][, itemsOnly]} -> gp value of loot Loot Tracker has recorded for
+// <monster> (or the boss it's a BossAliases short name for), or 0 if none. itemsOnly shows just the items.
 public class LootLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! so a trailing comparator (e.g. "{loot monster > 10000}") isn't swallowed
 	// into the monster name. Group 2 is the options.
 	private static final Pattern PATTERN = Pattern.compile(
-		"\\{loot\\s+([^{}?:<>=!]+?)((?:\\s*,?\\s*(?:items|lines)=\\d+)*)\\s*,?\\s*\\}", Pattern.CASE_INSENSITIVE);
+		"\\{loot\\s+([^{}?:<>=!]+?)((?:\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+))*)\\s*,?\\s*\\}", Pattern.CASE_INSENSITIVE);
 	private static final Pattern OPTION = Pattern.compile("(items|lines)=(\\d+)", Pattern.CASE_INSENSITIVE);
+	private static final Pattern ITEMS_ONLY = Pattern.compile("itemsOnly", Pattern.CASE_INSENSITIVE);
 	static final String GROUP = "loottracker";
 	static final String KEY_PREFIX = "drops_";
 
@@ -75,7 +76,11 @@ public class LootLabelVariable implements LabelVariable
 	public String resolvePlain(Matcher matcher)
 	{
 		Loot loot = loot(matcher);
-		return loot == null ? null : String.valueOf(loot.gp);
+		if (loot == null)
+		{
+			return null;
+		}
+		return itemsOnly(matcher) ? itemsOnlyText(loot.notableItems, option(matcher, "lines", 1)) : String.valueOf(loot.gp);
 	}
 
 	@Override
@@ -85,6 +90,10 @@ public class LootLabelVariable implements LabelVariable
 		if (loot == null)
 		{
 			return null;
+		}
+		if (itemsOnly(matcher))
+		{
+			return itemsOnlyText(loot.notableItems, option(matcher, "lines", 1));
 		}
 
 		String header = loot.monster + " (" + richText.highlightValue(String.valueOf(loot.kills)) + "): "
@@ -106,6 +115,32 @@ public class LootLabelVariable implements LabelVariable
 			int linesLeft = itemLines - line;
 			int count = (items.size() - start + linesLeft - 1) / linesLeft;
 			sb.append("\\n").append(itemsText(items.subList(start, start + count)));
+			start += count;
+		}
+		return sb.append("\\n{/align}").toString();
+	}
+
+	private static boolean itemsOnly(Matcher matcher)
+	{
+		return ITEMS_ONLY.matcher(matcher.group(2)).find();
+	}
+
+	// The items split evenly over lines, earlier lines taking extras.
+	private static String itemsOnlyText(List<NotableItem> items, int lines)
+	{
+		if (lines <= 1 || items.size() <= 1)
+		{
+			return itemsText(items);
+		}
+
+		StringBuilder sb = new StringBuilder("{align=left}");
+		int itemLines = Math.min(lines, items.size());
+		int start = 0;
+		for (int line = 0; line < itemLines; line++)
+		{
+			int linesLeft = itemLines - line;
+			int count = (items.size() - start + linesLeft - 1) / linesLeft;
+			sb.append(line == 0 ? "" : "\\n").append(itemsText(items.subList(start, start + count)));
 			start += count;
 		}
 		return sb.append("\\n{/align}").toString();

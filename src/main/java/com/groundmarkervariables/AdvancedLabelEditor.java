@@ -144,9 +144,9 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String LOOT_PREFIX = "loot ";
 	private static final String LOOT_TRACKER_GROUP = "loottracker";
 	private static final String LOOT_KEY_PREFIX = "drops_";
-	// {loot <monster>, items=N, lines=N} -- see LootLabelVariable.
-	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:items|lines)=\\d+", Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2");
+	// {loot <monster>, items=N, lines=N, itemsOnly} -- see LootLabelVariable.
+	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+)", Pattern.CASE_INSENSITIVE);
+	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2", "itemsOnly");
 
 	// ":<partial emoji name>" at the cursor. The colon can't follow a name character, so a
 	// finished ":name:", a "9:30" time, or a conditional's " : " never starts one.
