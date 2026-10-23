@@ -1246,7 +1246,7 @@ public class DpsTracker
 		{
 			speed = styleIndex == OBLIGATOR_SMASH_SLOT ? 3 : 5;
 		}
-		else if (weaponId == ItemID.ZORYAS_TOME)
+		else if (weaponId == ItemID.ZORYAS_TOME || weaponId == ItemID.ASCENSION_CROSSBOWS)
 		{
 			speed = 3;
 		}
