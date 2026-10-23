@@ -158,7 +158,7 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.
   - `{dps report}` is equal to `{dps theoryDps (shareDps | acc) report theoryDps (splitDps | acc)}`. The top row is labelled `Overall`.
   - Use keywords between `{dps` and `report` to refer to top row. Use keywords after `report` to refer to per-weapon values.
-- **Legend**: add `legend` anywhere after `report`, `groupReport` or `bossReport` for a gray line naming each row's values, e.g. `{dps report legend}` adds `weapon: DPS (%ofDmg | Accuracy)`.
+- **Legend**: reports start with a line naming the row values. Add `noLegend` after the report word to hide it.
 - **`timeSpent` in reports**:
   - `report`: time the weapon was wielded since your first attack.
   - `groupReport` / `bossReport`: from the first attack on a boss stage or NPC until you attack a different one, or it dies. Returning to it adds to its time.

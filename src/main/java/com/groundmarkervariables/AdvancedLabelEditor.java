@@ -117,7 +117,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final String DPS_PREFIX = "dps ";
 	private static final List<String> DPS_KEYWORDS = List.of(
 		"avgDps", "report", "groupReport", "bossReport", "theoryDps", "pureTheoryDps", "shareDps", "splitDps", "totalDamage", "takenDamage", "acc",
-		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses", "timeSpent", "legend");
+		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses", "timeSpent", "noLegend");
 
 	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.
 	private static final String DIVINE_PREFIX = "divine ";
