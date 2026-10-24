@@ -1,0 +1,2 @@
+# MarkerCompression checks these byte for byte.
+src/main/resources/com/groundmarkervariables/minify/dictionary-*.txt -text

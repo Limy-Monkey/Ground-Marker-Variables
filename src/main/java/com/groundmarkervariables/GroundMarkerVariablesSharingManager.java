@@ -2,9 +2,9 @@ package com.groundmarkervariables;
 
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Runnables;
-import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
+import com.groundmarkervariables.minify.MarkerMinifier;
+import com.groundmarkervariables.minify.NewerFormatException;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -45,13 +45,13 @@ public class GroundMarkerVariablesSharingManager
 	private final MenuManager menuManager;
 	private final ChatMessageManager chatMessageManager;
 	private final ChatboxPanelManager chatboxPanelManager;
-	private final Gson gson;
 	private final DeletedMarkers deletedMarkers;
+	private final MarkerMinifier markerMinifier;
 
 	@Inject
 	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, Client client,
 		ImportPreviewManager importPreviewManager, MenuManager menuManager, ChatMessageManager chatMessageManager,
-		ChatboxPanelManager chatboxPanelManager, Gson gson, DeletedMarkers deletedMarkers)
+		ChatboxPanelManager chatboxPanelManager, DeletedMarkers deletedMarkers, MarkerMinifier markerMinifier)
 	{
 		this.plugin = plugin;
 		this.markerStorage = markerStorage;
@@ -60,8 +60,8 @@ public class GroundMarkerVariablesSharingManager
 		this.menuManager = menuManager;
 		this.chatMessageManager = chatMessageManager;
 		this.chatboxPanelManager = chatboxPanelManager;
-		this.gson = gson;
 		this.deletedMarkers = deletedMarkers;
+		this.markerMinifier = markerMinifier;
 	}
 
 	void addImportExportMenuOptions()
@@ -97,6 +97,12 @@ public class GroundMarkerVariablesSharingManager
 			.collect(Collectors.toList());
 	}
 
+	// Also MarkerManager's "Copy".
+	String exportText(List<GroundMarkerPointData> points)
+	{
+		return markerMinifier.export(points);
+	}
+
 	private void exportGroundMarkers(MenuEntry menuEntry)
 	{
 		List<GroundMarkerPointData> activePoints = activePoints();
@@ -106,7 +112,7 @@ public class GroundMarkerVariablesSharingManager
 			return;
 		}
 
-		final String exportDump = gson.toJson(activePoints);
+		final String exportDump = markerMinifier.export(activePoints);
 
 		log.debug("Exported ground markers: {}", exportDump);
 
@@ -143,9 +149,7 @@ public class GroundMarkerVariablesSharingManager
 		List<GroundMarkerPointData> importPoints;
 		try
 		{
-			// CHECKSTYLE:OFF
-			importPoints = gson.fromJson(clipboardText, new TypeToken<List<GroundMarkerPointData>>(){}.getType());
-			// CHECKSTYLE:ON
+			importPoints = markerMinifier.parse(clipboardText);
 		}
 		catch (JsonSyntaxException e)
 		{
@@ -153,8 +157,19 @@ public class GroundMarkerVariablesSharingManager
 			sendChatMessage("You do not have any ground markers copied in your clipboard.");
 			return;
 		}
+		catch (NewerFormatException e)
+		{
+			sendChatMessage("These ground markers were exported by a newer version of Ground Marker Variables. Update the plugin to import them.");
+			return;
+		}
+		catch (IllegalArgumentException e)
+		{
+			log.debug("Damaged gmv label in clipboard import", e);
+			sendChatMessage("The ground markers with variables in your clipboard are damaged and can't be imported.");
+			return;
+		}
 
-		if (importPoints == null || importPoints.isEmpty())
+		if (importPoints.isEmpty())
 		{
 			sendChatMessage("You do not have any ground markers copied in your clipboard.");
 			return;

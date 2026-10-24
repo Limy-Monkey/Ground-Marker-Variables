@@ -1,6 +1,5 @@
 package com.groundmarkervariables;
 
-import com.google.gson.Gson;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
@@ -62,7 +61,6 @@ class MarkerManager extends ChatboxInput implements KeyListener
 	private final MarkerStorage markerStorage;
 	private final ChatMessageManager chatMessageManager;
 	private final Client client;
-	private final Gson gson;
 	private final DeletedMarkers deletedMarkers;
 	private final GroundMarkerVariablesSharingManager sharingManager;
 
@@ -116,14 +114,13 @@ class MarkerManager extends ChatboxInput implements KeyListener
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, Gson gson, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager,
+		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager,
 		@Named("developerMode") boolean developerMode)
 	{
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.markerStorage = markerStorage;
 		this.chatMessageManager = chatMessageManager;
 		this.client = client;
-		this.gson = gson;
 		this.deletedMarkers = deletedMarkers;
 		this.sharingManager = sharingManager;
 		this.developerMode = developerMode;
@@ -566,7 +563,7 @@ class MarkerManager extends ChatboxInput implements KeyListener
 	private void exportSelected()
 	{
 		List<GroundMarkerPointData> points = selectedPoints();
-		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(gson.toJson(points)), null);
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sharingManager.exportText(points)), null);
 		sendChatMessage(points.size() + " ground markers were copied to your clipboard.");
 	}
 

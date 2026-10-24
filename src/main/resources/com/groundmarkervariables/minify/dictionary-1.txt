@@ -1,0 +1,28 @@
+# MarkerCompression's version 1 dictionary. Never edit: exports must keep importing, and
+# MarkerCompression checks this file's SHA-256. Add a dictionary-2.txt for version 2 instead.
+# Lines are joined with nothing. Whitespace at each end of a line is ignored; a '·' there is a space.
+# Lines starting with '#' are skipped. Most common entries last.
+Agility Arena Total TicketObor chests openedGalvekJubbly JiveTempor TantrumGwenith Glide
+{kc cox cm}{kc tob hm}{kc toa expert}{kc nightmare}{kc corp}{kc zulrah}{kc vorkath}{kc muspah}{kc nex}{kc hmt}{kc cg}
+{kc toa}{kc tob}{kc cox}{kc tfa}
+Bastion Battlemage Salts Overload Combat}{divine·
+helm}cape}amulet}body}shield}legs}gloves}boots}ring}ammo}quiver}{equip_
+runecraft}construction}hunter}farming}firemaking}woodcutting}fishing}mining}smithing}cooking}crafting}fletching}
+thieving}herblore}agility}slayer}sailing}
+total}combat}prayer}hitpoints}defence}strength}attack}ranged}magic}{xpRate_{xp_{boost_{lvl_
+{6HourTimeRemaining < 1}{worldInfo hideWorld}{combatAchievement}{questPoints}{miscellania}{slayerStreak}{slayerPoints}
+{slayerTask}
+{time24}{time}{date}{weekday}{world}{rsn}{runEnergy}{spec}{autoRetaliate}{autocast}{attackType}{attackStyle}{weapon}
+{party num}{party name}{party hp}{party prayer}{highlightCorners}{highlightAll}{highlightSW=}{tileCol=}{borderWidth=}
+{numDoses }{numItem }{rank }{pb }{loot }, items=, lines=, itemsOnly}
+{hasVileVigour}{hasEntangle}{hasAlchs}{hasFreeze}{hasVengeance}{hasThralls}
+{metronome4_5}{metronome}{m+}
+{dps report }{dps groupReport }{dps bossReport }{dps fullReport }noLegend avgDps theoryDps pureTheoryDps shareDps·
+splitDps totalDamage takenDamage thrallDps recoilDps numAttacks numHits numMisses timeSpent ticksSpent ticksUsed·
+ticksLost (acc)}{dps }
+{b}{/b}{i}{/i}{align=center}{align=right}{align=left}{/align}
+{col=black}{col=blue}{col=purple}{col=magenta}{col=lightgray}{col=darkgray}{col=limy}{col=white}{col=gray}
+{col=orange}{col=cyan}{col=teal}{col=yellow}{col=green}{col=red}{/col}
+Empty}{equip_ammo != Rune Pouch}{hasItem·
+{spellbook == Standard ? }{spellbook == Ancient ? }{spellbook == Lunar ? }{spellbook == Arceuus ? }{spellbook}
+·&& {hasItem  || hasItem  != } > 0 ? } < 1 ? } : } | {hasItem }{kc }\n{
