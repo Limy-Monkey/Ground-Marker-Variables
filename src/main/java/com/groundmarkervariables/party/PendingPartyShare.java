@@ -1,5 +1,6 @@
 package com.groundmarkervariables.party;
 
+import com.groundmarkervariables.GroundMarkerPointData;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -12,10 +13,10 @@ class PendingPartyShare
 
 	final long senderMemberId;
 	final String senderName;
-	final List<GMVGroundMarkerPartyShare.SharedMarker> markers;
+	final List<GroundMarkerPointData> markers;
 	final Instant receivedAt;
 
-	PendingPartyShare(long senderMemberId, String senderName, List<GMVGroundMarkerPartyShare.SharedMarker> markers, Instant receivedAt)
+	PendingPartyShare(long senderMemberId, String senderName, List<GroundMarkerPointData> markers, Instant receivedAt)
 	{
 		this.senderMemberId = senderMemberId;
 		this.senderName = senderName;

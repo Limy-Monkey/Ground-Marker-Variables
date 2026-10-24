@@ -1,14 +1,20 @@
 package com.groundmarkervariables.party;
 
 import com.google.common.util.concurrent.Runnables;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.GroundMarkerPointData;
 import com.groundmarkervariables.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.ImportPreviewManager;
+import com.groundmarkervariables.minify.MarkerCompression;
+import com.groundmarkervariables.minify.NewerFormatException;
 
 import java.awt.Color;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +41,7 @@ import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
+import net.runelite.client.party.messages.PartyMemberMessage;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.util.ColorUtil;
 
@@ -68,12 +75,14 @@ public class GroundMarkerPartySharingManager
 	private final GroundMarkerVariablesSharingManager sharingManager;
 	private final PartyService partyService;
 	private final WSClient wsClient;
+	private final Gson gson;
 
 	@Inject
 	private GroundMarkerPartySharingManager(Client client, ChatboxPanelManager chatboxPanelManager, ChatMessageManager chatMessageManager,
 		EventBus eventBus, ScheduledExecutorService executor, ImportPreviewManager importPreviewManager,
-		GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient)
+		GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient, Gson gson)
 	{
+		this.gson = gson;
 		this.client = client;
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.chatMessageManager = chatMessageManager;
@@ -88,14 +97,31 @@ public class GroundMarkerPartySharingManager
 	public void startUp()
 	{
 		eventBus.register(this);
+		registerMessage(GMVCompressedMarkerShare.class);
+		registerMessage(GMVGroundMarkerPartyShare.class);
+	}
 
+	private void registerMessage(Class<? extends PartyMemberMessage> message)
+	{
 		try
 		{
-			wsClient.registerMessage(GMVGroundMarkerPartyShare.class);
+			wsClient.registerMessage(message);
 		}
 		catch (IllegalArgumentException e)
 		{
 			log.warn("Party marker sharing unavailable due to a message type collision with another plugin", e);
+		}
+	}
+
+	private void unregisterMessage(Class<? extends PartyMemberMessage> message)
+	{
+		try
+		{
+			wsClient.unregisterMessage(message);
+		}
+		catch (IllegalArgumentException e)
+		{
+			// Never registered successfully.
 		}
 	}
 
@@ -107,14 +133,8 @@ public class GroundMarkerPartySharingManager
 			badgeClearTask.cancel(false);
 		}
 
-		try
-		{
-			wsClient.unregisterMessage(GMVGroundMarkerPartyShare.class);
-		}
-		catch (IllegalArgumentException e)
-		{
-			// Never registered successfully.
-		}
+		unregisterMessage(GMVCompressedMarkerShare.class);
+		unregisterMessage(GMVGroundMarkerPartyShare.class);
 
 		pendingShares.clear();
 		lastReceivedAt = null;
@@ -186,34 +206,78 @@ public class GroundMarkerPartySharingManager
 
 	private void share(List<GroundMarkerPointData> points)
 	{
-		List<GMVGroundMarkerPartyShare.SharedMarker> shared = new ArrayList<>();
-		for (GroundMarkerPointData point : points)
-		{
-			WorldPoint worldPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-			Integer rgb = point.getColor() == null ? null : point.getColor().getRGB();
-			shared.add(new GMVGroundMarkerPartyShare.SharedMarker(worldPoint, rgb, point.getLabel()));
-		}
-
-		partyService.send(new GMVGroundMarkerPartyShare(shared));
-		sendChatMessage(shared.size() + " ground markers were shared with your party.");
+		byte[] compressed = MarkerCompression.compress(gson.toJson(points));
+		partyService.send(new GMVCompressedMarkerShare(MarkerCompression.VERSION, Base64.getEncoder().withoutPadding().encodeToString(compressed)));
+		sendChatMessage(points.size() + " ground markers were shared with your party.");
 	}
 
-	// Ignores our own echoed share; replaces any existing pending share from the same sender.
-	// The scheduled removal below is keyed to this exact instance, so a stale timer from a
-	// replaced share can never remove the one that replaced it.
 	@Subscribe
-	public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share)
+	public void onGMVCompressedMarkerShare(GMVCompressedMarkerShare share)
 	{
-		PartyMember local = partyService.getLocalMember();
-		if (local != null && share.getMemberId() == local.getMemberId())
+		if (isOwn(share))
 		{
 			return;
 		}
 
-		PartyMember sender = partyService.getMemberById(share.getMemberId());
-		String senderName = sender != null ? sender.getDisplayName() : "Unknown";
+		List<GroundMarkerPointData> points;
+		try
+		{
+			String json = MarkerCompression.decompress(Base64.getDecoder().decode(share.getData()), share.getVersion());
+			points = gson.fromJson(json, new TypeToken<List<GroundMarkerPointData>>(){}.getType());
+		}
+		catch (NewerFormatException e)
+		{
+			sendChatMessage(senderName(share) + " shared ground markers from a newer version of Ground Marker Variables. Update the plugin to import them.");
+			return;
+		}
+		catch (IllegalArgumentException | JsonSyntaxException e)
+		{
+			log.debug("Damaged party marker share", e);
+			return;
+		}
+		addPending(share, points);
+	}
 
-		PendingPartyShare pending = new PendingPartyShare(share.getMemberId(), senderName, share.getMarkers(), Instant.now());
+	@Subscribe
+	public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share)
+	{
+		if (isOwn(share))
+		{
+			return;
+		}
+
+		List<GroundMarkerPointData> points = new ArrayList<>();
+		for (GMVGroundMarkerPartyShare.SharedMarker marker : share.getMarkers())
+		{
+			WorldPoint point = marker.getPoint();
+			Color color = marker.getColorRgb() == null ? null : new Color(marker.getColorRgb(), true);
+			points.add(new GroundMarkerPointData(point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, marker.getLabel()));
+		}
+		addPending(share, points);
+	}
+
+	private boolean isOwn(PartyMemberMessage message)
+	{
+		PartyMember local = partyService.getLocalMember();
+		return local != null && message.getMemberId() == local.getMemberId();
+	}
+
+	private String senderName(PartyMemberMessage message)
+	{
+		PartyMember sender = partyService.getMemberById(message.getMemberId());
+		return sender != null ? sender.getDisplayName() : "Unknown";
+	}
+
+	// Replaces any pending share from the same sender. The scheduled removal is keyed to this exact
+	// instance, so a stale timer from a replaced share can never remove the one that replaced it.
+	private void addPending(PartyMemberMessage share, List<GroundMarkerPointData> points)
+	{
+		if (points == null || points.isEmpty())
+		{
+			return;
+		}
+
+		PendingPartyShare pending = new PendingPartyShare(share.getMemberId(), senderName(share), points, Instant.now());
 		pendingShares.put(share.getMemberId(), pending);
 		executor.schedule(() -> pendingShares.remove(pending.senderMemberId, pending), PendingPartyShare.TTL.getSeconds(), TimeUnit.SECONDS);
 
@@ -222,14 +286,7 @@ public class GroundMarkerPartySharingManager
 
 	private void promptImport(PendingPartyShare pending)
 	{
-		List<GroundMarkerPointData> points = new ArrayList<>();
-		for (GMVGroundMarkerPartyShare.SharedMarker marker : pending.markers)
-		{
-			WorldPoint point = marker.getPoint();
-			Color color = marker.getColorRgb() == null ? null : new Color(marker.getColorRgb(), true);
-			points.add(new GroundMarkerPointData(point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, marker.getLabel()));
-		}
-
+		List<GroundMarkerPointData> points = pending.markers;
 		List<GroundMarkerPointData> nonOverlapping = sharingManager.nonOverlapping(points);
 		importPreviewManager.show(nonOverlapping);
 		String count = GroundMarkerVariablesSharingManager.countWithOverlap(points.size(), nonOverlapping.size());

@@ -1,8 +1,10 @@
 package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
@@ -23,6 +25,7 @@ public class PartyLabelVariable implements LabelVariable
 	private static final Pattern HP_WORD = Pattern.compile("\\bhp\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PRAYER_WORD = Pattern.compile("\\bprayer\\b", Pattern.CASE_INSENSITIVE);
 	private static final String UNKNOWN = "?";
+	private static final String UNKNOWN_NAME = "<unknown>";
 	private static final String DEFAULT_TEMPLATE = "num. name | hp | prayer";
 
 	private final Client client;
@@ -46,7 +49,15 @@ public class PartyLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		return String.valueOf(partyService.getMembers().size());
+		return String.valueOf(members().size());
+	}
+
+	// RuneLite's name for a member until theirs arrives, e.g. just after rejoining.
+	private List<PartyMember> members()
+	{
+		return partyService.getMembers().stream()
+			.filter(member -> !UNKNOWN_NAME.equals(member.getDisplayName()))
+			.collect(Collectors.toList());
 	}
 
 	@Override
@@ -59,10 +70,11 @@ public class PartyLabelVariable implements LabelVariable
 		}
 
 		PartyMember local = partyService.getLocalMember();
-		StringBuilder result = new StringBuilder("{align=left}Party (").append(partyService.getMembers().size()).append(")");
+		List<PartyMember> members = members();
+		StringBuilder result = new StringBuilder("{align=left}Party (").append(members.size()).append(")");
 
 		int row = 1;
-		for (PartyMember member : partyService.getMembers())
+		for (PartyMember member : members)
 		{
 			boolean isLocal = local != null && member.getMemberId() == local.getMemberId();
 			result.append("\\n").append(renderRow(template, row++, member, isLocal));
