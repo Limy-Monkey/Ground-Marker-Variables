@@ -5,14 +5,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
-import com.groundmarkervariables.party.PartyStatusTracker;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
-import net.runelite.client.plugins.party.messages.StatusUpdate;
 
 // {party <template>} -> Plain is always the party size. Rich is always "Party (N)" followed
 // by one row per member, each the template with num/name/hp/prayer substituted for that
@@ -29,15 +27,13 @@ public class PartyLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final PartyService partyService;
-	private final PartyStatusTracker statusTracker;
 	private final RichText richText;
 
 	@Inject
-	private PartyLabelVariable(Client client, PartyService partyService, PartyStatusTracker statusTracker, RichText richText)
+	private PartyLabelVariable(Client client, PartyService partyService, RichText richText)
 	{
 		this.client = client;
 		this.partyService = partyService;
-		this.statusTracker = statusTracker;
 		this.richText = richText;
 	}
 
@@ -88,17 +84,14 @@ public class PartyLabelVariable implements LabelVariable
 		}
 		else
 		{
-			StatusUpdate status = statusTracker.get(member.getMemberId());
-			if (status != null)
+			// A max of 0 means they haven't sent it yet.
+			if (member.getStatBase(Skill.HITPOINTS) > 0)
 			{
-				if (status.getHealthCurrent() != null && status.getHealthMax() != null)
-				{
-					hp = status.getHealthCurrent() + "/" + status.getHealthMax();
-				}
-				if (status.getPrayerCurrent() != null && status.getPrayerMax() != null)
-				{
-					prayer = status.getPrayerCurrent() + "/" + status.getPrayerMax();
-				}
+				hp = member.getStatBoost(Skill.HITPOINTS) + "/" + member.getStatBase(Skill.HITPOINTS);
+			}
+			if (member.getStatBase(Skill.PRAYER) > 0)
+			{
+				prayer = member.getStatBoost(Skill.PRAYER) + "/" + member.getStatBase(Skill.PRAYER);
 			}
 		}
 
