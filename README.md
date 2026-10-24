@@ -33,7 +33,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{worldInfo hideWorld}`                 | `{worldInfo}` without the world number, e.g. for streaming                                                                                                       |
 | `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
 | `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
-| `{dps <template>}`                      | avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses, timeSpent      |
+| `{dps <template>}`                      | avgDps, shareDps, splitDps, total/takenDamage, acc, \<N>s, thrall/recoilDps, theoryDps, pureTheoryDps, numAttacks/Hits/Misses, timeSpent, ticksSpent/Used/Lost   |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
 | `{dps groupReport/bossReport}`          | A line per boss stage or NPC name. Template defaults: groupReport `totalDamage (shareDps \| theoryDps)`, bossReport `timeSpent (theoryDps \| acc)`               |
 | `{dps fullReport <template>}`           | bossReport's lines, each with a line per weapon used on it. Defaults to `theoryDps (totalDamage \| numHits/numAttacks \| acc)`                                   |
@@ -154,6 +154,9 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 | `thrallDps` / `recoilDps`              | Damage per second from your thrall / ring of recoil                                       | No               |
 | `numAttacks` / `numHits` / `numMisses` | Number of attacks you did / number of hitsplats above zero / number of zeros and splashes | Yes              |
 | `timeSpent`                            | Time since your first attack, as m:ss. In reports: per weapon, NPC or boss stage (below)  | Yes              |
+| `ticksSpent`                           | timeSpent in ticks                                                                        | Yes              |
+| `ticksUsed`                            | Sum of all attack speeds of all weapons, denomonator of theoryDps                         | Yes              |
+| `ticksLost`                            | ticksSpent - ticksUsed                                                                    | Yes              |
 
 - `{dps}` is equal to `{dps avgDps (acc)}`. Write any text around the keywords: `{dps thrall: thrallDps | recent: 10s}`
 - **Per-weapon report**: `{dps <top line> report <per weapon>}` adds a line per weapon you've used, sorted by split, then thrall, recoil and vengeance lines.

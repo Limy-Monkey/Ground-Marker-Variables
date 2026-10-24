@@ -505,6 +505,11 @@ public class DpsTracker
 				return totals[5] == 0 ? 0 : totals[0] / (totals[5] * SECONDS_PER_TICK);
 			}
 
+			public int ticksUsed()
+			{
+				return totals[1];
+			}
+
 			public double avgDps()
 			{
 				return perSecond(totals[0], timeSpentTicks());
@@ -691,6 +696,11 @@ public class DpsTracker
 			{
 				return pureTicks <= 0 ? -1 : weaponDamage / (pureTicks * SECONDS_PER_TICK);
 			}
+
+			public int ticksUsed()
+			{
+				return theoryTicks;
+			}
 		}
 
 		// Thrall damage over its attacks' speed, or 0 before it has hit.
@@ -720,6 +730,12 @@ public class DpsTracker
 		{
 			int ticks = weaponTotal(5);
 			return ticks == 0 ? 0 : weaponTotal(0) / (ticks * SECONDS_PER_TICK);
+		}
+
+		// theoryDps's ticks: every attack's speed, after early-attack corrections.
+		public int ticksUsed()
+		{
+			return weaponTotal(1);
 		}
 
 		// Sum of one theoryByWeapon field over every weapon.

@@ -23,7 +23,7 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	// Whole words only, where ':' counts as part of a word, so "acc:" and "accuracy" stay text.
 	private static final Pattern KEYWORD = Pattern.compile(
-		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|timeSpent|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
+		"(?<![\\w:])(avgDps|shareDps|splitDps|totalDamage|takenDamage|acc|thrallDps|recoilDps|theoryDps|pureTheoryDps|numAttacks|numMisses|numHits|timeSpent|ticksSpent|ticksUsed|ticksLost|(\\d+)s)(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String DEFAULT_TEMPLATE = "avgDps (acc)";
 	private static final String DEFAULT_WEAPON_TEMPLATE = "theoryDps (splitDps | acc)";
 	private static final Pattern REPORT_WORD = Pattern.compile("(?<![\\w:])report(?![\\w:])", Pattern.CASE_INSENSITIVE);
@@ -158,6 +158,12 @@ public class DpsLabelVariable implements LabelVariable
 				return "#Hits";
 			case "timespent":
 				return "Time";
+			case "ticksspent":
+				return "TicksSpent";
+			case "ticksused":
+				return "TicksUsed";
+			case "tickslost":
+				return "TicksLost";
 			case "acc":
 				return "Accuracy";
 			default:
@@ -264,6 +270,12 @@ public class DpsLabelVariable implements LabelVariable
 				return String.valueOf(npc.numMisses());
 			case "numhits":
 				return String.valueOf(npc.numHits());
+			case "ticksspent":
+				return String.valueOf(npc.timeSpentTicks());
+			case "ticksused":
+				return String.valueOf(npc.ticksUsed());
+			case "tickslost":
+				return String.valueOf(Math.max(0, npc.timeSpentTicks() - npc.ticksUsed()));
 			default:
 				return "-";
 		}
@@ -381,6 +393,12 @@ public class DpsLabelVariable implements LabelVariable
 				return String.valueOf(stats.numHits());
 			case "timespent":
 				return duration(stats.timeSpentTicks());
+			case "ticksspent":
+				return String.valueOf(stats.timeSpentTicks());
+			case "ticksused":
+				return String.valueOf(stats.ticksUsed());
+			case "tickslost":
+				return String.valueOf(Math.max(0, stats.timeSpentTicks() - stats.ticksUsed()));
 			default:
 				return decimal(stats.dps());
 		}
@@ -416,6 +434,12 @@ public class DpsLabelVariable implements LabelVariable
 				return String.valueOf(weapon.numHits());
 			case "timespent":
 				return duration(weapon.timeSpentTicks());
+			case "ticksspent":
+				return String.valueOf(weapon.timeSpentTicks());
+			case "ticksused":
+				return String.valueOf(weapon.ticksUsed());
+			case "tickslost":
+				return String.valueOf(Math.max(0, weapon.timeSpentTicks() - weapon.ticksUsed()));
 			case "avgdps":
 				return decimal(weapon.avgDps());
 			default:
