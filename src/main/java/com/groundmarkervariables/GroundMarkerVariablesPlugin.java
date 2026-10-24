@@ -400,6 +400,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		{
 			submenu = addVariableOption(submenu, "Reset", "DPS", () -> dpsTracker.reset(tile));
 			submenu = addVariableOption(submenu, "Export to Chat", "DPS", () -> dpsTracker.exportToChat(tile));
+			submenu = addVariableOption(submenu, "Export Report", "DPS", () -> dpsTracker.exportReport(tile));
+			submenu = addVariableOption(submenu, "Export Raw Data", "DPS", () -> dpsTracker.exportRawData(tile));
 		}
 	}
 

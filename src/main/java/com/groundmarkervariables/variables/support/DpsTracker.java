@@ -1,5 +1,7 @@
 package com.groundmarkervariables.variables.support;
 
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -21,6 +25,7 @@ import javax.inject.Singleton;
 import com.groundmarkervariables.GroundMarkerPointData;
 import com.groundmarkervariables.MarkerStorage;
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.label.DpsLabelVariable;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
@@ -103,6 +108,25 @@ public class DpsTracker
 			this.bossName = bossName == null ? name : bossName;
 			this.boss = bossName != null;
 			this.amount = amount;
+		}
+	}
+
+	// weapon is NO_WEAPON for thralls, recoil and vengeance. target is the hit's NpcStats name.
+	private static final class HistoryHit
+	{
+		private final int tick;
+		private final int damage;
+		private final int weapon;
+		private final Source source;
+		private final String target;
+
+		private HistoryHit(int tick, int damage, int weapon, Source source, String target)
+		{
+			this.tick = tick;
+			this.damage = damage;
+			this.weapon = weapon;
+			this.source = source;
+			this.target = target;
 		}
 	}
 
@@ -193,8 +217,8 @@ public class DpsTracker
 		// NPC index -> {my damage, others' damage}
 		private final Map<Integer, int[]> damageByNpc = new HashMap<>();
 		private final int[] damageBySource = new int[Source.values().length];
-		// {tick, damage, weapon or NO_WEAPON} for each of your hits, for recentDps().
-		private final List<int[]> history = new ArrayList<>();
+		// Each of your hits, for recentDps() and Export Raw Data.
+		private final List<HistoryHit> history = new ArrayList<>();
 		private int lastActiveTick = -1;
 		private int firstHitTick = -1;
 		// Tick you died or went idle at, or -1.
@@ -259,7 +283,7 @@ public class DpsTracker
 				damageByNpc.computeIfAbsent(hit.npc, k -> new int[2])[0] += hit.amount;
 				damageBySource[hit.source.ordinal()] += hit.amount;
 				myDamage += hit.amount;
-				history.add(new int[] {tick, hit.amount, hit.source == Source.WEAPON ? weapon : NO_WEAPON});
+				history.add(new HistoryHit(tick, hit.amount, hit.source == Source.WEAPON ? weapon : NO_WEAPON, hit.source, hit.bossName));
 				if (hit.source == Source.WEAPON)
 				{
 					if (weapon != NO_WEAPON)
@@ -442,11 +466,15 @@ public class DpsTracker
 		// All sources over the last seconds, or since your first hit if that's sooner.
 		public double recentDps(int seconds)
 		{
-			return recentDps(seconds, null);
+			return recentDps(seconds, hit -> true);
 		}
 
-		// Only weapon's hits when weapon isn't null.
-		private double recentDps(int seconds, @Nullable Integer weapon)
+		public double recentDps(int seconds, Source source)
+		{
+			return recentDps(seconds, hit -> hit.source == source);
+		}
+
+		private double recentDps(int seconds, Predicate<HistoryHit> counts)
 		{
 			if (firstHitTick < 0 || seconds <= 0)
 			{
@@ -456,11 +484,11 @@ public class DpsTracker
 			int end = pausedTick >= 0 ? pausedTick : client.getTickCount();
 			int windowTicks = Math.min((int) Math.ceil(seconds / SECONDS_PER_TICK), elapsedTicks());
 			int damage = 0;
-			for (int[] hit : history)
+			for (HistoryHit hit : history)
 			{
-				if (hit[0] > end - windowTicks && (weapon == null || hit[2] == weapon))
+				if (hit.tick > end - windowTicks && counts.test(hit))
 				{
-					damage += hit[1];
+					damage += hit.damage;
 				}
 			}
 			return damage / (windowTicks * SECONDS_PER_TICK);
@@ -515,10 +543,9 @@ public class DpsTracker
 				return perSecond(totals[0], timeSpentTicks());
 			}
 
-			// On every target.
 			public double recentDps(int seconds)
 			{
-				return Stats.this.recentDps(seconds, weapon);
+				return Stats.this.recentDps(seconds, hit -> hit.weapon == weapon && (target == null || hit.target.equals(target.name)));
 			}
 
 			// Of everyone's damage on your targets (or the target).
@@ -701,6 +728,11 @@ public class DpsTracker
 			{
 				return theoryTicks;
 			}
+
+			public double recentDps(int seconds)
+			{
+				return Stats.this.recentDps(seconds, hit -> hit.target.equals(name));
+			}
 		}
 
 		// Thrall damage over its attacks' speed, or 0 before it has hit.
@@ -820,6 +852,7 @@ public class DpsTracker
 	private final MarkerStorage markerStorage;
 	// A Provider since LabelResolver depends on this, through DpsLabelVariable.
 	private final Provider<LabelResolver> labelResolver;
+	private final Provider<DpsLabelVariable> dpsLabelVariable;
 	private final BossNames bossNames;
 
 	// The tile whose label is being resolved, set by the plugin's refresh loop. Null elsewhere.
@@ -905,8 +938,9 @@ public class DpsTracker
 
 	@Inject
 	private DpsTracker(Client client, EventBus eventBus, WeaponStyleTracker weaponStyleTracker, ItemManager itemManager,
-		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, BossNames bossNames)
+		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, Provider<DpsLabelVariable> dpsLabelVariable, BossNames bossNames)
 	{
+		this.dpsLabelVariable = dpsLabelVariable;
 		this.client = client;
 		this.eventBus = eventBus;
 		this.weaponStyleTracker = weaponStyleTracker;
@@ -1023,6 +1057,69 @@ public class DpsTracker
 	// Each {dps} on the tile, resolved with that tile's stats, as one game message per line.
 	public void exportToChat(WorldPoint tile)
 	{
+		forEachDpsToken(tile, token ->
+		{
+			String text = labelResolver.get().resolve(token).replaceAll("\\{/?align[^}]*}|</?col[^>]*>", "");
+			for (String line : text.split("\\\\n"))
+			{
+				if (!line.isBlank())
+				{
+					// Chat only shows what's after the last "|".
+					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line.trim().replace('|', '/'), null);
+				}
+			}
+		});
+	}
+
+	// Each {dps} on the tile's rows with every keyword, copied as tab-separated text to paste into Google Sheets.
+	public void exportReport(WorldPoint tile)
+	{
+		StringBuilder text = new StringBuilder();
+		forEachDpsToken(tile, token ->
+		{
+			for (List<String> row : dpsLabelVariable.get().exportRows(token))
+			{
+				text.append(String.join("\t", row)).append('\n');
+			}
+			text.append('\n');
+		});
+		if (text.toString().isBlank())
+		{
+			return;
+		}
+
+		copyToClipboard(text.toString().stripTrailing(), "Copied the DPS report to your clipboard.");
+	}
+
+	// The tile's hits, one tab-separated row each, copied to paste into Google Sheets.
+	public void exportRawData(WorldPoint tile)
+	{
+		Stats stats = statsByTile.get(tile);
+		if (stats == null || stats.history.isEmpty())
+		{
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "No DPS hits to export.", null);
+			return;
+		}
+
+		StringBuilder text = new StringBuilder("Tick\tSource\tTarget\tWeapon\tDamage");
+		for (HistoryHit hit : stats.history)
+		{
+			String weapon = hit.weapon == NO_WEAPON ? "" : hit.weapon < 0 ? "Unarmed" : itemManager.getItemComposition(hit.weapon).getName();
+			text.append('\n').append(hit.tick).append('\t').append(Text.titleCase(hit.source)).append('\t').append(hit.target)
+				.append('\t').append(weapon).append('\t').append(hit.damage);
+		}
+		copyToClipboard(text.toString(), "Copied " + stats.history.size() + " DPS hits to your clipboard.");
+	}
+
+	private void copyToClipboard(String text, String message)
+	{
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", message, null);
+	}
+
+	// With resolvingTile set to tile.
+	private void forEachDpsToken(WorldPoint tile, Consumer<String> action)
+	{
 		LocalPoint local = LocalPoint.fromWorld(client.getTopLevelWorldView(), tile);
 		GroundMarkerPointData marker = local == null ? null : markerStorage.findStoredPoint(WorldPoint.fromLocalInstance(client, local));
 		if (marker == null || marker.getLabel() == null)
@@ -1036,15 +1133,7 @@ public class DpsTracker
 		{
 			while (token.find())
 			{
-				String text = labelResolver.get().resolve(token.group()).replaceAll("\\{/?align[^}]*}|</?col[^>]*>", "");
-				for (String line : text.split("\\\\n"))
-				{
-					if (!line.isBlank())
-					{
-						// Chat only shows what's after the last "|".
-						client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line.trim().replace('|', '/'), null);
-					}
-				}
+				action.accept(token.group());
 			}
 		}
 		finally

@@ -171,7 +171,7 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
   - `{dps groupReport}` is equal to `{dps totalDamage (shareDps | theoryDps) groupReport totalDamage (shareDps | theoryDps)}`, and `{dps bossReport}` to `{dps timeSpent (theoryDps | acc) bossReport timeSpent (theoryDps | acc)}`.
 - **Full report**: `{dps fullReport <per row>}` is `bossReport` with an indented line per weapon under each target, e.g. your Twisted bow's damage on Xarth.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
-- **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, or **Export to Chat DPS** to send the current numbers to your chatbox.
+- **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, **Export to Chat DPS** to send the current numbers to your chatbox, **Export Report DPS** to copy every row with all keywords' values, or **Export Raw Data DPS** to copy every hit (tick, source, target, weapon, damage), both ready to paste into Google Sheets.
 
 ### Other parameters
 - `{attackStyle weapon=Twisted bow}` / `{attackType weapon=...}`: the style or type you last used with that weapon this session.

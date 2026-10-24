@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -38,6 +39,8 @@ public class DpsLabelVariable implements LabelVariable
 	private static final Pattern NO_LEGEND_WORD = Pattern.compile("(?<![\\w:])noLegend(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String GRAY = NamedColors.HEX_BY_NAME.get("gray");
 	private static final String PAUSED = " <col=" + GRAY + ">(paused)</col>";
+	private static final List<String> ALL_KEYWORDS = List.of("avgDps", "theoryDps", "pureTheoryDps", "shareDps", "splitDps", "totalDamage",
+		"takenDamage", "acc", "thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses", "timeSpent", "ticksSpent", "ticksUsed", "ticksLost");
 
 	private final Client client;
 	private final RichText richText;
@@ -100,7 +103,7 @@ public class DpsLabelVariable implements LabelVariable
 			boolean boss = npcWord == bossReport;
 			String rowLine = withoutLegend(npcLine).isEmpty() ? (boss ? DEFAULT_BOSS_TEMPLATE : DEFAULT_GROUP_TEMPLATE) : withoutLegend(npcLine);
 			String legend = NO_LEGEND_WORD.matcher(npcLine).find() ? null : legendLine("Target", rowLine, format, rich);
-			return groupReport(topLine.isEmpty() ? rowLine : topLine, rowLine, legend, stats.bossStats(), stats, format, paused);
+			return groupReport(topLine.isEmpty() ? rowLine : topLine, rowLine, legend, stats, format, paused);
 		}
 
 		Matcher report = REPORT_WORD.matcher(template);
@@ -177,8 +180,7 @@ public class DpsLabelVariable implements LabelVariable
 	{
 		StringBuilder report = new StringBuilder("{align=left}").append(legend == null ? "" : legend + "\\n").append("Overall: ")
 			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
-		List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = new ArrayList<>(stats.weaponStats().entrySet());
-		weapons.sort(Comparator.comparingDouble((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().split()).reversed());
+		List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = sortedWeapons(stats.weaponStats(), DpsTracker.Stats.WeaponStats::split);
 		for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : weapons)
 		{
 			report.append("\\n").append(weaponName(entry.getKey()))
@@ -198,17 +200,14 @@ public class DpsLabelVariable implements LabelVariable
 
 	// {dps <top> groupReport <npc>}: the top line, then <npc> for each boss stage or NPC name you've damaged,
 	// bosses first, then by damage. {dps bossReport} is the same with another default <npc>.
-	private static String groupReport(String topLine, String npcLine, String legend, List<DpsTracker.Stats.NpcStats> npcs,
-		DpsTracker.Stats stats, Function<String, String> format, String paused)
+	private static String groupReport(String topLine, String npcLine, String legend, DpsTracker.Stats stats,
+		Function<String, String> format, String paused)
 	{
 		StringBuilder report = new StringBuilder("{align=left}").append(legend == null ? "" : legend + "\\n").append("Overall: ")
 			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
-		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
-			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
-		for (DpsTracker.Stats.NpcStats npc : npcs)
+		for (DpsTracker.Stats.NpcStats npc : sortedTargets(stats))
 		{
-			report.append("\\n").append(npc.name()).append(npc.count() > 1 ? " x" + npc.count() : "")
-				.append(": ").append(renderTemplate(npcLine, keyword -> npcValue(keyword, npc), format, false));
+			report.append("\\n").append(targetName(npc)).append(": ").append(renderTemplate(npcLine, keyword -> npcValue(keyword, npc), format, false));
 		}
 		return report.append("\\n{/align}").toString();
 	}
@@ -219,23 +218,119 @@ public class DpsLabelVariable implements LabelVariable
 	{
 		StringBuilder report = new StringBuilder("{align=left}").append(legend == null ? "" : legend + "\\n").append("Overall: ")
 			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
-		List<DpsTracker.Stats.NpcStats> npcs = stats.bossStats();
-		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
-			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
-		for (DpsTracker.Stats.NpcStats npc : npcs)
+		for (DpsTracker.Stats.NpcStats npc : sortedTargets(stats))
 		{
-			report.append("\\n").append(npc.name()).append(npc.count() > 1 ? " x" + npc.count() : "")
-				.append(": ").append(renderTemplate(rowLine, keyword -> npcValue(keyword, npc), format, false));
-			List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = new ArrayList<>(npc.weaponStats().entrySet());
-			weapons.sort(Comparator.comparingInt((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().damage()).reversed());
-			for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : weapons)
+			report.append("\\n").append(targetName(npc)).append(": ").append(renderTemplate(rowLine, keyword -> npcValue(keyword, npc), format, false));
+			for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : sortedWeapons(npc.weaponStats(), DpsTracker.Stats.WeaponStats::damage))
 			{
-				// recentDps isn't kept per target.
-				report.append("\\n").append(INDENT).append(weaponName(entry.getKey())).append(": ").append(renderTemplate(rowLine,
-					keyword -> keyword.group(2) != null ? "-" : weaponValue(keyword, entry.getValue()), format, false));
+				report.append("\\n").append(INDENT).append(weaponName(entry.getKey())).append(": ")
+					.append(renderTemplate(rowLine, keyword -> weaponValue(keyword, entry.getValue()), format, false));
 			}
 		}
 		return report.append("\\n{/align}").toString();
+	}
+
+	// The rows a {dps} token shows, with every keyword's value, for a spreadsheet. The first row is the header.
+	public List<List<String>> exportRows(String token)
+	{
+		Matcher matcher = PATTERN.matcher(token.replaceFirst("^\\{[\\^&*]", "{"));
+		if (!matcher.matches() || client.getLocalPlayer() == null)
+		{
+			return List.of();
+		}
+
+		DpsTracker.Stats stats = tracker.markActive();
+		String template = matcher.group(1) == null ? "" : matcher.group(1);
+		List<List<String>> rows = new ArrayList<>();
+		List<String> header = new ArrayList<>(List.of("Target", "Weapon"));
+		header.addAll(ALL_KEYWORDS);
+		rows.add(header);
+		rows.add(exportRow("Overall", "All", keyword -> overallValue(keyword, stats)));
+
+		boolean full = FULL_REPORT_WORD.matcher(template).find();
+		if (full || BOSS_REPORT_WORD.matcher(template).find() || GROUP_REPORT_WORD.matcher(template).find())
+		{
+			for (DpsTracker.Stats.NpcStats npc : sortedTargets(stats))
+			{
+				rows.add(exportRow(targetName(npc), "All", keyword -> npcValue(keyword, npc)));
+				if (!full)
+				{
+					continue;
+				}
+				for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : sortedWeapons(npc.weaponStats(), DpsTracker.Stats.WeaponStats::damage))
+				{
+					rows.add(exportRow(targetName(npc), weaponName(entry.getKey()), keyword -> weaponValue(keyword, entry.getValue())));
+				}
+			}
+		}
+		else if (REPORT_WORD.matcher(template).find())
+		{
+			for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : sortedWeapons(stats.weaponStats(), DpsTracker.Stats.WeaponStats::split))
+			{
+				rows.add(exportRow("All", weaponName(entry.getKey()), keyword -> weaponValue(keyword, entry.getValue())));
+			}
+			addSourceRow(rows, "Thralls", DpsTracker.Source.THRALL, stats);
+			addSourceRow(rows, "Recoil", DpsTracker.Source.RECOIL, stats);
+			addSourceRow(rows, "Vengeance", DpsTracker.Source.VENGEANCE, stats);
+		}
+		return rows;
+	}
+
+	private static void addSourceRow(List<List<String>> rows, String name, DpsTracker.Source source, DpsTracker.Stats stats)
+	{
+		if (stats.damage(source) > 0)
+		{
+			rows.add(exportRow("All", name, keyword -> sourceValue(keyword, source, stats)));
+		}
+	}
+
+	// Sheets-friendly: no "-" or thousands commas, and times as h:mm:ss so "1:05" isn't read as 1 hour.
+	private static List<String> exportRow(String target, String weapon, Function<Matcher, String> value)
+	{
+		List<String> row = new ArrayList<>(List.of(target, weapon));
+		for (String name : ALL_KEYWORDS)
+		{
+			Matcher keyword = KEYWORD.matcher(name);
+			keyword.find();
+			String cell = value.apply(keyword);
+			if (cell.equals("-"))
+			{
+				cell = "";
+			}
+			else if (cell.matches("[\\d,]+"))
+			{
+				cell = cell.replace(",", "");
+			}
+			else if (cell.matches("\\d+:\\d\\d"))
+			{
+				cell = "0:" + cell;
+			}
+			row.add(cell);
+		}
+		return row;
+	}
+
+	// Bosses first, then by damage.
+	private static List<DpsTracker.Stats.NpcStats> sortedTargets(DpsTracker.Stats stats)
+	{
+		List<DpsTracker.Stats.NpcStats> npcs = stats.bossStats();
+		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
+			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
+		return npcs;
+	}
+
+	// Highest by first.
+	private static List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> sortedWeapons(Map<Integer, DpsTracker.Stats.WeaponStats> weapons,
+		ToDoubleFunction<DpsTracker.Stats.WeaponStats> by)
+	{
+		List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> sorted = new ArrayList<>(weapons.entrySet());
+		sorted.sort(Comparator.comparingDouble((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> by.applyAsDouble(entry.getValue())).reversed());
+		return sorted;
+	}
+
+	private static String targetName(DpsTracker.Stats.NpcStats npc)
+	{
+		return npc.name() + (npc.count() > 1 ? " x" + npc.count() : "");
 	}
 
 	// One NPC name's values.
@@ -243,7 +338,7 @@ public class DpsLabelVariable implements LabelVariable
 	{
 		if (keyword.group(2) != null)
 		{
-			return "-";
+			return decimal(npc.recentDps(Integer.parseInt(keyword.group(2))));
 		}
 
 		switch (keyword.group(1).toLowerCase(Locale.ROOT))
@@ -302,7 +397,7 @@ public class DpsLabelVariable implements LabelVariable
 	{
 		if (keyword.group(2) != null)
 		{
-			return "-";
+			return decimal(stats.recentDps(Integer.parseInt(keyword.group(2)), source));
 		}
 
 		switch (keyword.group(1).toLowerCase(Locale.ROOT))
