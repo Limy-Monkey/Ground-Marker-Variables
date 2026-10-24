@@ -31,6 +31,9 @@ public class DpsLabelVariable implements LabelVariable
 	private static final String DEFAULT_BOSS_TEMPLATE = "timeSpent (theoryDps | acc)";
 	private static final Pattern GROUP_REPORT_WORD = Pattern.compile("(?<![\\w:])groupReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final Pattern BOSS_REPORT_WORD = Pattern.compile("(?<![\\w:])bossReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final String DEFAULT_FULL_TEMPLATE = "theoryDps (totalDamage | numHits/numAttacks | acc)";
+	private static final Pattern FULL_REPORT_WORD = Pattern.compile("(?<![\\w:])fullReport(?![\\w:])", Pattern.CASE_INSENSITIVE);
+	private static final String INDENT = "  ";
 	// Anywhere after a report word: adds a line naming the row template's values.
 	private static final Pattern NO_LEGEND_WORD = Pattern.compile("(?<![\\w:])noLegend(?![\\w:])", Pattern.CASE_INSENSITIVE);
 	private static final String GRAY = NamedColors.HEX_BY_NAME.get("gray");
@@ -77,6 +80,16 @@ public class DpsLabelVariable implements LabelVariable
 		DpsTracker.Stats stats = tracker.markActive();
 		String template = matcher.group(1) == null ? DEFAULT_TEMPLATE : matcher.group(1).trim();
 		String paused = rich && stats.isPaused() ? PAUSED : "";
+		Matcher fullReport = FULL_REPORT_WORD.matcher(template);
+		if (fullReport.find())
+		{
+			String topLine = template.substring(0, fullReport.start()).trim();
+			String afterReport = template.substring(fullReport.end());
+			String rowLine = withoutLegend(afterReport).isEmpty() ? DEFAULT_FULL_TEMPLATE : withoutLegend(afterReport);
+			String legend = NO_LEGEND_WORD.matcher(afterReport).find() ? null : legendLine("Full Report",rowLine, format, rich);
+			return fullReport(topLine.isEmpty() ? rowLine : topLine, rowLine, legend, stats, format, paused);
+		}
+
 		Matcher bossReport = BOSS_REPORT_WORD.matcher(template);
 		Matcher groupReport = GROUP_REPORT_WORD.matcher(template);
 		Matcher npcWord = bossReport.find() ? bossReport : groupReport.find() ? groupReport : null;
@@ -194,6 +207,31 @@ public class DpsLabelVariable implements LabelVariable
 		return report.append("\\n{/align}").toString();
 	}
 
+	// {dps <top> fullReport <row>}: bossReport's targets, each with an indented line per weapon used on it
+	// (by damage). Thralls, recoil and vengeance count in the target's line only.
+	private String fullReport(String topLine, String rowLine, String legend, DpsTracker.Stats stats, Function<String, String> format, String paused)
+	{
+		StringBuilder report = new StringBuilder("{align=left}").append(legend == null ? "" : legend + "\\n").append("Overall: ")
+			.append(renderTemplate(topLine, keyword -> overallValue(keyword, stats), format, false)).append(paused);
+		List<DpsTracker.Stats.NpcStats> npcs = stats.bossStats();
+		npcs.sort(Comparator.comparing((DpsTracker.Stats.NpcStats npc) -> !npc.isBoss())
+			.thenComparing(Comparator.comparingInt(DpsTracker.Stats.NpcStats::damage).reversed()));
+		for (DpsTracker.Stats.NpcStats npc : npcs)
+		{
+			report.append("\\n").append(npc.name()).append(npc.count() > 1 ? " x" + npc.count() : "")
+				.append(": ").append(renderTemplate(rowLine, keyword -> npcValue(keyword, npc), format, false));
+			List<Map.Entry<Integer, DpsTracker.Stats.WeaponStats>> weapons = new ArrayList<>(npc.weaponStats().entrySet());
+			weapons.sort(Comparator.comparingInt((Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry) -> entry.getValue().damage()).reversed());
+			for (Map.Entry<Integer, DpsTracker.Stats.WeaponStats> entry : weapons)
+			{
+				// recentDps isn't kept per target.
+				report.append("\\n").append(INDENT).append(weaponName(entry.getKey())).append(": ").append(renderTemplate(rowLine,
+					keyword -> keyword.group(2) != null ? "-" : weaponValue(keyword, entry.getValue()), format, false));
+			}
+		}
+		return report.append("\\n{/align}").toString();
+	}
+
 	// One NPC name's values.
 	private static String npcValue(Matcher keyword, DpsTracker.Stats.NpcStats npc)
 	{
@@ -220,6 +258,12 @@ public class DpsLabelVariable implements LabelVariable
 				return duration(npc.timeSpentTicks());
 			case "acc":
 				return npc.accuracy() < 0 ? "-" : percent(npc.accuracy());
+			case "numattacks":
+				return String.valueOf(npc.numAttacks());
+			case "nummisses":
+				return String.valueOf(npc.numMisses());
+			case "numhits":
+				return String.valueOf(npc.numHits());
 			default:
 				return "-";
 		}
@@ -255,7 +299,7 @@ public class DpsLabelVariable implements LabelVariable
 			case "puretheorydps":
 				return decimal(source == DpsTracker.Source.THRALL ? stats.thrallTheoryDps() : stats.dps(source));
 			case "avgdps":
-				return decimal(stats.dps(source));
+				return decimal(stats.avgDps(source));
 			case "sharedps":
 				return percent(stats.groupTotal() == 0 ? 0 : stats.damage(source) / (double) stats.groupTotal());
 			case "splitdps":

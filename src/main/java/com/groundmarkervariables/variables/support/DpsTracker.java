@@ -176,6 +176,11 @@ public class DpsTracker
 		return transformed != null ? transformed : npc.getComposition();
 	}
 
+	private static double perSecond(int damage, int ticks)
+	{
+		return ticks <= 0 ? 0 : damage / (ticks * SECONDS_PER_TICK);
+	}
+
 	private static boolean hasName(NPC npc)
 	{
 		String name = shown(npc).getName();
@@ -246,7 +251,7 @@ public class DpsTracker
 
 			for (Hit hit : hits)
 			{
-				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss)).add(hit, tick);
+				bossStats.computeIfAbsent(hit.bossName, name -> new NpcStats(name, hit.boss)).add(hit, weapon);
 				if (hit.source == Source.WEAPON)
 				{
 					startLife(hit);
@@ -283,7 +288,7 @@ public class DpsTracker
 				if (previous != null && lastAttackTick >= 0 && lastAttackTick == attack.previousTick)
 				{
 					previous[1] += attack.previousCorrection;
-					addNpcTicks(lastAttackHit, attack.previousCorrection, 0);
+					addNpcTicks(lastAttackHit, lastAttackWeapon, attack.previousCorrection, 0, 0);
 				}
 				int[] totals = theoryByWeapon.computeIfAbsent(attack.weapon, k -> new int[6]);
 				totals[1] += attack.speed;
@@ -294,7 +299,7 @@ public class DpsTracker
 
 				// The attack's NPC is the one its first weapon hit landed on.
 				lastAttackHit = hits.stream().filter(hit -> hit.source == Source.WEAPON).findFirst().orElse(null);
-				addNpcTicks(lastAttackHit, attack.speed, attack.speed);
+				addNpcTicks(lastAttackHit, attack.weapon, attack.speed, attack.speed, 1);
 
 				if (firstAttackTick < 0)
 				{
@@ -327,6 +332,11 @@ public class DpsTracker
 			}
 
 			ticksByWeapon.merge(weapon, tick - lastCountedTick, Integer::sum);
+			NpcStats running = bossTime.name == null ? null : bossStats.get(bossTime.name);
+			if (running != null)
+			{
+				running.weaponTicks.merge(weapon, tick - lastCountedTick, Integer::sum);
+			}
 			lastCountedTick = tick;
 			for (NpcLife life : lifeByIndex.values())
 			{
@@ -347,13 +357,17 @@ public class DpsTracker
 			}
 		}
 
-		private void addNpcTicks(@Nullable Hit hit, int theoryTicks, int pureTicks)
+		private void addNpcTicks(@Nullable Hit hit, int weapon, int theoryTicks, int pureTicks, int attacks)
 		{
 			NpcStats stats = hit == null ? null : bossStats.get(hit.bossName);
 			if (stats != null)
 			{
 				stats.theoryTicks += theoryTicks;
 				stats.pureTicks += pureTicks;
+				int[] totals = stats.byWeapon.computeIfAbsent(weapon, k -> new int[6]);
+				totals[1] += theoryTicks;
+				totals[4] += attacks;
+				totals[5] += pureTicks;
 			}
 		}
 
@@ -409,10 +423,15 @@ public class DpsTracker
 			bossTime.clear();
 		}
 
-		// Damage per second since your first hit, all sources.
+		// avgDps: damage per second of timeSpent, all sources.
 		public double dps()
 		{
-			return firstHitTick < 0 ? 0 : myDamage / (elapsedTicks() * SECONDS_PER_TICK);
+			return perSecond(myDamage, timeSpentTicks());
+		}
+
+		public double avgDps(Source source)
+		{
+			return perSecond(damageBySource[source.ordinal()], timeSpentTicks());
 		}
 
 		public double dps(Source source)
@@ -451,20 +470,23 @@ public class DpsTracker
 		public Map<Integer, WeaponStats> weaponStats()
 		{
 			Map<Integer, WeaponStats> result = new LinkedHashMap<>();
-			theoryByWeapon.forEach((weapon, totals) -> result.put(weapon, new WeaponStats(weapon, totals)));
+			theoryByWeapon.forEach((weapon, totals) -> result.put(weapon, new WeaponStats(weapon, totals, null)));
 			return result;
 		}
 
-		// One weapon's numbers in this tile, for {dps report}.
+		// One weapon's numbers in this tile for {dps report}, or on one target for {dps fullReport}.
 		public final class WeaponStats
 		{
 			private final int weapon;
 			private final int[] totals;
+			@Nullable
+			private final NpcStats target;
 
-			private WeaponStats(int weapon, int[] totals)
+			private WeaponStats(int weapon, int[] totals, @Nullable NpcStats target)
 			{
 				this.weapon = weapon;
 				this.totals = totals;
+				this.target = target;
 			}
 
 			public int damage()
@@ -485,25 +507,27 @@ public class DpsTracker
 
 			public double avgDps()
 			{
-				return firstHitTick < 0 ? 0 : totals[0] / (elapsedTicks() * SECONDS_PER_TICK);
+				return perSecond(totals[0], timeSpentTicks());
 			}
 
+			// On every target.
 			public double recentDps(int seconds)
 			{
 				return Stats.this.recentDps(seconds, weapon);
 			}
 
-			// Of everyone's damage on your targets.
+			// Of everyone's damage on your targets (or the target).
 			public double share()
 			{
-				long group = groupTotal();
+				long group = target == null ? groupTotal() : target.damage + target.others;
 				return group == 0 ? 0 : totals[0] / (double) group;
 			}
 
-			// Of all your damage, including thralls etc.
+			// Of all your damage (or on the target), including thralls etc.
 			public double split()
 			{
-				return myDamage == 0 ? 0 : totals[0] / (double) myDamage;
+				int mine = target == null ? myDamage : target.damage;
+				return mine == 0 ? 0 : totals[0] / (double) mine;
 			}
 
 			// -1 before any hit.
@@ -529,10 +553,10 @@ public class DpsTracker
 				return totals[3];
 			}
 
-			// Ticks wielded since your first attack.
+			// Ticks wielded since your first attack (or during the target's timeSpent).
 			public int timeSpentTicks()
 			{
-				return ticksByWeapon.getOrDefault(weapon, 0);
+				return (target == null ? ticksByWeapon : target.weaponTicks).getOrDefault(weapon, 0);
 			}
 		}
 
@@ -556,8 +580,9 @@ public class DpsTracker
 			private int weaponLanded;
 			private int theoryTicks;
 			private int pureTicks;
-			private int firstTick = -1;
-			private int lastTick;
+			// Like theoryByWeapon and ticksByWeapon, for this target only.
+			private final Map<Integer, int[]> byWeapon = new LinkedHashMap<>();
+			private final Map<Integer, Integer> weaponTicks = new HashMap<>();
 
 			private NpcStats(String name, boolean boss)
 			{
@@ -575,7 +600,7 @@ public class DpsTracker
 				return boss;
 			}
 
-			private void add(Hit hit, int tick)
+			private void add(Hit hit, int weapon)
 			{
 				indexes.add(hit.npc);
 				damage += hit.amount;
@@ -584,9 +609,38 @@ public class DpsTracker
 					weaponDamage += hit.amount;
 					weaponHits++;
 					weaponLanded += hit.amount > 0 ? 1 : 0;
+					if (weapon != NO_WEAPON)
+					{
+						int[] totals = byWeapon.computeIfAbsent(weapon, k -> new int[6]);
+						totals[0] += hit.amount;
+						totals[2]++;
+						totals[3] += hit.amount > 0 ? 1 : 0;
+					}
 				}
-				firstTick = firstTick < 0 ? tick : firstTick;
-				lastTick = tick;
+			}
+
+			// Weapon item id (-1 unarmed) -> its stats on this target, in the order first used.
+			public Map<Integer, WeaponStats> weaponStats()
+			{
+				Map<Integer, WeaponStats> result = new LinkedHashMap<>();
+				byWeapon.forEach((weapon, totals) -> result.put(weapon, new WeaponStats(weapon, totals, this)));
+				return result;
+			}
+
+			// A multi-hit attack like claws counts once.
+			public int numAttacks()
+			{
+				return byWeapon.values().stream().mapToInt(totals -> totals[4]).sum();
+			}
+
+			public int numMisses()
+			{
+				return weaponHits - weaponLanded;
+			}
+
+			public int numHits()
+			{
+				return weaponLanded;
 			}
 
 			// Weapon hits on it that did damage, or -1 before any.
@@ -622,10 +676,9 @@ public class DpsTracker
 				return myDamage == 0 ? 0 : damage / (double) myDamage;
 			}
 
-			// From your first hit on it to your last.
 			public double avgDps()
 			{
-				return damage / (Math.max(1, lastTick - firstTick) * SECONDS_PER_TICK);
+				return perSecond(damage, timeSpentTicks());
 			}
 
 			// -1 before a weapon attack on it.

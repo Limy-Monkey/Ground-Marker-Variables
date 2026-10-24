@@ -36,6 +36,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{dps <template>}`                      | avgDps, shareDps, splitDps, totalDamage, takenDamage, acc, \<N>s, thrallDps, recoilDps, theoryDps, pureTheoryDps, numAttacks, numHits, numMisses, timeSpent      |
 | `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
 | `{dps groupReport/bossReport}`          | A line per boss stage or NPC name. Template defaults: groupReport `totalDamage (shareDps \| theoryDps)`, bossReport `timeSpent (theoryDps \| acc)`               |
+| `{dps fullReport <template>}`           | bossReport's lines, each with a line per weapon used on it. Defaults to `theoryDps (totalDamage \| numHits/numAttacks \| acc)`                                   |
 | `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
 | `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
@@ -141,7 +142,7 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
 
 | Keyword                                | Value                                                                                     | Per-Weapon / NPC |
 |----------------------------------------|-------------------------------------------------------------------------------------------|------------------|
-| `avgDps`                               | Damage per second since your first hit until now, includes time spent not attacking.      | Yes              |
+| `avgDps`                               | Damage per second of timeSpent, includes time spent not attacking.                        | Yes              |
 | `theoryDps`                            | DPS using your weapon's attack speed, ignoring lost ticks                                 | Yes              |
 | `pureTheoryDps`                        | DPS as `theoryDps`, but also ignoring tick-reducing boss mechanics                        | Yes              |
 | `shareDps`                             | % of everyone's damage on the enemies you attacked, including other players / actors      | Yes              |
@@ -165,6 +166,7 @@ Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own n
   - `groupReport` / `bossReport`: from the first attack on a boss stage or NPC until you attack a different one, or it dies. Returning to it adds to its time.
 - **Group report**: `{dps <top line> groupReport <per NPC>}` adds a line per boss stage or NPC name you've damaged, bosses first, then by damage, e.g. `Nylocas Hagios x6: 233 (91% | 2.02)`.
   - `{dps groupReport}` is equal to `{dps totalDamage (shareDps | theoryDps) groupReport totalDamage (shareDps | theoryDps)}`, and `{dps bossReport}` to `{dps timeSpent (theoryDps | acc) bossReport timeSpent (theoryDps | acc)}`.
+- **Full report**: `{dps fullReport <per row>}` is `bossReport` with an indented line per weapon under each target, e.g. your Twisted bow's damage on Xarth.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
 - **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, or **Export to Chat DPS** to send the current numbers to your chatbox.
 
