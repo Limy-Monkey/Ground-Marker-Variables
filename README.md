@@ -2,6 +2,8 @@
 
 Overrides the default Ground Marker plugin with a version that supports variables in labels.
 
+[Join our Discord Server](https://discord.gg/ehyvCPpdSn) to share your creations!
+
 <img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check
 
 ```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align\u003dleft}{spellbook} {spellbook \u003d\u003d Ancient ? -- {hasFreeze} : }{spellbook \u003d\u003d Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo !\u003d Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
