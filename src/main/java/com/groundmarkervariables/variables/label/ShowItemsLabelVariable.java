@@ -1,0 +1,87 @@
+package com.groundmarkervariables.variables.label;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.inject.Inject;
+
+import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.support.ItemQuantityFinder;
+import com.groundmarkervariables.variables.support.ItemQuantityFinder.Match;
+import net.runelite.api.Client;
+import net.runelite.client.game.ItemManager;
+
+// {showItems <name>, <name>, ...} (or {showItem}) -> Plain: "true" if any listed name matches an
+// item you hold (same scope as {hasItem}), else "false". Rich: the icon of each listed name's first
+// matching item, in the listed order, or empty if none match.
+public class ShowItemsLabelVariable implements LabelVariable
+{
+	private static final Pattern PATTERN = Pattern.compile("\\{showItems?\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
+
+	private final Client client;
+	private final ItemManager itemManager;
+
+	@Inject
+	private ShowItemsLabelVariable(Client client, ItemManager itemManager)
+	{
+		this.client = client;
+		this.itemManager = itemManager;
+	}
+
+	@Override
+	public Pattern pattern()
+	{
+		return PATTERN;
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher)
+	{
+		if (client.getLocalPlayer() == null)
+		{
+			return null;
+		}
+
+		return String.valueOf(!found(matcher.group(1)).isEmpty());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		if (client.getLocalPlayer() == null)
+		{
+			return null;
+		}
+
+		StringBuilder icons = new StringBuilder();
+		for (int id : found(matcher.group(1)))
+		{
+			icons.append("<item=").append(id).append('>');
+		}
+		return icons.toString();
+	}
+
+	// Each listed name's first matching item id, in the listed order, without repeats.
+	private Set<Integer> found(String names)
+	{
+		Set<Integer> ids = new LinkedHashSet<>();
+		for (String name : names.split(","))
+		{
+			String search = name.trim().toLowerCase(Locale.ROOT);
+			if (search.isEmpty())
+			{
+				continue;
+			}
+
+			List<Match> matches = ItemQuantityFinder.findAll(client, itemManager, search);
+			if (!matches.isEmpty())
+			{
+				ids.add(matches.get(0).id);
+			}
+		}
+		return ids;
+	}
+}

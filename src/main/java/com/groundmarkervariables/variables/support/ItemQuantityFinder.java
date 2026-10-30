@@ -15,16 +15,18 @@ import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
 
-// Matching items (name + quantity) for {numItem}/{numDoses} -- same scope as {hasItem}.
+// Matching items (id, name, quantity) for {numItem}/{numDoses}/{showItems} -- same scope as {hasItem}.
 public final class ItemQuantityFinder
 {
 	public static final class Match
 	{
+		public final int id;
 		public final String name;
 		public final int quantity;
 
-		private Match(String name, int quantity)
+		private Match(int id, String name, int quantity)
 		{
+			this.id = id;
 			this.name = name;
 			this.quantity = quantity;
 		}
@@ -75,7 +77,7 @@ public final class ItemQuantityFinder
 			String name = itemManager.getItemComposition(item.getId()).getName();
 			if (name.toLowerCase(Locale.ROOT).contains(search))
 			{
-				matches.add(new Match(name, item.getQuantity()));
+				matches.add(new Match(item.getId(), name, item.getQuantity()));
 			}
 		}
 	}
@@ -97,7 +99,7 @@ public final class ItemQuantityFinder
 		String name = itemManager.getItemComposition(ammoId).getName();
 		if (name.toLowerCase(Locale.ROOT).contains(search))
 		{
-			matches.add(new Match(name, amount));
+			matches.add(new Match(ammoId, name, amount));
 		}
 	}
 
@@ -118,10 +120,11 @@ public final class ItemQuantityFinder
 				continue;
 			}
 
-			String name = itemManager.getItemComposition(runepouchEnum.getIntValue(runeType)).getName();
+			int runeId = runepouchEnum.getIntValue(runeType);
+			String name = itemManager.getItemComposition(runeId).getName();
 			if (name.toLowerCase(Locale.ROOT).contains(search))
 			{
-				matches.add(new Match(name, amount));
+				matches.add(new Match(runeId, name, amount));
 			}
 		}
 	}

@@ -29,6 +29,7 @@ public class VariableRegistry
 		AttackStyleLabelVariable attackStyle,
 		AttackTypeLabelVariable attackType,
 		HasItemLabelVariable hasItem,
+		ShowItemsLabelVariable showItems,
 		MiscellaniaLabelVariable miscellania,
 		HasAlchsLabelVariable hasAlchs,
 		TimeLabelVariable time,
@@ -62,7 +63,7 @@ public class VariableRegistry
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, attackType, autocast, dps, hasItem, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
+			attackStyle, attackType, autocast, dps, hasItem, showItems, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
 			party, divine, world, hasVileVigour, hasVengeance);
 	}
