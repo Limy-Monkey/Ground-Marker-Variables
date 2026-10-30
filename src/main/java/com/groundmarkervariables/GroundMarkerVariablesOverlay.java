@@ -192,8 +192,8 @@ public class GroundMarkerVariablesOverlay
 			label = label.replace("</col>", "<col=" + ColorUtil.colorToHexCode(color) + ">");
 			label = NamedColors.expandColorAliases(label);
 
-			// Literal "\n" becomes a real line break, split into rows.
-			String[] lines = label.replace("\\n", "\n").split("\n", -1);
+			// Literal "\n" becomes a real line break, split into rows; "\s" a non-breaking space.
+			String[] lines = label.replace("\\s", " ").replace("\\n", "\n").split("\n", -1);
 			for (int i = 0; i < lines.length; i++)
 			{
 				lines[i] = lines[i].trim();

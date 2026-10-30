@@ -1059,7 +1059,7 @@ public class DpsTracker
 	{
 		forEachDpsToken(tile, token ->
 		{
-			String text = labelResolver.get().resolve(token).replaceAll("\\{/?align[^}]*}|</?col[^>]*>", "");
+			String text = labelResolver.get().resolve(token).replaceAll("\\{/?align[^}]*}|</?col[^>]*>", "").replace("\\s", "\u00A0");
 			for (String line : text.split("\\\\n"))
 			{
 				if (!line.isBlank())
