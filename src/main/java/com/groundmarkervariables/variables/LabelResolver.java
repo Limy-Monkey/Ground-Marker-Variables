@@ -70,14 +70,16 @@ public class LabelResolver
 		// Plain for its own <expr> internally (no ^/&/* support).
 		String resolved = conditional.resolveAll(label);
 
+		// {expr cmp value} and {a || b} / {a && b}, with no ?: disjoint from conditional's own
+		// ?-requiring pattern. Before the base variables, whose patterns (e.g. {hasItem ...})
+		// would otherwise swallow a whole "a || b" as their own argument.
+		resolved = applyWithMode(booleanVariable, resolved);
+
 		resolved = applyWithMode(math, resolved);
 		for (LabelVariable variable : baseVariables)
 		{
 			resolved = applyWithMode(variable, resolved);
 		}
-
-		// {expr cmp value} with no ?/: — disjoint from conditional's own ?/:-requiring pattern.
-		resolved = applyWithMode(booleanVariable, resolved);
 
 		// Metronome stays last, same as today — see the class comment on why.
 		resolved = applyWithMode(metronome, resolved);

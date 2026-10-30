@@ -10,9 +10,13 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {<expr> <cmp> <value>} — colors <expr>'s own Plain Text value true/false, no ?/: branches.
-// ? excluded from both groups so this can't collide with real {cond ? A : B} syntax (every
-// real conditional has a literal '?' before any ':', so that alone is enough -- <value> still
-// allows ':' for clock-time values like {time < 9:00}).
+// ? excluded so this can't collide with real {cond ? A : B} syntax (every real conditional has a
+// literal '?' before any ':', so that alone is enough -- <value> still allows ':' for clock-time
+// values like {time < 9:00}).
+//
+// {a || b || ...} shows the first true operand, {a && b && ...} the first false one, or else the
+// last operand, which may be literal text (even empty, e.g. {hasItem obligator || }). Each operand
+// is "<expr>" or "<expr> <cmp> <value>"; || and && can't be mixed in one token.
 //
 // {6HourTimeRemaining < <hours>} / {6HourTimeRemaining <= <hours>} is a special case: <hours>
 // is a plain number of hours (or "h:mm") against the live Duration, not the generic comparison
@@ -21,8 +25,8 @@ import javax.inject.Inject;
 // other comparator with this variable resolves to a call-to-action instead.
 public class BooleanVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{\\s*([^{}?:]+?)\\s*(==|!=|<=|>=|<|>)\\s*([^{}?]+?)\\s*\\}");
+	private static final Pattern PATTERN = Pattern.compile("\\{(?=[^{}?]*(?:==|!=|<|>|\\|\\||&&))([^{}?]+)\\}");
+	private static final Pattern COMPARISON = Pattern.compile("\\s*([^{}?:]+?)\\s*(==|!=|<=|>=|<|>)\\s*([^{}?]+?)\\s*");
 	private static final String UNSUPPORTED_COMPARATOR_TEXT = "Use {6HourTimeRemaining < 1.5} for a 1.5 hour warning";
 
 	private final ConditionEvaluator evaluator;
@@ -49,52 +53,94 @@ public class BooleanVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		if (isSixHourTimeRemaining(matcher.group(1)))
-		{
-			return resolveSixHourWarning(matcher, false);
-		}
-
-		String value = evaluator.resolveExpression(matcher.group(1));
-		if (value == null)
-		{
-			return null;
-		}
-
-		return evaluator.evaluate(value, matcher.group(2), matcher.group(3)) == null ? null : value;
+		return resolve(matcher.group(1), false);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		if (isSixHourTimeRemaining(matcher.group(1)))
+		return resolve(matcher.group(1), true);
+	}
+
+	private String resolve(String body, boolean rich)
+	{
+		boolean or = body.contains("||");
+		if (or || body.contains("&&"))
 		{
-			return resolveSixHourWarning(matcher, true);
+			return or && body.contains("&&") ? null : resolveLogic(body, or, rich);
+		}
+		return show(body, rich);
+	}
+
+	private String resolveLogic(String body, boolean or, boolean rich)
+	{
+		String[] operands = body.split(or ? "\\|\\|" : "&&", -1);
+		for (int i = 0; i < operands.length; i++)
+		{
+			String operand = operands[i].trim();
+			boolean last = i == operands.length - 1;
+			Boolean result = truth(operand);
+			if (result == null)
+			{
+				// The last operand may be literal text; anything else unresolvable leaves the token as-is.
+				return last ? operand : null;
+			}
+			if (result == or || last)
+			{
+				return show(operand, rich);
+			}
+		}
+		return null;
+	}
+
+	// true/false for "<expr>" or "<expr> <cmp> <value>", or null if it can't be evaluated.
+	private Boolean truth(String operand)
+	{
+		Matcher comparison = COMPARISON.matcher(operand);
+		if (comparison.matches())
+		{
+			return evaluator.evaluateCondition(comparison.group(1), comparison.group(2), comparison.group(3));
+		}
+		return operand.isEmpty() ? null : evaluator.evaluateCondition(operand, null, null);
+	}
+
+	// A comparison colored by its result, or a bare <expr> as its own variable renders it.
+	private String show(String operand, boolean rich)
+	{
+		Matcher comparison = COMPARISON.matcher(operand);
+		if (!comparison.matches())
+		{
+			return evaluator.resolveExpression(operand.trim(), rich);
 		}
 
-		String value = evaluator.resolveExpression(matcher.group(1));
+		if (evaluator.isSixHourTimeRemaining(comparison.group(1)))
+		{
+			return resolveSixHourWarning(comparison, rich);
+		}
+
+		String value = evaluator.resolveExpression(comparison.group(1));
 		if (value == null)
 		{
 			return null;
 		}
 
-		Boolean result = evaluator.evaluate(value, matcher.group(2), matcher.group(3));
-		return result == null ? null : richText.booleanColored(result, value);
+		Boolean result = evaluator.evaluate(value, comparison.group(2), comparison.group(3));
+		if (result == null)
+		{
+			return null;
+		}
+		return rich ? richText.booleanColored(result, value) : value;
 	}
 
-	private boolean isSixHourTimeRemaining(String expr)
+	private String resolveSixHourWarning(Matcher comparison, boolean rich)
 	{
-		return evaluator.isSixHourTimeRemaining(expr);
-	}
-
-	private String resolveSixHourWarning(Matcher matcher, boolean rich)
-	{
-		String comparator = matcher.group(2);
+		String comparator = comparison.group(2);
 		if (!"<".equals(comparator) && !"<=".equals(comparator))
 		{
 			return UNSUPPORTED_COMPARATOR_TEXT;
 		}
 
-		Boolean warning = evaluator.evaluateCondition(matcher.group(1), comparator, matcher.group(3));
+		Boolean warning = evaluator.evaluateCondition(comparison.group(1), comparator, comparison.group(3));
 		if (warning == null)
 		{
 			return null;
@@ -102,7 +148,7 @@ public class BooleanVariable implements LabelVariable
 
 		if (!warning)
 		{
-			return rich ? sixHourTimeRemaining.resolveRich(matcher) : "";
+			return rich ? sixHourTimeRemaining.resolveRich(comparison) : "";
 		}
 
 		return rich ? sixHourTimeRemaining.richTextWithColor(config.booleanFalseColor()) : sixHourTimeRemaining.formatPlain();

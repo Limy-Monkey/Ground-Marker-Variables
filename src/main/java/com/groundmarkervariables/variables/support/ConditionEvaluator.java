@@ -52,10 +52,16 @@ public class ConditionEvaluator
 	// instead, to avoid a circular dependency back through here), so it's tried directly.
 	public String resolveExpression(String expr)
 	{
+		return resolveExpression(expr, false);
+	}
+
+	// Like resolveExpression, in Rich Text when rich.
+	public String resolveExpression(String expr, boolean rich)
+	{
 		Matcher mathMatcher = mathVariable.pattern().matcher("{" + expr + "}");
 		if (mathMatcher.matches())
 		{
-			return mathVariable.resolvePlain(mathMatcher);
+			return rich ? mathVariable.resolveRich(mathMatcher) : mathVariable.resolvePlain(mathMatcher);
 		}
 
 		for (LabelVariable variable : variables)
@@ -63,7 +69,7 @@ public class ConditionEvaluator
 			Matcher wrapped = variable.pattern().matcher("{" + expr + "}");
 			if (wrapped.matches())
 			{
-				return variable.resolvePlain(wrapped); // always Plain — see callers' comments
+				return rich ? variable.resolveRich(wrapped) : variable.resolvePlain(wrapped);
 			}
 		}
 

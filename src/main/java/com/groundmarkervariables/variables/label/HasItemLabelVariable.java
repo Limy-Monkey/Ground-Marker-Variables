@@ -26,9 +26,8 @@ import net.runelite.client.game.ItemManager;
 //
 // Also checks a rune pouch's contents and Dizana's Quiver's active ammo.
 //
-// [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise, as a base variable,
-// this pattern runs before ConditionalVariable/BooleanVariable and would swallow a trailing
-// "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
+// [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise this pattern could swallow a
+// trailing "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
 public class HasItemLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);

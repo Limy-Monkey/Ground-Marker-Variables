@@ -112,6 +112,13 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - `<` / `>` compare numbers (`10.5k` works), or clock times: `{time < 9:00pm}`
 - The value can be another variable: `{boost_strength > lvl_strength}`
 
+### Or / And
+`{<a> || <b> || ...}` shows the first part that's true, and `{<a> && <b> && ...}` the first part that's false. If none is, the last part is shown.
+- `{hasItem obligator || hasItem scythe}` shows Obligator if you have one, otherwise the scythe, green or red.
+- The last part can be plain text, even empty: `{hasItem obligator || }` shows nothing without an Obligator.
+- Parts can be comparisons: `{kc tob > 100 && hasItem scythe && Ready}`
+- `||` and `&&` can't be mixed in one token.
+
 ### Conditionals
 `{<condition> ? <if true> : <if false>}` shows one branch or the other.
 - `{kc toa > 50 ? Toa veteran : Toa learner}`
