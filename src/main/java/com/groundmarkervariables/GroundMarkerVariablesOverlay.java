@@ -52,9 +52,10 @@ public class GroundMarkerVariablesOverlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
-	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, or <emoji=codepoint> icon.
+	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, or <emoji=codepoint[@tint hex]> icon.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
-		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)>", Pattern.CASE_INSENSITIVE);
+		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>",
+		Pattern.CASE_INSENSITIVE);
 	// The game's own world switcher flags, drawn at native size.
 	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
 		"us", SpriteID.WorldswitcherFlags._1,
@@ -527,7 +528,8 @@ public class GroundMarkerVariablesOverlay
 			}
 			else if (matcher.group(5) != null)
 			{
-				BufferedImage emoji = emojis.image(matcher.group(5).toLowerCase(Locale.ROOT));
+				String tint = matcher.group(6) == null ? null : matcher.group(6).toLowerCase(Locale.ROOT);
+				BufferedImage emoji = emojis.image(matcher.group(5).toLowerCase(Locale.ROOT), tint);
 				if (emoji != null)
 				{
 					segments.add(emoji);

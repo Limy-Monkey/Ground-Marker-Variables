@@ -364,6 +364,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			name = "<html><blockquote style=\"margin-left: 10px\">"
 					+ "- {^...} = raw variable<br>"
 					+ "- \\n = newline<br>"
+					+ "- :emoji:<br>"
 					+ "- {col=red} = Red text<br><br>"
 					+ "- {rsn}<br>"
 					+ "- {date}, {time}, {weekday}<br>"

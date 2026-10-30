@@ -1,5 +1,6 @@
 package com.groundmarkervariables;
 
+import java.util.Arrays;
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
 
@@ -12,7 +13,19 @@ public class GroundMarkerVariablesPluginTest
 		//applyDefaultHardwareAcceleration();
 
 		ExternalPluginManager.loadBuiltin(GroundMarkerVariablesPlugin.class);
-		RuneLite.main(args);
+		RuneLite.main(withDeveloperMode(args));
+	}
+
+	// So running the shadow jar directly needs no flags.
+	private static String[] withDeveloperMode(String[] args)
+	{
+		if (Arrays.asList(args).contains("--developer-mode"))
+		{
+			return args;
+		}
+		String[] withFlag = Arrays.copyOf(args, args.length + 1);
+		withFlag[args.length] = "--developer-mode";
+		return withFlag;
 	}
 
 	/**
