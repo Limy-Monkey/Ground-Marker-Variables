@@ -52,9 +52,11 @@ public class GroundMarkerVariablesOverlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
-	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, or <emoji=codepoint[@tint hex]> icon.
+	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
+	// <sprite=ID[,frame]> game sprite.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
-		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>",
+		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
+			+ "|<sprite=(\\d+)(?:,(\\d+))?>",
 		Pattern.CASE_INSENSITIVE);
 	// The game's own world switcher flags, drawn at native size.
 	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
@@ -501,7 +503,7 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into text (String), item ids (Integer), flags/emojis (BufferedImage) and StyleToggles.
+	// Splits a line into text (String), item ids (Integer), flags/emojis/sprites (BufferedImage) and StyleToggles.
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
@@ -533,6 +535,15 @@ public class GroundMarkerVariablesOverlay
 				if (emoji != null)
 				{
 					segments.add(emoji);
+				}
+			}
+			else if (matcher.group(7) != null)
+			{
+				int frame = matcher.group(8) == null ? 0 : Integer.parseInt(matcher.group(8));
+				BufferedImage sprite = spriteManager.getSprite(Integer.parseInt(matcher.group(7)), frame);
+				if (sprite != null)
+				{
+					segments.add(sprite);
 				}
 			}
 			else
