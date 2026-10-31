@@ -10,6 +10,7 @@ import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
+import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
@@ -198,6 +199,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private MiscellaniaTracker miscellaniaTracker;
 
 	@Inject
+	private ReadyCheckTracker readyCheckTracker;
+
+	@Inject
 	private WeaponStyleTracker weaponStyleTracker;
 
 	@Inject
@@ -254,6 +258,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		groundMarkerPartySharingManager.startUp();
 		recentLootTracker.startUp();
 		miscellaniaTracker.startUp();
+		readyCheckTracker.startUp();
 		weaponStyleTracker.startUp();
 		dpsTracker.startUp();
 		pluginMessageHandler.startUp();
@@ -318,6 +323,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
+		readyCheckTracker.shutDown();
 		weaponStyleTracker.shutDown();
 		dpsTracker.shutDown();
 		pluginMessageHandler.shutDown();
@@ -804,6 +810,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
 			partyDataSharing.collecting = true;
+			readyCheckTracker.collecting = true;
 			try
 			{
 				for (WorldView wv : getTrackedWorldViews())
@@ -824,6 +831,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			{
 				dpsTracker.resolvingTile = null;
 				partyDataSharing.collecting = false;
+				readyCheckTracker.collecting = false;
 			}
 		}
 
