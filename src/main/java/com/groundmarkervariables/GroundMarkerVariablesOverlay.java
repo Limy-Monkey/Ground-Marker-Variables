@@ -12,6 +12,7 @@ import java.awt.Stroke;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +40,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 
@@ -52,12 +54,13 @@ public class GroundMarkerVariablesOverlay
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
-	// <item=ID> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
-	// <sprite=ID[,frame]> game sprite.
+	// <item=ID[@N%]> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
+	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
-		"<item=(\\d+)>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
-			+ "|<sprite=(\\d+)(?:,(\\d+))?>",
+		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
+			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>",
 		Pattern.CASE_INSENSITIVE);
+	private static final int FULL_BRIGHTNESS = 100;
 	// The game's own world switcher flags, drawn at native size.
 	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
 		"us", SpriteID.WorldswitcherFlags._1,
@@ -82,6 +85,8 @@ public class GroundMarkerVariablesOverlay
 
 	// Keyed by the (already cached) flag or emoji image.
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
+	// Keyed by the original image, then brightness.
+	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons = new IdentityHashMap<>();
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
@@ -343,6 +348,19 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// <item=ID[@N%]>
+	private static final class ItemIcon
+	{
+		private final int id;
+		private final int brightness;
+
+		private ItemIcon(int id, int brightness)
+		{
+			this.id = id;
+			this.brightness = brightness;
+		}
+	}
+
 	private LineLayout layoutLine(Graphics2D graphics, String line, int startStyle)
 	{
 		List<Object> segments = splitSegments(line);
@@ -357,11 +375,13 @@ public class GroundMarkerVariablesOverlay
 		List<Integer> iconWidths = new ArrayList<>();
 		for (Object segment : segments)
 		{
-			if (segment instanceof Integer)
+			if (segment instanceof ItemIcon)
 			{
 				// null on a lookup failure (see ItemManager#getImage) -- treated as zero-width
 				// and simply skipped when drawing below, rather than dropping the whole line.
-				BufferedImage image = itemManager.getImage((Integer) segment);
+				ItemIcon item = (ItemIcon) segment;
+				BufferedImage image = itemManager.getImage(item.id);
+				image = image == null ? null : dimmed(image, item.brightness);
 				images.add(image);
 				int iconWidth = image == null ? 0 : image.getWidth() * iconHeight / image.getHeight();
 				iconWidths.add(iconWidth);
@@ -392,6 +412,35 @@ public class GroundMarkerVariablesOverlay
 		}
 
 		return new LineLayout(segments, images, iconWidths, totalWidth, startStyle, style);
+	}
+
+	// "80" from "@80%", capped at 100; full brightness without it.
+	private static int brightness(String percent)
+	{
+		return percent == null ? FULL_BRIGHTNESS : Math.min(Integer.parseInt(percent), FULL_BRIGHTNESS);
+	}
+
+	// A darkened copy, cached per image. An item image still loading is drawn into later, so its
+	// copy is dropped once it loads.
+	private BufferedImage dimmed(BufferedImage image, int brightness)
+	{
+		if (brightness >= FULL_BRIGHTNESS)
+		{
+			return image;
+		}
+
+		Map<Integer, BufferedImage> byBrightness = dimmedIcons.get(image);
+		BufferedImage dimmed = byBrightness == null ? null : byBrightness.get(brightness);
+		if (dimmed == null)
+		{
+			dimmed = ImageUtil.luminanceScale(image, brightness / 100f);
+			if (image instanceof AsyncBufferedImage)
+			{
+				((AsyncBufferedImage) image).onLoaded(() -> dimmedIcons.remove(image));
+			}
+			dimmedIcons.computeIfAbsent(image, i -> new HashMap<>()).put(brightness, dimmed);
+		}
+		return dimmed;
 	}
 
 	// Native size, or smoothly scaled down to the text height when that's shorter.
@@ -463,7 +512,7 @@ public class GroundMarkerVariablesOverlay
 				graphics.drawImage(flag, x, flagY, null);
 				x += flag.getWidth();
 			}
-			else if (segment instanceof Integer)
+			else if (segment instanceof ItemIcon)
 			{
 				BufferedImage image = layout.images.get(i);
 				int iconWidth = layout.iconWidths.get(i);
@@ -502,7 +551,7 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into text (String), item ids (Integer), flags/emojis/sprites (BufferedImage) and StyleToggles.
+	// Splits a line into text (String), ItemIcons, flags/emojis/sprites (BufferedImage) and StyleToggles.
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
@@ -517,37 +566,37 @@ public class GroundMarkerVariablesOverlay
 
 			if (matcher.group(1) != null)
 			{
-				segments.add(Integer.valueOf(matcher.group(1)));
+				segments.add(new ItemIcon(Integer.parseInt(matcher.group(1)), brightness(matcher.group(2))));
 			}
-			else if (matcher.group(4) != null)
+			else if (matcher.group(5) != null)
 			{
-				BufferedImage flag = spriteManager.getSprite(FLAG_SPRITES.get(matcher.group(4).toLowerCase(Locale.ROOT)), 0);
+				BufferedImage flag = spriteManager.getSprite(FLAG_SPRITES.get(matcher.group(5).toLowerCase(Locale.ROOT)), 0);
 				if (flag != null)
 				{
 					segments.add(flag);
 				}
 			}
-			else if (matcher.group(5) != null)
+			else if (matcher.group(6) != null)
 			{
-				String tint = matcher.group(6) == null ? null : matcher.group(6).toLowerCase(Locale.ROOT);
-				BufferedImage emoji = emojis.image(matcher.group(5).toLowerCase(Locale.ROOT), tint);
+				String tint = matcher.group(7) == null ? null : matcher.group(7).toLowerCase(Locale.ROOT);
+				BufferedImage emoji = emojis.image(matcher.group(6).toLowerCase(Locale.ROOT), tint);
 				if (emoji != null)
 				{
 					segments.add(emoji);
 				}
 			}
-			else if (matcher.group(7) != null)
+			else if (matcher.group(8) != null)
 			{
-				int frame = matcher.group(8) == null ? 0 : Integer.parseInt(matcher.group(8));
-				BufferedImage sprite = spriteManager.getSprite(Integer.parseInt(matcher.group(7)), frame);
+				int frame = matcher.group(9) == null ? 0 : Integer.parseInt(matcher.group(9));
+				BufferedImage sprite = spriteManager.getSprite(Integer.parseInt(matcher.group(8)), frame);
 				if (sprite != null)
 				{
-					segments.add(sprite);
+					segments.add(dimmed(sprite, brightness(matcher.group(10))));
 				}
 			}
 			else
 			{
-				segments.add(new StyleToggle("b".equalsIgnoreCase(matcher.group(3)) ? Font.BOLD : Font.ITALIC, matcher.group(2).isEmpty()));
+				segments.add(new StyleToggle("b".equalsIgnoreCase(matcher.group(4)) ? Font.BOLD : Font.ITALIC, matcher.group(3).isEmpty()));
 			}
 			last = matcher.end();
 		}
