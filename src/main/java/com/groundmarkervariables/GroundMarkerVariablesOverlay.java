@@ -82,7 +82,6 @@ public class GroundMarkerVariablesOverlay
 
 	// Keyed by the (already cached) flag or emoji image.
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
-
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,

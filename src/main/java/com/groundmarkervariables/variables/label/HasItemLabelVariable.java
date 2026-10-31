@@ -1,12 +1,15 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -18,6 +21,7 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.party.PartyMember;
 
 // {hasItem <name>} -> "true" if the player currently holds an item whose ItemComposition name
 // contains <name> (case-insensitive substring, not exact match — e.g. {hasItem rune} matches
@@ -28,7 +32,7 @@ import net.runelite.client.game.ItemManager;
 //
 // [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise this pattern could swallow a
 // trailing "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
-public class HasItemLabelVariable implements LabelVariable
+public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 
@@ -86,6 +90,31 @@ public class HasItemLabelVariable implements LabelVariable
 		String typed = matcher.group(1).trim();
 		String foundName = findItemName(typed.toLowerCase(Locale.ROOT));
 		return richText.booleanColored(foundName != null, foundName != null ? foundName : typed);
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		return String.valueOf(memberItemName(matcher, member) != null);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		String foundName = memberItemName(matcher, member);
+		return richText.booleanColored(foundName != null, foundName != null ? foundName : matcher.group(1).trim());
+	}
+
+	@Override
+	public String resolveRowRich(Matcher matcher, RichText richText)
+	{
+		return resolveRich(matcher);
+	}
+
+	private String memberItemName(Matcher matcher, PartyMember member)
+	{
+		List<ItemQuantityFinder.Match> matches = ItemQuantityFinder.findAll(member, itemManager, matcher.group(1).trim().toLowerCase(Locale.ROOT));
+		return matches.isEmpty() ? null : matches.get(0).name;
 	}
 
 	private String findItemName(String search)

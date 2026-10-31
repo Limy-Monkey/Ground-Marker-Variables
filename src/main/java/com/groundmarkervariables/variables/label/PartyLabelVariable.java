@@ -2,21 +2,23 @@ package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.PartyMemberContext;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 
-// {party <template>} -> Plain is always the party size. Rich is always "Party (N)" followed
-// by one row per member, each the template with num/name/hp/prayer substituted for that
-// member -- e.g. {party num. name} renders "1. Alice\n2. Bob".
+// {party} -> the party size. LabelResolver renders {party <template>} itself via render(), since
+// the template may contain nested tokens.
 public class PartyLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{party(?:\\s+([^{}?:<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
@@ -31,13 +33,18 @@ public class PartyLabelVariable implements LabelVariable
 	private final Client client;
 	private final PartyService partyService;
 	private final RichText richText;
+	private final PartyMemberContext memberContext;
+	private final PartyDataSharing partyDataSharing;
 
 	@Inject
-	private PartyLabelVariable(Client client, PartyService partyService, RichText richText)
+	private PartyLabelVariable(Client client, PartyService partyService, RichText richText, PartyMemberContext memberContext,
+							   PartyDataSharing partyDataSharing)
 	{
+		this.partyDataSharing = partyDataSharing;
 		this.client = client;
 		this.partyService = partyService;
 		this.richText = richText;
+		this.memberContext = memberContext;
 	}
 
 	@Override
@@ -49,7 +56,18 @@ public class PartyLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		return String.valueOf(members().size());
+		return String.valueOf(size());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		return richText.highlightValue(String.valueOf(size()));
+	}
+
+	public int size()
+	{
+		return members().size();
 	}
 
 	// RuneLite's name for a member until theirs arrives, e.g. just after rejoining.
@@ -60,58 +78,89 @@ public class PartyLabelVariable implements LabelVariable
 			.collect(Collectors.toList());
 	}
 
-	@Override
-	public String resolveRich(Matcher matcher)
+	// "Party (N)", then the template once per member: keywords substituted outside nested tokens,
+	// then resolveRow run with that member as the context.
+	public String render(String template, UnaryOperator<String> resolveRow)
 	{
-		String template = matcher.group(1) == null ? DEFAULT_TEMPLATE : matcher.group(1).trim();
-		if (template.isEmpty() || client.getLocalPlayer() == null)
+		if (client.getLocalPlayer() == null)
 		{
 			return null;
 		}
 
+		template = template.isEmpty() ? DEFAULT_TEMPLATE : template;
+		partyDataSharing.addNeeds(template);
 		PartyMember local = partyService.getLocalMember();
 		List<PartyMember> members = members();
 		StringBuilder result = new StringBuilder("{align=left}Party (").append(members.size()).append(")");
 
-		int row = 1;
+		int num = 1;
 		for (PartyMember member : members)
 		{
 			boolean isLocal = local != null && member.getMemberId() == local.getMemberId();
-			result.append("\\n").append(renderRow(template, row++, member, isLocal));
+			int rowNum = num++;
+			String row = outsideTokens(template, text -> substituteKeywords(text, rowNum, member, isLocal));
+
+			memberContext.enterRow(isLocal ? null : member);
+			try
+			{
+				row = resolveRow.apply(row);
+			}
+			finally
+			{
+				memberContext.exitRow();
+			}
+			result.append("\\n").append(row);
 		}
 
 		result.append("\\n{/align}");
 		return result.toString();
 	}
 
-	private String renderRow(String template, int num, PartyMember member, boolean isLocal)
+	private String substituteKeywords(String text, int num, PartyMember member, boolean isLocal)
 	{
-		String hp = UNKNOWN;
-		String prayer = UNKNOWN;
+		String hp = isLocal ? localStat(Skill.HITPOINTS) : memberStat(member, Skill.HITPOINTS);
+		String prayer = isLocal ? localStat(Skill.PRAYER) : memberStat(member, Skill.PRAYER);
 
-		if (isLocal)
+		text = NUM_WORD.matcher(text).replaceAll(String.valueOf(num));
+		text = NAME_WORD.matcher(text).replaceAll(Matcher.quoteReplacement(richText.highlightValue(member.getDisplayName())));
+		text = HP_WORD.matcher(text).replaceAll(Matcher.quoteReplacement(RichText.colored(Color.RED, hp)));
+		text = PRAYER_WORD.matcher(text).replaceAll(Matcher.quoteReplacement(RichText.colored(Color.CYAN, prayer)));
+		return text;
+	}
+
+	private String localStat(Skill skill)
+	{
+		return client.getBoostedSkillLevel(skill) + "/" + client.getRealSkillLevel(skill);
+	}
+
+	// A base of 0 means they haven't sent it yet.
+	private static String memberStat(PartyMember member, Skill skill)
+	{
+		return member.getStatBase(skill) > 0 ? member.getStatBoost(skill) + "/" + member.getStatBase(skill) : UNKNOWN;
+	}
+
+	// Applies replace to the text outside {...} tokens only.
+	private static String outsideTokens(String template, UnaryOperator<String> replace)
+	{
+		StringBuilder out = new StringBuilder();
+		int start = 0;
+		int depth = 0;
+		for (int i = 0; i < template.length(); i++)
 		{
-			hp = client.getBoostedSkillLevel(Skill.HITPOINTS) + "/" + client.getRealSkillLevel(Skill.HITPOINTS);
-			prayer = client.getBoostedSkillLevel(Skill.PRAYER) + "/" + client.getRealSkillLevel(Skill.PRAYER);
-		}
-		else
-		{
-			// A max of 0 means they haven't sent it yet.
-			if (member.getStatBase(Skill.HITPOINTS) > 0)
+			char c = template.charAt(i);
+			if (c == '{' && depth++ == 0)
 			{
-				hp = member.getStatBoost(Skill.HITPOINTS) + "/" + member.getStatBase(Skill.HITPOINTS);
+				out.append(replace.apply(template.substring(start, i)));
+				start = i;
 			}
-			if (member.getStatBase(Skill.PRAYER) > 0)
+			else if (c == '}' && depth > 0 && --depth == 0)
 			{
-				prayer = member.getStatBoost(Skill.PRAYER) + "/" + member.getStatBase(Skill.PRAYER);
+				out.append(template, start, i + 1);
+				start = i + 1;
 			}
 		}
 
-		String row = template;
-		row = NUM_WORD.matcher(row).replaceAll(String.valueOf(num));
-		row = NAME_WORD.matcher(row).replaceAll(Matcher.quoteReplacement(richText.highlightValue(member.getDisplayName())));
-		row = HP_WORD.matcher(row).replaceAll(Matcher.quoteReplacement(RichText.colored(Color.RED, hp)));
-		row = PRAYER_WORD.matcher(row).replaceAll(Matcher.quoteReplacement(RichText.colored(Color.CYAN, prayer)));
-		return row;
+		String rest = template.substring(start);
+		return out.append(depth == 0 ? replace.apply(rest) : rest).toString();
 	}
 }

@@ -113,7 +113,7 @@ public class ConditionalVariable implements LabelVariable
 		return resolveAll(winner);
 	}
 
-	private static int matchingBrace(String text, int open)
+	public static int matchingBrace(String text, int open)
 	{
 		int depth = 0;
 		for (int i = open; i < text.length(); i++)

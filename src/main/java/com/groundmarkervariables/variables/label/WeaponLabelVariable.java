@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import net.runelite.api.Client;
 import net.runelite.api.EquipmentInventorySlot;
@@ -12,10 +13,11 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.InventoryID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.party.PartyMember;
 
 // {weapon} -> the equipped weapon's item name (e.g. "Abyssal whip"), or "Unarmed" if the
 // weapon slot is empty.
-public class WeaponLabelVariable implements LabelVariable
+public class WeaponLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{weapon\\}", Pattern.CASE_INSENSITIVE);
 	private static final String UNARMED = "Unarmed";
@@ -49,6 +51,21 @@ public class WeaponLabelVariable implements LabelVariable
 	{
 		String name = resolvePlain(matcher);
 		return name == null ? null : richText.labeled("Weapon", name);
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		Item[] worn = member.getWorn();
+		int slot = EquipmentInventorySlot.WEAPON.getSlotIdx();
+		Item weapon = worn == null || slot >= worn.length ? null : worn[slot];
+		return weapon == null || weapon.getId() <= 0 ? UNARMED : itemManager.getItemComposition(weapon.getId()).getName();
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		return richText.highlightValue(resolvePlain(matcher, member));
 	}
 
 	private String resolveWeaponName()

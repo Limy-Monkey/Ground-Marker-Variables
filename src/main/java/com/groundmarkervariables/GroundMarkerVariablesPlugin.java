@@ -35,7 +35,6 @@ import net.runelite.api.GameState;
 import net.runelite.api.KeyCode;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
-import net.runelite.api.Skill;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
@@ -54,7 +53,6 @@ import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.input.KeyManager;
-import net.runelite.client.party.PartyDataService;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
@@ -187,9 +185,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private PingedTileManager pingedTileManager;
 
-	// Sends our HP and prayer to the party, for {party hp/prayer}.
 	@Inject
-	private PartyDataService partyDataService;
+	private PartyDataSharing partyDataSharing;
 
 	@Inject
 	private GroundMarkerPartySharingManager groundMarkerPartySharingManager;
@@ -253,7 +250,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.add(partyNotificationOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		pingedTileManager.startUp();
-		partyDataService.subscribe(this, Skill.HITPOINTS, Skill.PRAYER);
+		partyDataSharing.startUp(this);
 		groundMarkerPartySharingManager.startUp();
 		recentLootTracker.startUp();
 		miscellaniaTracker.startUp();
@@ -317,7 +314,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	protected void shutDown()
 	{
 		pingedTileManager.shutDown();
-		partyDataService.unsubscribe(this, Skill.HITPOINTS, Skill.PRAYER);
+		partyDataSharing.shutDown();
 		groundMarkerPartySharingManager.shutDown();
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
@@ -806,6 +803,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
 			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
+			partyDataSharing.collecting = true;
 			try
 			{
 				for (WorldView wv : getTrackedWorldViews())
@@ -825,6 +823,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			finally
 			{
 				dpsTracker.resolvingTile = null;
+				partyDataSharing.collecting = false;
 			}
 		}
 

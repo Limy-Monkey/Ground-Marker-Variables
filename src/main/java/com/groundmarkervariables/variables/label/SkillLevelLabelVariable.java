@@ -5,10 +5,12 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.SkillFinder;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
+import net.runelite.client.party.PartyMember;
 
 // {lvl_<skill>} -> the player's real (unboosted) level in <skill>, e.g. {lvl_attack},
 // {lvl_hitpoints}, {lvl_mining}. <skill> matches any Skill.getName() case-insensitively, so
@@ -17,7 +19,7 @@ import net.runelite.api.Skill;
 //
 // {lvl_combat} / {lvl_total} are special-cased here only -- not real Skill entries, and not
 // supported by {boost_}/{xpRate_}.
-public class SkillLevelLabelVariable implements LabelVariable
+public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{lvl_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
 
@@ -59,6 +61,21 @@ public class SkillLevelLabelVariable implements LabelVariable
 		}
 
 		return richText.labeled(label(matcher.group(1)), level);
+	}
+
+	// Real skills only: combat and total aren't sent. A base level of 0 means not sent yet.
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		Skill skill = SkillFinder.find(matcher.group(1));
+		return skill == null || member.getStatBase(skill) <= 0 ? null : String.valueOf(member.getStatBase(skill));
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		String level = resolvePlain(matcher, member);
+		return level == null ? null : richText.highlightValue(level);
 	}
 
 	private Integer level(String name)

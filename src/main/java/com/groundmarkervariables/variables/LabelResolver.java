@@ -5,9 +5,12 @@ import com.groundmarkervariables.variables.label.BooleanVariable;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.label.PartyLabelVariable;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
+import com.groundmarkervariables.variables.support.PartyMemberContext;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +29,10 @@ import javax.inject.Inject;
 public class LabelResolver
 {
 	private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
+	private static final Pattern PARTY_START = Pattern.compile("\\{([\\^&*])?party(?=[\\s}])", Pattern.CASE_INSENSITIVE);
+	private static final Pattern OPERATOR_START = Pattern.compile("^(?:==|!=|<|>|\\|\\||&&|\\?|[+\\-*/]\\s)");
+	private static final char PLACEHOLDER_START = '';
+	private static final char PLACEHOLDER_END = '';
 
 	private final List<LabelVariable> baseVariables;
 	private final MathVariable math;
@@ -34,14 +41,20 @@ public class LabelResolver
 	private final MetronomeLabelVariable metronome;
 	private final GroundMarkerVariablesConfig config;
 	private final Emojis emojis;
+	private final PartyMemberContext memberContext;
+	private final PartyLabelVariable party;
+	private boolean inParty;
 
 	// Built lazily per variable, then reused -- this instance is shared by every CachedMarker.
 	private final Map<LabelVariable, Pattern> prefixedPatterns = new HashMap<>();
 
 	@Inject
 	private LabelResolver(VariableRegistry registry, MathVariable math, BooleanVariable booleanVariable, ConditionalVariable conditional,
-						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config, Emojis emojis)
+						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config, Emojis emojis, PartyMemberContext memberContext,
+						  PartyLabelVariable party)
 	{
+		this.memberContext = memberContext;
+		this.party = party;
 		this.baseVariables = registry.all();
 		this.math = math;
 		this.booleanVariable = booleanVariable;
@@ -65,17 +78,20 @@ public class LabelResolver
 			return label;
 		}
 
+		List<String> parties = new ArrayList<>();
+		String resolved = extractParties(label, parties);
+
 		// Runs first, while a branch's own nested token is still literal -- otherwise its
 		// resolved text (e.g. a colon in Rich Text) could corrupt the ?/: split. Also forces
 		// Plain for its own <expr> internally (no ^/&/* support).
-		String resolved = conditional.resolveAll(label);
+		resolved = conditional.resolveAll(resolved);
 
 		// {expr cmp value} and {a || b} / {a && b}, with no ?: disjoint from conditional's own
 		// ?-requiring pattern. Before the base variables, whose patterns (e.g. {hasItem ...})
 		// would otherwise swallow a whole "a || b" as their own argument.
-		resolved = applyWithMode(booleanVariable, resolved);
+		resolved = applyWithMode(booleanVariable, resolved, true);
 
-		resolved = applyWithMode(math, resolved);
+		resolved = applyWithMode(math, resolved, true);
 		for (LabelVariable variable : baseVariables)
 		{
 			resolved = applyWithMode(variable, resolved);
@@ -84,13 +100,93 @@ public class LabelResolver
 		// Metronome stays last, same as today — see the class comment on why.
 		resolved = applyWithMode(metronome, resolved);
 
-		return resolved;
+		return restoreParties(resolved, parties);
+	}
+
+	// Renders each {party <template>} (which may nest tokens) and leaves a placeholder, so the passes
+	// above leave its rows alone. A template starting with an operator is a comparison instead.
+	private String extractParties(String text, List<String> parties)
+	{
+		Matcher start = PARTY_START.matcher(text);
+		StringBuilder out = new StringBuilder();
+		int i = 0;
+		while (start.find(i))
+		{
+			int close = ConditionalVariable.matchingBrace(text, start.start());
+			if (close < 0)
+			{
+				break;
+			}
+
+			String template = text.substring(start.end(), close).trim();
+			if (OPERATOR_START.matcher(template).find())
+			{
+				out.append(text, i, start.end());
+				i = start.end();
+				continue;
+			}
+
+			Character prefixChar = start.group(1) == null ? null : start.group(1).charAt(0);
+			boolean rich = TextMode.forPrefix(prefixChar, config.richTextByDefault()) == TextMode.RICH;
+			String value;
+			try
+			{
+				value = renderParty(template, rich);
+			}
+			catch (RuntimeException e)
+			{
+				value = "ERROR";
+			}
+
+			out.append(text, i, start.start()).append(PLACEHOLDER_START).append(parties.size()).append(PLACEHOLDER_END);
+			parties.add(value != null ? value : text.substring(start.start(), close + 1));
+			i = close + 1;
+		}
+		return out.append(text.substring(i)).toString();
+	}
+
+	// A {party} inside a {party} row is unavailable.
+	private String renderParty(String template, boolean rich)
+	{
+		if (inParty)
+		{
+			return memberContext.unavailable(rich);
+		}
+		if (!rich)
+		{
+			return String.valueOf(party.size());
+		}
+
+		inParty = true;
+		try
+		{
+			return party.render(template, this::resolve);
+		}
+		finally
+		{
+			inParty = false;
+		}
+	}
+
+	private static String restoreParties(String text, List<String> parties)
+	{
+		for (int i = 0; i < parties.size(); i++)
+		{
+			text = text.replace(PLACEHOLDER_START + String.valueOf(i) + PLACEHOLDER_END, parties.get(i));
+		}
+		return text;
 	}
 
 	// Matches this variable's token with an optional ^/&/* mode-override prefix right after
 	// its opening brace, then re-matches the variable's own untouched pattern against the
 	// prefix-stripped text so resolve() sees the exact match shape it always has.
 	private String applyWithMode(LabelVariable variable, String text)
+	{
+		return applyWithMode(variable, text, false);
+	}
+
+	// composite: math/comparisons, whose own operands get the party-member check instead.
+	private String applyWithMode(LabelVariable variable, String text, boolean composite)
 	{
 		Pattern prefixed = prefixedPatterns.computeIfAbsent(variable, LabelResolver::withOptionalModePrefix);
 		Matcher matcher = prefixed.matcher(text);
@@ -105,7 +201,7 @@ public class LabelResolver
 			String value;
 			try
 			{
-				value = bareMatcher.matches() ? variable.resolve(bareMatcher, mode) : null;
+				value = bareMatcher.matches() ? resolveFor(variable, bareMatcher, mode, composite) : null;
 			}
 			catch (RuntimeException e)
 			{
@@ -118,6 +214,11 @@ public class LabelResolver
 		}
 		matcher.appendTail(replaced);
 		return replaced.toString();
+	}
+
+	private String resolveFor(LabelVariable variable, Matcher matcher, TextMode mode, boolean composite)
+	{
+		return composite ? variable.resolve(matcher, mode) : memberContext.resolve(variable, matcher, mode == TextMode.RICH);
 	}
 
 	// Every LabelVariable pattern starts with the literal "\{" -- inserting the optional

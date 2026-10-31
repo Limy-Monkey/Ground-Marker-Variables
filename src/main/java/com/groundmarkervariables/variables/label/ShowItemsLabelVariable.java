@@ -9,15 +9,19 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
+import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder.Match;
+import java.util.function.Function;
 import net.runelite.api.Client;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.party.PartyMember;
 
 // {showItems <name>, <name>, ...} (or {showItem}) -> Plain: "true" if any listed name matches an
 // item you hold (same scope as {hasItem}), else "false". Rich: the icon of each listed name's first
 // matching item, in the listed order, or empty if none match.
-public class ShowItemsLabelVariable implements LabelVariable
+public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{showItems?\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 
@@ -45,7 +49,7 @@ public class ShowItemsLabelVariable implements LabelVariable
 			return null;
 		}
 
-		return String.valueOf(!found(matcher.group(1)).isEmpty());
+		return String.valueOf(!found(matcher.group(1), this::findLocal).isEmpty());
 	}
 
 	@Override
@@ -56,8 +60,36 @@ public class ShowItemsLabelVariable implements LabelVariable
 			return null;
 		}
 
+		return icons(found(matcher.group(1), this::findLocal));
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		return String.valueOf(!found(matcher.group(1), search -> ItemQuantityFinder.findAll(member, itemManager, search)).isEmpty());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		return icons(found(matcher.group(1), search -> ItemQuantityFinder.findAll(member, itemManager, search)));
+	}
+
+	@Override
+	public String resolveRowRich(Matcher matcher, RichText richText)
+	{
+		return resolveRich(matcher);
+	}
+
+	private List<Match> findLocal(String search)
+	{
+		return ItemQuantityFinder.findAll(client, itemManager, search);
+	}
+
+	private static String icons(Set<Integer> ids)
+	{
 		StringBuilder icons = new StringBuilder();
-		for (int id : found(matcher.group(1)))
+		for (int id : ids)
 		{
 			icons.append("<item=").append(id).append('>');
 		}
@@ -65,7 +97,7 @@ public class ShowItemsLabelVariable implements LabelVariable
 	}
 
 	// Each listed name's first matching item id, in the listed order, without repeats.
-	private Set<Integer> found(String names)
+	private static Set<Integer> found(String names, Function<String, List<Match>> find)
 	{
 		Set<Integer> ids = new LinkedHashSet<>();
 		for (String name : names.split(","))
@@ -76,7 +108,7 @@ public class ShowItemsLabelVariable implements LabelVariable
 				continue;
 			}
 
-			List<Match> matches = ItemQuantityFinder.findAll(client, itemManager, search);
+			List<Match> matches = find.apply(search);
 			if (!matches.isEmpty())
 			{
 				ids.add(matches.get(0).id);

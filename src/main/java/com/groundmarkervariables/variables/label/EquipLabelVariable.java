@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
@@ -16,11 +17,12 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.party.PartyMember;
 
 // {equip_<slot>} -> the item name equipped in <slot> (helm, cape, amulet, body, shield, legs,
 // gloves, boots, ring, ammo), or "Empty" if nothing's there. {equip_quiver} is special: Dizana's
 // Quiver isn't a real equipment slot, so its live ammo type comes from a varp instead.
-public class EquipLabelVariable implements LabelVariable
+public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{equip_(\\w+)\\}", Pattern.CASE_INSENSITIVE);
 	private static final String EMPTY = "Empty";
@@ -85,6 +87,36 @@ public class EquipLabelVariable implements LabelVariable
 
 		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
 		return richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
+		if (QUIVER.equals(slot))
+		{
+			return itemName(member.getQuiver());
+		}
+
+		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
+		if (equipmentSlot == null)
+		{
+			return null;
+		}
+		Item[] worn = member.getWorn();
+		return itemName(worn == null || equipmentSlot.getSlotIdx() >= worn.length ? null : worn[equipmentSlot.getSlotIdx()]);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		String itemName = resolvePlain(matcher, member);
+		return itemName == null ? null : richText.highlightValue(itemName);
+	}
+
+	private String itemName(Item item)
+	{
+		return item == null || item.getId() <= 0 ? EMPTY : itemManager.getItemComposition(item.getId()).getName();
 	}
 
 	private String resolveSlot(String slot)

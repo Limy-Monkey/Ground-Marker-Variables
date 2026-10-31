@@ -5,12 +5,14 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.client.party.PartyMember;
 
 // {spec} -> current special attack energy, 0-100. VarPlayerID.SA_ENERGY maxes at 1000.
-public class SpecLabelVariable implements LabelVariable
+public class SpecLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{spec\\}", Pattern.CASE_INSENSITIVE);
 
@@ -40,5 +42,24 @@ public class SpecLabelVariable implements LabelVariable
 	public String resolveRich(Matcher matcher)
 	{
 		return "Spec: " + richText.highlightValue(resolvePlain(matcher) + "%");
+	}
+
+	// PartyDataService already sends spec as 0-100.
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		return String.valueOf(member.getSpecEnergy());
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		return richText.highlightValue(member.getSpecEnergy() + "%");
+	}
+
+	@Override
+	public String resolveRowRich(Matcher matcher, RichText richText)
+	{
+		return richText.highlightValue(resolvePlain(matcher) + "%");
 	}
 }

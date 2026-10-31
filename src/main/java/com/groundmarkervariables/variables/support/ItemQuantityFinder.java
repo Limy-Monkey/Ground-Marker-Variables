@@ -14,6 +14,7 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.party.PartyMember;
 
 // Matching items (id, name, quantity) for {numItem}/{numDoses}/{showItems} -- same scope as {hasItem}.
 public final class ItemQuantityFinder
@@ -59,14 +60,30 @@ public final class ItemQuantityFinder
 		return matches;
 	}
 
+	// The same search over a party member's PartyDataService data.
+	public static List<Match> findAll(PartyMember member, ItemManager itemManager, String search)
+	{
+		List<Match> matches = new ArrayList<>();
+		addFromItems(matches, member.getInv(), itemManager, search);
+		addFromItems(matches, member.getWorn(), itemManager, search);
+		addFromItems(matches, member.getQuiver() == null ? null : new Item[] {member.getQuiver()}, itemManager, search);
+		addFromItems(matches, member.getRunepouch(), itemManager, search);
+		return matches;
+	}
+
 	private static void addFromContainer(List<Match> matches, ItemContainer container, ItemManager itemManager, String search)
 	{
-		if (container == null)
+		addFromItems(matches, container == null ? null : container.getItems(), itemManager, search);
+	}
+
+	private static void addFromItems(List<Match> matches, Item[] items, ItemManager itemManager, String search)
+	{
+		if (items == null)
 		{
 			return;
 		}
 
-		for (Item item : container.getItems())
+		for (Item item : items)
 		{
 			// Empty slots are Items with id <= 0 (typically -1), not null array elements.
 			if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)

@@ -5,6 +5,7 @@ import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.DateLiteralParser;
+import com.groundmarkervariables.variables.support.PartyMemberContext;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,10 +34,12 @@ public class MathVariable implements LabelVariable
 
 	private final List<LabelVariable> numericVariables;
 	private final RichText richText;
+	private final PartyMemberContext memberContext;
 
 	@Inject
-	private MathVariable(NumericVariableRegistry registry, RichText richText)
+	private MathVariable(NumericVariableRegistry registry, RichText richText, PartyMemberContext memberContext)
 	{
+		this.memberContext = memberContext;
 		this.numericVariables = registry.all();
 		this.richText = richText;
 	}
@@ -342,7 +345,7 @@ public class MathVariable implements LabelVariable
 			Matcher wrapped = variable.pattern().matcher("{" + text + "}");
 			if (wrapped.matches())
 			{
-				String resolved = variable.resolvePlain(wrapped);
+				String resolved = memberContext.resolve(variable, wrapped, false);
 				return resolved == null ? null : ConditionEvaluator.tryParseNumber(resolved);
 			}
 		}

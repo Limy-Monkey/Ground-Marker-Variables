@@ -5,10 +5,12 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import net.runelite.api.Client;
+import net.runelite.client.party.PartyMember;
 
-public class RsnLabelVariable implements LabelVariable
+public class RsnLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{rsn\\}", Pattern.CASE_INSENSITIVE);
 
@@ -39,5 +41,17 @@ public class RsnLabelVariable implements LabelVariable
 	{
 		String rsn = resolvePlain(matcher);
 		return rsn == null ? null : richText.labeled("RSN", rsn);
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		return member.getDisplayName();
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		return richText.highlightValue(member.getDisplayName());
 	}
 }

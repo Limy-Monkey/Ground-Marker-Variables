@@ -38,10 +38,13 @@ public class ConditionEvaluator
 	private final List<LabelVariable> variables;
 	private final SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 	private final MathVariable mathVariable;
+	private final PartyMemberContext memberContext;
 
 	@Inject
-	private ConditionEvaluator(VariableRegistry registry, SixHourTimeRemainingLabelVariable sixHourTimeRemaining, MathVariable mathVariable)
+	private ConditionEvaluator(VariableRegistry registry, SixHourTimeRemainingLabelVariable sixHourTimeRemaining, MathVariable mathVariable,
+							   PartyMemberContext memberContext)
 	{
+		this.memberContext = memberContext;
 		this.variables = registry.all();
 		this.sixHourTimeRemaining = sixHourTimeRemaining;
 		this.mathVariable = mathVariable;
@@ -69,7 +72,7 @@ public class ConditionEvaluator
 			Matcher wrapped = variable.pattern().matcher("{" + expr + "}");
 			if (wrapped.matches())
 			{
-				return rich ? variable.resolveRich(wrapped) : variable.resolvePlain(wrapped);
+				return memberContext.resolve(variable, wrapped, rich);
 			}
 		}
 
