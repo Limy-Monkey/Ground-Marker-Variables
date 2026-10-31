@@ -39,6 +39,7 @@ public class PartyDataSharing
 	private static final Pattern SKILL_WORD = Pattern.compile("\\b(?:lvl|boost)_([a-z]+)\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern SPEC_WORD = Pattern.compile("\\bspec\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern ENERGY_WORD = Pattern.compile("\\brunEnergy\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern DISTANCE_WORD = Pattern.compile("\\b(?:playerDistance|readyCheck)\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern HP_WORD = Pattern.compile("\\bhp\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PRAYER_WORD = Pattern.compile("\\bprayer\\b", Pattern.CASE_INSENSITIVE);
 
@@ -165,6 +166,10 @@ public class PartyDataSharing
 		if (ENERGY_WORD.matcher(inside).find())
 		{
 			tickCore.add(PartyDataType.ENERGY);
+		}
+		if (DISTANCE_WORD.matcher(inside).find())
+		{
+			tickCore.add(PartyDataType.COORD);
 		}
 		if (HP_WORD.matcher(outside).find())
 		{

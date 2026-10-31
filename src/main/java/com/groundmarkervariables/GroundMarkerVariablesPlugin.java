@@ -11,6 +11,7 @@ import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
+import com.groundmarkervariables.variables.support.ResolvingTile;
 import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
@@ -200,6 +201,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private ReadyCheckTracker readyCheckTracker;
+
+	@Inject
+	private ResolvingTile resolvingTile;
 
 	@Inject
 	private WeaponStyleTracker weaponStyleTracker;
@@ -822,14 +826,14 @@ public class GroundMarkerVariablesPlugin extends Plugin
 							continue;
 						}
 
-						dpsTracker.resolvingTile = translated.worldPoint;
+						resolvingTile.tile = translated.worldPoint;
 						translated.marker.refresh(labelResolver, metaVariableResolver);
 					}
 				}
 			}
 			finally
 			{
-				dpsTracker.resolvingTile = null;
+				resolvingTile.tile = null;
 				partyDataSharing.collecting = false;
 				readyCheckTracker.collecting = false;
 			}
@@ -1006,7 +1010,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 					WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
 					for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
 					{
-						dpsTracker.resolvingTile = worldPoint;
+						resolvingTile.tile = worldPoint;
 						marker.refresh(labelResolver, metaVariableResolver);
 						translated.add(new TranslatedMarker(worldPoint, marker));
 					}
@@ -1015,7 +1019,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 		finally
 		{
-			dpsTracker.resolvingTile = null;
+			resolvingTile.tile = null;
 		}
 
 		markersByWorldView.put(wv, translated);

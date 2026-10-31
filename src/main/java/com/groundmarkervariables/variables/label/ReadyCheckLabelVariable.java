@@ -15,18 +15,22 @@ import net.runelite.client.party.PartyMember;
 
 // {readyCheck} -> a party member's last ready status from chat: "R" / "ready" is a green R, "P" /
 // "pot" / "potting" a green P, "not r" / "no r" / "un r" a red R, "brb" / "<N> mins" :zzz:.
-// Plain: ready / potting / not ready / away / none.
+// Plain: ready / potting / not ready / away / none. Over 99 tiles from this tile (see {playerDistance})
+// it's :telescope: instead, plain "far".
 public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
+	private static final int FAR_DISTANCE = 99;
 
 	private final ReadyCheckTracker tracker;
+	private final PlayerDistanceLabelVariable playerDistance;
 	private final Emojis emojis;
 
 	@Inject
-	private ReadyCheckLabelVariable(ReadyCheckTracker tracker, Emojis emojis)
+	private ReadyCheckLabelVariable(ReadyCheckTracker tracker, PlayerDistanceLabelVariable playerDistance, Emojis emojis)
 	{
 		this.tracker = tracker;
+		this.playerDistance = playerDistance;
 		this.emojis = emojis;
 	}
 
@@ -36,28 +40,55 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 		return PATTERN;
 	}
 
+	// The status is looked up even when far, since that marks this tile as seen (see ReadyCheckTracker).
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		return plain(tracker.localStatus());
+		Status status = tracker.localStatus();
+		return isFar(playerDistance.localDistance()) ? "far" : plain(status);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return rich(tracker.localStatus());
+		Status status = tracker.localStatus();
+		return isFar(playerDistance.localDistance()) ? farIcon() : rich(status);
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		return plain(tracker.status(member.getDisplayName()));
+		Status status = tracker.status(member.getDisplayName());
+		return isFar(member) ? "far" : plain(status);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
-		return rich(tracker.status(member.getDisplayName()));
+		Status status = tracker.status(member.getDisplayName());
+		return isFar(member) ? farIcon() : rich(status);
+	}
+
+	// Going far clears their status, so it isn't still there when they come back.
+	private boolean isFar(PartyMember member)
+	{
+		if (!isFar(playerDistance.distance(member.getCoord())))
+		{
+			return false;
+		}
+
+		tracker.clear(member.getDisplayName());
+		return true;
+	}
+
+	private static boolean isFar(Integer distance)
+	{
+		return distance != null && distance > FAR_DISTANCE;
+	}
+
+	private String farIcon()
+	{
+		return emojis.expand(":telescope:");
 	}
 
 	@Override

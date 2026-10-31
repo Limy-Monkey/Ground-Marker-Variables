@@ -855,9 +855,7 @@ public class DpsTracker
 	private final Provider<DpsLabelVariable> dpsLabelVariable;
 	private final BossNames bossNames;
 
-	// The tile whose label is being resolved, set by the plugin's refresh loop. Null elsewhere.
-	@Nullable
-	public WorldPoint resolvingTile;
+	private final ResolvingTile resolvingTile;
 
 	private final Map<WorldPoint, Stats> statsByTile = new HashMap<>();
 	// This tick's hits by you, and on you, until classify() sorts them.
@@ -938,8 +936,10 @@ public class DpsTracker
 
 	@Inject
 	private DpsTracker(Client client, EventBus eventBus, WeaponStyleTracker weaponStyleTracker, ItemManager itemManager,
-		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, Provider<DpsLabelVariable> dpsLabelVariable, BossNames bossNames)
+		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, Provider<DpsLabelVariable> dpsLabelVariable, BossNames bossNames,
+		ResolvingTile resolvingTile)
 	{
+		this.resolvingTile = resolvingTile;
 		this.dpsLabelVariable = dpsLabelVariable;
 		this.client = client;
 		this.eventBus = eventBus;
@@ -1036,7 +1036,7 @@ public class DpsTracker
 	public Stats markActive()
 	{
 		int tick = client.getTickCount();
-		Stats stats = statsByTile.computeIfAbsent(resolvingTile, tile -> new Stats());
+		Stats stats = statsByTile.computeIfAbsent(resolvingTile.tile, tile -> new Stats());
 		if (!stats.isActive(tick))
 		{
 			stats.reset();
@@ -1128,7 +1128,7 @@ public class DpsTracker
 		}
 
 		Matcher token = DPS_TOKEN.matcher(marker.getLabel());
-		resolvingTile = tile;
+		resolvingTile.tile = tile;
 		try
 		{
 			while (token.find())
@@ -1138,7 +1138,7 @@ public class DpsTracker
 		}
 		finally
 		{
-			resolvingTile = null;
+			resolvingTile.tile = null;
 		}
 	}
 

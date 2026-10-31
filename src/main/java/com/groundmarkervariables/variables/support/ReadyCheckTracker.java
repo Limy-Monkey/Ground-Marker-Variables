@@ -75,12 +75,19 @@ public class ReadyCheckTracker
 		return name == null ? null : statuses.get(standardize(name));
 	}
 
+	public void clear(@Nullable String name)
+	{
+		if (name != null)
+		{
+			statuses.remove(standardize(name));
+		}
+	}
+
 	@Nullable
 	public Status localStatus()
 	{
 		return client.getLocalPlayer() == null ? null : status(client.getLocalPlayer().getName());
 	}
-
 	// After the plugin's own onGameTick, which resolves the nearby tiles.
 	@Subscribe(priority = -1)
 	public void onGameTick(GameTick event)

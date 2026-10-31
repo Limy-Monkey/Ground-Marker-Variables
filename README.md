@@ -51,6 +51,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
 | `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
 | `{party <template>}`                    | Optional template as parameter (default "num. name \| hp \| prayer")                                                                                             |
+| `{playerDistance}`                      | Tiles between you and this tile: 0 on it, 1 next to it. Up to 100, or 101 on another plane                                                                       |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{xp_<skill>}`                          | Exact experience in \<skill>. Rich Text also shows level and hiscore rank                                                                                        |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
@@ -135,7 +136,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.
-- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`
+- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`
 - Usable in conditions: `{kc tob + kc hmt > 100 ? 100+ ToBs : }`
 - Dividing by zero leaves the token as written.
 
@@ -148,11 +149,10 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 Rich Text shows `Party (N)` and a row per party member, using the template with these keywords replaced: `num`, `name`, `hp`, `prayer`. The default is `{party num. name | hp | prayer}`. Plain Text is the party size.
 - The template can contain other variables, resolved for each member: `{party {rsn}: {hasItem chinchompa} | {spec}}`
 - Conditions, `||` / `&&` and math work too: `{party {rsn} {spec >= 50 ? spec ready : }}`
-- Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`
-- Ready check: `{party num. name {readyCheck}}`. `{readyCheck}` reads members' chat messages, so it only sees chat you can see.
+- Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`, `playerDistance`
 - Any other variable shows as `...` (`null` in conditions) in other members' rows, as does data a member hasn't sent yet. Your own row works with every variable.
 - Other members' data only shares while a `{party}` tile is near you.
-- `{readyCheck}` shows each member's ready status from chat: `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`
+- `{readyCheck}` shows each member's ready status from chat: `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`. Over 99 tiles away shows :telescope:
 
 ### `{dps <template>}`
 Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
