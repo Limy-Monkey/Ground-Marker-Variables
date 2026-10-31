@@ -1,34 +1,34 @@
 package com.groundmarkervariables.variables.label;
 
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.SpriteID;
+import net.runelite.client.party.PartyMember;
 
 // {hasAlchs} — true only while the player could cast High Level Alchemy right now: Standard
 // spellbook (or Spellbook Swap) active, and at least one nature and fire rune available (RuneCounter —
 // inventory + rune pouch, plus an infinite source for fire). Doesn't check Magic level.
-public class HasAlchsLabelVariable implements LabelVariable
+public class HasAlchsLabelVariable extends SpellLabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasAlchs(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Map<Integer, Integer> ALCH_RUNES = Map.of(ItemID.NATURERUNE, 1, ItemID.FIRERUNE, 1);
 
 	private final Client client;
-	private final RichText richText;
 
 	@Inject
-	private HasAlchsLabelVariable(Client client, RichText richText)
+	private HasAlchsLabelVariable(Client client, RichText richText, PartyDataSharing partyDataSharing)
 	{
+		super(richText, partyDataSharing);
 		this.client = client;
-		this.richText = richText;
 	}
 
 	@Override
@@ -38,21 +38,26 @@ public class HasAlchsLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
+	protected boolean castable()
 	{
-		return String.valueOf(hasAlchs());
+		return Spellbooks.canCast(client, Spellbooks.STANDARD, ALCH_RUNES);
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
+	protected Boolean castable(PartyMember member, @Nullable String spellbook)
 	{
-		return matcher.group(1) != null
-			? Icons.sprite(SpriteID.Magicon.HIGH_LEVEL_ALCHEMY, hasAlchs())
-			: richText.booleanColored(hasAlchs(), "Alchs");
+		return Spellbooks.canCast(member, spellbook, Spellbooks.STANDARD, ALCH_RUNES);
 	}
 
-	private boolean hasAlchs()
+	@Override
+	protected String text()
 	{
-		return Spellbooks.canCast(client, Spellbooks.STANDARD, ALCH_RUNES);
+		return "Alchs";
+	}
+
+	@Override
+	protected String icon(@Nullable Boolean castable)
+	{
+		return Icons.sprite(SpriteID.Magicon.HIGH_LEVEL_ALCHEMY, castable);
 	}
 }

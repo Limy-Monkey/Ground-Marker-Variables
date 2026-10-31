@@ -4,18 +4,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
+import com.groundmarkervariables.party.PartyDataSharing;
+import com.groundmarkervariables.party.PartyValue;
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.Icons;
+import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.SpriteID;
-import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.party.PartyMember;
 
-public class SpellbookLabelVariable implements LabelVariable
+// {spellbook} -> Standard, Ancient, Lunar or Arceuus. {spellbook icon} is its tab icon. A party
+// member's comes from our shared PartyValue, unavailable until they've sent it.
+public class SpellbookLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{spellbook(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
-	// VarbitID.SPELLBOOK values: 0 = Standard, 1 = Ancient Magicks, 2 = Lunar, 3 = Arceuus.
-	private static final String[] SPELLBOOKS = {"Standard", "Ancient", "Lunar", "Arceuus"};
+	// By Spellbooks.NAMES index.
 	private static final int[] ICONS = {
 		SpriteID.SideiconsInterface.MAGIC, SpriteID.SideiconsInterface.SPELLBOOK_ANCIENT_MAGICKS,
 		SpriteID.SideiconsInterface.SPELLBOOK_LUNAR, SpriteID.SideiconsInterface.SPELLBOOK_ARCEUUS
@@ -23,12 +28,14 @@ public class SpellbookLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final RichText richText;
+	private final PartyDataSharing partyDataSharing;
 
 	@Inject
-	private SpellbookLabelVariable(Client client, RichText richText)
+	private SpellbookLabelVariable(Client client, RichText richText, PartyDataSharing partyDataSharing)
 	{
 		this.client = client;
 		this.richText = richText;
+		this.partyDataSharing = partyDataSharing;
 	}
 
 	@Override
@@ -40,25 +47,46 @@ public class SpellbookLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		if (client.getLocalPlayer() == null)
-		{
-			return null;
-		}
-
-		int spellbook = client.getVarbitValue(VarbitID.SPELLBOOK);
-		return spellbook >= 0 && spellbook < SPELLBOOKS.length ? SPELLBOOKS[spellbook] : null;
+		return client.getLocalPlayer() == null ? null : Spellbooks.name(client);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		if (matcher.group(1) != null)
-		{
-			int spellbook = client.getLocalPlayer() == null ? -1 : client.getVarbitValue(VarbitID.SPELLBOOK);
-			return spellbook >= 0 && spellbook < ICONS.length ? Icons.sprite(ICONS[spellbook]) : null;
-		}
-
 		String name = resolvePlain(matcher);
-		return name == null ? null : richText.labeled("Spellbook", name);
+		if (name == null)
+		{
+			return null;
+		}
+		return matcher.group(1) != null ? icon(name) : richText.labeled("Spellbook", name);
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		return partyDataSharing.value(member.getMemberId(), PartyValue.SPELLBOOK);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		String name = resolvePlain(matcher, member);
+		if (name == null)
+		{
+			return null;
+		}
+		return matcher.group(1) != null ? icon(name) : richText.highlightValue(name);
+	}
+
+	@Override
+	public String resolveRowRich(Matcher matcher, RichText richText)
+	{
+		return matcher.group(1) != null ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
+	}
+
+	private static String icon(String name)
+	{
+		int index = Spellbooks.NAMES.indexOf(name);
+		return index < 0 ? null : Icons.sprite(ICONS[index]);
 	}
 }

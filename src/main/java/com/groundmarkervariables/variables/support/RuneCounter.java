@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
 import net.runelite.api.EnumID;
@@ -13,6 +14,7 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.party.PartyMember;
 
 // Shared "how many of X does the player actually have available" logic for any variable
 // that needs to reason about spell reagents (HasThrallsLabelVariable, HasFreezeLabelVariable,
@@ -99,6 +101,90 @@ public final class RuneCounter
 		return hasInfiniteSource(client, runeId) || count(client, runeId) >= required || hasSubstitute(client, runeId);
 	}
 
+	// The same, from a party member's PartyDataService inventory, gear and rune pouch.
+	public static boolean hasAtLeast(PartyMember member, int runeId, int required)
+	{
+		Item[] worn = member.getWorn();
+		int weaponSlot = EquipmentInventorySlot.WEAPON.getSlotIdx();
+		Item weapon = worn == null || weaponSlot >= worn.length ? null : worn[weaponSlot];
+		if (weapon != null && isInfiniteSource(weapon.getId(), runeId))
+		{
+			return true;
+		}
+
+		if (count(member, runeId) >= required)
+		{
+			return true;
+		}
+
+		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
+		if (substitutes != null)
+		{
+			for (int substitute : substitutes)
+			{
+				if (count(member, substitute) > 0)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private static int count(PartyMember member, int runeId)
+	{
+		Item[] inventory = member.getInv();
+		return itemCount(inventory, runeId) + (hasRunePouch(inventory) ? itemCount(member.getRunepouch(), runeId) : 0);
+	}
+
+	public static int itemCount(@Nullable Item[] items, int itemId)
+	{
+		if (items == null)
+		{
+			return 0;
+		}
+
+		int total = 0;
+		for (Item item : items)
+		{
+			if (item != null && item.getId() == itemId)
+			{
+				total += item.getQuantity();
+			}
+		}
+		return total;
+	}
+
+	private static boolean hasRunePouch(@Nullable Item[] inventory)
+	{
+		for (int variant : RUNE_POUCH_VARIANTS)
+		{
+			if (itemCount(inventory, variant) > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isInfiniteSource(int weaponId, int runeId)
+	{
+		int[] weapons = INFINITE_RUNE_WEAPONS.get(runeId);
+		if (weapons == null)
+		{
+			return false;
+		}
+
+		for (int candidate : weapons)
+		{
+			if (weaponId == candidate)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// Any quantity of a combo rune covering runeId counts as satisfying it.
 	private static boolean hasSubstitute(Client client, int runeId)
 	{
@@ -121,22 +207,7 @@ public final class RuneCounter
 
 	static boolean hasInfiniteSource(Client client, int runeId)
 	{
-		int[] weapons = INFINITE_RUNE_WEAPONS.get(runeId);
-		if (weapons == null)
-		{
-			return false;
-		}
-
-		int weaponId = equippedWeaponId(client);
-		for (int candidate : weapons)
-		{
-			if (weaponId == candidate)
-			{
-				return true;
-			}
-		}
-
-		return false;
+		return isInfiniteSource(equippedWeaponId(client), runeId);
 	}
 
 	// Total quantity of a rune available: inventory + rune pouch contents

@@ -149,7 +149,8 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 Rich Text shows `Party (N)` and a row per party member, using the template with these keywords replaced: `num`, `name`, `hp`, `prayer`. The default is `{party num. name | hp | prayer}`. Plain Text is the party size.
 - The template can contain other variables, resolved for each member: `{party {rsn}: {hasItem chinchompa} | {spec}}`
 - Conditions, `||` / `&&` and math work too: `{party {rsn} {spec >= 50 ? spec ready : }}`
-- Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`, `playerDistance`
+- Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`, `playerDistance`, `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasThralls`
+- `spellbook` is only known for members who also have Ground Marker Variables installed. For others, `{spellbook}` shows `...`, and `has<Spell>` variables only check their runes.
 - Any other variable shows as `...` (`null` in conditions) in other members' rows, as does data a member hasn't sent yet. Your own row works with every variable.
 - Other members' data only shares while a `{party}` tile is near you.
 - `{readyCheck}` shows each member's ready status from chat: `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`. Over 99 tiles away shows :telescope:
