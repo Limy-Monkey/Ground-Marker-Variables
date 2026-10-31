@@ -7,11 +7,13 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.gameval.VarbitID;
 
 // {hasFreeze} — true if on Ancient Magicks (or Spellbook Swap) and able to cast Ice Barrage: either enough runes
@@ -19,7 +21,7 @@ import net.runelite.api.gameval.VarbitID;
 // while in the Wilderness. Doesn't check Magic level — same convention as hasThralls.
 public class HasFreezeLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasFreezes?\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasFreezes?(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Map<Integer, Integer> ICE_BARRAGE_RUNES = Map.of(ItemID.WATERRUNE, 6, ItemID.BLOODRUNE, 2, ItemID.DEATHRUNE, 4);
 
 	private final Client client;
@@ -47,7 +49,9 @@ public class HasFreezeLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return richText.booleanColored(hasFreeze(), "Freezes");
+		return matcher.group(1) != null
+			? Icons.sprite(SpriteID.Magicon2.ICE_BARRAGE, hasFreeze())
+			: richText.booleanColored(hasFreeze(), "Freezes");
 	}
 
 	private boolean hasFreeze()

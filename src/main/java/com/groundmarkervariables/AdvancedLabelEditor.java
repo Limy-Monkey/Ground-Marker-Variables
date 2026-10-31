@@ -133,6 +133,11 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
 	private static final String HIDE_WORLD = "hideWorld";
 
+	// {hasFreeze icon}, {equip_helm icon}, ...
+	private static final Pattern ICON_OPTION = Pattern.compile(
+		"(?i)^(?:spellbook|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasThralls|weapon|equip_\\w+)\\s+(\\w*)$");
+	private static final String ICON = "icon";
+
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
 	// autocomplete-only, since typing the full name already resolves correctly on its own.
 	private static final List<String> EXTRA_BOSS_NAMES = List.of(
@@ -880,6 +885,17 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				return completeSkill(partial.substring(prefix.length()), prefix);
 			}
+		}
+
+		Matcher iconOption = ICON_OPTION.matcher(partial);
+		if (!restrictToNumeric && iconOption.matches())
+		{
+			String word = iconOption.group(1);
+			if (word.equalsIgnoreCase(ICON))
+			{
+				return "}";
+			}
+			return ICON.regionMatches(true, 0, word, 0, word.length()) ? ICON.substring(word.length()) : null;
 		}
 
 		if (!restrictToNumeric && partial.length() >= EQUIP_PREFIX.length() && partial.regionMatches(true, 0, EQUIP_PREFIX, 0, EQUIP_PREFIX.length()))

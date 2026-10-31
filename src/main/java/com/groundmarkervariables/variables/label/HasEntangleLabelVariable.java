@@ -7,11 +7,13 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.gameval.VarbitID;
 
 // {hasEntangle} — true if the player could cast Entangle right now, via either path:
@@ -23,7 +25,7 @@ import net.runelite.api.gameval.VarbitID;
 // explicitly asked for.
 public class HasEntangleLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasEntangle\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasEntangle(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Map<Integer, Integer> ENTANGLE_RUNES = Map.of(ItemID.EARTHRUNE, 5, ItemID.WATERRUNE, 5, ItemID.NATURERUNE, 4);
 
 	private final Client client;
@@ -51,7 +53,9 @@ public class HasEntangleLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return richText.booleanColored(hasEntangle(), "Entangles");
+		return matcher.group(1) != null
+			? Icons.sprite(SpriteID.Magicon2.ENTANGLE, hasEntangle())
+			: richText.booleanColored(hasEntangle(), "Entangles");
 	}
 
 	private boolean hasEntangle()

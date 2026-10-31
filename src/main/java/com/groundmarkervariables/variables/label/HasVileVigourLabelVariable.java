@@ -7,15 +7,17 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.SpriteID;
 
 // {hasVileVigour} — true if the player could cast Vile Vigour right now: Arceuus spellbook (or
 // Spellbook Swap) with 1 soul and 3 air runes. Doesn't check Magic level or quest requirement.
 public class HasVileVigourLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasVileVigour\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasVileVigour(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Map<Integer, Integer> VILE_VIGOUR_RUNES = Map.of(ItemID.SOULRUNE, 1, ItemID.AIRRUNE, 3);
 
 	private final Client client;
@@ -43,7 +45,9 @@ public class HasVileVigourLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return richText.booleanColored(hasVileVigour(), "Vile Vigour");
+		return matcher.group(1) != null
+			? Icons.sprite(SpriteID.MagicNecroOn.VILE_VIGOUR, hasVileVigour())
+			: richText.booleanColored(hasVileVigour(), "Vile Vigour");
 	}
 
 	private boolean hasVileVigour()

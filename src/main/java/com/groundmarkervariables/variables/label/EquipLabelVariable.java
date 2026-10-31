@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
 import net.runelite.api.EquipmentInventorySlot;
@@ -22,11 +23,14 @@ import net.runelite.client.party.PartyMember;
 // {equip_<slot>} -> the item name equipped in <slot> (helm, cape, amulet, body, shield, legs,
 // gloves, boots, ring, ammo), or "Empty" if nothing's there. {equip_quiver} is special: Dizana's
 // Quiver isn't a real equipment slot, so its live ammo type comes from a varp instead.
+// {equip_<slot> icon} is the item's icon, or nothing if empty.
 public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{equip_(\\w+)\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{equip_(\\w+?)(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final String EMPTY = "Empty";
 	private static final String QUIVER = "quiver";
+	// An unknown slot.
+	private static final int UNKNOWN = Integer.MIN_VALUE;
 
 	private static final Map<String, EquipmentInventorySlot> SLOTS = Map.ofEntries(
 		Map.entry("helm", EquipmentInventorySlot.HEAD),
@@ -67,89 +71,111 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		if (client.getLocalPlayer() == null)
-		{
-			return null;
-		}
-
-		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
-		return QUIVER.equals(slot) ? resolveQuiver() : resolveSlot(slot);
+		return client.getLocalPlayer() == null ? null : name(localItemId(slot(matcher)));
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		String itemName = resolvePlain(matcher);
-		if (itemName == null)
+		if (client.getLocalPlayer() == null)
 		{
 			return null;
 		}
 
-		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
-		return richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
+		String slot = slot(matcher);
+		int itemId = localItemId(slot);
+		if (matcher.group(2) != null)
+		{
+			return icon(itemId);
+		}
+
+		String itemName = name(itemId);
+		return itemName == null ? null : richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		String slot = matcher.group(1).toLowerCase(Locale.ENGLISH);
-		if (QUIVER.equals(slot))
-		{
-			return itemName(member.getQuiver());
-		}
-
-		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null)
-		{
-			return null;
-		}
-		Item[] worn = member.getWorn();
-		return itemName(worn == null || equipmentSlot.getSlotIdx() >= worn.length ? null : worn[equipmentSlot.getSlotIdx()]);
+		return name(memberItemId(slot(matcher), member));
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
-		String itemName = resolvePlain(matcher, member);
+		int itemId = memberItemId(slot(matcher), member);
+		if (matcher.group(2) != null)
+		{
+			return icon(itemId);
+		}
+
+		String itemName = name(itemId);
 		return itemName == null ? null : richText.highlightValue(itemName);
 	}
 
-	private String itemName(Item item)
+	@Override
+	public String resolveRowRich(Matcher matcher, RichText richText)
 	{
-		return item == null || item.getId() <= 0 ? EMPTY : itemManager.getItemComposition(item.getId()).getName();
+		return matcher.group(2) != null ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
 	}
 
-	private String resolveSlot(String slot)
+	private static String slot(Matcher matcher)
 	{
-		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null)
+		return matcher.group(1).toLowerCase(Locale.ENGLISH);
+	}
+
+	// Null for an unknown slot.
+	private String name(int itemId)
+	{
+		if (itemId == UNKNOWN)
 		{
 			return null;
 		}
-
-		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
-		if (equipment == null)
-		{
-			return EMPTY;
-		}
-
-		Item item = equipment.getItem(equipmentSlot.getSlotIdx());
-		if (item == null || item.getId() <= 0)
-		{
-			return EMPTY;
-		}
-
-		return itemManager.getItemComposition(item.getId()).getName();
+		return itemId <= 0 ? EMPTY : itemManager.getItemComposition(itemId).getName();
 	}
 
-	private String resolveQuiver()
+	private static String icon(int itemId)
 	{
-		if (!QuiverAmmo.isAvailable(client, itemManager))
+		if (itemId == UNKNOWN)
 		{
-			return EMPTY;
+			return null;
+		}
+		return itemId <= 0 ? "" : Icons.item(itemId);
+	}
+
+	// <= 0 when empty, UNKNOWN for an unknown slot.
+	private int localItemId(String slot)
+	{
+		if (QUIVER.equals(slot))
+		{
+			return QuiverAmmo.isAvailable(client, itemManager) ? client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO) : -1;
 		}
 
-		int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
-		return ammoId <= 0 ? EMPTY : itemManager.getItemComposition(ammoId).getName();
+		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
+		if (equipmentSlot == null)
+		{
+			return UNKNOWN;
+		}
+
+		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
+		Item item = equipment == null ? null : equipment.getItem(equipmentSlot.getSlotIdx());
+		return item == null ? -1 : item.getId();
+	}
+
+	private static int memberItemId(String slot, PartyMember member)
+	{
+		if (QUIVER.equals(slot))
+		{
+			return member.getQuiver() == null ? -1 : member.getQuiver().getId();
+		}
+
+		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
+		if (equipmentSlot == null)
+		{
+			return UNKNOWN;
+		}
+
+		Item[] worn = member.getWorn();
+		Item item = worn == null || equipmentSlot.getSlotIdx() >= worn.length ? null : worn[equipmentSlot.getSlotIdx()];
+		return item == null ? -1 : item.getId();
 	}
 }

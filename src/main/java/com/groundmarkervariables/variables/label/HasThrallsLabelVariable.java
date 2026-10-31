@@ -7,6 +7,7 @@ import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import net.runelite.api.Client;
@@ -19,7 +20,7 @@ import net.runelite.api.gameval.ItemID;
 // sources, and combo runes). Doesn't check Magic level.
 public class HasThrallsLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{hasThralls\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{hasThralls(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Map<Integer, Integer> THRALL_RUNES = Map.of(ItemID.FIRERUNE, 1, ItemID.BLOODRUNE, 1, ItemID.COSMICRUNE, 1);
 
 	private final Client client;
@@ -47,7 +48,9 @@ public class HasThrallsLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return richText.booleanColored(hasThralls(), "Thralls");
+		return matcher.group(1) != null
+			? Icons.item(ItemID.BOOK_OF_THE_DEAD, hasThralls())
+			: richText.booleanColored(hasThralls(), "Thralls");
 	}
 
 	private boolean hasThralls()
