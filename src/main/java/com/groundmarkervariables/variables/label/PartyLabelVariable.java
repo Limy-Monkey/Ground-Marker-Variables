@@ -29,10 +29,12 @@ import net.runelite.client.util.Text;
 public class PartyLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{party(?:\\s+([^{}?:<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
-	private static final Pattern NUM_WORD = Pattern.compile("\\bnum\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern NAME_WORD = Pattern.compile("\\bname\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern HP_WORD = Pattern.compile("\\bhp\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern PRAYER_WORD = Pattern.compile("\\bprayer\\b", Pattern.CASE_INSENSITIVE);
+	// A keyword may follow a "\t" table cell break, whose t would otherwise hide the word boundary.
+	private static final String WORD_START = "(?:(?<=\\\\t)|\\b)";
+	private static final Pattern NUM_WORD = Pattern.compile(WORD_START + "num\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern NAME_WORD = Pattern.compile(WORD_START + "name\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern HP_WORD = Pattern.compile(WORD_START + "hp\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PRAYER_WORD = Pattern.compile(WORD_START + "prayer\\b", Pattern.CASE_INSENSITIVE);
 	private static final String UNKNOWN = "?";
 	private static final String UNKNOWN_NAME = "<unknown>";
 	private static final String DEFAULT_TEMPLATE = "num. name | hp | prayer";

@@ -59,11 +59,13 @@ public class GroundMarkerVariablesOverlay
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
 	// <item=ID[@N%]> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
-	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness.
+	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness. \t[@Npx] is a table cell
+	// break, with N px before the next column.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
-			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>",
+			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?",
 		Pattern.CASE_INSENSITIVE);
+	private static final int DEFAULT_CELL_PADDING = 4;
 	private static final int FULL_BRIGHTNESS = 100;
 	// drawGlow: radius relative to half the icon, and its opacity from the center out.
 	private static final float GLOW_SCALE = 1.0f;
@@ -274,19 +276,77 @@ public class GroundMarkerVariablesOverlay
 			style = layout.endStyle;
 		}
 
-		int[] blockMaxWidths = blockMaxWidths(layouts, alignments);
+		int[] widths = new int[lines.length];
+		int[][] columnOffsets = new int[lines.length][];
+		layoutTables(layouts, widths, columnOffsets);
+		int[] blockMaxWidths = blockMaxWidths(widths, alignments);
 
 		for (int i = 0; i < lines.length; i++)
 		{
-			drawLine(graphics, localPoint, layouts.get(i), blockMaxWidths[i], lineAlign(alignments, i), color, startY + i * lineHeight);
+			drawLine(graphics, localPoint, layouts.get(i), widths[i], columnOffsets[i], blockMaxWidths[i], lineAlign(alignments, i), color,
+				startY + i * lineHeight);
+		}
+	}
+
+	// Consecutive lines with a \t form a table: each column is as wide as its widest cell, and each gap
+	// the largest padding given there. Fills each line's width, and its column offsets (null if not a table).
+	private static void layoutTables(List<LineLayout> layouts, int[] widths, int[][] columnOffsets)
+	{
+		int n = layouts.size();
+		int i = 0;
+		while (i < n)
+		{
+			if (layouts.get(i).cellWidths.size() < 2)
+			{
+				widths[i] = layouts.get(i).width;
+				i++;
+				continue;
+			}
+
+			int j = i;
+			int columns = 0;
+			while (j < n && layouts.get(j).cellWidths.size() > 1)
+			{
+				columns = Math.max(columns, layouts.get(j).cellWidths.size());
+				j++;
+			}
+
+			int[] columnWidths = new int[columns];
+			int[] gaps = new int[columns];
+			for (int k = i; k < j; k++)
+			{
+				LineLayout layout = layouts.get(k);
+				for (int c = 0; c < layout.cellWidths.size(); c++)
+				{
+					columnWidths[c] = Math.max(columnWidths[c], layout.cellWidths.get(c));
+				}
+				for (int c = 0; c < layout.cellPaddings.size(); c++)
+				{
+					gaps[c] = Math.max(gaps[c], layout.cellPaddings.get(c));
+				}
+			}
+
+			int[] offsets = new int[columns];
+			for (int c = 1; c < columns; c++)
+			{
+				offsets[c] = offsets[c - 1] + columnWidths[c - 1] + gaps[c - 1];
+			}
+			int tableWidth = offsets[columns - 1] + columnWidths[columns - 1];
+
+			for (int k = i; k < j; k++)
+			{
+				widths[k] = tableWidth;
+				columnOffsets[k] = offsets;
+			}
+			i = j;
 		}
 	}
 
 	// For each line, the max width among the contiguous run of lines sharing its own
 	// alignment -- not the whole label, so separate {align} blocks don't affect each other.
-	private static int[] blockMaxWidths(List<LineLayout> layouts, List<TextAlign> alignments)
+	private static int[] blockMaxWidths(int[] widths, List<TextAlign> alignments)
 	{
-		int n = layouts.size();
+		int n = widths.length;
 		int[] result = new int[n];
 
 		int i = 0;
@@ -297,7 +357,7 @@ public class GroundMarkerVariablesOverlay
 			int j = i;
 			while (j < n && lineAlign(alignments, j) == align)
 			{
-				max = Math.max(max, layouts.get(j).width);
+				max = Math.max(max, widths[j]);
 				j++;
 			}
 			for (int k = i; k < j; k++)
@@ -323,16 +383,22 @@ public class GroundMarkerVariablesOverlay
 		private final List<BufferedImage> images;
 		private final List<Integer> iconWidths;
 		private final int width;
+		// Width of each \t-separated cell (one if no \t), and the padding after each but the last.
+		private final List<Integer> cellWidths;
+		private final List<Integer> cellPaddings;
 		// Font style bits in effect at the start/end of this line.
 		private final int startStyle;
 		private final int endStyle;
 
-		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width, int startStyle, int endStyle)
+		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width,
+			List<Integer> cellWidths, List<Integer> cellPaddings, int startStyle, int endStyle)
 		{
 			this.segments = segments;
 			this.images = images;
 			this.iconWidths = iconWidths;
 			this.width = width;
+			this.cellWidths = cellWidths;
+			this.cellPaddings = cellPaddings;
 			this.startStyle = startStyle;
 			this.endStyle = endStyle;
 		}
@@ -367,6 +433,17 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// \t[@Npx]: ends a table cell, N px before the next column.
+	private static final class CellBreak
+	{
+		private final int padding;
+
+		private CellBreak(int padding)
+		{
+			this.padding = padding;
+		}
+	}
+
 	// <item=ID[@N%]>
 	private static final class ItemIcon
 	{
@@ -392,6 +469,9 @@ public class GroundMarkerVariablesOverlay
 		int totalWidth = 0;
 		List<BufferedImage> images = new ArrayList<>();
 		List<Integer> iconWidths = new ArrayList<>();
+		List<Integer> cellWidths = new ArrayList<>();
+		List<Integer> cellPaddings = new ArrayList<>();
+		int cellStart = 0;
 		for (Object segment : segments)
 		{
 			if (segment instanceof ItemIcon)
@@ -424,14 +504,22 @@ public class GroundMarkerVariablesOverlay
 			{
 				style = ((StyleToggle) segment).apply(style);
 			}
+			else if (segment instanceof CellBreak)
+			{
+				cellWidths.add(totalWidth - cellStart);
+				cellPaddings.add(((CellBreak) segment).padding);
+				totalWidth += ((CellBreak) segment).padding;
+				cellStart = totalWidth;
+			}
 			else
 			{
 				Font font = styledFont(graphics.getFont(), style);
 				totalWidth += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
 			}
 		}
+		cellWidths.add(totalWidth - cellStart);
 
-		return new LineLayout(segments, images, iconWidths, totalWidth, startStyle, style);
+		return new LineLayout(segments, images, iconWidths, totalWidth, cellWidths, cellPaddings, startStyle, style);
 	}
 
 	// "80" from "@80%", capped at 100; full brightness without it.
@@ -501,7 +589,9 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	private void drawLine(Graphics2D graphics, LocalPoint localPoint, LineLayout layout, int maxWidth, TextAlign align, Color color, int yOffset)
+	// columnOffsets: each table column's x relative to the line's start, or null if not a table.
+	private void drawLine(Graphics2D graphics, LocalPoint localPoint, LineLayout layout, int width, int[] columnOffsets, int maxWidth,
+		TextAlign align, Color color, int yOffset)
 	{
 		Point anchor = Perspective.getCanvasTextLocation(client, graphics, localPoint, "", 0);
 		if (anchor == null)
@@ -510,7 +600,9 @@ public class GroundMarkerVariablesOverlay
 		}
 
 		FontMetrics fontMetrics = graphics.getFontMetrics();
-		int x = lineX(anchor.getX(), align, layout.width, maxWidth);
+		int lineStart = lineX(anchor.getX(), align, width, maxWidth);
+		int x = lineStart;
+		int column = 0;
 		int y = anchor.getY() + yOffset;
 
 		// Full opacity regardless of the marker's own (possibly transparent) color -- the
@@ -524,6 +616,11 @@ public class GroundMarkerVariablesOverlay
 			if (segment instanceof StyleToggle)
 			{
 				style = ((StyleToggle) segment).apply(style);
+			}
+			else if (segment instanceof CellBreak)
+			{
+				column++;
+				x = columnOffsets != null && column < columnOffsets.length ? lineStart + columnOffsets[column] : x + ((CellBreak) segment).padding;
 			}
 			else if (segment instanceof BufferedImage || segment instanceof SpriteIcon)
 			{
@@ -638,6 +735,10 @@ public class GroundMarkerVariablesOverlay
 				{
 					segments.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
 				}
+			}
+			else if (matcher.group(0).startsWith("\\"))
+			{
+				segments.add(new CellBreak(matcher.group(11) == null ? DEFAULT_CELL_PADDING : Integer.parseInt(matcher.group(11))));
 			}
 			else
 			{
