@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,10 @@ import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.PartyMemberContext;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.util.Text;
@@ -32,6 +37,32 @@ public class PartyLabelVariable implements LabelVariable
 	private static final String UNKNOWN = "?";
 	private static final String UNKNOWN_NAME = "<unknown>";
 	private static final String DEFAULT_TEMPLATE = "num. name | hp | prayer";
+
+	// Used to sort names by raid party order
+	private static final class RaidParty
+	{
+		private final int statusVarbit;
+		private final int lobbyNames;
+		private final int[] nameVarcs;
+
+		private RaidParty(int statusVarbit, int lobbyNames, int... nameVarcs)
+		{
+			this.statusVarbit = statusVarbit;
+			this.lobbyNames = lobbyNames;
+			this.nameVarcs = nameVarcs;
+		}
+	}
+
+	private static final List<RaidParty> RAID_PARTIES = List.of(
+		new RaidParty(VarbitID.TOB_CLIENT_PARTYSTATUS, InterfaceID.TobHud.NAMES,
+			VarClientID.TOB_CLIENT_NAME0, VarClientID.TOB_CLIENT_NAME1, VarClientID.TOB_CLIENT_NAME2,
+			VarClientID.TOB_CLIENT_NAME3, VarClientID.TOB_CLIENT_NAME4),
+		new RaidParty(VarbitID.TOA_CLIENT_PARTYSTATUS, InterfaceID.ToaLobby.NAMES,
+			VarClientID.TOA_CLIENT_NAME0, VarClientID.TOA_CLIENT_NAME1, VarClientID.TOA_CLIENT_NAME2, VarClientID.TOA_CLIENT_NAME3,
+			VarClientID.TOA_CLIENT_NAME4, VarClientID.TOA_CLIENT_NAME5, VarClientID.TOA_CLIENT_NAME6, VarClientID.TOA_CLIENT_NAME7),
+		new RaidParty(VarbitID.TFA_CLIENT_PARTYSTATUS, InterfaceID.TfaLobby.NAMES,
+			VarClientID.TFA_CLIENT_NAME0, VarClientID.TFA_CLIENT_NAME1, VarClientID.TFA_CLIENT_NAME2, VarClientID.TFA_CLIENT_NAME3,
+			VarClientID.TFA_CLIENT_NAME4, VarClientID.TFA_CLIENT_NAME5, VarClientID.TFA_CLIENT_NAME6, VarClientID.TFA_CLIENT_NAME7));
 
 	private final Client client;
 	private final PartyService partyService;
@@ -86,11 +117,77 @@ public class PartyLabelVariable implements LabelVariable
 				continue;
 			}
 
-			String key = Text.standardize(name.replace('_', ' '));
+			String key = standardize(name);
 			byName.remove(key);
 			byName.put(key, member);
 		}
 		return new ArrayList<>(byName.values());
+	}
+
+	private static String standardize(String name)
+	{
+		return Text.standardize(name.replace('_', ' '));
+	}
+
+	// Sort party members by raid party order (ToB / ToA / TFA)
+	private void sortByRaidSlot(List<PartyMember> members)
+	{
+		List<String> raidNames = raidPartyNames();
+		if (raidNames.isEmpty())
+		{
+			return;
+		}
+
+		members.sort(Comparator.comparingInt(member ->
+		{
+			int slot = raidNames.indexOf(standardize(member.getDisplayName()));
+			return slot < 0 ? Integer.MAX_VALUE : slot;
+		}));
+	}
+
+	// Names by slot, or empty when not in a raid party.
+	private List<String> raidPartyNames()
+	{
+		for (RaidParty raid : RAID_PARTIES)
+		{
+			int status = client.getVarbitValue(raid.statusVarbit);
+			if (status == 0)
+			{
+				continue;
+			}
+
+			// 1: in the lobby, so the raid's own name varcs aren't set yet.
+			if (status == 1)
+			{
+				return lobbyNames(raid.lobbyNames);
+			}
+
+			List<String> names = new ArrayList<>();
+			for (int varc : raid.nameVarcs)
+			{
+				String name = client.getVarcStrValue(varc);
+				names.add(name == null ? "" : standardize(Text.removeTags(name)));
+			}
+			return names;
+		}
+		return List.of();
+	}
+
+	// One name per <br> line of the lobby's party list.
+	private List<String> lobbyNames(int widgetId)
+	{
+		Widget widget = client.getWidget(widgetId);
+		if (widget == null || widget.getText() == null)
+		{
+			return List.of();
+		}
+
+		List<String> names = new ArrayList<>();
+		for (String line : widget.getText().split("<br>"))
+		{
+			names.add(standardize(Text.removeTags(line)));
+		}
+		return names;
 	}
 
 	// The template once per member, one per line: keywords substituted outside nested tokens, then
@@ -106,6 +203,7 @@ public class PartyLabelVariable implements LabelVariable
 		partyDataSharing.addNeeds(template);
 		PartyMember local = partyService.getLocalMember();
 		List<PartyMember> members = members();
+		sortByRaidSlot(members);
 		StringBuilder result = new StringBuilder("{align=left}");
 
 		int num = 1;
