@@ -93,7 +93,7 @@ public class GroundMarkerVariablesOverlay
 	private final ImportPreviewManager importPreviewManager;
 	private final PingedTileManager pingedTileManager;
 
-	// Keyed by the (already cached) flag or emoji image.
+	// Keyed by the (already cached) flag, emoji, sprite or item image.
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
 	// Keyed by the original image, then brightness.
 	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons = new IdentityHashMap<>();
@@ -480,9 +480,10 @@ public class GroundMarkerVariablesOverlay
 				// and simply skipped when drawing below, rather than dropping the whole line.
 				ItemIcon item = (ItemIcon) segment;
 				BufferedImage image = itemManager.getImage(item.id);
-				image = image == null ? null : dimmed(image, item.brightness);
+				image = image == null ? null : scaledIcon(dimmed(image, item.brightness), iconHeight);
 				images.add(image);
-				int iconWidth = image == null ? 0 : image.getWidth() * iconHeight / image.getHeight();
+				int iconWidth = image == null ? 0
+					: image.getHeight() == iconHeight ? image.getWidth() : image.getWidth() * iconHeight / image.getHeight();
 				iconWidths.add(iconWidth);
 				totalWidth += iconWidth;
 				continue;
@@ -564,6 +565,11 @@ public class GroundMarkerVariablesOverlay
 		{
 			int width = Math.round(icon.getWidth() * textHeight / (float) icon.getHeight());
 			scaled = ImageUtil.resizeImage(icon, width, textHeight);
+			// An item image still loading is drawn into later.
+			if (icon instanceof AsyncBufferedImage)
+			{
+				((AsyncBufferedImage) icon).onLoaded(() -> scaledIcons.remove(icon));
+			}
 			scaledIcons.put(icon, scaled);
 		}
 		return scaled;
