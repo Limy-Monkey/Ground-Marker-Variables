@@ -11,7 +11,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
-import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.PartyMemberContext;
@@ -68,13 +67,10 @@ public class PartyLabelVariable implements LabelVariable
 	private final PartyService partyService;
 	private final RichText richText;
 	private final PartyMemberContext memberContext;
-	private final PartyDataSharing partyDataSharing;
 
 	@Inject
-	private PartyLabelVariable(Client client, PartyService partyService, RichText richText, PartyMemberContext memberContext,
-							   PartyDataSharing partyDataSharing)
+	private PartyLabelVariable(Client client, PartyService partyService, RichText richText, PartyMemberContext memberContext)
 	{
-		this.partyDataSharing = partyDataSharing;
 		this.client = client;
 		this.partyService = partyService;
 		this.richText = richText;
@@ -200,7 +196,6 @@ public class PartyLabelVariable implements LabelVariable
 		}
 
 		template = template.isEmpty() ? DEFAULT_TEMPLATE : template;
-		partyDataSharing.addNeeds(template);
 		PartyMember local = partyService.getLocalMember();
 		List<PartyMember> members = members();
 		sortByRaidSlot(members);

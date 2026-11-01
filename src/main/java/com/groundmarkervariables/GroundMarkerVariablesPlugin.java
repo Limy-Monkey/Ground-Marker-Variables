@@ -813,7 +813,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
 			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
-			partyDataSharing.collecting = true;
 			readyCheckTracker.collecting = true;
 			try
 			{
@@ -834,7 +833,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			finally
 			{
 				resolvingTile.tile = null;
-				partyDataSharing.collecting = false;
 				readyCheckTracker.collecting = false;
 			}
 		}

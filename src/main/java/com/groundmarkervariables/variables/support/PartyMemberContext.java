@@ -28,12 +28,6 @@ public class PartyMemberContext
 		this.richText = richText;
 	}
 
-	@Nullable
-	public PartyMember member()
-	{
-		return member;
-	}
-
 	// member is null for our own row.
 	public void enterRow(@Nullable PartyMember member)
 	{
@@ -45,11 +39,6 @@ public class PartyMemberContext
 	{
 		this.member = null;
 		this.inRow = false;
-	}
-
-	public boolean isRemote()
-	{
-		return member != null;
 	}
 
 	// A value we don't have for this member: "null" in Plain Text, so conditions compare against it.
