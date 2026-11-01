@@ -74,6 +74,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
 | `{showItems <name>, <name>, ...}`       | The icon of each listed item you hold, in order, e.g. \{showItems obligator, scythe, soulreaper axe}                                                             |
+| `{showOneItem <name>, <name>, ...}`     | Like `{showItems}`, but only the icon of the first listed item you hold                                                                                          |
 | `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |
 | `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                              |
 | `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
@@ -146,7 +147,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - **Countdown to a date and time**: `{nov 4 7am - now}`. Rich Text shows `9 days 21:06`, Plain Text shows total hours `237:06`, and it goes negative once the time has passed. `now` also works in place of `date` or `time` above.
 
 ### `{party <template>}`
-Rich Text shows `Party (N)` and a row per party member, using the template with these keywords replaced: `num`, `name`, `hp`, `prayer`. The default is `{party num. name | hp | prayer}`. Plain Text is the party size.
+Rich Text shows a row per party member, using the template with these keywords replaced: `num`, `name`, `hp`, `prayer`. The default is `{party num. name | hp | prayer}`. Plain Text is the party size.
 - The template can contain other variables, resolved for each member: `{party {rsn}: {hasItem chinchompa} | {spec}}`
 - Conditions, `||` / `&&` and math work too: `{party {rsn} {spec >= 50 ? spec ready : }}`
 - Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`, `playerDistance`, `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasThralls`

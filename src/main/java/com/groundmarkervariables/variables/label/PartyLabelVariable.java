@@ -78,8 +78,8 @@ public class PartyLabelVariable implements LabelVariable
 			.collect(Collectors.toList());
 	}
 
-	// "Party (N)", then the template once per member: keywords substituted outside nested tokens,
-	// then resolveRow run with that member as the context.
+	// The template once per member, one per line: keywords substituted outside nested tokens, then
+	// resolveRow run with that member as the context.
 	public String render(String template, UnaryOperator<String> resolveRow)
 	{
 		if (client.getLocalPlayer() == null)
@@ -91,7 +91,7 @@ public class PartyLabelVariable implements LabelVariable
 		partyDataSharing.addNeeds(template);
 		PartyMember local = partyService.getLocalMember();
 		List<PartyMember> members = members();
-		StringBuilder result = new StringBuilder("{align=left}Party (").append(members.size()).append(")");
+		StringBuilder result = new StringBuilder("{align=left}");
 
 		int num = 1;
 		for (PartyMember member : members)
@@ -109,7 +109,7 @@ public class PartyLabelVariable implements LabelVariable
 			{
 				memberContext.exitRow();
 			}
-			result.append("\\n").append(row);
+			result.append(rowNum > 1 ? "\\n" : "").append(row);
 		}
 
 		result.append("\\n{/align}");

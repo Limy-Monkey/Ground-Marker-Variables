@@ -40,7 +40,7 @@ import net.runelite.client.plugins.Plugin;
 @Singleton
 public class PartyDataSharing
 {
-	private static final Pattern ITEM_WORD = Pattern.compile("\\b(?:hasItem|numItem|numDoses|showItems?)\\b", Pattern.CASE_INSENSITIVE);
+	private static final Pattern ITEM_WORD = Pattern.compile("\\b(?:hasItem|numItem|numDoses|show(?:One)?Items?)\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern SPELL_WORD = Pattern.compile(
 		"\\b(?:hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasThralls)\\b", Pattern.CASE_INSENSITIVE);
 	private static final Pattern SPELLBOOK_WORD = Pattern.compile("\\bspellbook\\b", Pattern.CASE_INSENSITIVE);

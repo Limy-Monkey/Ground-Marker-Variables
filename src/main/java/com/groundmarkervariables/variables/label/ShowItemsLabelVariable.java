@@ -20,10 +20,10 @@ import net.runelite.client.party.PartyMember;
 
 // {showItems <name>, <name>, ...} (or {showItem}) -> Plain: "true" if any listed name matches an
 // item you hold (same scope as {hasItem}), else "false". Rich: the icon of each listed name's first
-// matching item, in the listed order, or empty if none match.
+// matching item, in the listed order, or empty if none match. {showOneItem(s)} shows only the first.
 public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{showItems?\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{show(One)?Items?\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final ItemManager itemManager;
@@ -49,7 +49,7 @@ public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariabl
 			return null;
 		}
 
-		return String.valueOf(!found(matcher.group(1), this::findLocal).isEmpty());
+		return String.valueOf(!found(matcher.group(2), this::findLocal).isEmpty());
 	}
 
 	@Override
@@ -60,19 +60,19 @@ public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariabl
 			return null;
 		}
 
-		return icons(found(matcher.group(1), this::findLocal));
+		return icons(found(matcher.group(2), this::findLocal), matcher.group(1) != null);
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		return String.valueOf(!found(matcher.group(1), search -> ItemQuantityFinder.findAll(member, itemManager, search)).isEmpty());
+		return String.valueOf(!found(matcher.group(2), search -> ItemQuantityFinder.findAll(member, itemManager, search)).isEmpty());
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
-		return icons(found(matcher.group(1), search -> ItemQuantityFinder.findAll(member, itemManager, search)));
+		return icons(found(matcher.group(2), search -> ItemQuantityFinder.findAll(member, itemManager, search)), matcher.group(1) != null);
 	}
 
 	@Override
@@ -86,12 +86,16 @@ public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariabl
 		return ItemQuantityFinder.findAll(client, itemManager, search);
 	}
 
-	private static String icons(Set<Integer> ids)
+	private static String icons(Set<Integer> ids, boolean onlyFirst)
 	{
 		StringBuilder icons = new StringBuilder();
 		for (int id : ids)
 		{
 			icons.append("<item=").append(id).append('>');
+			if (onlyFirst)
+			{
+				break;
+			}
 		}
 		return icons.toString();
 	}
