@@ -7,8 +7,12 @@ import java.awt.Composite;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Paint;
 import java.awt.Polygon;
+import java.awt.RadialGradientPaint;
 import java.awt.Stroke;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -61,6 +65,10 @@ public class GroundMarkerVariablesOverlay
 			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>",
 		Pattern.CASE_INSENSITIVE);
 	private static final int FULL_BRIGHTNESS = 100;
+	// drawGlow: radius relative to half the icon, and its opacity from the center out.
+	private static final float GLOW_SCALE = 1.0f;
+	private static final float[] GLOW_FRACTIONS = {0f, 0.5f, 1f};
+	private static final Color[] GLOW_COLORS = {new Color(128, 128, 128, 80), new Color(128, 128, 128, 70), new Color(128, 128, 128, 0)};
 	// The game's own world switcher flags, drawn at native size.
 	private static final Map<String, Integer> FLAG_SPRITES = Map.of(
 		"us", SpriteID.WorldswitcherFlags._1,
@@ -348,6 +356,17 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// <sprite=ID[,frame][@N%]>, kept apart from flags/emojis so only it gets drawGlow.
+	private static final class SpriteIcon
+	{
+		private final BufferedImage image;
+
+		private SpriteIcon(BufferedImage image)
+		{
+			this.image = image;
+		}
+	}
+
 	// <item=ID[@N%]>
 	private static final class ItemIcon
 	{
@@ -389,9 +408,10 @@ public class GroundMarkerVariablesOverlay
 				continue;
 			}
 
-			if (segment instanceof BufferedImage)
+			if (segment instanceof BufferedImage || segment instanceof SpriteIcon)
 			{
-				BufferedImage flag = scaledIcon((BufferedImage) segment, iconHeight);
+				BufferedImage source = segment instanceof SpriteIcon ? ((SpriteIcon) segment).image : (BufferedImage) segment;
+				BufferedImage flag = scaledIcon(source, iconHeight);
 				images.add(flag);
 				iconWidths.add(flag.getWidth());
 				totalWidth += flag.getWidth();
@@ -505,10 +525,14 @@ public class GroundMarkerVariablesOverlay
 			{
 				style = ((StyleToggle) segment).apply(style);
 			}
-			else if (segment instanceof BufferedImage)
+			else if (segment instanceof BufferedImage || segment instanceof SpriteIcon)
 			{
 				BufferedImage flag = layout.images.get(i);
 				int flagY = y - fontMetrics.getAscent() + (lineHeight(fontMetrics) - flag.getHeight()) / 2;
+				if (segment instanceof SpriteIcon && config.iconBackground())
+				{
+					drawGlow(graphics, x, flagY, flag.getWidth(), flag.getHeight());
+				}
 				graphics.drawImage(flag, x, flagY, null);
 				x += flag.getWidth();
 			}
@@ -520,6 +544,10 @@ public class GroundMarkerVariablesOverlay
 				{
 					int iconHeight = lineHeight(fontMetrics);
 					int imageY = y - fontMetrics.getAscent();
+					if (config.iconBackground())
+					{
+						drawGlow(graphics, x, imageY, iconWidth, iconHeight);
+					}
 					graphics.drawImage(image, x, imageY, iconWidth, iconHeight, null);
 					x += iconWidth;
 				}
@@ -546,12 +574,29 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// A soft round gray glow behind an item/sprite icon (config iconBackground), fading out to its edge.
+	private static void drawGlow(Graphics2D graphics, int x, int y, int width, int height)
+	{
+		float radius = Math.max(width, height) / 2f * GLOW_SCALE;
+		if (radius <= 0)
+		{
+			return;
+		}
+
+		float centerX = x + width / 2f;
+		float centerY = y + height / 2f;
+		Paint previous = graphics.getPaint();
+		graphics.setPaint(new RadialGradientPaint(new Point2D.Float(centerX, centerY), radius, GLOW_FRACTIONS, GLOW_COLORS));
+		graphics.fill(new Ellipse2D.Float(centerX - radius, centerY - radius, radius * 2, radius * 2));
+		graphics.setPaint(previous);
+	}
+
 	private static int lineHeight(FontMetrics fontMetrics)
 	{
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into text (String), ItemIcons, flags/emojis/sprites (BufferedImage) and StyleToggles.
+	// Splits a line into text (String), ItemIcons, SpriteIcons, flags/emojis (BufferedImage) and StyleToggles.
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
@@ -591,7 +636,7 @@ public class GroundMarkerVariablesOverlay
 				BufferedImage sprite = spriteManager.getSprite(Integer.parseInt(matcher.group(8)), frame);
 				if (sprite != null)
 				{
-					segments.add(dimmed(sprite, brightness(matcher.group(10))));
+					segments.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
 				}
 			}
 			else

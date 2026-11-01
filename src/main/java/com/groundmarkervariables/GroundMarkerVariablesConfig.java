@@ -283,6 +283,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			position = 7,
+			keyName = "iconBackground",
+			name = "Icon Glow",
+			description = "Draw a soft glow behind items and sprites",
+			section = richTextSection
+	)
+	default boolean iconBackground()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 			name = "Advanced Editor",
 			description = "Settings for the Advanced Label Editor.",
