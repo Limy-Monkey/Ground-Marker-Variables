@@ -198,14 +198,20 @@ public class LabelResolver
 
 			String bareToken = prefixChar == null ? matcher.group(0) : "{" + matcher.group(0).substring(2);
 			Matcher bareMatcher = variable.pattern().matcher(bareToken);
+			boolean matched = bareMatcher.matches();
 			String value;
 			try
 			{
-				value = bareMatcher.matches() ? resolveFor(variable, bareMatcher, mode, composite) : null;
+				// A token that can't resolve (e.g. a party member's data is missing) shows nothing.
+				value = matched ? resolveFor(variable, bareMatcher, mode, composite) : null;
+				if (value == null && matched)
+				{
+					value = "";
+				}
 			}
 			catch (RuntimeException e)
 			{
-				value = "ERROR";
+				value = "";
 			}
 			if (value != null)
 			{
