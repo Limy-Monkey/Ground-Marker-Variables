@@ -1,11 +1,13 @@
 package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.party.PartyDataSharing;
@@ -16,6 +18,7 @@ import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
+import net.runelite.client.util.Text;
 
 // {party} -> the party size. LabelResolver renders {party <template>} itself via render(), since
 // the template may contain nested tokens.
@@ -70,12 +73,24 @@ public class PartyLabelVariable implements LabelVariable
 		return members().size();
 	}
 
-	// RuneLite's name for a member until theirs arrives, e.g. just after rejoining.
+	// Skips RuneLite's name for a member until theirs arrives, e.g. just after rejoining. Of members
+	// sharing a name, only the newest (last joined) is kept.
 	private List<PartyMember> members()
 	{
-		return partyService.getMembers().stream()
-			.filter(member -> !UNKNOWN_NAME.equals(member.getDisplayName()))
-			.collect(Collectors.toList());
+		Map<String, PartyMember> byName = new LinkedHashMap<>();
+		for (PartyMember member : partyService.getMembers())
+		{
+			String name = member.getDisplayName();
+			if (name == null || UNKNOWN_NAME.equals(name))
+			{
+				continue;
+			}
+
+			String key = Text.standardize(name.replace('_', ' '));
+			byName.remove(key);
+			byName.put(key, member);
+		}
+		return new ArrayList<>(byName.values());
 	}
 
 	// The template once per member, one per line: keywords substituted outside nested tokens, then
