@@ -2,8 +2,12 @@ package com.groundmarkervariables.variables.support;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.ToIntFunction;
 import javax.annotation.Nullable;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -47,23 +51,27 @@ public final class RuneCounter
 			ItemID.STEAM_BATTLESTAFF, ItemID.MYSTIC_STEAM_BATTLESTAFF,
 			ItemID.STEAM_BATTLESTAFF_PRETTY, ItemID.MYSTIC_STEAM_BATTLESTAFF_PRETTY,
 			ItemID.SMOKE_BATTLESTAFF, ItemID.MYSTIC_SMOKE_BATTLESTAFF,
+			ItemID.SHADOWFLAME_QUADRANT,
 		},
 		ItemID.WATERRUNE, new int[] {
 			ItemID.STAFF_OF_WATER, ItemID.WATER_BATTLESTAFF, ItemID.MYSTIC_WATER_STAFF,
 			ItemID.MUD_BATTLESTAFF, ItemID.MYSTIC_MUD_STAFF,
 			ItemID.STEAM_BATTLESTAFF, ItemID.MYSTIC_STEAM_BATTLESTAFF,
 			ItemID.STEAM_BATTLESTAFF_PRETTY, ItemID.MYSTIC_STEAM_BATTLESTAFF_PRETTY,
+			ItemID.SHADOWFLAME_QUADRANT,
 		},
 		ItemID.EARTHRUNE, new int[] {
 			ItemID.STAFF_OF_EARTH, ItemID.EARTH_BATTLESTAFF, ItemID.MYSTIC_EARTH_STAFF,
 			ItemID.LAVA_BATTLESTAFF, ItemID.MYSTIC_LAVA_STAFF, ItemID.LAVA_BATTLESTAFF_PRETTY, ItemID.MYSTIC_LAVA_STAFF_PRETTY,
 			ItemID.MUD_BATTLESTAFF, ItemID.MYSTIC_MUD_STAFF,
+			ItemID.SHADOWFLAME_QUADRANT,
 		},
 		ItemID.AIRRUNE, new int[] {
 			ItemID.STAFF_OF_AIR, ItemID.AIR_BATTLESTAFF, ItemID.MYSTIC_AIR_STAFF,
 			ItemID.MIST_BATTLESTAFF, ItemID.MYSTIC_MIST_BATTLESTAFF,
 			ItemID.DUST_BATTLESTAFF, ItemID.MYSTIC_DUST_BATTLESTAFF,
 			ItemID.SMOKE_BATTLESTAFF, ItemID.MYSTIC_SMOKE_BATTLESTAFF,
+			ItemID.SHADOWFLAME_QUADRANT,
 		});
 
 	// All 7 combination runes (oldschool.runescape.wiki/w/Combination_rune) — usable as either
@@ -79,6 +87,16 @@ public final class RuneCounter
 
 	// runeId -> combo runes that count as it
 	private static final Map<Integer, int[]> SUBSTITUTES_BY_RUNE = buildSubstitutesByRune();
+
+	// Worn in the shield slot: charged tomes and Devil's element.
+	private static final Map<Integer, int[]> INFINITE_RUNE_OFFHANDS = Map.of(
+		ItemID.FIRERUNE, new int[] { ItemID.TOME_OF_FIRE, ItemID.DEVILS_ELEMENT },
+		ItemID.WATERRUNE, new int[] { ItemID.TOME_OF_WATER, ItemID.DEVILS_ELEMENT },
+		ItemID.EARTHRUNE, new int[] { ItemID.TOME_OF_EARTH, ItemID.DEVILS_ELEMENT },
+		ItemID.AIRRUNE, new int[] { ItemID.DEVILS_ELEMENT });
+
+	private static final Map<Integer, Set<Integer>> WEAPON_SOURCES = bySource(INFINITE_RUNE_WEAPONS);
+	private static final Map<Integer, Set<Integer>> OFFHAND_SOURCES = bySource(INFINITE_RUNE_OFFHANDS);
 
 	private static Map<Integer, int[]> buildSubstitutesByRune()
 	{
@@ -96,39 +114,89 @@ public final class RuneCounter
 		return result;
 	}
 
-	public static boolean hasAtLeast(Client client, int runeId, int required)
+	// runes: rune id -> amount.
+	public static boolean hasRunes(Client client, Map<Integer, Integer> runes)
 	{
-		return hasInfiniteSource(client, runeId) || count(client, runeId) >= required || hasSubstitute(client, runeId);
+		return hasRunes(runes, items(client, InventoryID.INVENTORY), items(client, InventoryID.EQUIPMENT), rune -> count(client, rune));
 	}
 
 	// The same, from a party member's PartyDataService inventory, gear and rune pouch.
-	public static boolean hasAtLeast(PartyMember member, int runeId, int required)
+	public static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes)
 	{
-		Item[] worn = member.getWorn();
-		int weaponSlot = EquipmentInventorySlot.WEAPON.getSlotIdx();
-		Item weapon = worn == null || weaponSlot >= worn.length ? null : worn[weaponSlot];
-		if (weapon != null && isInfiniteSource(weapon.getId(), runeId))
-		{
-			return true;
-		}
+		return hasRunes(runes, member.getInv(), member.getWorn(), rune -> count(member, rune));
+	}
 
-		if (count(member, runeId) >= required)
+	// With some choice of weapon and offhand, worn or in the inventory to equip instead. Each one
+	// worn can be an infinite source.
+	private static boolean hasRunes(Map<Integer, Integer> runes, @Nullable Item[] inventory, @Nullable Item[] worn, ToIntFunction<Integer> count)
+	{
+		for (int weapon : choices(worn, EquipmentInventorySlot.WEAPON, inventory, WEAPON_SOURCES))
 		{
-			return true;
-		}
-
-		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
-		if (substitutes != null)
-		{
-			for (int substitute : substitutes)
+			for (int offhand : choices(worn, EquipmentInventorySlot.SHIELD, inventory, OFFHAND_SOURCES))
 			{
-				if (count(member, substitute) > 0)
+				if (hasRunes(runes, count, WEAPON_SOURCES.get(weapon), OFFHAND_SOURCES.get(offhand)))
 				{
 					return true;
 				}
 			}
 		}
 		return false;
+	}
+
+	private static boolean hasRunes(Map<Integer, Integer> runes, ToIntFunction<Integer> count, @Nullable Set<Integer> weaponRunes,
+		@Nullable Set<Integer> offhandRunes)
+	{
+		for (Map.Entry<Integer, Integer> rune : runes.entrySet())
+		{
+			int runeId = rune.getKey();
+			boolean infinite = weaponRunes != null && weaponRunes.contains(runeId) || offhandRunes != null && offhandRunes.contains(runeId);
+			if (!infinite && count.applyAsInt(runeId) < rune.getValue() && !hasSubstitute(count, runeId))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// The worn item in slot (-1 if none), plus each source in the inventory.
+	private static Set<Integer> choices(@Nullable Item[] worn, EquipmentInventorySlot slot, @Nullable Item[] inventory,
+		Map<Integer, Set<Integer>> sources)
+	{
+		Set<Integer> choices = new LinkedHashSet<>();
+		Item wornItem = worn == null || slot.getSlotIdx() >= worn.length ? null : worn[slot.getSlotIdx()];
+		choices.add(wornItem == null ? -1 : wornItem.getId());
+		if (inventory != null)
+		{
+			for (Item item : inventory)
+			{
+				if (item != null && sources.containsKey(item.getId()))
+				{
+					choices.add(item.getId());
+				}
+			}
+		}
+		return choices;
+	}
+
+	@Nullable
+	private static Item[] items(Client client, InventoryID inventoryId)
+	{
+		ItemContainer container = client.getItemContainer(inventoryId);
+		return container == null ? null : container.getItems();
+	}
+
+	// Item id -> the runes it's an infinite source of.
+	private static Map<Integer, Set<Integer>> bySource(Map<Integer, int[]> sourcesByRune)
+	{
+		Map<Integer, Set<Integer>> bySource = new HashMap<>();
+		sourcesByRune.forEach((rune, items) ->
+		{
+			for (int item : items)
+			{
+				bySource.computeIfAbsent(item, k -> new HashSet<>()).add(rune);
+			}
+		});
+		return bySource;
 	}
 
 	private static int count(PartyMember member, int runeId)
@@ -167,26 +235,8 @@ public final class RuneCounter
 		return false;
 	}
 
-	private static boolean isInfiniteSource(int weaponId, int runeId)
-	{
-		int[] weapons = INFINITE_RUNE_WEAPONS.get(runeId);
-		if (weapons == null)
-		{
-			return false;
-		}
-
-		for (int candidate : weapons)
-		{
-			if (weaponId == candidate)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
 	// Any quantity of a combo rune covering runeId counts as satisfying it.
-	private static boolean hasSubstitute(Client client, int runeId)
+	private static boolean hasSubstitute(ToIntFunction<Integer> count, int runeId)
 	{
 		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
 		if (substitutes == null)
@@ -196,18 +246,13 @@ public final class RuneCounter
 
 		for (int substitute : substitutes)
 		{
-			if (count(client, substitute) > 0)
+			if (count.applyAsInt(substitute) > 0)
 			{
 				return true;
 			}
 		}
 
 		return false;
-	}
-
-	static boolean hasInfiniteSource(Client client, int runeId)
-	{
-		return isInfiniteSource(equippedWeaponId(client), runeId);
 	}
 
 	// Total quantity of a rune available: inventory + rune pouch contents
@@ -234,19 +279,6 @@ public final class RuneCounter
 		}
 
 		return total;
-	}
-
-	// The equipped weapon's item id, or -1 if there's no equipment or nothing in that slot
-	static int equippedWeaponId(Client client)
-	{
-		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
-		if (equipment == null)
-		{
-			return -1;
-		}
-
-		Item weapon = equipment.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
-		return weapon == null || weapon.getId() <= 0 ? -1 : weapon.getId();
 	}
 
 	private static int runePouchCount(Client client, int runeId)

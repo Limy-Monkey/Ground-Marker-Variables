@@ -82,25 +82,11 @@ public final class Spellbooks
 
 	private static boolean hasRunes(Client client, Map<Integer, Integer> runes)
 	{
-		for (Map.Entry<Integer, Integer> rune : runes.entrySet())
-		{
-			if (!RuneCounter.hasAtLeast(client, rune.getKey(), rune.getValue()))
-			{
-				return false;
-			}
-		}
-		return true;
+		return RuneCounter.hasRunes(client, runes);
 	}
 
 	private static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes)
 	{
-		for (Map.Entry<Integer, Integer> rune : runes.entrySet())
-		{
-			if (!RuneCounter.hasAtLeast(member, rune.getKey(), rune.getValue()))
-			{
-				return false;
-			}
-		}
-		return true;
+		return RuneCounter.hasRunes(member, runes);
 	}
 }
