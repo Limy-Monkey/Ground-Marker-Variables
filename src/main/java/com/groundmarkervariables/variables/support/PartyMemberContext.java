@@ -20,6 +20,7 @@ public class PartyMemberContext
 	@Nullable
 	private PartyMember member;
 	private boolean inRow;
+	private int rowNumber;
 
 	@Inject
 	private PartyMemberContext(Client client, RichText richText)
@@ -28,17 +29,25 @@ public class PartyMemberContext
 		this.richText = richText;
 	}
 
-	// member is null for our own row.
-	public void enterRow(@Nullable PartyMember member)
+	// member is null for our own row; rowNumber counts from 1.
+	public void enterRow(@Nullable PartyMember member, int rowNumber)
 	{
 		this.member = member;
 		this.inRow = true;
+		this.rowNumber = rowNumber;
 	}
 
 	public void exitRow()
 	{
 		this.member = null;
 		this.inRow = false;
+		this.rowNumber = 0;
+	}
+
+	// The current {party} row's number, or 0 outside a row.
+	public int rowNumber()
+	{
+		return rowNumber;
 	}
 
 	// A value we don't have for this member: "null" in Plain Text, so conditions compare against it.

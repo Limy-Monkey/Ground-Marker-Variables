@@ -210,7 +210,7 @@ public class PartyLabelVariable implements LabelVariable
 			int rowNum = num++;
 			String row = outsideTokens(template, text -> substituteKeywords(text, rowNum, member, isLocal));
 
-			memberContext.enterRow(isLocal ? null : member);
+			memberContext.enterRow(isLocal ? null : member, rowNum);
 			try
 			{
 				row = resolveRow.apply(row);

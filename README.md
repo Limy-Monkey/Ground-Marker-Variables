@@ -137,7 +137,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.
-- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`
+- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`, `party`
 - Usable in conditions: `{kc tob + kc hmt > 100 ? 100+ ToBs : }`
 - Dividing by zero leaves the token as written.
 
@@ -146,18 +146,23 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - **Time until / since a time of day**: `{6am - time}` → `1:23`, wrapping past midnight (at 7am it's `23:00`). `{time - 2am}` is time since 2am. Times can be `6am`, `8 pm`, `6:30 a.m.`, `7:00` or `15:00`, and two times work too: `{6am - 2am}` → `4:00`. Write `7:00` or `7am`, not `7`.
 - **Countdown to a date and time**: `{nov 4 7am - now}`. Rich Text shows `9 days 21:06`, Plain Text shows total hours `237:06`, and it goes negative once the time has passed. `now` also works in place of `date` or `time` above.
 
-### `{party <template>}`
-Rich Text shows a row per party member, using the template with these keywords replaced: `num`, `name`, `hp`, `prayer`. The default is `{party num. name | hp | prayer}`. Plain Text is the party size.
-- The template can contain other variables, resolved for each member: `{party {rsn}: {hasItem chinchompa} | {spec}}`
-- Conditions, `||` / `&&` and math work too: `{party {rsn} {spec >= 50 ? spec ready : }}`
-- Variables that work for other members: `rsn`, `spec`, `runEnergy`, `lvl_`, `boost_`, `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `readyCheck`, `playerDistance`, `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasThralls`
-- `spellbook` is only known for members who also have Ground Marker Variables installed. For others, `{spellbook}` shows `...`, and `has<Spell>` variables only check their runes.
-- Any other variable shows as `...` (`null` in conditions) in other members' rows, as does data a member hasn't sent yet. Your own row works with every variable.
-- Other members' data only shares while a `{party}` tile is near you.
-- `{readyCheck}` shows each member's ready status from chat: `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`. Over 99 tiles away shows :telescope:
+### Party
+Shows a row based on `{party <template>}` per party member.
 
-### `{dps <template>}`
-Tracks your damage while you're near the tile. Each `{dps}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
+Also usable in math and conditionals as the number of players in the party `{party > 0 ? in party : not in party}`
+- All variables that work for other members:
+  - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `lvl_`, `boost_`, `playerDistance`
+  - `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `showOneItem`
+  - `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasThralls`
+- Special, `{party}` only variables include:
+  - `{readyCheck}` -- Reads in-game chat for ready messages or shows `:telescope:` for not nearby, `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`
+  - `{partyNum}` -- The member's number in order. Can be used in conditionals to hide long lists with `{hoverOnly}`.
+- `spellbook` is only known for members who also have Ground Marker Variables installed.
+  - For others, `{spellbook}` shows `...`
+  - `has<Spell>` variables only check their runes, shows slightly dimmed icon.
+
+### DPS
+Tracks your damage while you're near the tile. Each `{dps <template>}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
 - Keywords, replaced in the template like `{party}`:
 
 | Keyword                                | Value                                                                                     | Per-Weapon / NPC |

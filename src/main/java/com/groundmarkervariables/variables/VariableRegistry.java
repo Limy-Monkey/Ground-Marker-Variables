@@ -54,6 +54,7 @@ public class VariableRegistry
 		XpLabelVariable xp,
 		RankLabelVariable rank,
 		PartyLabelVariable party,
+		PartyNumLabelVariable partyNum,
 		ReadyCheckLabelVariable readyCheck,
 		PlayerDistanceLabelVariable playerDistance,
 		DivineLabelVariable divine,
@@ -67,7 +68,7 @@ public class VariableRegistry
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, autocast, dps, hasItem, showItems, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
-			party, readyCheck, playerDistance, divine, world, hasVileVigour, hasVengeance);
+			party, partyNum, readyCheck, playerDistance, divine, world, hasVileVigour, hasVengeance);
 	}
 
 	public List<LabelVariable> all()
