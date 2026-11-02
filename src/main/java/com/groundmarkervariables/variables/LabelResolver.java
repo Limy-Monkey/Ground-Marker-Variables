@@ -44,6 +44,7 @@ public class LabelResolver
 	private final PartyMemberContext memberContext;
 	private final PartyLabelVariable party;
 	private boolean inParty;
+	private boolean plainByDefault;
 
 	// Built lazily per variable, then reused -- this instance is shared by every CachedMarker.
 	private final Map<LabelVariable, Pattern> prefixedPatterns = new HashMap<>();
@@ -86,6 +87,9 @@ public class LabelResolver
 		// Plain for its own <expr> internally (no ^/&/* support).
 		resolved = conditional.resolveAll(resolved);
 
+		// {a || {b ? c : d}}: ||/&& chains with nested tokens, which the pass below can't match.
+		resolved = booleanVariable.resolveNested(resolved, richByDefault());
+
 		// {expr cmp value} and {a || b} / {a && b}, with no ?: disjoint from conditional's own
 		// ?-requiring pattern. Before the base variables, whose patterns (e.g. {hasItem ...})
 		// would otherwise swallow a whole "a || b" as their own argument.
@@ -101,6 +105,26 @@ public class LabelResolver
 		resolved = applyWithMode(metronome, resolved);
 
 		return restoreParties(resolved, parties);
+	}
+
+	// text resolved with Plain Text as the default, e.g. to test a condition.
+	public String resolvePlain(String text)
+	{
+		boolean previous = plainByDefault;
+		plainByDefault = true;
+		try
+		{
+			return resolve(text);
+		}
+		finally
+		{
+			plainByDefault = previous;
+		}
+	}
+
+	private boolean richByDefault()
+	{
+		return !plainByDefault && config.richTextByDefault();
 	}
 
 	// Renders each {party <template>} (which may nest tokens) and leaves a placeholder, so the passes
@@ -127,7 +151,7 @@ public class LabelResolver
 			}
 
 			Character prefixChar = start.group(1) == null ? null : start.group(1).charAt(0);
-			boolean rich = TextMode.forPrefix(prefixChar, config.richTextByDefault()) == TextMode.RICH;
+			boolean rich = TextMode.forPrefix(prefixChar, richByDefault()) == TextMode.RICH;
 			String value;
 			try
 			{
@@ -194,7 +218,7 @@ public class LabelResolver
 		while (matcher.find())
 		{
 			Character prefixChar = matcher.group(1) == null ? null : matcher.group(1).charAt(0);
-			TextMode mode = TextMode.forPrefix(prefixChar, config.richTextByDefault());
+			TextMode mode = TextMode.forPrefix(prefixChar, richByDefault());
 
 			String bareToken = prefixChar == null ? matcher.group(0) : "{" + matcher.group(0).substring(2);
 			Matcher bareMatcher = variable.pattern().matcher(bareToken);

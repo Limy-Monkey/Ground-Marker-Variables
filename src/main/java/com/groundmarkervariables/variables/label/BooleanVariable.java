@@ -1,13 +1,19 @@
 package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.TextMode;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Provider;
+import net.runelite.client.util.Text;
 
 // {<expr> <cmp> <value>} — colors <expr>'s own Plain Text value true/false, no ?/: branches.
 // ? excluded so this can't collide with real {cond ? A : B} syntax (every real conditional has a
@@ -33,11 +39,14 @@ public class BooleanVariable implements LabelVariable
 	private final RichText richText;
 	private final SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 	private final GroundMarkerVariablesConfig config;
+	private final Provider<LabelResolver> labelResolver;
 
 	@Inject
 	private BooleanVariable(ConditionEvaluator evaluator, RichText richText,
-                            SixHourTimeRemainingLabelVariable sixHourTimeRemaining, GroundMarkerVariablesConfig config)
+                            SixHourTimeRemainingLabelVariable sixHourTimeRemaining, GroundMarkerVariablesConfig config,
+                            Provider<LabelResolver> labelResolver)
 	{
+		this.labelResolver = labelResolver;
 		this.evaluator = evaluator;
 		this.richText = richText;
 		this.sixHourTimeRemaining = sixHourTimeRemaining;
@@ -91,6 +100,115 @@ public class BooleanVariable implements LabelVariable
 			}
 		}
 		return null;
+	}
+
+	// Resolves each top-level ||/&& token with nested tokens, which PATTERN can't match. A nested
+	// operand continues || only if its Plain Text is "false", and && only if "true"; otherwise it's shown.
+	public String resolveNested(String text, boolean richByDefault)
+	{
+		StringBuilder out = new StringBuilder();
+		int i = 0;
+		while (i < text.length())
+		{
+			int open = text.indexOf('{', i);
+			int close = open < 0 ? -1 : ConditionalVariable.matchingBrace(text, open);
+			if (close < 0)
+			{
+				out.append(text, i, text.length());
+				break;
+			}
+
+			String token = text.substring(open, close + 1);
+			String value;
+			try
+			{
+				value = resolveNestedToken(token.substring(1, token.length() - 1), richByDefault);
+			}
+			catch (RuntimeException e)
+			{
+				value = "";
+			}
+			out.append(text, i, open).append(value == null ? token : value);
+			i = close + 1;
+		}
+		return out.toString();
+	}
+
+	// Null if inner isn't a ||/&& chain with nested tokens.
+	private String resolveNestedToken(String inner, boolean richByDefault)
+	{
+		Character prefixChar = !inner.isEmpty() && "^&*".indexOf(inner.charAt(0)) >= 0 ? inner.charAt(0) : null;
+		String body = prefixChar == null ? inner : inner.substring(1);
+		boolean or = topLevelIndex(body, "||") >= 0;
+		if (!body.contains("{") || topLevelIndex(body, "?") >= 0 || or == (topLevelIndex(body, "&&") >= 0))
+		{
+			return null;
+		}
+
+		boolean rich = TextMode.forPrefix(prefixChar, richByDefault) == TextMode.RICH;
+		List<String> operands = splitTopLevel(body, or ? "||" : "&&");
+		for (int i = 0; i < operands.size(); i++)
+		{
+			String operand = operands.get(i).trim();
+			boolean last = i == operands.size() - 1;
+			if (!operand.contains("{"))
+			{
+				Boolean result = truth(operand);
+				if (result == null)
+				{
+					return last ? operand : null;
+				}
+				if (result == or || last)
+				{
+					return show(operand, rich);
+				}
+				continue;
+			}
+
+			String plain = Text.removeTags(labelResolver.get().resolvePlain(operand)).trim();
+			if (last || !plain.equalsIgnoreCase(or ? "false" : "true"))
+			{
+				return rich ? labelResolver.get().resolve(operand) : plain;
+			}
+		}
+		return null;
+	}
+
+	// First needle outside any {...}, or -1.
+	private static int topLevelIndex(String text, String needle)
+	{
+		int depth = 0;
+		for (int i = 0; i < text.length(); i++)
+		{
+			char c = text.charAt(i);
+			if (c == '{')
+			{
+				depth++;
+			}
+			else if (c == '}')
+			{
+				depth--;
+			}
+			else if (depth == 0 && text.startsWith(needle, i))
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private static List<String> splitTopLevel(String text, String separator)
+	{
+		List<String> parts = new ArrayList<>();
+		int start = 0;
+		int index;
+		while ((index = topLevelIndex(text.substring(start), separator)) >= 0)
+		{
+			parts.add(text.substring(start, start + index));
+			start += index + separator.length();
+		}
+		parts.add(text.substring(start));
+		return parts;
 	}
 
 	// true/false for "<expr>" or "<expr> <cmp> <value>", or null if it can't be evaluated.
