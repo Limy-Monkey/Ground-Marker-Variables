@@ -206,12 +206,13 @@ Tracks your damage while you're near the tile. Each `{dps <template>}` tile keep
 <details>
 <summary>Managing Ground Markers:</summary>
 
-Because Ground Marker Variables ARE RuneLite Core Ground Markers that happen to have variables in their labels, uninstalling Ground Marker Variables 
-and using core's Ground Markers plugin again will continue to render tiles with variables in their label.
+With Smart Save on (the default), markers with a `{variable}` label are saved to core's Ground Markers without their label, which Ground Marker Variables keeps separately.
 
-To make it easy to remove markers with variables, type `::manageGroundMarkerVariables` in chat to open the Manager Window.
+Uninstalling Ground Marker Variables and using core's Ground Markers plugin again will show those tiles without a label. Markers saved with Smart Save off keep their label in core.
 
-From here, you can select ground markers by region, or filter to only markers with variables using `{ }` and then select them all with `All`, to export and/or delete.
+To improve the experience of migrating, type `::manageGroundMarkerVariables` in chat to open the Manager Window.
+
+From here, you can select markers with variables to copy to clipboard and to delete and re-import if you wish to migrate.
 
 <img width="857" height="234" alt="java_ZgXhq7fRF6" src="https://github.com/user-attachments/assets/3b62431e-3d08-4ccb-ada5-eed6a8a5faee" />
 

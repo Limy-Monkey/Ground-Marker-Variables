@@ -5,35 +5,48 @@ import com.google.gson.reflect.TypeToken;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.config.ConfigManager;
 
-// CRUD against core Ground Markers' own persisted "region_<id>" config keys.
+// CRUD against core's and our own "region_<id>" config keys.
 @Singleton
 public class MarkerStorage
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";
 	private static final String REGION_PREFIX = "region_";
+	private static final Pattern VARIABLE = Pattern.compile("\\{[^{}]*\\}");
 
 	private final ConfigManager configManager;
+	private final GroundMarkerVariablesConfig config;
 	private final Gson gson;
 
 	@Inject
-	private MarkerStorage(ConfigManager configManager, Gson gson)
+	private MarkerStorage(ConfigManager configManager, GroundMarkerVariablesConfig config, Gson gson)
 	{
 		this.configManager = configManager;
+		this.config = config;
 		this.gson = gson;
 	}
 
-	// Every region with saved markers, from the "groundMarker.region_<id>" config keys.
+	// Every region with saved markers, in core's keys or ours.
 	public List<Integer> storedRegionIds()
 	{
-		String prefix = CORE_CONFIG_GROUP + "." + REGION_PREFIX;
-		List<Integer> regionIds = new ArrayList<>();
+		Set<Integer> regionIds = new LinkedHashSet<>();
+		addRegionIds(CORE_CONFIG_GROUP, regionIds);
+		addRegionIds(GroundMarkerVariablesConfig.GROUP, regionIds);
+		return new ArrayList<>(regionIds);
+	}
+
+	private void addRegionIds(String group, Set<Integer> regionIds)
+	{
+		String prefix = group + "." + REGION_PREFIX;
 		for (String key : configManager.getConfigurationKeys(prefix))
 		{
 			try
@@ -45,12 +58,37 @@ public class MarkerStorage
 				// Not one of ours.
 			}
 		}
-		return regionIds;
 	}
 
+	// Core's points with our labels merged in, plus ours core no longer has.
 	public Collection<GroundMarkerPointData> getStoredPoints(int regionId)
 	{
-		String json = configManager.getConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
+		List<GroundMarkerPointData> core = read(CORE_CONFIG_GROUP, regionId);
+		List<GroundMarkerPointData> gmv = read(GroundMarkerVariablesConfig.GROUP, regionId);
+		if (gmv.isEmpty())
+		{
+			return core;
+		}
+
+		List<GroundMarkerPointData> merged = new ArrayList<>();
+		for (GroundMarkerPointData point : core)
+		{
+			GroundMarkerPointData gmvPoint = find(gmv, point);
+			merged.add(gmvPoint != null && isEmpty(point.getLabel()) ? withLabel(point, gmvPoint.getLabel()) : point);
+		}
+		for (GroundMarkerPointData gmvPoint : gmv)
+		{
+			if (find(core, gmvPoint) == null)
+			{
+				merged.add(gmvPoint);
+			}
+		}
+		return merged;
+	}
+
+	private List<GroundMarkerPointData> read(String group, int regionId)
+	{
+		String json = configManager.getConfiguration(group, REGION_PREFIX + regionId);
 		if (json == null || json.isEmpty())
 		{
 			return Collections.emptyList();
@@ -70,7 +108,7 @@ public class MarkerStorage
 			List<GroundMarkerPointData> merged = new ArrayList<>(getStoredPoints(regionId));
 			for (GroundMarkerPointData point : grouped)
 			{
-				if (!containsLocation(merged, point))
+				if (find(merged, point) == null)
 				{
 					merged.add(point);
 				}
@@ -86,20 +124,45 @@ public class MarkerStorage
 		toRemove.stream().collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId)).forEach((regionId, grouped) ->
 		{
 			List<GroundMarkerPointData> remaining = new ArrayList<>(getStoredPoints(regionId));
-			remaining.removeIf(point -> containsLocation(grouped, point));
+			remaining.removeIf(point -> find(grouped, point) != null);
 			savePoints(regionId, remaining);
 		});
 	}
 
-	private void savePoints(int regionId, Collection<GroundMarkerPointData> points)
+	// With Smart Save, {variable} labels go to ours and core gets the point unlabeled.
+	public void savePoints(int regionId, Collection<GroundMarkerPointData> points)
 	{
-		if (points == null || points.isEmpty())
+		List<GroundMarkerPointData> core = new ArrayList<>();
+		List<GroundMarkerPointData> gmv = new ArrayList<>();
+		for (GroundMarkerPointData point : points)
 		{
-			configManager.unsetConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId);
+			if (config.smartSave() && point.getLabel() != null && VARIABLE.matcher(point.getLabel()).find())
+			{
+				core.add(withLabel(point, null));
+				gmv.add(point);
+			}
+			else
+			{
+				core.add(point);
+			}
+		}
+
+		write(CORE_CONFIG_GROUP, regionId, core);
+		write(GroundMarkerVariablesConfig.GROUP, regionId, gmv);
+	}
+
+	private void write(String group, int regionId, List<GroundMarkerPointData> points)
+	{
+		if (points.isEmpty())
+		{
+			if (configManager.getConfiguration(group, REGION_PREFIX + regionId) != null)
+			{
+				configManager.unsetConfiguration(group, REGION_PREFIX + regionId);
+			}
 			return;
 		}
 
-		configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
+		configManager.setConfiguration(group, REGION_PREFIX + regionId, gson.toJson(points));
 	}
 
 	public GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)
@@ -116,17 +179,27 @@ public class MarkerStorage
 		return null;
 	}
 
-	private static boolean containsLocation(Collection<GroundMarkerPointData> points, GroundMarkerPointData point)
+	private static boolean isEmpty(String label)
+	{
+		return label == null || label.isEmpty();
+	}
+
+	private static GroundMarkerPointData withLabel(GroundMarkerPointData point, String label)
+	{
+		return new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), point.getColor(), label);
+	}
+
+	private static GroundMarkerPointData find(Collection<GroundMarkerPointData> points, GroundMarkerPointData point)
 	{
 		for (GroundMarkerPointData existing : points)
 		{
 			if (existing.getRegionX() == point.getRegionX() && existing.getRegionY() == point.getRegionY()
 				&& existing.getZ() == point.getZ())
 			{
-				return true;
+				return existing;
 			}
 		}
 
-		return false;
+		return null;
 	}
 }

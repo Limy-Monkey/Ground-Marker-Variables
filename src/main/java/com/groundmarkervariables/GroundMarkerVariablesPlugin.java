@@ -541,7 +541,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				&& point.getZ() == worldPoint.getPlane())
 			{
 				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), newColor, point.getLabel()));
-				configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
+				markerStorage.savePoints(regionId, points);
 				return;
 			}
 		}
@@ -558,7 +558,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			newPoints.add(new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), defaultColor, point.getLabel()));
 		}
 
-		configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(newPoints));
+		markerStorage.savePoints(regionId, newPoints);
 	}
 
 	// Mirrors core's markTile().
@@ -708,7 +708,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				&& point.getZ() == worldPoint.getPlane())
 			{
 				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), point.getColor(), label));
-				configManager.setConfiguration(CORE_CONFIG_GROUP, REGION_PREFIX + regionId, gson.toJson(points));
+				markerStorage.savePoints(regionId, points);
 				if (label != null)
 				{
 					recordRecentLabel(label);
@@ -777,7 +777,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			return;
 		}
 
-		if (!CORE_CONFIG_GROUP.equals(event.getGroup()))
+		if (!CORE_CONFIG_GROUP.equals(event.getGroup()) && !GroundMarkerVariablesConfig.GROUP.equals(event.getGroup()))
 		{
 			return;
 		}

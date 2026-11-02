@@ -90,6 +90,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return Color.YELLOW;
 	}
 
+	@ConfigItem(
+			position = 6,
+			keyName = "smartSave",
+			name = "Smart Save",
+			description = "Save {variable} labels separately",
+			section = groundMarkersSection
+	)
+	default boolean smartSave()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 			name = "Metronome",
 			description = "Settings for {metronome} tiles.",
