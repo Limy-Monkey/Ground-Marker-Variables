@@ -64,10 +64,10 @@ public class GroundMarkerVariablesOverlay
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
 	// <item=ID[@N%]> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
 	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness. \t[@Npx] is a table cell
-	// break, with N px before the next column.
+	// break, with N px before the next column. {tip=text}...{/tip} gives what's between a tooltip.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
-			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?",
+			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}",
 		Pattern.CASE_INSENSITIVE);
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
@@ -114,6 +114,11 @@ public class GroundMarkerVariablesOverlay
 	// The item under the mouse in a {hover} label this frame, or -1, and whether the label being drawn has {hover}.
 	private int tipItemId = -1;
 	private boolean itemTips;
+	// The {tip=} text under the mouse this frame, and the one open while drawing.
+	@Nullable
+	private String tipText;
+	@Nullable
+	private String openTip;
 
 	// Keyed by the (already cached) flag, emoji, sprite or item image.
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
@@ -151,6 +156,7 @@ public class GroundMarkerVariablesOverlay
 		mouse = labels ? client.getMouseCanvasPosition() : null;
 		hoveredLabel = null;
 		tipItemId = -1;
+		tipText = null;
 		for (WorldView wv : plugin.getTrackedWorldViews())
 		{
 			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
@@ -184,7 +190,11 @@ public class GroundMarkerVariablesOverlay
 			hoveredLabel = null;
 		}
 
-		if (tipItemId > 0)
+		if (tipText != null)
+		{
+			tooltipManager.add(new Tooltip(tipText));
+		}
+		else if (tipItemId > 0)
 		{
 			showItemTooltip(tipItemId);
 		}
@@ -458,6 +468,7 @@ public class GroundMarkerVariablesOverlay
 
 	private void drawLabel(Graphics2D graphics, LabelLayout label, Color color)
 	{
+		openTip = null;
 		for (int i = 0; i < label.layouts.size(); i++)
 		{
 			drawLine(graphics, label.anchor, label.layouts.get(i), label.widths[i], label.columnOffsets[i], label.blockMaxWidths[i],
@@ -610,6 +621,18 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// {tip=text} opens a tooltip, {/tip} (null text) closes it.
+	private static final class TipToggle
+	{
+		@Nullable
+		private final String text;
+
+		private TipToggle(@Nullable String text)
+		{
+			this.text = text;
+		}
+	}
+
 	// \t[@Npx]: ends a table cell, N px before the next column.
 	private static final class CellBreak
 	{
@@ -689,7 +712,7 @@ public class GroundMarkerVariablesOverlay
 				totalWidth += ((CellBreak) segment).padding;
 				cellStart = totalWidth;
 			}
-			else
+			else if (!(segment instanceof TipToggle))
 			{
 				Font font = styledFont(graphics.getFont(), style);
 				totalWidth += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
@@ -794,6 +817,10 @@ public class GroundMarkerVariablesOverlay
 			{
 				style = ((StyleToggle) segment).apply(style);
 			}
+			else if (segment instanceof TipToggle)
+			{
+				openTip = ((TipToggle) segment).text;
+			}
 			else if (segment instanceof CellBreak)
 			{
 				column++;
@@ -808,6 +835,7 @@ public class GroundMarkerVariablesOverlay
 					drawGlow(graphics, x, flagY, flag.getWidth(), flag.getHeight());
 				}
 				graphics.drawImage(flag, x, flagY, null);
+				hitTest(x, flagY, flag.getWidth(), flag.getHeight(), -1);
 				x += flag.getWidth();
 			}
 			else if (segment instanceof ItemIcon)
@@ -823,10 +851,7 @@ public class GroundMarkerVariablesOverlay
 						drawGlow(graphics, x, imageY, iconWidth, iconHeight);
 					}
 					graphics.drawImage(image, x, imageY, iconWidth, iconHeight, null);
-					if (itemTips && mouse != null && new Rectangle(x, imageY, iconWidth, iconHeight).contains(mouse.getX(), mouse.getY()))
-					{
-						tipItemId = ((ItemIcon) segment).id;
-					}
+					hitTest(x, imageY, iconWidth, iconHeight, ((ItemIcon) segment).id);
 					x += iconWidth;
 				}
 			}
@@ -840,7 +865,9 @@ public class GroundMarkerVariablesOverlay
 				textComponent.setColor(textColor);
 				textComponent.setPosition(x, y);
 				textComponent.render(graphics);
-				x += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher(text).replaceAll(""));
+				int textWidth = graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher(text).replaceAll(""));
+				hitTest(x, y - fontMetrics.getAscent(), textWidth, lineHeight(fontMetrics), -1);
+				x += textWidth;
 
 				// An open <col=> carries past a toggle into the next run instead of resetting.
 				Matcher colorTag = COLOR_TAG_PATTERN.matcher(text);
@@ -849,6 +876,26 @@ public class GroundMarkerVariablesOverlay
 					textColor = Color.decode("#" + colorTag.group(1));
 				}
 			}
+		}
+	}
+
+	// Under the mouse, an open {tip=} wins over an item's own name tooltip.
+	private void hitTest(int x, int y, int width, int height, int itemId)
+	{
+		if (mouse == null || !new Rectangle(x, y, width, height).contains(mouse.getX(), mouse.getY()))
+		{
+			return;
+		}
+
+		if (openTip != null)
+		{
+			tipText = openTip;
+			tipItemId = -1;
+		}
+		else if (itemTips && itemId > 0)
+		{
+			tipItemId = itemId;
+			tipText = null;
 		}
 	}
 
@@ -916,6 +963,14 @@ public class GroundMarkerVariablesOverlay
 				{
 					segments.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
 				}
+			}
+			else if (matcher.group(12) != null)
+			{
+				segments.add(new TipToggle(matcher.group(12)));
+			}
+			else if ("{/tip}".equalsIgnoreCase(matcher.group(0)))
+			{
+				segments.add(new TipToggle(null));
 			}
 			else if (matcher.group(0).startsWith("\\"))
 			{
