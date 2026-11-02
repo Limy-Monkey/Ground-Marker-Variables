@@ -16,6 +16,11 @@ public class MetaState
 	private Float tileOpacity;
 	@Nullable
 	private Float borderWidth;
+	@Nullable
+	private Color hoverBackground;
+	@Nullable
+	private String hoverLabel;
+	private List<TextAlign> hoverLineAlignments = List.of();
 	private final Map<HighlightCorner, Color> highlights = new EnumMap<>(HighlightCorner.class);
 	private List<TextAlign> lineAlignments = List.of();
 
@@ -52,6 +57,36 @@ public class MetaState
 	public void setBorderWidth(Float borderWidth)
 	{
 		this.borderWidth = borderWidth;
+	}
+
+	// {hover}: the background drawn behind this label while hovered; null if it has no hover effect.
+	@Nullable
+	public Color getHoverBackground()
+	{
+		return hoverBackground;
+	}
+
+	public void setHoverBackground(Color hoverBackground)
+	{
+		this.hoverBackground = hoverBackground;
+	}
+
+	// The label as shown while hovered, with its {hoverOnly} content; null if it has none.
+	@Nullable
+	public String getHoverLabel()
+	{
+		return hoverLabel;
+	}
+
+	public List<TextAlign> getHoverLineAlignments()
+	{
+		return hoverLineAlignments;
+	}
+
+	void setHoverLabel(String hoverLabel, List<TextAlign> hoverLineAlignments)
+	{
+		this.hoverLabel = hoverLabel;
+		this.hoverLineAlignments = hoverLineAlignments;
 	}
 
 	public Map<HighlightCorner, Color> getHighlights()

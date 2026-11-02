@@ -43,6 +43,13 @@ public class MetaVariableResolver
 			remaining = strip(meta, remaining, state);
 		}
 
+		if (HoverOnly.has(remaining))
+		{
+			LineAlignment.Result hoverAligned = LineAlignment.strip(HoverOnly.expand(remaining));
+			state.setHoverLabel(hoverAligned.label, hoverAligned.lineAlignments);
+			remaining = HoverOnly.collapse(remaining);
+		}
+
 		LineAlignment.Result aligned = LineAlignment.strip(remaining);
 		state.setLineAlignments(aligned.lineAlignments);
 		return new Result(aligned.label, state);

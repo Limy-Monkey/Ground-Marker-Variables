@@ -9,9 +9,10 @@ public class MetaVariableRegistry
 	private final List<MetaVariable> variables;
 
 	@Inject
-	private MetaVariableRegistry(TileColMetaVariable tileCol, HighlightMetaVariable highlight, BorderWidthMetaVariable borderWidth)
+	private MetaVariableRegistry(TileColMetaVariable tileCol, HighlightMetaVariable highlight, BorderWidthMetaVariable borderWidth,
+		HoverMetaVariable hover)
 	{
-		this.variables = List.of(tileCol, highlight, borderWidth);
+		this.variables = List.of(tileCol, highlight, borderWidth, hover);
 	}
 
 	public List<MetaVariable> all()

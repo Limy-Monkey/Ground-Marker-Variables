@@ -10,6 +10,7 @@ import java.awt.Graphics2D;
 import java.awt.Paint;
 import java.awt.Polygon;
 import java.awt.RadialGradientPaint;
+import java.awt.Rectangle;
 import java.awt.Stroke;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
@@ -23,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,6 +46,8 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
+import net.runelite.client.ui.overlay.tooltip.Tooltip;
+import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
@@ -66,6 +70,8 @@ public class GroundMarkerVariablesOverlay
 			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?",
 		Pattern.CASE_INSENSITIVE);
 	private static final int DEFAULT_CELL_PADDING = 4;
+	// Space around a hovered label's text, inside its background.
+	private static final int HOVER_MARGIN = 3;
 	private static final int FULL_BRIGHTNESS = 100;
 	// drawGlow: radius relative to half the icon, and its opacity from the center out.
 	private static final float GLOW_SCALE = 1.0f;
@@ -93,6 +99,22 @@ public class GroundMarkerVariablesOverlay
 	private final ImportPreviewManager importPreviewManager;
 	private final PingedTileManager pingedTileManager;
 
+	private final TooltipManager tooltipManager;
+
+	// This frame's mouse position, and the {hover} label under it (see renderMarkers).
+	@Nullable
+	private Point mouse;
+	@Nullable
+	private PendingLabel hoveredLabel;
+	// The label hovered last frame.
+	@Nullable
+	private CachedMarker lastHoveredMarker;
+	@Nullable
+	private WorldPoint lastHoveredPoint;
+	// The item under the mouse in a {hover} label this frame, or -1, and whether the label being drawn has {hover}.
+	private int tipItemId = -1;
+	private boolean itemTips;
+
 	// Keyed by the (already cached) flag, emoji, sprite or item image.
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
 	// Keyed by the original image, then brightness.
@@ -100,8 +122,9 @@ public class GroundMarkerVariablesOverlay
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
-		PingedTileManager pingedTileManager)
+		PingedTileManager pingedTileManager, TooltipManager tooltipManager)
 	{
+		this.tooltipManager = tooltipManager;
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
@@ -125,6 +148,9 @@ public class GroundMarkerVariablesOverlay
 		Stroke borderStroke = new BasicStroke((float) config.borderWidth());
 
 		Instant now = Instant.now();
+		mouse = labels ? client.getMouseCanvasPosition() : null;
+		hoveredLabel = null;
+		tipItemId = -1;
 		for (WorldView wv : plugin.getTrackedWorldViews())
 		{
 			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
@@ -146,6 +172,28 @@ public class GroundMarkerVariablesOverlay
 				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, PREVIEW_OPACITY, labels);
 			}
 		}
+
+		if (labels)
+		{
+			lastHoveredMarker = hoveredLabel == null ? null : hoveredLabel.marker;
+			lastHoveredPoint = hoveredLabel == null ? null : hoveredLabel.worldPoint;
+		}
+		if (hoveredLabel != null)
+		{
+			drawPending(graphics, hoveredLabel, true);
+			hoveredLabel = null;
+		}
+
+		if (tipItemId > 0)
+		{
+			showItemTooltip(tipItemId);
+		}
+	}
+
+	// The item's name, of its canonical (unnoted, base) form.
+	private void showItemTooltip(int itemId)
+	{
+		tooltipManager.add(new Tooltip(itemManager.getItemComposition(itemManager.canonicalize(itemId)).getName()));
 	}
 
 	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke, float opacity, boolean labels)
@@ -201,30 +249,52 @@ public class GroundMarkerVariablesOverlay
 		String label = marker.getResolvedLabel();
 		if (label != null && !label.isEmpty())
 		{
-			// </col> reverts to the tile's own color — TextComponent has no real concept of a
-			// closing tag, so this just expands to another <col=> for the tile's own color.
-			label = label.replace("</col>", "<col=" + ColorUtil.colorToHexCode(color) + ">");
-			label = NamedColors.expandColorAliases(label);
-
-			// Literal "\n" becomes a real line break, split into rows; "\s" a non-breaking space.
-			String[] lines = label.replace("\\s", " ").replace("\\n", "\n").split("\n", -1);
-			for (int i = 0; i < lines.length; i++)
+			LabelLayout layout = layoutLabel(graphics, localPoint, labelLines(label, color), metaState.getLineAlignments());
+			if (layout == null)
 			{
-				lines[i] = lines[i].trim();
+				return;
 			}
 
-			// A Composite fades every pixel actually drawn -- needed since TextComponent's
-			// shadow and <col=> spans both hardcode full opacity regardless of our own color.
-			Composite originalComposite = graphics.getComposite();
-			if (opacity < 1f)
+			String hoverLabel = metaState.getHoverLabel();
+			LabelLayout hoverLayout = hoverLabel == null ? null
+				: layoutLabel(graphics, localPoint, labelLines(hoverLabel, color), metaState.getHoverLineAlignments());
+
+			// Once hovered, a label's {hoverOnly} content counts as part of it, so moving onto that keeps it hovered.
+			boolean wasHovered = marker == lastHoveredMarker && worldPoint.equals(lastHoveredPoint);
+			Rectangle bounds = wasHovered && hoverLayout != null ? hoverLayout.bounds : layout.bounds;
+			boolean hoverable = metaState.getHoverBackground() != null || hoverLayout != null;
+
+			// The last hoverable label under the mouse is held back, to draw above the rest.
+			PendingLabel pending = new PendingLabel(layout, hoverLayout, color, opacity, metaState.getHoverBackground(), marker, worldPoint);
+			if (hoverable && mouse != null && bounds.contains(mouse.getX(), mouse.getY()))
 			{
-				graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+				if (hoveredLabel != null)
+				{
+					drawPending(graphics, hoveredLabel, false);
+				}
+				hoveredLabel = pending;
 			}
-
-			drawLines(graphics, localPoint, lines, color, metaState.getLineAlignments());
-
-			graphics.setComposite(originalComposite);
+			else
+			{
+				drawPending(graphics, pending, false);
+			}
 		}
+	}
+
+	private static String[] labelLines(String label, Color color)
+	{
+		// </col> reverts to the tile's own color -- TextComponent has no real concept of a
+		// closing tag, so this just expands to another <col=> for the tile's own color.
+		label = label.replace("</col>", "<col=" + ColorUtil.colorToHexCode(color) + ">");
+		label = NamedColors.expandColorAliases(label);
+
+		// Literal "\n" becomes a real line break, split into rows; "\s" a non-breaking space.
+		String[] lines = label.replace("\\s", " ").replace("\\n", "\n").split("\n", -1);
+		for (int i = 0; i < lines.length; i++)
+		{
+			lines[i] = lines[i].trim();
+		}
+		return lines;
 	}
 
 	// poly's vertex order is SW, NW, NE, SE, matching HighlightCorner's ordinals.
@@ -257,13 +327,103 @@ public class GroundMarkerVariablesOverlay
 		graphics.drawLine(x1, y1, x2, y2);
 	}
 
+	// A label laid out for this frame: its lines, where they go, and the screen area they cover.
+	private static final class LabelLayout
+	{
+		private final List<LineLayout> layouts;
+		private final int[] widths;
+		private final int[][] columnOffsets;
+		private final int[] blockMaxWidths;
+		private final List<TextAlign> alignments;
+		private final Point anchor;
+		private final int startY;
+		private final int lineHeight;
+		private final Rectangle bounds;
+
+		private LabelLayout(List<LineLayout> layouts, int[] widths, int[][] columnOffsets, int[] blockMaxWidths, List<TextAlign> alignments,
+			Point anchor, int startY, int lineHeight, Rectangle bounds)
+		{
+			this.layouts = layouts;
+			this.widths = widths;
+			this.columnOffsets = columnOffsets;
+			this.blockMaxWidths = blockMaxWidths;
+			this.alignments = alignments;
+			this.anchor = anchor;
+			this.startY = startY;
+			this.lineHeight = lineHeight;
+			this.bounds = bounds;
+		}
+	}
+
+	// A label waiting to be drawn, e.g. the hovered one, drawn after all the others.
+	private static final class PendingLabel
+	{
+		private final LabelLayout layout;
+		// With its {hoverOnly} content, or null if it has none.
+		@Nullable
+		private final LabelLayout hoverLayout;
+		private final Color color;
+		private final float opacity;
+		@Nullable
+		private final Color hoverBackground;
+		private final CachedMarker marker;
+		private final WorldPoint worldPoint;
+
+		private PendingLabel(LabelLayout layout, @Nullable LabelLayout hoverLayout, Color color, float opacity, @Nullable Color hoverBackground,
+			CachedMarker marker, WorldPoint worldPoint)
+		{
+			this.layout = layout;
+			this.hoverLayout = hoverLayout;
+			this.color = color;
+			this.opacity = opacity;
+			this.hoverBackground = hoverBackground;
+			this.marker = marker;
+			this.worldPoint = worldPoint;
+		}
+	}
+
+	private void drawPending(Graphics2D graphics, PendingLabel label, boolean hovered)
+	{
+		// A Composite fades every pixel actually drawn -- needed since TextComponent's
+		// shadow and <col=> spans both hardcode full opacity regardless of our own color.
+		Composite originalComposite = graphics.getComposite();
+		if (label.opacity < 1f)
+		{
+			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, label.opacity));
+		}
+
+		LabelLayout layout = hovered && label.hoverLayout != null ? label.hoverLayout : label.layout;
+		if (hovered && label.hoverBackground != null)
+		{
+			Rectangle bounds = layout.bounds;
+			Color previous = graphics.getColor();
+			graphics.setColor(label.hoverBackground);
+			graphics.fillRect(bounds.x - HOVER_MARGIN, bounds.y - HOVER_MARGIN, bounds.width + HOVER_MARGIN * 2, bounds.height + HOVER_MARGIN * 2);
+			graphics.setColor(previous);
+		}
+
+		itemTips = label.hoverBackground != null;
+		drawLabel(graphics, layout, label.color);
+		itemTips = false;
+		graphics.setComposite(originalComposite);
+	}
+
 	// One line per row, stacked as a block centered on localPoint (not anchored at the first
 	// line). Each line's own X then depends on its alignment -- center (the default) centers
 	// it on its own width like before, left/right hug the widest line's own edge instead, but
 	// only among the contiguous run of lines sharing that same alignment (see blockMaxWidths).
-	private void drawLines(Graphics2D graphics, LocalPoint localPoint, String[] lines, Color color, List<TextAlign> alignments)
+	// Null if localPoint isn't on screen.
+	@Nullable
+	private LabelLayout layoutLabel(Graphics2D graphics, LocalPoint localPoint, String[] lines, List<TextAlign> alignments)
 	{
-		int lineHeight = graphics.getFontMetrics().getHeight();
+		Point anchor = Perspective.getCanvasTextLocation(client, graphics, localPoint, "", 0);
+		if (anchor == null)
+		{
+			return null;
+		}
+
+		FontMetrics fontMetrics = graphics.getFontMetrics();
+		int lineHeight = fontMetrics.getHeight();
 		int startY = -((lines.length - 1) * lineHeight) / 2;
 
 		// {b}/{i} carry across lines until closed.
@@ -281,10 +441,27 @@ public class GroundMarkerVariablesOverlay
 		layoutTables(layouts, widths, columnOffsets);
 		int[] blockMaxWidths = blockMaxWidths(widths, alignments);
 
+		int left = Integer.MAX_VALUE;
+		int right = Integer.MIN_VALUE;
 		for (int i = 0; i < lines.length; i++)
 		{
-			drawLine(graphics, localPoint, layouts.get(i), widths[i], columnOffsets[i], blockMaxWidths[i], lineAlign(alignments, i), color,
-				startY + i * lineHeight);
+			int lineStart = lineX(anchor.getX(), lineAlign(alignments, i), widths[i], blockMaxWidths[i]);
+			left = Math.min(left, lineStart);
+			right = Math.max(right, lineStart + widths[i]);
+		}
+		int top = anchor.getY() + startY - fontMetrics.getAscent();
+		int bottom = anchor.getY() + startY + (lines.length - 1) * lineHeight + fontMetrics.getDescent();
+		Rectangle bounds = new Rectangle(left, top, right - left, bottom - top);
+
+		return new LabelLayout(layouts, widths, columnOffsets, blockMaxWidths, alignments, anchor, startY, lineHeight, bounds);
+	}
+
+	private void drawLabel(Graphics2D graphics, LabelLayout label, Color color)
+	{
+		for (int i = 0; i < label.layouts.size(); i++)
+		{
+			drawLine(graphics, label.anchor, label.layouts.get(i), label.widths[i], label.columnOffsets[i], label.blockMaxWidths[i],
+				lineAlign(label.alignments, i), color, label.startY + i * label.lineHeight);
 		}
 	}
 
@@ -596,15 +773,9 @@ public class GroundMarkerVariablesOverlay
 	}
 
 	// columnOffsets: each table column's x relative to the line's start, or null if not a table.
-	private void drawLine(Graphics2D graphics, LocalPoint localPoint, LineLayout layout, int width, int[] columnOffsets, int maxWidth,
+	private void drawLine(Graphics2D graphics, Point anchor, LineLayout layout, int width, int[] columnOffsets, int maxWidth,
 		TextAlign align, Color color, int yOffset)
 	{
-		Point anchor = Perspective.getCanvasTextLocation(client, graphics, localPoint, "", 0);
-		if (anchor == null)
-		{
-			return;
-		}
-
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 		int lineStart = lineX(anchor.getX(), align, width, maxWidth);
 		int x = lineStart;
@@ -652,6 +823,10 @@ public class GroundMarkerVariablesOverlay
 						drawGlow(graphics, x, imageY, iconWidth, iconHeight);
 					}
 					graphics.drawImage(image, x, imageY, iconWidth, iconHeight, null);
+					if (itemTips && mouse != null && new Rectangle(x, imageY, iconWidth, iconHeight).contains(mouse.getX(), mouse.getY()))
+					{
+						tipItemId = ((ItemIcon) segment).id;
+					}
 					x += iconWidth;
 				}
 			}
