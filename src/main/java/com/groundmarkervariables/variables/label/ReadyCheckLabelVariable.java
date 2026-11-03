@@ -11,11 +11,12 @@ import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker.Status;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.client.party.PartyMember;
 
-// {readyCheck} -> a party member's last ready status from chat: "R" / "ready" is a green R, "P" /
-// "pot" / "potting" a green P, "not r" / "no r" / "un r" a red R, "brb" / "<N> mins" :zzz:.
-// Plain: ready / potting / not ready / away / none. Over 99 tiles from this tile (see {playerDistance})
+// {readyCheck} -> a party member's last ready status from chat: "R" / "ready" / "im r" / "r2p" is a green R, "P" /
+// "pot" / "potting" a green P, "not r" / "no r" / "un r" a red R, "brb" / "<N> mins" :zzz:, a new
+// boost a super combat potion. Plain: ready / potting / potted / not ready / away / none. Over 99 tiles from this tile (see {playerDistance})
 // it's :telescope: instead, plain "far".
 public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable
 {
@@ -88,7 +89,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 
 	private String farIcon()
 	{
-		return emojis.expand(":telescope:");
+		return emojis.expand("{tip=Not nearby}:telescope@lightgray:{/tip}");
 	}
 
 	@Override
@@ -110,6 +111,8 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 				return "ready";
 			case POTTING:
 				return "potting";
+			case POTTED:
+				return "potted";
 			case NOT_READY:
 				return "not ready";
 			default:
@@ -130,6 +133,8 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 				return RichText.colored(Color.GREEN, "R");
 			case POTTING:
 				return RichText.colored(Color.GREEN, "P");
+			case POTTED:
+				return "{tip=Potted}<item=" + ItemID._4DOSE2COMBAT + ">{/tip}";
 			case NOT_READY:
 				return RichText.colored(Color.RED, "R");
 			default:

@@ -8,15 +8,17 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.Skill;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PartyChanged;
+import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.util.Text;
 
-// {readyCheck}: each party member's latest ready status, from what they typed in chat. Only recorded
+// {readyCheck}: each party member's latest ready status, from chat or a new boost. Only recorded
 // while a {readyCheck} tile is nearby, and reset once none is, e.g. on leaving a raid lobby.
 @Singleton
 public class ReadyCheckTracker
@@ -25,11 +27,14 @@ public class ReadyCheckTracker
 	{
 		READY,
 		POTTING,
+		POTTED,
 		NOT_READY,
 		AWAY
 	}
 
-	private static final Pattern READY = Pattern.compile("r|ready", Pattern.CASE_INSENSITIVE);
+	private static final Skill[] POT_SKILLS = {Skill.STRENGTH, Skill.RANGED, Skill.MAGIC, Skill.HITPOINTS};
+
+	private static final Pattern READY = Pattern.compile("r|ready|i['’]?m r|r2p", Pattern.CASE_INSENSITIVE);
 	private static final Pattern POTTING = Pattern.compile("p|pot|potting", Pattern.CASE_INSENSITIVE);
 	private static final Pattern NOT_READY = Pattern.compile("(?:not|no|un) r", Pattern.CASE_INSENSITIVE);
 	private static final Pattern AWAY = Pattern.compile("\\bbrb\\b|\\b\\d+ mins\\b", Pattern.CASE_INSENSITIVE);
@@ -46,6 +51,8 @@ public class ReadyCheckTracker
 
 	// By standardized name.
 	private final Map<String, Status> statuses = new HashMap<>();
+	// Last tick's boosted levels in POT_SKILLS order, -1 if not known yet.
+	private final Map<String, int[]> lastBoosts = new HashMap<>();
 
 	@Inject
 	private ReadyCheckTracker(Client client, EventBus eventBus, PartyService partyService)
@@ -64,6 +71,7 @@ public class ReadyCheckTracker
 	{
 		eventBus.unregister(this);
 		statuses.clear();
+		lastBoosts.clear();
 		active = false;
 		seenThisTick = false;
 	}
@@ -97,6 +105,43 @@ public class ReadyCheckTracker
 		if (!active)
 		{
 			statuses.clear();
+			lastBoosts.clear();
+			return;
+		}
+
+		checkBoosts();
+	}
+
+	// A boost that rose since last tick and is above base means they just potted.
+	private void checkBoosts()
+	{
+		PartyMember localMember = partyService.getLocalMember();
+		for (PartyMember member : partyService.getMembers())
+		{
+			if (member.getDisplayName() == null)
+			{
+				continue;
+			}
+
+			boolean local = member.equals(localMember);
+			String name = standardize(member.getDisplayName());
+			int[] last = lastBoosts.get(name);
+			int[] boosts = new int[POT_SKILLS.length];
+			boolean potted = false;
+			for (int i = 0; i < POT_SKILLS.length; i++)
+			{
+				Skill skill = POT_SKILLS[i];
+				int base = local ? client.getRealSkillLevel(skill) : member.getStatBase(skill);
+				int boost = local ? client.getBoostedSkillLevel(skill) : member.getStatBoost(skill);
+				boosts[i] = base > 0 ? boost : -1;
+				potted |= last != null && last[i] >= 0 && boosts[i] > last[i] && boost > base;
+			}
+
+			lastBoosts.put(name, boosts);
+			if (potted)
+			{
+				statuses.put(name, Status.POTTED);
+			}
 		}
 	}
 
@@ -130,6 +175,7 @@ public class ReadyCheckTracker
 	public void onPartyChanged(PartyChanged event)
 	{
 		statuses.clear();
+		lastBoosts.clear();
 	}
 
 	private boolean isPartyMember(String name)
