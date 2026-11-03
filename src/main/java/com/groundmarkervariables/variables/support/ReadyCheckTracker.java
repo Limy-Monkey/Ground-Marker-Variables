@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.support;
 
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -23,13 +24,26 @@ import net.runelite.client.util.Text;
 @Singleton
 public class ReadyCheckTracker
 {
-	public enum Status
+	// A status and when it was set.
+	public static final class Status
 	{
-		READY,
-		POTTING,
-		POTTED,
-		NOT_READY,
-		AWAY
+		public enum Kind
+		{
+			READY,
+			POTTING,
+			POTTED,
+			NOT_READY,
+			AWAY
+		}
+
+		public final Kind kind;
+		public final LocalTime time;
+
+		private Status(Kind kind)
+		{
+			this.kind = kind;
+			this.time = LocalTime.now();
+		}
 	}
 
 	private static final Skill[] POT_SKILLS = {Skill.STRENGTH, Skill.RANGED, Skill.MAGIC, Skill.HITPOINTS};
@@ -140,7 +154,7 @@ public class ReadyCheckTracker
 			lastBoosts.put(name, boosts);
 			if (potted)
 			{
-				statuses.put(name, Status.POTTED);
+				statuses.put(name, new Status(Status.Kind.POTTED));
 			}
 		}
 	}
@@ -160,14 +174,14 @@ public class ReadyCheckTracker
 		}
 
 		String message = Text.removeTags(event.getMessage()).replace(' ', ' ').trim();
-		Status status = READY.matcher(message).matches() ? Status.READY
-			: POTTING.matcher(message).matches() ? Status.POTTING
-			: NOT_READY.matcher(message).matches() ? Status.NOT_READY
-			: AWAY.matcher(message).find() ? Status.AWAY
+		Status.Kind kind = READY.matcher(message).matches() ? Status.Kind.READY
+			: POTTING.matcher(message).matches() ? Status.Kind.POTTING
+			: NOT_READY.matcher(message).matches() ? Status.Kind.NOT_READY
+			: AWAY.matcher(message).find() ? Status.Kind.AWAY
 			: null;
-		if (status != null)
+		if (kind != null)
 		{
-			statuses.put(name, status);
+			statuses.put(name, new Status(kind));
 		}
 	}
 

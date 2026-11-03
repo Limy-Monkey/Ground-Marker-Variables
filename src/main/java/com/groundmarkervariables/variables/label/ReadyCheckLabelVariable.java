@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -22,6 +23,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
 	private static final int FAR_DISTANCE = 99;
+	private static final DateTimeFormatter AWAY_TIME = DateTimeFormatter.ofPattern("h:mm");
 
 	private final ReadyCheckTracker tracker;
 	private final PlayerDistanceLabelVariable playerDistance;
@@ -105,7 +107,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 			return "none";
 		}
 
-		switch (status)
+		switch (status.kind)
 		{
 			case READY:
 				return "ready";
@@ -127,7 +129,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 			return "";
 		}
 
-		switch (status)
+		switch (status.kind)
 		{
 			case READY:
 				return RichText.colored(Color.GREEN, "R");
@@ -138,7 +140,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 			case NOT_READY:
 				return RichText.colored(Color.RED, "R");
 			default:
-				return emojis.expand(":zzz:");
+				return "{tip=away at " + AWAY_TIME.format(status.time) + "}" + emojis.expand(":zzz:") + "{/tip}";
 		}
 	}
 }
