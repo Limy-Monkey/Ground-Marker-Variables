@@ -37,6 +37,8 @@ public class WeaponStyleTracker
 	private static final String NO_STYLE = "None";
 	// Autocast spell index -> spell obj.
 	private static final int AUTOCAST_SPELLS = 1986;
+	// A spell obj's enabled spellbook sprite (596, SPELL_BUTTON, is its widget).
+	private static final int SPELL_SPRITE = 597;
 
 	public static final class Style
 	{
@@ -63,6 +65,7 @@ public class WeaponStyleTracker
 	private int trackedAutocastSpell = -1;
 	@Nullable
 	private String lastAutocast;
+	private int lastAutocastSprite = -1;
 
 	@Inject
 	private WeaponStyleTracker(Client client, EventBus eventBus)
@@ -90,6 +93,7 @@ public class WeaponStyleTracker
 		trackedStyleIndex = -1;
 		trackedAutocastSpell = -1;
 		lastAutocast = null;
+		lastAutocastSprite = -1;
 	}
 
 	// Before the plugin's own onGameTick refreshes labels.
@@ -112,6 +116,7 @@ public class WeaponStyleTracker
 		if (buildAttackStyle(category, 4) != null)
 		{
 			lastAutocast = styleIndex >= 4 ? autocastName(styleIndex == 5) : null;
+			lastAutocastSprite = lastAutocast == null ? -1 : autocastSprite();
 		}
 
 		styleByCategory.put(category, current());
@@ -152,12 +157,30 @@ public class WeaponStyleTracker
 		return lastAutocast;
 	}
 
+	// The last autocast spell's spellbook icon, or -1.
+	public int lastAutocastSprite()
+	{
+		return lastAutocastSprite;
+	}
+
 	@Nullable
 	private String autocastSpell()
 	{
-		int spell = client.getEnum(AUTOCAST_SPELLS).getIntValue(client.getVarbitValue(VarbitID.AUTOCAST_SPELL));
+		int spell = autocastSpellObj();
 		String name = spell <= 0 ? null : client.getItemDefinition(spell).getStringValue(ParamID.SPELL_NAME);
 		return name == null || name.isEmpty() ? null : name;
+	}
+
+	private int autocastSprite()
+	{
+		int spell = autocastSpellObj();
+		int sprite = spell <= 0 ? -1 : client.getItemDefinition(spell).getIntValue(SPELL_SPRITE);
+		return sprite > 0 ? sprite : -1;
+	}
+
+	private int autocastSpellObj()
+	{
+		return client.getEnum(AUTOCAST_SPELLS).getIntValue(client.getVarbitValue(VarbitID.AUTOCAST_SPELL));
 	}
 
 	@Nullable

@@ -135,7 +135,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	// {hasFreeze icon}, {equip_helm icon}, ...
 	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasThralls|weapon|equip_\\w+)\\s+(\\w*)$");
+		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasThralls|weapon|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
