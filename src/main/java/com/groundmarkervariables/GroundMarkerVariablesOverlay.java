@@ -256,16 +256,17 @@ public class GroundMarkerVariablesOverlay
 
 		// Label rendering doesn't depend on the tile poly resolving — a missing poly only
 		// means we can't draw an outline, not that the label's canvas location is unavailable.
+		// Empty but for {hoverOnly} content still needs laying out, to be hovered.
 		String label = marker.getResolvedLabel();
-		if (label != null && !label.isEmpty())
+		String hoverLabel = metaState.getHoverLabel();
+		if ((label != null && !label.isEmpty()) || hoverLabel != null)
 		{
-			LabelLayout layout = layoutLabel(graphics, localPoint, labelLines(label, color), metaState.getLineAlignments());
+			LabelLayout layout = layoutLabel(graphics, localPoint, labelLines(label == null ? "" : label, color), metaState.getLineAlignments());
 			if (layout == null)
 			{
 				return;
 			}
 
-			String hoverLabel = metaState.getHoverLabel();
 			LabelLayout hoverLayout = hoverLabel == null ? null
 				: layoutLabel(graphics, localPoint, labelLines(hoverLabel, color), metaState.getHoverLineAlignments());
 
@@ -276,7 +277,7 @@ public class GroundMarkerVariablesOverlay
 
 			// The last hoverable label under the mouse is held back, to draw above the rest.
 			PendingLabel pending = new PendingLabel(layout, hoverLayout, color, opacity, metaState.getHoverBackground(), marker, worldPoint);
-			if (hoverable && mouse != null && bounds.contains(mouse.getX(), mouse.getY()))
+			if (hoverable && mouse != null && (bounds.contains(mouse.getX(), mouse.getY()) || isOverTile(localPoint)))
 			{
 				if (hoveredLabel != null)
 				{
@@ -289,6 +290,12 @@ public class GroundMarkerVariablesOverlay
 				drawPending(graphics, pending, false);
 			}
 		}
+	}
+
+	private boolean isOverTile(LocalPoint localPoint)
+	{
+		Polygon poly = Perspective.getCanvasTilePoly(client, localPoint);
+		return poly != null && poly.contains(mouse.getX(), mouse.getY());
 	}
 
 	private static String[] labelLines(String label, Color color)
