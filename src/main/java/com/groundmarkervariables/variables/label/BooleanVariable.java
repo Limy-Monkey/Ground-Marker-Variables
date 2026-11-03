@@ -22,7 +22,8 @@ import net.runelite.client.util.Text;
 //
 // {a || b || ...} shows the first true operand, {a && b && ...} the first false one, or else the
 // last operand, which may be literal text (even empty, e.g. {hasItem obligator || }). Each operand
-// is "<expr>" or "<expr> <cmp> <value>"; || and && can't be mixed in one token.
+// is "<expr>" or "<expr> <cmp> <value>"; || and && can't be mixed in one token. "false", "None"
+// and empty values are false, any other true, e.g. {autocast icon || hasFreeze icon}.
 //
 // {6HourTimeRemaining < <hours>} / {6HourTimeRemaining <= <hours>} is a special case: <hours>
 // is a plain number of hours (or "h:mm") against the live Duration, not the generic comparison
@@ -103,7 +104,7 @@ public class BooleanVariable implements LabelVariable
 	}
 
 	// Resolves each top-level ||/&& token with nested tokens, which PATTERN can't match. A nested
-	// operand continues || only if its Plain Text is "false", and && only if "true"; otherwise it's shown.
+	// operand continues || only if its Plain Text is false, and && only if true; otherwise it's shown.
 	public String resolveNested(String text, boolean richByDefault)
 	{
 		StringBuilder out = new StringBuilder();
@@ -166,7 +167,7 @@ public class BooleanVariable implements LabelVariable
 			}
 
 			String plain = Text.removeTags(labelResolver.get().resolvePlain(operand)).trim();
-			if (last || !plain.equalsIgnoreCase(or ? "false" : "true"))
+			if (last || truthy(plain) == or)
 			{
 				return rich ? labelResolver.get().resolve(operand) : plain;
 			}
@@ -219,7 +220,15 @@ public class BooleanVariable implements LabelVariable
 		{
 			return evaluator.evaluateCondition(comparison.group(1), comparison.group(2), comparison.group(3));
 		}
-		return operand.isEmpty() ? null : evaluator.evaluateCondition(operand, null, null);
+		String value = operand.isEmpty() ? null : evaluator.resolveExpression(operand);
+		return value == null ? null : truthy(value);
+	}
+
+	// "false", "None" and empty are false, any other value true.
+	private static boolean truthy(String value)
+	{
+		String plain = Text.removeTags(value).trim();
+		return !plain.isEmpty() && !plain.equalsIgnoreCase("false") && !plain.equalsIgnoreCase("none");
 	}
 
 	// A comparison colored by its result, or a bare <expr> as its own variable renders it.
