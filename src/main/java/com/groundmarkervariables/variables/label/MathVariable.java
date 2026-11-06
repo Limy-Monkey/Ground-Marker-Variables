@@ -353,7 +353,7 @@ public class MathVariable implements LabelVariable
 		return null;
 	}
 
-	private static String formatPlain(double value)
+	static String formatPlain(double value)
 	{
 		return value == Math.rint(value) && !Double.isInfinite(value)
 			? String.valueOf((long) value)

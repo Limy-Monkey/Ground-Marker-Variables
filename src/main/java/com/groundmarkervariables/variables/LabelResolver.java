@@ -80,7 +80,8 @@ public class LabelResolver
 		}
 
 		List<String> parties = new ArrayList<>();
-		String resolved = extractParties(label, parties);
+		// {partyCount} first, while its own tokens are still literal.
+		String resolved = extractParties(party.resolveCounts(label, this::resolvePlain), parties);
 
 		// Runs first, while a branch's own nested token is still literal -- otherwise its
 		// resolved text (e.g. a colon in Rich Text) could corrupt the ?/: split. Also forces

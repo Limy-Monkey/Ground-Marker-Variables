@@ -225,7 +225,7 @@ public class BooleanVariable implements LabelVariable
 	}
 
 	// "false", "None" and empty are false, any other value true.
-	private static boolean truthy(String value)
+	static boolean truthy(String value)
 	{
 		String plain = Text.removeTags(value).trim();
 		return !plain.isEmpty() && !plain.equalsIgnoreCase("false") && !plain.equalsIgnoreCase("none");

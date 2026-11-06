@@ -76,7 +76,8 @@ public class ConditionEvaluator
 			}
 		}
 
-		return null;
+		// A literal number, e.g. a resolved {partyCount}.
+		return tryParseNumber(expr.trim()) != null ? expr.trim() : null;
 	}
 
 	public Boolean evaluateCondition(String expr, String comparator, String expected)

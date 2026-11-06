@@ -18,7 +18,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{^...}`                        | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                                  |
 | `{&...}`                        | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385`             |
 | `\n`                            | Newline.                                                                                                        |
-| `:emoji:`                       | Emoji, e.g. `:balloon:`. Add `:check_mark@green:` to change color.                                              |
+| `:emoji:`                       | Emoji, e.g. `:balloon:`. Add `@` e.g. `:check_mark@green:` to change color.                                     |
 | `{col=<col>}`                   | Changes the text color. \<col>: named color or 6-digit hex.                                                     |
 | `{tileCol=<col>}`               | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity. |
 | `{highlightSW=<col>}`           | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                |
@@ -50,7 +50,8 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid, Casting. Optional `weapon=<name>` for that weapon's last seen style, e.g. `{attackStyle weapon=Scythe}`         |
 | `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
 | `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
-| `{party <template>}`                    | Optional template as parameter (default "num. name \| hp \| prayer")                                                                                             |
+| `{party <template>}`                    | Takes a template as parameters, with limited other variable usage, e.g. `{party {readyCheck} {rsn}}` see advanced label usage for more info.                     |
+| `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
 | `{playerDistance}`                      | Tiles between you and this tile: 0 on it, 1 next to it. Up to 100, or 101 on another plane                                                                       |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{xp_<skill>}`                          | Exact experience in \<skill>. Rich Text also shows level and hiscore rank                                                                                        |
@@ -157,6 +158,8 @@ Also usable in math and conditionals as the number of players in the party `{par
 - Special, `{party}` only variables include:
   - `{readyCheck}` -- Reads in-game chat for ready messages or shows `:telescope:` for not nearby, `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`
   - `{partyNum}` -- The member's number in order. Can be used in conditionals to hide long lists with `{hoverOnly}`.
+- `{partyCount <template>}` -- Sums each \<expr> in \<template> across all members: `{partyCount {hasFreeze} freezers, {numItem elder maul} mauls}`
+  - Output is also usable in math and conditionals: `{{partyCount {readyCheck != ready}} > 0 ? Waiting : All ready}`
 - `spellbook` is only known for members who also have Ground Marker Variables installed.
   - For others, `{spellbook}` shows `...`
   - `has<Spell>` variables only check their runes, shows slightly dimmed icon.
