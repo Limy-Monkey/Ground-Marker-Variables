@@ -411,6 +411,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {slayerTask}<br>"
 					+ "- {slayerPoints}<br>"
 					+ "- {runEnergy}<br>"
+					+ "- {invSpace}<br>"
 					+ "- {spec}<br>"
 					+ "- {combatAchievement}<br>"
 					+ "- {questPoints}<br><br>"
