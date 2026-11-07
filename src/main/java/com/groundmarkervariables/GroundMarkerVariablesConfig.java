@@ -420,6 +420,8 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {hasEntangle}<br>"
 					+ "- {hasVileVigour}<br>"
 					+ "- {hasVengeance}<br>"
+					+ "- {hasUndeadGrasp}<br>"
+					+ "- {hasMarkOfDarkness}<br>"
 					+ "- {autoRetaliate}<br>"
 					+ "- {divine &lt;potion&gt;}<br>"
 					+ "- {hasItem &lt;name&gt;}<br>"
