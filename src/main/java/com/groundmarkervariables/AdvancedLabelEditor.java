@@ -83,14 +83,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "playerDistance", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "invSpace", "hover", "hoverOnly", "hoverHide", "tip="
+		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "invSpace", "group", "setGroup", "hover", "hoverOnly", "hoverHide", "tip="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
 		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "showItems", "showOneItem","numItem", "numDoses", "tileCol=", "highlight",
-		"align=", "divine", "borderWidth=", "tip=", "partyCount");
+		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
 	// past any of these prefixes, autocomplete switches from variable names to skill names.

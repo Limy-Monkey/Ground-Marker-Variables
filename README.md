@@ -25,6 +25,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{align=left/right/center}`     | Changes text alignment from this line onward, until the next \{align}/\{/align} (which resets to center).       |
 | `{b}Bold{/b}`, `{i}Italics{/i}` | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                    |
 | `{borderWidth=2.5}`             | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                       |
+| `{setGroup <name>, <options>}`  | Adds \<name>: \<option> picks to this tile's Shift right-click menu, shown by \{group \<name>} on any tile.     |
 
 | Variable                                | Description                                                                                                                                                      |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -63,6 +64,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{slayerPoints}`                        | Current slayer points                                                                                                                                            |
 | `{runEnergy}`                           | Current run energy, 0-100                                                                                                                                        |
 | `{invSpace}`                            | Empty inventory spaces, 0-28                                                                                                                                     |
+| `{group <name>}`                        | The option picked for \<name> by a nearby \{setGroup}, the first option until one is picked. Resets when the client restarts                                     |
 | `{spec}`                                | Current special attack energy, 0-100                                                                                                                             |
 | `{combatAchievement}`                   | Current Combat Achievement tier, 0 (none) through 6 (Grandmaster)                                                                                                |
 | `{questPoints}`                         | Current quest points                                                                                                                                             |

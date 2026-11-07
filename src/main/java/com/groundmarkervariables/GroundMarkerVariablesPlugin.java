@@ -16,16 +16,21 @@ import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
+import com.groundmarkervariables.variables.support.GroupState;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -88,6 +93,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int RECENT_LABELS_MAX = 3;
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
+	private static final Pattern SET_GROUP_NAME = Pattern.compile("\\{setGroup\\s+([^{}?:<>=!,]+?)\\s*,", Pattern.CASE_INSENSITIVE);
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
@@ -204,6 +210,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	@Inject
 	private ResolvingTile resolvingTile;
+
+	@Inject
+	private GroupState groupState;
 
 	@Inject
 	private WeaponStyleTracker weaponStyleTracker;
@@ -328,6 +337,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
 		readyCheckTracker.shutDown();
+		groupState.clear();
 		weaponStyleTracker.shutDown();
 		dpsTracker.shutDown();
 		pluginMessageHandler.shutDown();
@@ -413,6 +423,35 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			submenu = addVariableOption(submenu, "Export Report", "DPS", () -> dpsTracker.exportReport(tile));
 			submenu = addVariableOption(submenu, "Export Raw Data", "DPS", () -> dpsTracker.exportRawData(tile));
 		}
+
+		for (GroupState.Group group : labelGroups(label))
+		{
+			String current = groupState.value(group.name);
+			for (String option : group.options)
+			{
+				submenu = addVariableOption(submenu, group.name + ":", (option.equals(current) ? "*" : "") + option, () ->
+				{
+					groupState.pick(group.name, option);
+					refreshNearbyMarkers();
+				});
+			}
+		}
+	}
+
+	// The declared groups label has a {setGroup} for, once each.
+	private List<GroupState.Group> labelGroups(String label)
+	{
+		Map<String, GroupState.Group> groups = new LinkedHashMap<>();
+		Matcher matcher = SET_GROUP_NAME.matcher(label);
+		while (matcher.find())
+		{
+			GroupState.Group group = groupState.group(matcher.group(1));
+			if (group != null)
+			{
+				groups.putIfAbsent(group.name.toLowerCase(Locale.ROOT), group);
+			}
+		}
+		return new ArrayList<>(groups.values());
 	}
 
 	// e.g. "Reset DPS" with an orange "DPS". Creates the "Variables" submenu on first use.
@@ -805,38 +844,44 @@ public class GroundMarkerVariablesPlugin extends Plugin
 
 	// Refreshes cached labels once per tick instead of once per render() call, distance-culled
 	// the same way as the overlay's own render distance.
+	private void refreshNearbyMarkers()
+	{
+		if (client.getLocalPlayer() == null)
+		{
+			return;
+		}
+
+		boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
+		WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+
+		readyCheckTracker.collecting = true;
+		try
+		{
+			for (WorldView wv : getTrackedWorldViews())
+			{
+				for (TranslatedMarker translated : getTranslatedMarkers(wv))
+				{
+					if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
+					{
+						continue;
+					}
+
+					resolvingTile.tile = translated.worldPoint;
+					translated.marker.refresh(labelResolver, metaVariableResolver);
+				}
+			}
+		}
+		finally
+		{
+			resolvingTile.tile = null;
+			readyCheckTracker.collecting = false;
+		}
+	}
+
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		if (client.getLocalPlayer() != null)
-		{
-			boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
-			WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
-
-			readyCheckTracker.collecting = true;
-			try
-			{
-				for (WorldView wv : getTrackedWorldViews())
-				{
-					for (TranslatedMarker translated : getTranslatedMarkers(wv))
-					{
-						if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
-						{
-							continue;
-						}
-
-						resolvingTile.tile = translated.worldPoint;
-						translated.marker.refresh(labelResolver, metaVariableResolver);
-					}
-				}
-			}
-			finally
-			{
-				resolvingTile.tile = null;
-				readyCheckTracker.collecting = false;
-			}
-		}
-
+		refreshNearbyMarkers();
 		importPreviewManager.refresh();
 
 		hasRespondedThisTick = false;
