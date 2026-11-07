@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
@@ -12,28 +13,33 @@ import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker.Status;
+import com.groundmarkervariables.variables.support.ResolvingTile;
+import net.runelite.api.Client;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.party.PartyMember;
 
 // {readyCheck} -> a party member's last ready status from chat: "R" / "ready" / "im r" / "r2p" is a green R, "P" /
 // "pot" / "potting" a green P, "not r" / "no r" / "un r" a red R, "brb" / "<N> mins" :zzz:, a new
-// boost a super combat potion. Plain: ready / potting / potted / not ready / away / none. Over 99 tiles from this tile (see {playerDistance})
-// it's :telescope: instead, plain "far".
+// boost a super combat potion. Plain: ready / potting / potted / not ready / away / none. Over 99 tiles from this tile,
+// or on another plane, it's :telescope: instead, plain "far".
 public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
 	private static final int FAR_DISTANCE = 99;
 	private static final DateTimeFormatter AWAY_TIME = DateTimeFormatter.ofPattern("h:mm");
 
+	private final Client client;
+	private final ResolvingTile resolvingTile;
 	private final ReadyCheckTracker tracker;
-	private final PlayerDistanceLabelVariable playerDistance;
 	private final Emojis emojis;
 
 	@Inject
-	private ReadyCheckLabelVariable(ReadyCheckTracker tracker, PlayerDistanceLabelVariable playerDistance, Emojis emojis)
+	private ReadyCheckLabelVariable(Client client, ResolvingTile resolvingTile, ReadyCheckTracker tracker, Emojis emojis)
 	{
+		this.client = client;
+		this.resolvingTile = resolvingTile;
 		this.tracker = tracker;
-		this.playerDistance = playerDistance;
 		this.emojis = emojis;
 	}
 
@@ -48,14 +54,14 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 	public String resolvePlain(Matcher matcher)
 	{
 		Status status = tracker.localStatus();
-		return isFar(playerDistance.localDistance()) ? "far" : plain(status);
+		return isFar(localLocation()) ? "far" : plain(status);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
 		Status status = tracker.localStatus();
-		return isFar(playerDistance.localDistance()) ? farIcon() : rich(status);
+		return isFar(localLocation()) ? farIcon() : rich(status);
 	}
 
 	@Override
@@ -75,7 +81,7 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 	// Going far clears their status, so it isn't still there when they come back.
 	private boolean isFar(PartyMember member)
 	{
-		if (!isFar(playerDistance.distance(member.getCoord())))
+		if (!isFar(member.getCoord()))
 		{
 			return false;
 		}
@@ -84,9 +90,17 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 		return true;
 	}
 
-	private static boolean isFar(Integer distance)
+	// False without a player location or a tile being resolved.
+	private boolean isFar(@Nullable WorldPoint player)
 	{
-		return distance != null && distance > FAR_DISTANCE;
+		WorldPoint tile = resolvingTile.tile;
+		return player != null && tile != null && (player.getPlane() != tile.getPlane() || player.distanceTo(tile) > FAR_DISTANCE);
+	}
+
+	@Nullable
+	private WorldPoint localLocation()
+	{
+		return client.getLocalPlayer() == null ? null : client.getLocalPlayer().getWorldLocation();
 	}
 
 	private String farIcon()

@@ -53,7 +53,6 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
 | `{party <template>}`                    | Takes a template as parameters, with limited other variable usage, e.g. `{party {readyCheck} {rsn}}` see advanced label usage for more info.                     |
 | `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
-| `{playerDistance}`                      | Tiles between you and this tile: 0 on it, 1 next to it. Up to 100, or 101 on another plane                                                                       |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
 | `{xp_<skill>}` / `{xp_<level>}`         | Exact experience in \<skill>, or needed for \<level> (1-126), e.g. \{xp_99}. Rich Text \<skill> also shows level and rank                                        |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
@@ -144,7 +143,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.
-- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`, `party`, `invSpace`, `xp_`
+- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `party`, `invSpace`, `xp_`
 - Usable in conditions: `{kc tob + kc hmt > 100 ? 100+ ToBs : }`
 - Dividing by zero leaves the token as written.
 
@@ -158,7 +157,7 @@ Shows a row based on `{party <template>}` per party member.
 
 Also usable in math and conditionals as the number of players in the party `{party > 0 ? in party : not in party}`
 - All variables that work for other members:
-  - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `invSpace`, `lvl_`, `boost_`, `playerDistance`
+  - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `invSpace`, `lvl_`, `boost_`
   - `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `showOneItem`
   - `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasUndeadGrasp`, `hasMarkOfDarkness`, `hasThralls`
 - Special, `{party}` only variables include:
