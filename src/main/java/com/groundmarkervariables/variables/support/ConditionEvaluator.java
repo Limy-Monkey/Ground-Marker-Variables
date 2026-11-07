@@ -12,8 +12,12 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.label.AttackStyleLabelVariable;
+import com.groundmarkervariables.variables.label.AttackTypeLabelVariable;
+import com.groundmarkervariables.variables.label.EquipLabelVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
+import com.groundmarkervariables.variables.label.WeaponLabelVariable;
 import com.groundmarkervariables.variables.VariableRegistry;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -72,12 +76,22 @@ public class ConditionEvaluator
 			Matcher wrapped = variable.pattern().matcher("{" + expr + "}");
 			if (wrapped.matches())
 			{
-				return memberContext.resolve(variable, wrapped, rich);
+				return usableInConditions(variable, wrapped) ? memberContext.resolve(variable, wrapped, rich) : null;
 			}
 		}
 
 		// A literal number, e.g. a resolved {partyCount}.
 		return tryParseNumber(expr.trim()) != null ? expr.trim() : null;
+	}
+
+	// Not {weapon} or {equip_<slot>}, and {attackStyle} / {attackType} only with weapon=<name>.
+	private static boolean usableInConditions(LabelVariable variable, Matcher matcher)
+	{
+		if (variable instanceof WeaponLabelVariable || variable instanceof EquipLabelVariable)
+		{
+			return false;
+		}
+		return !(variable instanceof AttackStyleLabelVariable || variable instanceof AttackTypeLabelVariable) || matcher.group(1) != null;
 	}
 
 	public Boolean evaluateCondition(String expr, String comparator, String expected)

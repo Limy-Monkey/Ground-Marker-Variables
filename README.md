@@ -46,10 +46,10 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
 | `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot toa, items=6, lines=2}                                                      |
 | `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
-| `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
-| `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
-| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid, Casting. Optional `weapon=<name>` for that weapon's last seen style, e.g. `{attackStyle weapon=Scythe}`         |
-| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
+| `{weapon}`                              | Equipped weapon's item name, or Unarmed. Not usable in conditions                                                                                                |
+| `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty. Not usable in conditions                    |
+| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid. `weapon=<name>` for its last seen style, e.g. `{attackStyle weapon=Scythe}`, required in conditions             |
+| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`, required in conditions                                     |
 | `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
 | `{party <template>}`                    | Takes a template as parameters, with limited other variable usage, e.g. `{party {readyCheck} {rsn}}` see advanced label usage for more info.                     |
 | `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
@@ -97,7 +97,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 - `{lvl_agility < 87 ? Bring Summer Pie! : }`
   - Reminder to bring summer pie to boost for Hallowed Sepulcher!
   - Empty if you're already level 87.
-- `{hasFreeze && weapon == staff of the dead ? Gigachad : Noob}`
+- `{hasFreeze && hasItem staff of the dead ? Gigachad : Noob}`
   - Remind yourself what it takes to be a gigachad
 - `{metronome4}`
   - 4 tick metronome on the tile
