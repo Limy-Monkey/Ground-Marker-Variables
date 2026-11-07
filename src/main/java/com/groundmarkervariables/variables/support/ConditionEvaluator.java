@@ -16,6 +16,7 @@ import com.groundmarkervariables.variables.label.AttackStyleLabelVariable;
 import com.groundmarkervariables.variables.label.AttackTypeLabelVariable;
 import com.groundmarkervariables.variables.label.EquipLabelVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
+import com.groundmarkervariables.variables.label.QuickPrayersLabelVariable;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
 import com.groundmarkervariables.variables.label.WeaponLabelVariable;
 import com.groundmarkervariables.variables.VariableRegistry;
@@ -84,10 +85,10 @@ public class ConditionEvaluator
 		return tryParseNumber(expr.trim()) != null ? expr.trim() : null;
 	}
 
-	// Not {weapon} or {equip_<slot>}, and {attackStyle} / {attackType} only with weapon=<name>.
+	// Not {weapon}, {equip_<slot>} or {quickPrayers}, and {attackStyle} / {attackType} only with weapon=<name>.
 	private static boolean usableInConditions(LabelVariable variable, Matcher matcher)
 	{
-		if (variable instanceof WeaponLabelVariable || variable instanceof EquipLabelVariable)
+		if (variable instanceof WeaponLabelVariable || variable instanceof EquipLabelVariable || variable instanceof QuickPrayersLabelVariable)
 		{
 			return false;
 		}

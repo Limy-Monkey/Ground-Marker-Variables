@@ -64,6 +64,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{slayerPoints}`                        | Current slayer points                                                                                                                                            |
 | `{runEnergy}`                           | Current run energy, 0-100                                                                                                                                        |
 | `{invSpace}`                            | Empty inventory spaces, 0-28                                                                                                                                     |
+| `{quickPrayers}`                        | Sprites of your quick prayers. `{quickPrayers <name>}`: that prayer's sprite, dimmed if not set, e.g. \{quickPrayers piety}. Not usable in conditions            |
 | `{group <name>}`                        | The option picked for \<name> by a nearby \{setGroup}, the first option until one is picked. Resets when the client restarts                                     |
 | `{spec}`                                | Current special attack energy, 0-100                                                                                                                             |
 | `{combatAchievement}`                   | Current Combat Achievement tier, 0 (none) through 6 (Grandmaster)                                                                                                |
