@@ -54,7 +54,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
 | `{playerDistance}`                      | Tiles between you and this tile: 0 on it, 1 next to it. Up to 100, or 101 on another plane                                                                       |
 | `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
-| `{xp_<skill>}`                          | Exact experience in \<skill>. Rich Text also shows level and hiscore rank                                                                                        |
+| `{xp_<skill>}` / `{xp_<level>}`         | Exact experience in \<skill>, or needed for \<level> (1-126), e.g. \{xp_99}. Rich Text \<skill> also shows level and rank                                        |
 | `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
 | `{xpRate_<skill>}`                      | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                                                 |
 | `{miscellania}`                         | Kingdom of Miscellania approval rating, 0-127                                                                                                                    |
@@ -141,7 +141,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.
-- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`, `party`, `invSpace`
+- Works with numbers (`1.5k`) and numeric variables: `kc`, `loot`, `lvl_`, `boost_`, `xpRate_`, `runEnergy`, `spec`, `questPoints`, `slayerPoints`, `slayerStreak`, `miscellania`, `weekday`, `combatAchievement`, `numItem`, `numDoses`, `playerDistance`, `party`, `invSpace`, `xp_`
 - Usable in conditions: `{kc tob + kc hmt > 100 ? 100+ ToBs : }`
 - Dividing by zero leaves the token as written.
 
