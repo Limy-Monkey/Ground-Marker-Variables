@@ -5,10 +5,12 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
@@ -156,6 +158,13 @@ public class ConditionEvaluator
 			return tryParseBoolean(actual);
 		}
 
+		// == [a, b, c]: equal to any item, != [a, b, c]: to none.
+		List<String> items = listItems(expected);
+		if (items != null && ("==".equals(comparator) || "!=".equals(comparator)))
+		{
+			return "==".equals(comparator) == items.stream().anyMatch(actual::equalsIgnoreCase);
+		}
+
 		String resolvedExpected = resolveExpression(expected);
 		if (resolvedExpected != null)
 		{
@@ -187,6 +196,24 @@ public class ConditionEvaluator
 		}
 
 		return null;
+	}
+
+	// The trimmed items of a "[a, b, c]" value, or null if it isn't one.
+	@Nullable
+	private static List<String> listItems(String value)
+	{
+		String trimmed = value.trim();
+		if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
+		{
+			return null;
+		}
+
+		List<String> items = new ArrayList<>();
+		for (String item : trimmed.substring(1, trimmed.length() - 1).split(","))
+		{
+			items.add(item.trim());
+		}
+		return items;
 	}
 
 	private static Boolean compareOrder(String comparator, double actual, double expected)

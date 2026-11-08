@@ -118,6 +118,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 `{<variable> <cmp> <value>}` shows the variable colored green if the comparison is true, red if false.
 - Comparators: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - `==` / `!=` compare text, ignoring case: `{spellbook == Ancient}`
+- Against a list in square brackets, `==` is true if it equals any item and `!=` if none: `{spellbook == [Ancient, Arceuus]}`
 - `<` / `>` compare numbers (`10.5k` works), or clock times: `{time < 9:00pm}`
 - The value can be another variable: `{boost_strength > lvl_strength}`
 
