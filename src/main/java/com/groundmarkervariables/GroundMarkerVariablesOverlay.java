@@ -100,6 +100,7 @@ public class GroundMarkerVariablesOverlay
 	private final PingedTileManager pingedTileManager;
 
 	private final TooltipManager tooltipManager;
+	private final MarkerCulling markerCulling;
 
 	// This frame's mouse position, and the {hover} label under it (see renderMarkers).
 	@Nullable
@@ -127,9 +128,10 @@ public class GroundMarkerVariablesOverlay
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
-		PingedTileManager pingedTileManager, TooltipManager tooltipManager)
+		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling)
 	{
 		this.tooltipManager = tooltipManager;
+		this.markerCulling = markerCulling;
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
@@ -213,10 +215,7 @@ public class GroundMarkerVariablesOverlay
 			return;
 		}
 
-		// Only distance-cull on the top-level worldview — the player's position isn't
-		// meaningful for culling a world entity's own (e.g. a ship's) worldview.
-		if (client.getLocalPlayer().getWorldView().isTopLevel()
-			&& worldPoint.distanceTo(client.getLocalPlayer().getWorldLocation()) >= MAX_DRAW_DISTANCE)
+		if (!markerCulling.inRange(worldPoint, MAX_DRAW_DISTANCE))
 		{
 			return;
 		}

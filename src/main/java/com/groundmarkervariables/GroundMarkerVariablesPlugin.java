@@ -215,6 +215,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private GroupState groupState;
 
 	@Inject
+	private MarkerCulling markerCulling;
+
+	@Inject
 	private WeaponStyleTracker weaponStyleTracker;
 
 	@Inject
@@ -851,9 +854,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			return;
 		}
 
-		boolean cullByDistance = client.getLocalPlayer().getWorldView().isTopLevel();
-		WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
-
 		readyCheckTracker.collecting = true;
 		try
 		{
@@ -861,7 +861,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			{
 				for (TranslatedMarker translated : getTranslatedMarkers(wv))
 				{
-					if (cullByDistance && translated.worldPoint.distanceTo(playerLocation) >= REFRESH_DISTANCE)
+					if (!markerCulling.inRange(translated.worldPoint, REFRESH_DISTANCE))
 					{
 						continue;
 					}
