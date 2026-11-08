@@ -8,6 +8,7 @@ import com.groundmarkervariables.party.*;
 import com.groundmarkervariables.variables.support.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
+import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
@@ -23,15 +24,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.swing.SwingUtilities;
@@ -93,7 +94,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private static final int RECENT_LABELS_MAX = 3;
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
-	private static final Pattern SET_GROUP_NAME = Pattern.compile("\\{setGroup\\s+([^{}?:<>=!,]+?)\\s*,", Pattern.CASE_INSENSITIVE);
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
@@ -427,12 +427,27 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			submenu = addVariableOption(submenu, "Export Raw Data", "DPS", () -> dpsTracker.exportRawData(tile));
 		}
 
-		for (GroupState.Group group : labelGroups(label))
+		CachedMarker marker = markerAt(tile);
+		if (marker == null)
 		{
-			String current = groupState.value(group.name);
-			for (String option : group.options)
+			return;
+		}
+
+		// Each declared group with a {setGroup} in the resolved label (so not a losing branch's), once, in its own option order.
+		Set<String> groups = new HashSet<>();
+		for (MetaState.GroupMenu menu : marker.getMetaState().getGroupMenus())
+		{
+			GroupState.Group group = groupState.group(menu.name);
+			if (group == null || !groups.add(group.name.toLowerCase(Locale.ROOT)))
 			{
-				submenu = addVariableOption(submenu, group.name + ":", (option.equals(current) ? "*" : "") + option, () ->
+				continue;
+			}
+
+			List<String> options = menu.options == null ? group.options : menu.options;
+			String current = groupState.value(group.name);
+			for (String option : options)
+			{
+				submenu = addVariableOption(submenu, group.name + ":", (option.equalsIgnoreCase(current) ? "*" : "") + option, () ->
 				{
 					groupState.pick(group.name, option);
 					refreshNearbyMarkers();
@@ -441,20 +456,21 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// The declared groups label has a {setGroup} for, once each.
-	private List<GroupState.Group> labelGroups(String label)
+	// The marker drawn at tile (an instanced point), as last resolved.
+	@Nullable
+	private CachedMarker markerAt(WorldPoint tile)
 	{
-		Map<String, GroupState.Group> groups = new LinkedHashMap<>();
-		Matcher matcher = SET_GROUP_NAME.matcher(label);
-		while (matcher.find())
+		for (WorldView wv : getTrackedWorldViews())
 		{
-			GroupState.Group group = groupState.group(matcher.group(1));
-			if (group != null)
+			for (TranslatedMarker translated : getTranslatedMarkers(wv))
 			{
-				groups.putIfAbsent(group.name.toLowerCase(Locale.ROOT), group);
+				if (translated.worldPoint.equals(tile))
+				{
+					return translated.marker;
+				}
 			}
 		}
-		return new ArrayList<>(groups.values());
+		return null;
 	}
 
 	// e.g. "Reset DPS" with an orange "DPS". Creates the "Variables" submenu on first use.
@@ -882,6 +898,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		refreshNearbyMarkers();
+		groupState.tick();
 		importPreviewManager.refresh();
 
 		hasRespondedThisTick = false;

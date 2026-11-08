@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.meta;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,31 @@ public class MetaState
 	private List<TextAlign> hoverLineAlignments = List.of();
 	private final Map<HighlightCorner, Color> highlights = new EnumMap<>(HighlightCorner.class);
 	private List<TextAlign> lineAlignments = List.of();
+	private final List<GroupMenu> groupMenus = new ArrayList<>();
+
+	// A {setGroup} in the resolved label: its group, and its own options in order, or null for the declared ones.
+	public static final class GroupMenu
+	{
+		public final String name;
+		@Nullable
+		public final List<String> options;
+
+		private GroupMenu(String name, @Nullable List<String> options)
+		{
+			this.name = name;
+			this.options = options;
+		}
+	}
+
+	public List<GroupMenu> getGroupMenus()
+	{
+		return groupMenus;
+	}
+
+	public void addGroupMenu(String name, @Nullable List<String> options)
+	{
+		groupMenus.add(new GroupMenu(name, options));
+	}
 
 	@Nullable
 	public Color getTileColor()
