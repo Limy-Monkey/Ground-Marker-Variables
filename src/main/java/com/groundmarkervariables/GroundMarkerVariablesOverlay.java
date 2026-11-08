@@ -65,10 +65,12 @@ public class GroundMarkerVariablesOverlay
 	// <item=ID[@N%]> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
 	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness. \t[@Npx] is a table cell
 	// break, with N px before the next column. {tip=text}...{/tip} gives what's between a tooltip.
+	// {split}...{/split} draws its icons as one, each cropped to its half (2 icons) or quadrant.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
-			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}",
+			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}|\\{(/?)split\\}",
 		Pattern.CASE_INSENSITIVE);
+	private static final int MAX_SPLIT_ICONS = 4;
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
 	private static final int HOVER_MARGIN = 3;
@@ -125,6 +127,8 @@ public class GroundMarkerVariablesOverlay
 	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
 	// Keyed by the original image, then brightness.
 	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons = new IdentityHashMap<>();
+	// {split} icons, keyed by their parts (BufferedImage equality is identity).
+	private final Map<List<BufferedImage>, BufferedImage> splitIcons = new HashMap<>();
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
@@ -931,25 +935,28 @@ public class GroundMarkerVariablesOverlay
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
+		// The icons inside an open {split}, whose text is dropped.
+		List<Object> split = null;
 		Matcher matcher = INLINE_TAG_PATTERN.matcher(line);
 		int last = 0;
 		while (matcher.find())
 		{
-			if (matcher.start() > last)
+			if (matcher.start() > last && split == null)
 			{
 				segments.add(line.substring(last, matcher.start()));
 			}
 
+			List<Object> icons = split != null ? split : segments;
 			if (matcher.group(1) != null)
 			{
-				segments.add(new ItemIcon(Integer.parseInt(matcher.group(1)), brightness(matcher.group(2))));
+				icons.add(new ItemIcon(Integer.parseInt(matcher.group(1)), brightness(matcher.group(2))));
 			}
 			else if (matcher.group(5) != null)
 			{
 				BufferedImage flag = spriteManager.getSprite(FLAG_SPRITES.get(matcher.group(5).toLowerCase(Locale.ROOT)), 0);
 				if (flag != null)
 				{
-					segments.add(flag);
+					icons.add(flag);
 				}
 			}
 			else if (matcher.group(6) != null)
@@ -958,7 +965,7 @@ public class GroundMarkerVariablesOverlay
 				BufferedImage emoji = emojis.image(matcher.group(6).toLowerCase(Locale.ROOT), tint);
 				if (emoji != null)
 				{
-					segments.add(emoji);
+					icons.add(emoji);
 				}
 			}
 			else if (matcher.group(8) != null)
@@ -967,8 +974,16 @@ public class GroundMarkerVariablesOverlay
 				BufferedImage sprite = spriteManager.getSprite(Integer.parseInt(matcher.group(8)), frame);
 				if (sprite != null)
 				{
-					segments.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
+					icons.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
 				}
+			}
+			else if (matcher.group(13) != null)
+			{
+				if (split != null)
+				{
+					addSplit(segments, split);
+				}
+				split = matcher.group(13).isEmpty() ? new ArrayList<>() : null;
 			}
 			else if (matcher.group(12) != null)
 			{
@@ -988,10 +1003,95 @@ public class GroundMarkerVariablesOverlay
 			}
 			last = matcher.end();
 		}
-		if (last < line.length())
+		if (split != null)
+		{
+			addSplit(segments, split);
+		}
+		else if (last < line.length())
 		{
 			segments.add(line.substring(last));
 		}
 		return segments;
+	}
+
+	// The {split} icons as one, glowing if any is a sprite.
+	private void addSplit(List<Object> segments, List<Object> icons)
+	{
+		List<BufferedImage> parts = new ArrayList<>();
+		boolean sprite = false;
+		for (Object icon : icons.subList(0, Math.min(icons.size(), MAX_SPLIT_ICONS)))
+		{
+			if (icon instanceof ItemIcon)
+			{
+				BufferedImage image = itemManager.getImage(((ItemIcon) icon).id);
+				parts.add(image == null ? null : dimmed(image, ((ItemIcon) icon).brightness));
+			}
+			else if (icon instanceof SpriteIcon)
+			{
+				parts.add(((SpriteIcon) icon).image);
+				sprite = true;
+			}
+			else
+			{
+				parts.add((BufferedImage) icon);
+			}
+		}
+
+		BufferedImage image = splitIcon(parts);
+		if (image != null)
+		{
+			segments.add(sprite ? new SpriteIcon(image) : image);
+		}
+	}
+
+	// Each part centered on a shared square, cropped to its half (2 parts) or quadrant. Null if all parts are.
+	@Nullable
+	private BufferedImage splitIcon(List<BufferedImage> parts)
+	{
+		BufferedImage split = splitIcons.get(parts);
+		if (split != null)
+		{
+			return split;
+		}
+
+		int size = 0;
+		for (BufferedImage part : parts)
+		{
+			if (part != null)
+			{
+				size = Math.max(size, Math.max(part.getWidth(), part.getHeight()));
+			}
+		}
+		if (size == 0)
+		{
+			return null;
+		}
+
+		split = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = split.createGraphics();
+		int half = size / 2;
+		for (int i = 0; i < parts.size(); i++)
+		{
+			BufferedImage part = parts.get(i);
+			if (part == null)
+			{
+				continue;
+			}
+
+			boolean right = parts.size() == 2 ? i == 1 : i % 2 == 1;
+			boolean bottom = parts.size() != 2 && i >= 2;
+			int height = parts.size() == 2 ? size : bottom ? size - half : half;
+			graphics.setClip(right ? half : 0, bottom ? half : 0, right ? size - half : half, height);
+			graphics.drawImage(part, (size - part.getWidth()) / 2, (size - part.getHeight()) / 2, null);
+
+			// An item image still loading is drawn into later.
+			if (part instanceof AsyncBufferedImage)
+			{
+				((AsyncBufferedImage) part).onLoaded(() -> splitIcons.remove(parts));
+			}
+		}
+		graphics.dispose();
+		splitIcons.put(parts, split);
+		return split;
 	}
 }
