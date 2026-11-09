@@ -10,16 +10,7 @@ import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
-import com.groundmarkervariables.variables.support.QuiverAmmo;
 import net.runelite.api.Client;
-import net.runelite.api.EnumComposition;
-import net.runelite.api.EnumID;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.VarbitID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.party.PartyMember;
 
@@ -28,25 +19,13 @@ import net.runelite.client.party.PartyMember;
 // "Rune pouch", "Air rune", "Runite ore", ...) in their inventory or equipment, "false"
 // otherwise. <name> is everything after "hasItem " up to the closing brace.
 //
-// Also checks a rune pouch's contents and Dizana's Quiver's active ammo.
+// Also checks a rune pouch's contents and Dizana's Quiver's active ammo, via ItemQuantityFinder.
 //
 // [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise this pattern could swallow a
 // trailing "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
 public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
-
-	private static final int[] RUNE_POUCH_ITEM_IDS = {
-		ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER
-	};
-	private static final int[] RUNE_POUCH_AMOUNT_VARBITS = {
-		VarbitID.RUNE_POUCH_QUANTITY_1, VarbitID.RUNE_POUCH_QUANTITY_2, VarbitID.RUNE_POUCH_QUANTITY_3,
-		VarbitID.RUNE_POUCH_QUANTITY_4, VarbitID.RUNE_POUCH_QUANTITY_5, VarbitID.RUNE_POUCH_QUANTITY_6
-	};
-	private static final int[] RUNE_POUCH_TYPE_VARBITS = {
-		VarbitID.RUNE_POUCH_TYPE_1, VarbitID.RUNE_POUCH_TYPE_2, VarbitID.RUNE_POUCH_TYPE_3,
-		VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_TYPE_5, VarbitID.RUNE_POUCH_TYPE_6
-	};
 
 	private final Client client;
 	private final ItemManager itemManager;
@@ -74,7 +53,7 @@ public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 			return null;
 		}
 
-		return String.valueOf(findItemName(matcher.group(1).trim().toLowerCase(Locale.ROOT)) != null);
+		return String.valueOf(itemName(matcher, null) != null);
 	}
 
 	// Colors the found item's own name, not the search term -- falls back to the search term
@@ -87,21 +66,20 @@ public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 			return null;
 		}
 
-		String typed = matcher.group(1).trim();
-		String foundName = findItemName(typed.toLowerCase(Locale.ROOT));
-		return richText.booleanColored(foundName != null, foundName != null ? foundName : typed);
+		String foundName = itemName(matcher, null);
+		return richText.booleanColored(foundName != null, foundName != null ? foundName : matcher.group(1).trim());
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		return String.valueOf(memberItemName(matcher, member) != null);
+		return String.valueOf(itemName(matcher, member) != null);
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
-		String foundName = memberItemName(matcher, member);
+		String foundName = itemName(matcher, member);
 		return richText.booleanColored(foundName != null, foundName != null ? foundName : matcher.group(1).trim());
 	}
 
@@ -111,123 +89,13 @@ public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 		return resolveRich(matcher);
 	}
 
-	private String memberItemName(Matcher matcher, PartyMember member)
+	// The first match's name, for the local player when member is null.
+	private String itemName(Matcher matcher, PartyMember member)
 	{
-		List<ItemQuantityFinder.Match> matches = ItemQuantityFinder.findAll(member, itemManager, matcher.group(1).trim().toLowerCase(Locale.ROOT));
+		String search = matcher.group(1).trim().toLowerCase(Locale.ROOT);
+		List<ItemQuantityFinder.Match> matches = member == null
+			? ItemQuantityFinder.findAll(client, itemManager, search)
+			: ItemQuantityFinder.findAll(member, itemManager, search);
 		return matches.isEmpty() ? null : matches.get(0).name;
-	}
-
-	private String findItemName(String search)
-	{
-		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-		String name = findInContainer(inventory, search);
-		if (name != null)
-		{
-			return name;
-		}
-
-		name = findInContainer(client.getItemContainer(InventoryID.EQUIPMENT), search);
-		if (name != null)
-		{
-			return name;
-		}
-
-		name = findInQuiver(search);
-		if (name != null)
-		{
-			return name;
-		}
-
-		return inventoryHasRunePouch(inventory) ? findInRunePouch(search) : null;
-	}
-
-	private String findInQuiver(String search)
-	{
-		if (!QuiverAmmo.isAvailable(client, itemManager))
-		{
-			return null;
-		}
-
-		int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
-		if (ammoId <= 0)
-		{
-			return null;
-		}
-
-		String name = itemManager.getItemComposition(ammoId).getName();
-		return name.toLowerCase(Locale.ROOT).contains(search) ? name : null;
-	}
-
-	private String findInContainer(ItemContainer container, String search)
-	{
-		if (container == null)
-		{
-			return null;
-		}
-
-		for (Item item : container.getItems())
-		{
-			// Empty slots are Items with id <= 0 (typically -1), not null array elements.
-			if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)
-			{
-				continue;
-			}
-
-			String name = itemManager.getItemComposition(item.getId()).getName();
-			if (name.toLowerCase(Locale.ROOT).contains(search))
-			{
-				return name;
-			}
-		}
-
-		return null;
-	}
-
-	private boolean inventoryHasRunePouch(ItemContainer inventory)
-	{
-		if (inventory == null)
-		{
-			return false;
-		}
-
-		for (Item item : inventory.getItems())
-		{
-			if (item == null)
-			{
-				continue;
-			}
-
-			for (int runePouchId : RUNE_POUCH_ITEM_IDS)
-			{
-				if (item.getId() == runePouchId)
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	private String findInRunePouch(String search)
-	{
-		EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
-		for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++)
-		{
-			int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
-			int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-			if (amount <= 0 || runeType == 0)
-			{
-				continue;
-			}
-
-			String name = itemManager.getItemComposition(runepouchEnum.getIntValue(runeType)).getName();
-			if (name.toLowerCase(Locale.ROOT).contains(search))
-			{
-				return name;
-			}
-		}
-
-		return null;
 	}
 }

@@ -1,8 +1,12 @@
 package com.groundmarkervariables.variables.support;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -16,7 +20,8 @@ import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.party.PartyMember;
 
-// Matching items (id, name, quantity) for {numItem}/{numDoses}/{showItems} -- same scope as {hasItem}.
+// Matching items (id, name, quantity) for {hasItem}/{numItem}/{numDoses}/{showItems}, in inventory, equipment,
+// quiver, then rune pouch order. Each holder's items, and its matches by search, are cached until clearCache().
 public final class ItemQuantityFinder
 {
 	public static final class Match
@@ -32,6 +37,41 @@ public final class ItemQuantityFinder
 			this.quantity = quantity;
 		}
 	}
+
+	// A holder's items with their lowercase names, and its matches by search.
+	private static final class ItemSearchCache
+	{
+		private final List<Match> items = new ArrayList<>();
+		private final List<String> lowerNames = new ArrayList<>();
+		private final Map<String, List<Match>> searches = new HashMap<>();
+
+		private void add(int id, int quantity, ItemManager itemManager)
+		{
+			String name = itemManager.getItemComposition(id).getName();
+			items.add(new Match(id, name, quantity));
+			lowerNames.add(name.toLowerCase(Locale.ROOT));
+		}
+
+		private List<Match> find(String search)
+		{
+			return searches.computeIfAbsent(search, s ->
+			{
+				List<Match> matches = new ArrayList<>();
+				for (int i = 0; i < items.size(); i++)
+				{
+					if (lowerNames.get(i).contains(s))
+					{
+						matches.add(items.get(i));
+					}
+				}
+				return Collections.unmodifiableList(matches);
+			});
+		}
+	}
+
+	private static final long LOCAL = Long.MIN_VALUE;
+	// By member id, or LOCAL.
+	private static final Map<Long, ItemSearchCache> CACHES = new HashMap<>();
 
 	private static final int[] RUNE_POUCH_ITEM_IDS = {
 		ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER
@@ -49,34 +89,79 @@ public final class ItemQuantityFinder
 	{
 	}
 
+	// Once per tick, so held items are read again.
+	public static void clearCache()
+	{
+		CACHES.clear();
+	}
+
 	public static List<Match> findAll(Client client, ItemManager itemManager, String search)
 	{
-		List<Match> matches = new ArrayList<>();
-		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-		addFromContainer(matches, inventory, itemManager, search);
-		addFromContainer(matches, client.getItemContainer(InventoryID.EQUIPMENT), itemManager, search);
-		addFromQuiver(matches, client, itemManager, search);
-		addFromRunePouch(matches, client, itemManager, inventory, search);
-		return matches;
+		return cache(LOCAL, () -> local(client, itemManager)).find(search);
 	}
 
 	// The same search over a party member's PartyDataService data.
 	public static List<Match> findAll(PartyMember member, ItemManager itemManager, String search)
 	{
-		List<Match> matches = new ArrayList<>();
-		addFromItems(matches, member.getInv(), itemManager, search);
-		addFromItems(matches, member.getWorn(), itemManager, search);
-		addFromItems(matches, member.getQuiver() == null ? null : new Item[] {member.getQuiver()}, itemManager, search);
-		addFromItems(matches, member.getRunepouch(), itemManager, search);
-		return matches;
+		return cache(member.getMemberId(), () -> member(member, itemManager)).find(search);
 	}
 
-	private static void addFromContainer(List<Match> matches, ItemContainer container, ItemManager itemManager, String search)
+	private static ItemSearchCache cache(long holder, Supplier<ItemSearchCache> build)
 	{
-		addFromItems(matches, container == null ? null : container.getItems(), itemManager, search);
+		ItemSearchCache cache = CACHES.get(holder);
+		if (cache == null)
+		{
+			cache = build.get();
+			CACHES.put(holder, cache);
+		}
+		return cache;
 	}
 
-	private static void addFromItems(List<Match> matches, Item[] items, ItemManager itemManager, String search)
+	private static ItemSearchCache local(Client client, ItemManager itemManager)
+	{
+		ItemSearchCache cache = new ItemSearchCache();
+		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+		addItems(cache, inventory == null ? null : inventory.getItems(), itemManager);
+		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
+		addItems(cache, equipment == null ? null : equipment.getItems(), itemManager);
+
+		if (QuiverAmmo.isAvailable(client, itemManager))
+		{
+			int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
+			int amount = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO_AMOUNT);
+			if (ammoId > 0 && amount > 0)
+			{
+				cache.add(ammoId, amount, itemManager);
+			}
+		}
+
+		if (inventory != null && hasRunePouch(inventory))
+		{
+			EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
+			for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++)
+			{
+				int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
+				int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
+				if (amount > 0 && runeType != 0)
+				{
+					cache.add(runepouchEnum.getIntValue(runeType), amount, itemManager);
+				}
+			}
+		}
+		return cache;
+	}
+
+	private static ItemSearchCache member(PartyMember member, ItemManager itemManager)
+	{
+		ItemSearchCache cache = new ItemSearchCache();
+		addItems(cache, member.getInv(), itemManager);
+		addItems(cache, member.getWorn(), itemManager);
+		addItems(cache, member.getQuiver() == null ? null : new Item[] {member.getQuiver()}, itemManager);
+		addItems(cache, member.getRunepouch(), itemManager);
+		return cache;
+	}
+
+	private static void addItems(ItemSearchCache cache, Item[] items, ItemManager itemManager)
 	{
 		if (items == null)
 		{
@@ -86,62 +171,9 @@ public final class ItemQuantityFinder
 		for (Item item : items)
 		{
 			// Empty slots are Items with id <= 0 (typically -1), not null array elements.
-			if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)
+			if (item != null && item.getId() > 0 && item.getQuantity() > 0)
 			{
-				continue;
-			}
-
-			String name = itemManager.getItemComposition(item.getId()).getName();
-			if (name.toLowerCase(Locale.ROOT).contains(search))
-			{
-				matches.add(new Match(item.getId(), name, item.getQuantity()));
-			}
-		}
-	}
-
-	private static void addFromQuiver(List<Match> matches, Client client, ItemManager itemManager, String search)
-	{
-		if (!QuiverAmmo.isAvailable(client, itemManager))
-		{
-			return;
-		}
-
-		int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
-		int amount = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO_AMOUNT);
-		if (ammoId <= 0 || amount <= 0)
-		{
-			return;
-		}
-
-		String name = itemManager.getItemComposition(ammoId).getName();
-		if (name.toLowerCase(Locale.ROOT).contains(search))
-		{
-			matches.add(new Match(ammoId, name, amount));
-		}
-	}
-
-	private static void addFromRunePouch(List<Match> matches, Client client, ItemManager itemManager, ItemContainer inventory, String search)
-	{
-		if (inventory == null || !hasRunePouch(inventory))
-		{
-			return;
-		}
-
-		EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
-		for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++)
-		{
-			int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
-			int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-			if (amount <= 0 || runeType == 0)
-			{
-				continue;
-			}
-
-			int runeId = runepouchEnum.getIntValue(runeType);
-			String name = itemManager.getItemComposition(runeId).getName();
-			if (name.toLowerCase(Locale.ROOT).contains(search))
-			{
-				matches.add(new Match(runeId, name, amount));
+				cache.add(item.getId(), item.getQuantity(), itemManager);
 			}
 		}
 	}

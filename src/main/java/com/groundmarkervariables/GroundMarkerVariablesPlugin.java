@@ -18,6 +18,8 @@ import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
 import com.groundmarkervariables.variables.support.GroupState;
+import com.groundmarkervariables.variables.support.ItemQuantityFinder;
+import com.groundmarkervariables.variables.support.RuneCounter;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -341,6 +343,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		miscellaniaTracker.shutDown();
 		readyCheckTracker.shutDown();
 		groupState.clear();
+		ItemQuantityFinder.clearCache();
+		RuneCounter.clearCache();
 		weaponStyleTracker.shutDown();
 		dpsTracker.shutDown();
 		pluginMessageHandler.shutDown();
@@ -897,6 +901,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		ItemQuantityFinder.clearCache();
+		RuneCounter.clearCache();
 		refreshNearbyMarkers();
 		groupState.tick();
 		importPreviewManager.refresh();

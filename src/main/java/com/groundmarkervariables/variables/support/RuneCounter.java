@@ -30,6 +30,10 @@ public final class RuneCounter
 	{
 	}
 
+	private static final long LOCAL = Long.MIN_VALUE;
+	// hasRunes results until clearCache(), by member id (or LOCAL) then rune set.
+	private static final Map<Long, Map<Map<Integer, Integer>, Boolean>> HAS_RUNES = new HashMap<>();
+
 	// Regular/Trouver x normal/Divine — mirrors gearscape's RelevantItems.RUNE_POUCH_VARIANTS.
 	private static final int[] RUNE_POUCH_VARIANTS = {
 		ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER,
@@ -114,16 +118,24 @@ public final class RuneCounter
 		return result;
 	}
 
+	// Once per tick, so held runes are counted again.
+	public static void clearCache()
+	{
+		HAS_RUNES.clear();
+	}
+
 	// runes: rune id -> amount.
 	public static boolean hasRunes(Client client, Map<Integer, Integer> runes)
 	{
-		return hasRunes(runes, items(client, InventoryID.INVENTORY), items(client, InventoryID.EQUIPMENT), rune -> count(client, rune));
+		return HAS_RUNES.computeIfAbsent(LOCAL, k -> new HashMap<>()).computeIfAbsent(runes,
+			r -> hasRunes(r, items(client, InventoryID.INVENTORY), items(client, InventoryID.EQUIPMENT), rune -> count(client, rune)));
 	}
 
 	// The same, from a party member's PartyDataService inventory, gear and rune pouch.
 	public static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes)
 	{
-		return hasRunes(runes, member.getInv(), member.getWorn(), rune -> count(member, rune));
+		return HAS_RUNES.computeIfAbsent(member.getMemberId(), k -> new HashMap<>()).computeIfAbsent(runes,
+			r -> hasRunes(r, member.getInv(), member.getWorn(), rune -> count(member, rune)));
 	}
 
 	// With some choice of weapon and offhand, worn or in the inventory to equip instead. Each one
