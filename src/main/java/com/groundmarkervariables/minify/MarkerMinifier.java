@@ -18,6 +18,8 @@ public class MarkerMinifier
 {
 	private static final String FIELD = "gmv";
 	private static final Pattern GMV = Pattern.compile("(\\d+)~(.+)");
+	// The characters JSON allows after a backslash.
+	private static final String JSON_ESCAPES = "\"\\/bfnrtu";
 
 	private final Gson gson;
 
@@ -77,8 +79,8 @@ public class MarkerMinifier
 		return points;
 	}
 
-	// Inside strings: \n and \t escapes and real tabs become the label's \n and \t; a real line break and
-	// the indentation after it are dropped.
+	// Inside strings: \n and \t escapes and real tabs become the label's \n and \t, a backslash that isn't
+	// a JSON escape (e.g. \s) is kept, and a real line break and the indentation after it are dropped.
 	static String normalizeStrings(String text)
 	{
 		StringBuilder out = new StringBuilder(text.length());
@@ -94,7 +96,7 @@ public class MarkerMinifier
 			else if (c == '\\' && i + 1 < text.length())
 			{
 				char escaped = text.charAt(++i);
-				out.append(escaped == 'n' || escaped == 't' ? "\\\\" : "\\").append(escaped);
+				out.append(JSON_ESCAPES.indexOf(escaped) < 0 || escaped == 'n' || escaped == 't' ? "\\\\" : "\\").append(escaped);
 			}
 			else if (c == '"')
 			{
