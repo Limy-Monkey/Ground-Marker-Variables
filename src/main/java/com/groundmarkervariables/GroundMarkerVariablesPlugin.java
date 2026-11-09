@@ -12,6 +12,7 @@ import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
+import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
 import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
@@ -211,6 +212,9 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private ReadyCheckTracker readyCheckTracker;
 
 	@Inject
+	private ActiveEffectTracker activeEffectTracker;
+
+	@Inject
 	private ResolvingTile resolvingTile;
 
 	@Inject
@@ -277,6 +281,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.startUp();
 		miscellaniaTracker.startUp();
 		readyCheckTracker.startUp();
+		activeEffectTracker.startUp();
 		weaponStyleTracker.startUp();
 		dpsTracker.startUp();
 		pluginMessageHandler.startUp();
@@ -342,6 +347,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		recentLootTracker.shutDown();
 		miscellaniaTracker.shutDown();
 		readyCheckTracker.shutDown();
+		activeEffectTracker.shutDown();
 		groupState.clear();
 		ItemQuantityFinder.clearCache();
 		RuneCounter.clearCache();

@@ -11,7 +11,9 @@ import java.awt.Paint;
 import java.awt.Polygon;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Stroke;
+import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
@@ -66,10 +68,18 @@ public class GroundMarkerVariablesOverlay
 	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness. \t[@Npx] is a table cell
 	// break, with N px before the next column. {tip=text}...{/tip} gives what's between a tooltip.
 	// {split}...{/split} draws its icons as one, each cropped to its half (2 icons) or quadrant.
+	// <badge[=N]> draws a dot over the previous icon's corner, or with =N a pie of N% left.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
-			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}|\\{(/?)split\\}",
+			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}|\\{(/?)split\\}"
+			+ "|<badge(?:=(\\d{1,3}))?>",
 		Pattern.CASE_INSENSITIVE);
+	// <badge>: its width as a share of the icon's, and its colors.
+	private static final float BADGE_SIZE = 0.45f;
+	private static final Color BADGE_BACKGROUND = new Color(0, 0, 0, 150);
+	private static final Color BADGE_GREEN = new Color(0, 185, 0);
+	private static final Color BADGE_YELLOW = new Color(255, 210, 0);
+	private static final Color BADGE_RED = new Color(230, 0, 0);
 	private static final int MAX_SPLIT_ICONS = 4;
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
@@ -631,6 +641,18 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// <badge[=N]> over the previous icon, percent null for a full dot.
+	private static final class Badge
+	{
+		@Nullable
+		private final Integer percent;
+
+		private Badge(@Nullable Integer percent)
+		{
+			this.percent = percent;
+		}
+	}
+
 	// {tip=text} opens a tooltip, {/tip} (null text) closes it.
 	private static final class TipToggle
 	{
@@ -722,7 +744,7 @@ public class GroundMarkerVariablesOverlay
 				totalWidth += ((CellBreak) segment).padding;
 				cellStart = totalWidth;
 			}
-			else if (!(segment instanceof TipToggle))
+			else if (!(segment instanceof TipToggle) && !(segment instanceof Badge))
 			{
 				Font font = styledFont(graphics.getFont(), style);
 				totalWidth += graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher((String) segment).replaceAll(""));
@@ -819,6 +841,8 @@ public class GroundMarkerVariablesOverlay
 		// caller's Composite (see drawTileAt) is what applies any fade, not this.
 		Color textColor = ColorUtil.colorWithAlpha(color, 0xFF);
 		int style = layout.startStyle;
+		// The icon just drawn, for a <badge> right after it.
+		Rectangle lastIcon = null;
 
 		for (int i = 0; i < layout.segments.size(); i++)
 		{
@@ -826,6 +850,13 @@ public class GroundMarkerVariablesOverlay
 			if (segment instanceof StyleToggle)
 			{
 				style = ((StyleToggle) segment).apply(style);
+			}
+			else if (segment instanceof Badge)
+			{
+				if (lastIcon != null)
+				{
+					drawBadge(graphics, lastIcon, ((Badge) segment).percent);
+				}
 			}
 			else if (segment instanceof TipToggle)
 			{
@@ -846,6 +877,7 @@ public class GroundMarkerVariablesOverlay
 				}
 				graphics.drawImage(flag, x, flagY, null);
 				hitTest(x, flagY, flag.getWidth(), flag.getHeight(), -1);
+				lastIcon = new Rectangle(x, flagY, flag.getWidth(), flag.getHeight());
 				x += flag.getWidth();
 			}
 			else if (segment instanceof ItemIcon)
@@ -862,12 +894,14 @@ public class GroundMarkerVariablesOverlay
 					}
 					graphics.drawImage(image, x, imageY, iconWidth, iconHeight, null);
 					hitTest(x, imageY, iconWidth, iconHeight, ((ItemIcon) segment).id);
+					lastIcon = new Rectangle(x, imageY, iconWidth, iconHeight);
 					x += iconWidth;
 				}
 			}
 			else
 			{
 				String text = (String) segment;
+				lastIcon = null;
 				Font font = styledFont(graphics.getFont(), style);
 				TextComponent textComponent = new TextComponent();
 				textComponent.setText(text);
@@ -924,6 +958,29 @@ public class GroundMarkerVariablesOverlay
 		graphics.setPaint(new RadialGradientPaint(new Point2D.Float(centerX, centerY), radius, GLOW_FRACTIONS, GLOW_COLORS));
 		graphics.fill(new Ellipse2D.Float(centerX - radius, centerY - radius, radius * 2, radius * 2));
 		graphics.setPaint(previous);
+	}
+
+	// A dot in icon's top-right corner: full when percent is null, else a pie of percent left, from 12 o'clock.
+	// Green, yellow at half or less, red at a fifth or less.
+	private static void drawBadge(Graphics2D graphics, Rectangle icon, @Nullable Integer percent)
+	{
+		float size = Math.max(4f, Math.min(icon.width, icon.height) * BADGE_SIZE);
+		float x = icon.x + icon.width - size;
+		float y = icon.y;
+		Color color = percent == null || percent > 50 ? BADGE_GREEN : percent > 20 ? BADGE_YELLOW : BADGE_RED;
+
+		Paint previousPaint = graphics.getPaint();
+		Object previousAntialias = graphics.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+		graphics.setPaint(BADGE_BACKGROUND);
+		graphics.fill(new Ellipse2D.Float(x, y, size, size));
+		graphics.setPaint(color);
+		graphics.fill(percent == null ? new Ellipse2D.Float(x, y, size, size)
+			: new Arc2D.Float(x, y, size, size, 90, 360 * Math.min(percent, 100) / 100f, Arc2D.PIE));
+
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, previousAntialias);
+		graphics.setPaint(previousPaint);
 	}
 
 	private static int lineHeight(FontMetrics fontMetrics)
@@ -996,6 +1053,10 @@ public class GroundMarkerVariablesOverlay
 			else if (matcher.group(0).startsWith("\\"))
 			{
 				segments.add(new CellBreak(matcher.group(11) == null ? DEFAULT_CELL_PADDING : Integer.parseInt(matcher.group(11))));
+			}
+			else if (matcher.group(0).regionMatches(true, 0, "<badge", 0, 6))
+			{
+				segments.add(new Badge(matcher.group(14) == null ? null : Integer.parseInt(matcher.group(14))));
 			}
 			else
 			{

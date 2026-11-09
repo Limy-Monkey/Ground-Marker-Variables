@@ -50,7 +50,7 @@ public class CombatAchievementsLabelVariable implements LabelVariable
 	}
 
 	// Count of tier thresholds the player's points have reached.
-	private int tier()
+	public int tier()
 	{
 		int points = client.getVarbitValue(VarbitID.CA_POINTS);
 		int tier = 0;

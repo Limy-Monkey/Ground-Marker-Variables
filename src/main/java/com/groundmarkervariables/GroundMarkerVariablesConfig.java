@@ -425,6 +425,7 @@ public interface GroundMarkerVariablesConfig extends Config
 					+ "- {hasUndeadGrasp}<br>"
 					+ "- {hasMarkOfDarkness}<br>"
 					+ "- {hasSurge}<br>"
+					+ "- {active &lt;effect&gt;}<br>"
 					+ "- {autoRetaliate}<br>"
 					+ "- {divine &lt;potion&gt;}<br>"
 					+ "- {hasItem &lt;name&gt;}<br>"

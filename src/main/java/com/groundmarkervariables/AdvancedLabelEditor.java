@@ -83,14 +83,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
+		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
 		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "showItems", "showOneItem","numItem", "numDoses", "tileCol=", "highlight",
-		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup");
+		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup", "active");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
 	// past any of these prefixes, autocomplete switches from variable names to skill names.
@@ -124,6 +124,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> DIVINE_POTIONS = List.of(
 		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage", "Salts", "Overload");
 
+	// {active <effect>} — the same, before an optional " icon".
+	private static final String ACTIVE_PREFIX = "active ";
+	private static final List<String> ACTIVE_EFFECTS = List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness");
+
 	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>} -- names from WeaponStyleTracker.
 	private static final Pattern WEAPON_OPTION = Pattern.compile("(?i)^(attack(?:Style|Type)(?:\\s*,\\s*|\\s+))(\\w*)$");
 	private static final Pattern WEAPON_VALUE = Pattern.compile("(?i)^attack(?:Style|Type)\\s*,?\\s*weapon\\s*=\\s*(.*)$");
@@ -133,9 +137,10 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
 	private static final String HIDE_WORLD = "hideWorld";
 
-	// {hasFreeze icon}, {equip_helm icon}, ...
+	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...
 	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSurge|hasThralls|weapon|equip_\\w+)\\s+(\\w*)$");
+		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSurge|hasThralls"
+			+ "|active\\s+\\w+|weapon|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
 	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
@@ -925,7 +930,12 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (!restrictToNumeric && partial.length() >= DIVINE_PREFIX.length() && partial.regionMatches(true, 0, DIVINE_PREFIX, 0, DIVINE_PREFIX.length()))
 		{
-			return completeDivinePotion(partial.substring(DIVINE_PREFIX.length()));
+			return completeFromList(partial.substring(DIVINE_PREFIX.length()), DIVINE_POTIONS, DIVINE_PREFIX);
+		}
+
+		if (!restrictToNumeric && partial.length() >= ACTIVE_PREFIX.length() && partial.regionMatches(true, 0, ACTIVE_PREFIX, 0, ACTIVE_PREFIX.length()))
+		{
+			return completeFromList(partial.substring(ACTIVE_PREFIX.length()), ACTIVE_EFFECTS, ACTIVE_PREFIX);
 		}
 
 		Matcher weaponValue = WEAPON_VALUE.matcher(partial);
@@ -1609,17 +1619,18 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		return chosen.substring(wordPartial.length());
 	}
 
-	private String completeDivinePotion(String potionPartial)
+	// A fixed list of names after prefix, e.g. {divine <potion>}; closed with "}" once one is exactly typed.
+	private String completeFromList(String namePartial, List<String> names, String prefix)
 	{
 		List<String> candidates = new ArrayList<>();
 		boolean exactMatch = false;
-		for (String name : DIVINE_POTIONS)
+		for (String name : names)
 		{
-			if (name.length() > potionPartial.length() && name.regionMatches(true, 0, potionPartial, 0, potionPartial.length()))
+			if (name.length() > namePartial.length() && name.regionMatches(true, 0, namePartial, 0, namePartial.length()))
 			{
 				candidates.add(name);
 			}
-			else if (name.equalsIgnoreCase(potionPartial))
+			else if (name.equalsIgnoreCase(namePartial))
 			{
 				exactMatch = true;
 			}
@@ -1630,8 +1641,8 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			return exactMatch ? "}" : null;
 		}
 
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + DIVINE_PREFIX);
-		return chosen.substring(potionPartial.length());
+		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
+		return chosen.substring(namePartial.length());
 	}
 
 	private String completeWeaponName(String weaponPartial, String tokenPrefix)

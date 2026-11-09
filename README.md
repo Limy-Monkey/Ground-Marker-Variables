@@ -77,6 +77,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasUndeadGrasp}`                      | true if Undead Grasp is castable (Level not checked)                                                                                                             |
 | `{hasMarkOfDarkness}`                   | true if Mark of Darkness is castable (Level not checked)                                                                                                         |
 | `{hasSurge}`                            | true if any elemental Surge is castable (Level not checked), or one, e.g. \{hasSurge water}                                                                      |
+| `{active <effect>}`                     | true if vengeance, thrall, deathCharge, shadowVeil or Mark of Darkness is active. `icon` includes pie chart for time remaining.                                  |
 | `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
 | `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
@@ -160,7 +161,7 @@ Shows a row based on `{party <template>}` per party member.
 
 Also usable in math and conditionals as the number of players in the party `{party > 0 ? in party : not in party}`
 - All variables that work for other members:
-  - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `invSpace`, `lvl_`, `boost_`
+  - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `invSpace`, `lvl_`, `boost_`, `active vengeance`
   - `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `showOneItem`
   - `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasUndeadGrasp`, `hasMarkOfDarkness`, `hasSurge`, `hasThralls`
 - Special, `{party}` only variables include:
