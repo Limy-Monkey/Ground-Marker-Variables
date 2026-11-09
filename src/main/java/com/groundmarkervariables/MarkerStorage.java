@@ -118,6 +118,22 @@ public class MarkerStorage
 		});
 	}
 
+	// Like addPoints, but each new point replaces any stored point at its location.
+	public void replacePoints(Collection<GroundMarkerPointData> newPoints)
+	{
+		newPoints.stream().collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId)).forEach((regionId, grouped) ->
+		{
+			List<GroundMarkerPointData> merged = new ArrayList<>(getStoredPoints(regionId));
+			for (GroundMarkerPointData point : grouped)
+			{
+				merged.remove(find(merged, point));
+				merged.add(point);
+			}
+
+			savePoints(regionId, merged);
+		});
+	}
+
 	// Removes any stored point at the same location as one of toRemove, grouped by their own regionId.
 	public void deletePoints(Collection<GroundMarkerPointData> toRemove)
 	{

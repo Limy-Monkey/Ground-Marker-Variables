@@ -184,13 +184,20 @@ public class GroundMarkerVariablesSharingManager
 		List<GroundMarkerPointData> nonOverlapping = nonOverlapping(importPoints);
 		importPreviewManager.show(nonOverlapping);
 		String count = countWithOverlap(importPoints.size(), nonOverlapping.size());
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to import " + count + " ground markers?")
-			.option("Yes", () ->
+		Runnable overwrite = () ->
+		{
+			overwriteGroundMarkers(importPoints);
+			sendChatMessage(importPoints.size() + importedMessage);
+			onImported.run();
+		};
+		new ImportConfirmInput(chatboxPanelManager)
+			.yes(() ->
 			{
 				importGroundMarkers(importPoints);
 				sendChatMessage(nonOverlapping.size() + importedMessage);
 				onImported.run();
-			})
+			}, nonOverlapping.size() < importPoints.size() ? overwrite : null)
+			.title("Are you sure you want to import " + count + " ground markers?")
 			.option("No", onCancelled)
 			.onClose(importPreviewManager::clear)
 			.build();
@@ -233,6 +240,13 @@ public class GroundMarkerVariablesSharingManager
 		markerStorage.addPoints(importPoints);
 
 		log.debug("Reloading points after import");
+		plugin.loadPoints();
+	}
+
+	// Like importGroundMarkers, but replacing any existing marker at an imported one's location.
+	private void overwriteGroundMarkers(Collection<GroundMarkerPointData> importPoints)
+	{
+		markerStorage.replacePoints(importPoints);
 		plugin.loadPoints();
 	}
 

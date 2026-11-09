@@ -47,7 +47,7 @@ public class MarkerMinifier
 	// label is damaged.
 	public List<GroundMarkerPointData> parse(String text) throws NewerFormatException
 	{
-		JsonElement json = gson.fromJson(text, JsonElement.class);
+		JsonElement json = gson.fromJson(normalizeStrings(text), JsonElement.class);
 		if (json == null || json.isJsonNull())
 		{
 			return List.of();
@@ -75,6 +75,49 @@ public class MarkerMinifier
 			points.add(point);
 		}
 		return points;
+	}
+
+	// Inside strings: \n and \t escapes and real tabs become the label's \n and \t; a real line break and
+	// the indentation after it are dropped.
+	static String normalizeStrings(String text)
+	{
+		StringBuilder out = new StringBuilder(text.length());
+		boolean inString = false;
+		for (int i = 0; i < text.length(); i++)
+		{
+			char c = text.charAt(i);
+			if (!inString)
+			{
+				inString = c == '"';
+				out.append(c);
+			}
+			else if (c == '\\' && i + 1 < text.length())
+			{
+				char escaped = text.charAt(++i);
+				out.append(escaped == 'n' || escaped == 't' ? "\\\\" : "\\").append(escaped);
+			}
+			else if (c == '"')
+			{
+				inString = false;
+				out.append(c);
+			}
+			else if (c == '\t')
+			{
+				out.append("\\\\t");
+			}
+			else if (c == '\n' || c == '\r')
+			{
+				while (i + 1 < text.length() && Character.isWhitespace(text.charAt(i + 1)))
+				{
+					i++;
+				}
+			}
+			else
+			{
+				out.append(c);
+			}
+		}
+		return out.toString();
 	}
 
 	private static String label(String gmv) throws NewerFormatException
