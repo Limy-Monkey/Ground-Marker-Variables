@@ -6,6 +6,7 @@ import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.label.PartyLabelVariable;
+import com.groundmarkervariables.variables.meta.TileMetaGuard;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.PartyMemberContext;
@@ -69,7 +70,21 @@ public class LabelResolver
 	// for {variable} / {cond ? a : b} syntax.
 	public String resolveMarker(String label)
 	{
-		return resolve(emojis.expand(label == null ? null : NamedColors.expandColorAliases(label)));
+		String expanded = emojis.expand(label == null ? null : NamedColors.expandColorAliases(label));
+		if (expanded == null)
+		{
+			return null;
+		}
+
+		List<String> tileMeta = new ArrayList<>();
+		return TileMetaGuard.restore(resolve(TileMetaGuard.protect(expanded, tileMeta, this::isVariable)), tileMeta);
+	}
+
+	// text, braced, is a variable or math token.
+	private boolean isVariable(String text)
+	{
+		String token = "{" + text + "}";
+		return math.pattern().matcher(token).matches() || baseVariables.stream().anyMatch(variable -> variable.pattern().matcher(token).matches());
 	}
 
 	public String resolve(String label)

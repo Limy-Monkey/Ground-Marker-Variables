@@ -46,10 +46,10 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
 | `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot toa, items=6, lines=2}                                                      |
 | `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
-| `{weapon}`                              | Equipped weapon's item name, or Unarmed. Not usable in conditions                                                                                                |
-| `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty. Not usable in conditions                    |
-| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid. `weapon=<name>` for its last seen style, e.g. `{attackStyle weapon=Scythe}`, required in conditions             |
-| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`, required in conditions                                     |
+| `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
+| `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
+| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid, Casting. Optional `weapon=<name>` for that weapon's last seen style, e.g. `{attackStyle weapon=Scythe}`         |
+| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
 | `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
 | `{party <template>}`                    | Takes a template as parameters, with limited other variable usage, e.g. `{party {readyCheck} {rsn}}` see advanced label usage for more info.                     |
 | `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
@@ -63,7 +63,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{slayerPoints}`                        | Current slayer points                                                                                                                                            |
 | `{runEnergy}`                           | Current run energy, 0-100                                                                                                                                        |
 | `{invSpace}`                            | Empty inventory spaces, 0-28                                                                                                                                     |
-| `{quickPrayers}`                        | Sprites of your quick prayers. `{quickPrayers <name>}`: that prayer's sprite, dimmed if not set, e.g. \{quickPrayers piety}. Not usable in conditions            |
+| `{quickPrayers}`                        | Sprites of your quick prayers. `{quickPrayers <name>}`: true if set, Rich Text its sprite, dimmed if not, e.g. \{quickPrayers piety}                             |
 | `{group <name>}`                        | The option picked for \<name> by a nearby \{setGroup}, the first option until one is picked. Resets when the client restarts                                     |
 | `{spec}`                                | Current special attack energy, 0-100                                                                                                                             |
 | `{combatAchievement}`                   | Current Combat Achievement tier, 0 (none) through 6 (Grandmaster)                                                                                                |
@@ -142,6 +142,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
   - `{spellbook == Ancient ? {hasFreeze ? Freeze ready : No freeze} : {spellbook == Arceuus ? {hasThralls}}}`
 - A `:` between digits (`9:00`) is part of a time, not a branch separator.
 - `{metronome}` can't be used inside a conditional.
+- `{tileCol}`, `{highlight}` and `{borderWidth}` cannot be used in a conditional, except conditionals that only use `{group}`
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.

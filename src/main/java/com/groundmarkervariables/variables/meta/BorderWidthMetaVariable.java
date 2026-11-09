@@ -8,7 +8,7 @@ import javax.inject.Inject;
 // capped at MAX_WIDTH.
 public class BorderWidthMetaVariable implements MetaVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{borderWidth=(\\d+(?:\\.\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
+	static final Pattern PATTERN = Pattern.compile("\\{borderWidth=(\\d+(?:\\.\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
 	private static final float MAX_WIDTH = 10f;
 
 	@Inject

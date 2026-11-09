@@ -13,7 +13,7 @@ import com.groundmarkervariables.variables.support.NamedColors;
 // the tile's own color at that opacity.
 public class TileColMetaVariable implements MetaVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
+	static final Pattern PATTERN = Pattern.compile(
 		"\\{tileCol=(\\d{1,3}%|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|"
 			+ String.join("|", NamedColors.HEX_BY_NAME.keySet()) + "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + ")\\}",
 		Pattern.CASE_INSENSITIVE);

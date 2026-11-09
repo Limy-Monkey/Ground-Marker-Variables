@@ -14,7 +14,7 @@ import net.runelite.client.util.ColorUtil;
 // {highlight<corner>} / {highlight<corner>=<col>} -- SW/NW/NE/SE, or Corners/All for all four.
 public class HighlightMetaVariable implements MetaVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
+	static final Pattern PATTERN = Pattern.compile(
 		"\\{highlight(SW|NW|NE|SE|Corners|All)(?:=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet())
 			+ "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + "))?\\}",
 		Pattern.CASE_INSENSITIVE);

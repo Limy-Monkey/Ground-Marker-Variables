@@ -14,13 +14,8 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.LabelVariable;
-import com.groundmarkervariables.variables.label.AttackStyleLabelVariable;
-import com.groundmarkervariables.variables.label.AttackTypeLabelVariable;
-import com.groundmarkervariables.variables.label.EquipLabelVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
-import com.groundmarkervariables.variables.label.QuickPrayersLabelVariable;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
-import com.groundmarkervariables.variables.label.WeaponLabelVariable;
 import com.groundmarkervariables.variables.VariableRegistry;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -79,22 +74,12 @@ public class ConditionEvaluator
 			Matcher wrapped = variable.pattern().matcher("{" + expr + "}");
 			if (wrapped.matches())
 			{
-				return usableInConditions(variable, wrapped) ? memberContext.resolve(variable, wrapped, rich) : null;
+				return memberContext.resolve(variable, wrapped, rich);
 			}
 		}
 
 		// A literal number, e.g. a resolved {partyCount}.
 		return tryParseNumber(expr.trim()) != null ? expr.trim() : null;
-	}
-
-	// Not {weapon}, {equip_<slot>} or {quickPrayers}, and {attackStyle} / {attackType} only with weapon=<name>.
-	private static boolean usableInConditions(LabelVariable variable, Matcher matcher)
-	{
-		if (variable instanceof WeaponLabelVariable || variable instanceof EquipLabelVariable || variable instanceof QuickPrayersLabelVariable)
-		{
-			return false;
-		}
-		return !(variable instanceof AttackStyleLabelVariable || variable instanceof AttackTypeLabelVariable) || matcher.group(1) != null;
 	}
 
 	public Boolean evaluateCondition(String expr, String comparator, String expected)
