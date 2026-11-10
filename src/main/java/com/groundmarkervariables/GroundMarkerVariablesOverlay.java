@@ -19,11 +19,13 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -81,6 +83,8 @@ public class GroundMarkerVariablesOverlay
 	private static final Color BADGE_YELLOW = new Color(255, 210, 0);
 	private static final Color BADGE_RED = new Color(230, 0, 0);
 	private static final int MAX_SPLIT_ICONS = 4;
+	// {ground} icon rows are built at this multiple of the tallest icon.
+	private static final int GROUND_ROW_SCALE = 4;
 	// A 3-icon {split}'s wedge start angles: 12 to 8 o'clock, 4 to 12, 8 to 4.
 	private static final float[] WEDGE_STARTS = {90, 330, 210};
 	private static final int DEFAULT_CELL_PADDING = 4;
@@ -141,11 +145,17 @@ public class GroundMarkerVariablesOverlay
 	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons = new IdentityHashMap<>();
 	// {split} icons, keyed by their parts (BufferedImage equality is identity).
 	private final Map<List<BufferedImage>, BufferedImage> splitIcons = new HashMap<>();
+	// {ground} icon rows, keyed the same way.
+	private final Map<List<BufferedImage>, BufferedImage> groundRows = new HashMap<>();
+	// Emoji images (cached by Emojis), drawn smooth on the ground rather than as pixel blocks.
+	private final Set<BufferedImage> emojiImages = Collections.newSetFromMap(new IdentityHashMap<>());
+	private final GroundImageRenderer groundImageRenderer;
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
-		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling)
+		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer)
 	{
+		this.groundImageRenderer = groundImageRenderer;
 		this.tooltipManager = tooltipManager;
 		this.markerCulling = markerCulling;
 		this.client = client;
@@ -266,6 +276,11 @@ public class GroundMarkerVariablesOverlay
 				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, stroke);
 				drawHighlights(graphics, poly, metaState.getHighlights(), stroke, opacity);
 			}
+			// {ground} icons are part of the tile, under every label.
+			if (metaState.getGroundLabel() != null)
+			{
+				drawGroundIcons(graphics, localPoint, worldPoint.getPlane(), metaState.getGroundLabel(), color, opacity);
+			}
 			return;
 		}
 
@@ -305,6 +320,91 @@ public class GroundMarkerVariablesOverlay
 				drawPending(graphics, pending, false);
 			}
 		}
+	}
+
+	// The {ground} blocks' icons in a row, flat on the tile. A {split} is one icon.
+	private void drawGroundIcons(Graphics2D graphics, LocalPoint localPoint, int plane, @Nullable String label, Color color, float opacity)
+	{
+		if (label == null || label.isEmpty())
+		{
+			return;
+		}
+
+		List<BufferedImage> icons = new ArrayList<>();
+		for (String line : labelLines(label, color))
+		{
+			for (Object segment : splitSegments(line))
+			{
+				if (segment instanceof ItemIcon)
+				{
+					BufferedImage image = itemManager.getImage(((ItemIcon) segment).id);
+					if (image != null)
+					{
+						icons.add(dimmed(image, ((ItemIcon) segment).brightness));
+					}
+				}
+				else if (segment instanceof SpriteIcon)
+				{
+					icons.add(((SpriteIcon) segment).image);
+				}
+				else if (segment instanceof BufferedImage)
+				{
+					icons.add((BufferedImage) segment);
+				}
+			}
+		}
+
+		if (icons.isEmpty())
+		{
+			return;
+		}
+		// A row already holds each icon at its own sampling, so it's drawn smooth.
+		BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
+		groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || emojiImages.contains(image), opacity);
+	}
+
+	// Icons side by side, each scaled to the tallest's height, with a small gap.
+	private BufferedImage groundRow(List<BufferedImage> icons)
+	{
+		BufferedImage row = groundRows.get(icons);
+		if (row != null)
+		{
+			return row;
+		}
+
+		// Built at 4x the tallest icon; each icon blown up by a whole factor first, so mixed sizes keep even pixels.
+		int height = 0;
+		for (BufferedImage icon : icons)
+		{
+			height = Math.max(height, icon.getHeight() * GROUND_ROW_SCALE);
+		}
+		int gap = Math.max(1, height / 8);
+		int width = -gap;
+		for (BufferedImage icon : icons)
+		{
+			width += icon.getWidth() * height / icon.getHeight() + gap;
+		}
+
+		row = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = row.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		int x = 0;
+		for (BufferedImage icon : icons)
+		{
+			int iconWidth = icon.getWidth() * height / icon.getHeight();
+			// Emoji smooth, items and sprites as even pixel blocks.
+			BufferedImage source = emojiImages.contains(icon) ? icon : GroundImageRenderer.upscaled(icon, (int) Math.ceil(height / (double) icon.getHeight()));
+			graphics.drawImage(source, x, 0, iconWidth, height, null);
+			x += iconWidth + gap;
+			// An item image still loading is drawn into later.
+			if (icon instanceof AsyncBufferedImage)
+			{
+				((AsyncBufferedImage) icon).onLoaded(() -> groundRows.remove(icons));
+			}
+		}
+		graphics.dispose();
+		groundRows.put(icons, row);
+		return row;
 	}
 
 	private boolean isOverTile(LocalPoint localPoint)
@@ -1024,6 +1124,7 @@ public class GroundMarkerVariablesOverlay
 				BufferedImage emoji = emojis.image(matcher.group(6).toLowerCase(Locale.ROOT), tint);
 				if (emoji != null)
 				{
+					emojiImages.add(emoji);
 					icons.add(emoji);
 				}
 			}

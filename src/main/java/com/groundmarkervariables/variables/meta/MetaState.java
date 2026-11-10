@@ -25,6 +25,20 @@ public class MetaState
 	private final Map<HighlightCorner, Color> highlights = new EnumMap<>(HighlightCorner.class);
 	private List<TextAlign> lineAlignments = List.of();
 	private final List<GroupMenu> groupMenus = new ArrayList<>();
+	// What's inside the label's {ground} blocks, whose icons are drawn on the tile.
+	@Nullable
+	private String groundLabel;
+
+	@Nullable
+	public String getGroundLabel()
+	{
+		return groundLabel;
+	}
+
+	void setGroundLabel(String groundLabel)
+	{
+		this.groundLabel = groundLabel;
+	}
 
 	// A {setGroup} in the resolved label: its group, and its own options in order, or null for the declared ones.
 	public static final class GroupMenu

@@ -43,6 +43,12 @@ public class MetaVariableResolver
 			remaining = strip(meta, remaining, state);
 		}
 
+		if (GroundIcons.has(remaining))
+		{
+			state.setGroundLabel(GroundIcons.content(remaining));
+			remaining = GroundIcons.remove(remaining);
+		}
+
 		if (HoverOnly.has(remaining))
 		{
 			LineAlignment.Result hoverAligned = LineAlignment.strip(HoverOnly.expand(remaining));
