@@ -12,7 +12,7 @@ final class GroundIcons
 	// The overlay's icon tags. An unclosed {split} runs to the line's end.
 	private static final Pattern ICON = Pattern.compile(
 		"\\{split\\}.*?(?:\\{/split\\}|(?=\\\\n)|$)|<item=\\d+(?:@\\d{1,3}%)?>|<flag=[a-z_]+>|<emoji=[0-9a-f]+(?:@[0-9a-f]{6})?>"
-			+ "|<sprite=\\d+(?:,\\d+)?(?:@\\d{1,3}%)?>|<badge(?:=\\d{1,3})?>",
+			+ "|<sprite=\\d+(?:,\\d+)?(?:@\\d{1,3}%)?>|<badge(?:=\\d{1,3})?>|<npc=\\d+(?:,head)?>",
 		Pattern.CASE_INSENSITIVE);
 	private static final String LINE_BREAK = "\\n";
 

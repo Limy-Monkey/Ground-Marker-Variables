@@ -71,10 +71,11 @@ public class GroundMarkerVariablesOverlay
 	// break, with N px before the next column. {tip=text}...{/tip} gives what's between a tooltip.
 	// {split}...{/split} draws its icons as one, each cropped to its half (2 icons), pie third (3) or quadrant.
 	// <badge[=N]> draws a dot over the previous icon's corner, or with =N a pie of N% left.
+	// <npc=ID[,head]> is the NPC's model, or its chathead, drawn from the game's own model data.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
 			+ "|<sprite=(\\d+)(?:,(\\d+))?(?:@(\\d{1,3})%)?>|\\\\t(?:@(\\d{1,3})px)?|\\{tip=([^{}]*)\\}|\\{/tip\\}|\\{(/?)split\\}"
-			+ "|<badge(?:=(\\d{1,3}))?>",
+			+ "|<badge(?:=(\\d{1,3}))?>|<npc=(\\d+)(,head)?>",
 		Pattern.CASE_INSENSITIVE);
 	// <badge>: its width as a share of the icon's, and its colors.
 	private static final float BADGE_SIZE = 0.45f;
@@ -147,14 +148,17 @@ public class GroundMarkerVariablesOverlay
 	private final Map<List<BufferedImage>, BufferedImage> splitIcons = new HashMap<>();
 	// {ground} icon rows, keyed the same way.
 	private final Map<List<BufferedImage>, BufferedImage> groundRows = new HashMap<>();
-	// Emoji images (cached by Emojis), drawn smooth on the ground rather than as pixel blocks.
-	private final Set<BufferedImage> emojiImages = Collections.newSetFromMap(new IdentityHashMap<>());
+	// Emoji and NPC images (cached by Emojis/NpcImages), drawn smooth on the ground rather than as pixel blocks.
+	private final Set<BufferedImage> smoothImages = Collections.newSetFromMap(new IdentityHashMap<>());
+	private final NpcImages npcImages;
 	private final GroundImageRenderer groundImageRenderer;
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
-		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer)
+		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer,
+		NpcImages npcImages)
 	{
+		this.npcImages = npcImages;
 		this.groundImageRenderer = groundImageRenderer;
 		this.tooltipManager = tooltipManager;
 		this.markerCulling = markerCulling;
@@ -360,7 +364,7 @@ public class GroundMarkerVariablesOverlay
 		}
 		// A row already holds each icon at its own sampling, so it's drawn smooth.
 		BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
-		groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || emojiImages.contains(image), opacity);
+		groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || smoothImages.contains(image), opacity);
 	}
 
 	// Icons side by side, each scaled to the tallest's height, with a small gap.
@@ -393,7 +397,7 @@ public class GroundMarkerVariablesOverlay
 		{
 			int iconWidth = icon.getWidth() * height / icon.getHeight();
 			// Emoji smooth, items and sprites as even pixel blocks.
-			BufferedImage source = emojiImages.contains(icon) ? icon : GroundImageRenderer.upscaled(icon, (int) Math.ceil(height / (double) icon.getHeight()));
+			BufferedImage source = smoothImages.contains(icon) ? icon : GroundImageRenderer.upscaled(icon, (int) Math.ceil(height / (double) icon.getHeight()));
 			graphics.drawImage(source, x, 0, iconWidth, height, null);
 			x += iconWidth + gap;
 			// An item image still loading is drawn into later.
@@ -1124,7 +1128,7 @@ public class GroundMarkerVariablesOverlay
 				BufferedImage emoji = emojis.image(matcher.group(6).toLowerCase(Locale.ROOT), tint);
 				if (emoji != null)
 				{
-					emojiImages.add(emoji);
+					smoothImages.add(emoji);
 					icons.add(emoji);
 				}
 			}
@@ -1135,6 +1139,15 @@ public class GroundMarkerVariablesOverlay
 				if (sprite != null)
 				{
 					icons.add(new SpriteIcon(dimmed(sprite, brightness(matcher.group(10)))));
+				}
+			}
+			else if (matcher.group(15) != null)
+			{
+				BufferedImage npc = npcImages.image(Integer.parseInt(matcher.group(15)), matcher.group(16) != null);
+				if (npc != null)
+				{
+					smoothImages.add(npc);
+					icons.add(npc);
 				}
 			}
 			else if (matcher.group(13) != null)
