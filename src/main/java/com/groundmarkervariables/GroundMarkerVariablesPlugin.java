@@ -421,6 +421,15 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		{
 			buildColorMenu(worldPoint, existing);
 			buildConfigureMenu(existing, selectedSceneTile.getWorldLocation());
+
+			if (config.shareMarkerOption() && partyService.isInParty())
+			{
+				client.createMenuEntry(-5)
+					.setOption("Party Share")
+					.setTarget("Marker")
+					.setType(MenuAction.RUNELITE)
+					.onClick(e -> pingedTileManager.share(worldPoint, existing));
+			}
 		}
 	}
 

@@ -1,7 +1,5 @@
 package com.groundmarkervariables.party;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.groundmarkervariables.CachedMarker;
 import com.groundmarkervariables.GroundMarkerPointData;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
@@ -43,10 +41,9 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
-import net.runelite.client.plugins.party.messages.TilePing;
 
-// Shares a marked tile with the party when you ping it, and displays tiles shared by others as
-// a temporary, fading marker with its own "Save"/"Hide" right-click options. See PINGEDTILE.md.
+// Shares a marker with the party from its shift+right-click "Share Marker", and displays markers shared by
+// others as a temporary, fading marker with its own "Save"/"Hide" right-click options.
 @Slf4j
 @Singleton
 public class PingedTileManager
@@ -56,11 +53,6 @@ public class PingedTileManager
 
 	// Mirrors GroundMarkerVariablesPlugin's markersByWorldView, rebuilt by retranslate().
 	private final Map<WorldView, List<TranslatedPingedTile>> translatedByWorldView = new ConcurrentHashMap<>();
-
-	// Send-side debounce, presence-only, self-evicting after 2s.
-	private final Cache<WorldPoint, Boolean> recentlySent = CacheBuilder.newBuilder()
-		.expireAfterWrite(2, TimeUnit.SECONDS)
-		.build();
 
 	// Senders with one hide so far this session -- a second hide blocks them.
 	private final Set<Long> hiddenOnceSenderIds = ConcurrentHashMap.newKeySet();
@@ -104,7 +96,6 @@ public class PingedTileManager
 
 		try
 		{
-			wsClient.registerMessage(TilePing.class);
 			wsClient.registerMessage(GMVPingedTileShare.class);
 		}
 		catch (IllegalArgumentException e)
@@ -143,37 +134,17 @@ public class PingedTileManager
 		}
 	}
 
-	// Reacts only to our own ping (the relay echoes TilePing back to the sender too) -- shares
-	// the tile there if we have one marked.
-	@Subscribe
-	public void onTilePing(TilePing event)
+	// The marker at point, from its shift+right-click "Share Marker" (see GroundMarkerVariablesPlugin).
+	public void share(WorldPoint point, GroundMarkerPointData marker)
 	{
-		if (!config.sendPingedTiles())
+		if (!partyService.isInParty())
 		{
 			return;
 		}
 
-		PartyMember local = partyService.getLocalMember();
-		if (local == null || event.getMemberId() != local.getMemberId())
-		{
-			return;
-		}
-
-		WorldPoint point = event.getPoint();
-		if (recentlySent.getIfPresent(point) != null)
-		{
-			return;
-		}
-
-		GroundMarkerPointData existing = markerStorage.findStoredPoint(point);
-		if (existing == null)
-		{
-			return;
-		}
-
-		recentlySent.put(point, Boolean.TRUE);
-		Integer rgb = existing.getColor() == null ? null : existing.getColor().getRGB();
-		partyService.send(new GMVPingedTileShare(point, rgb, existing.getLabel()));
+		Integer rgb = marker.getColor() == null ? null : marker.getColor().getRGB();
+		partyService.send(new GMVPingedTileShare(point, rgb, marker.getLabel()));
+		sendChatMessage("Ground Marker shared with your party.");
 	}
 
 	// Displays a tile shared by another party member, unless we already have it marked.
