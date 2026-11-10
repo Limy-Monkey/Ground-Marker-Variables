@@ -245,7 +245,7 @@ public class BooleanVariable implements LabelVariable
 			return resolveSixHourWarning(comparison, rich);
 		}
 
-		String value = evaluator.resolveExpression(comparison.group(1));
+		String value = evaluator.resolveOperand(comparison.group(1));
 		if (value == null)
 		{
 			return null;

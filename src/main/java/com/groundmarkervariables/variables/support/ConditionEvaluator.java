@@ -89,8 +89,21 @@ public class ConditionEvaluator
 			return evaluateSixHourWarning(comparator, expected);
 		}
 
-		String actual = resolveExpression(expr);
+		String actual = comparator == null ? resolveExpression(expr) : resolveOperand(expr);
 		return actual == null ? null : evaluate(actual, comparator, expected);
+	}
+
+	// The left side of a comparison: a variable, else the literal text, e.g. {Ancient == spellbook}.
+	@Nullable
+	public String resolveOperand(String expr)
+	{
+		String resolved = resolveExpression(expr);
+		if (resolved != null)
+		{
+			return resolved;
+		}
+		String literal = expr.trim();
+		return literal.isEmpty() ? null : literal;
 	}
 
 	// Shared with BooleanVariable, which also needs to know this for its own </<= restriction
