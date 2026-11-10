@@ -206,6 +206,7 @@ public class PartyLabelVariable implements LabelVariable
 		StringBuilder result = new StringBuilder("{align=left}");
 
 		int num = 1;
+		boolean anyRow = false;
 		for (PartyMember member : members)
 		{
 			boolean isLocal = local != null && member.getMemberId() == local.getMemberId();
@@ -221,9 +222,19 @@ public class PartyLabelVariable implements LabelVariable
 			{
 				memberContext.exitRow();
 			}
-			result.append(rowNum > 1 ? "\\n" : "").append(row);
+			// Rows that resolve to nothing are skipped, e.g. {hasFreeze ? name} for members without.
+			if (row == null || row.trim().isEmpty())
+			{
+				continue;
+			}
+			result.append(anyRow ? "\\n" : "").append(row);
+			anyRow = true;
 		}
 
+		if (!anyRow)
+		{
+			return "";
+		}
 		result.append("\\n{/align}");
 		return result.toString();
 	}
