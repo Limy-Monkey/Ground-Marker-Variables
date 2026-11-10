@@ -67,7 +67,7 @@ public class GroundMarkerVariablesOverlay
 	// <item=ID[@N%]> icon, {b}/{/b}/{i}/{/i} toggle, <flag=region> icon, <emoji=codepoint[@tint hex]> icon, or
 	// <sprite=ID[,frame][@N%]> game sprite. @N% draws the icon at N% brightness. \t[@Npx] is a table cell
 	// break, with N px before the next column. {tip=text}...{/tip} gives what's between a tooltip.
-	// {split}...{/split} draws its icons as one, each cropped to its half (2 icons) or quadrant.
+	// {split}...{/split} draws its icons as one, each cropped to its half (2 icons), pie third (3) or quadrant.
 	// <badge[=N]> draws a dot over the previous icon's corner, or with =N a pie of N% left.
 	private static final Pattern INLINE_TAG_PATTERN = Pattern.compile(
 		"<item=(\\d+)(?:@(\\d{1,3})%)?>|\\{(/?)([bi])\\}|<flag=(us_west|us_east|us|uk|aus|ger|br|jp|sg|za)>|<emoji=([0-9a-f]+)(?:@([0-9a-f]{6}))?>"
@@ -81,6 +81,8 @@ public class GroundMarkerVariablesOverlay
 	private static final Color BADGE_YELLOW = new Color(255, 210, 0);
 	private static final Color BADGE_RED = new Color(230, 0, 0);
 	private static final int MAX_SPLIT_ICONS = 4;
+	// A 3-icon {split}'s wedge start angles: 12 to 8 o'clock, 4 to 12, 8 to 4.
+	private static final float[] WEDGE_STARTS = {90, 330, 210};
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
 	private static final int HOVER_MARGIN = 3;
@@ -1105,7 +1107,8 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	// Each part centered on a shared square, cropped to its half (2 parts) or quadrant. Null if all parts are.
+	// Each part centered on a shared square, cropped to its half (2 parts), 120 degree wedge (3) or quadrant. Null if all
+	// parts are.
 	@Nullable
 	private BufferedImage splitIcon(List<BufferedImage> parts)
 	{
@@ -1139,10 +1142,18 @@ public class GroundMarkerVariablesOverlay
 				continue;
 			}
 
-			boolean right = parts.size() == 2 ? i == 1 : i % 2 == 1;
-			boolean bottom = parts.size() != 2 && i >= 2;
-			int height = parts.size() == 2 ? size : bottom ? size - half : half;
-			graphics.setClip(right ? half : 0, bottom ? half : 0, right ? size - half : half, height);
+			if (parts.size() == 3)
+			{
+				// 120 degree wedges from the center: top-left, top-right, then bottom. Arc angles run counterclockwise from 3 o'clock.
+				graphics.setClip(new Arc2D.Float(-size / 2f, -size / 2f, size * 2f, size * 2f, WEDGE_STARTS[i], 120, Arc2D.PIE));
+			}
+			else
+			{
+				boolean right = parts.size() == 2 ? i == 1 : i % 2 == 1;
+				boolean bottom = parts.size() != 2 && i >= 2;
+				int height = parts.size() == 2 ? size : bottom ? size - half : half;
+				graphics.setClip(right ? half : 0, bottom ? half : 0, right ? size - half : half, height);
+			}
 			graphics.drawImage(part, (size - part.getWidth()) / 2, (size - part.getHeight()) / 2, null);
 
 			// An item image still loading is drawn into later.

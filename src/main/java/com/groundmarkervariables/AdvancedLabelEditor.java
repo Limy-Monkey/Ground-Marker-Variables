@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -83,7 +84,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
+		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
@@ -124,6 +125,14 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> DIVINE_POTIONS = List.of(
 		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage", "Salts", "Overload");
 
+	// {hasBarrage <element> ... [icon]} / {hasSurge ...} — each word once, completing the last. "air" is {hasSurge}'s
+	// alias for "wind", so either one used rules out both.
+	private static final Pattern SPELL_SET_WORDS = Pattern.compile("(?i)^(hasBarrage|hasSurge)((?:\\s+\\w+)*?)\\s+(\\w*)$");
+	private static final Map<String, List<String>> SPELL_SET_OPTIONS = Map.of(
+		"hasbarrage", List.of("smoke", "shadow", "blood", "ice", "icon"),
+		"hassurge", List.of("wind", "air", "water", "earth", "fire", "icon"));
+	private static final Map<String, String> SPELL_SET_ALIASES = Map.of("air", "wind", "wind", "air");
+
 	// {active <effect>} — the same, before an optional " icon".
 	private static final String ACTIVE_PREFIX = "active ";
 	private static final List<String> ACTIVE_EFFECTS = List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness");
@@ -139,7 +148,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...
 	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSurge|hasThralls"
+		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasThralls"
 			+ "|active\\s+\\w+|weapon|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
@@ -890,6 +899,21 @@ class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				return completeSkill(partial.substring(prefix.length()), prefix);
 			}
+		}
+
+		Matcher spellSet = SPELL_SET_WORDS.matcher(partial);
+		if (!restrictToNumeric && spellSet.matches())
+		{
+			List<String> used = List.of(spellSet.group(2).trim().toLowerCase(Locale.ROOT).split("\\s+"));
+			List<String> options = new ArrayList<>();
+			for (String option : SPELL_SET_OPTIONS.get(spellSet.group(1).toLowerCase(Locale.ROOT)))
+			{
+				if (!used.contains(option) && !used.contains(SPELL_SET_ALIASES.getOrDefault(option, option)))
+				{
+					options.add(option);
+				}
+			}
+			return completeFromList(spellSet.group(3), options, partial.substring(0, spellSet.start(3)));
 		}
 
 		Matcher iconOption = ICON_OPTION.matcher(partial);
