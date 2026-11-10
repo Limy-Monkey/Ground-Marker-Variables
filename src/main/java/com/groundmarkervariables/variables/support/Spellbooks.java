@@ -20,7 +20,7 @@ public final class Spellbooks
 	// By VarbitID.SPELLBOOK value; also {spellbook}'s plain text.
 	public static final List<String> NAMES = List.of("Standard", "Ancient", "Lunar", "Arceuus");
 
-	private static final Map<Integer, Integer> SPELLBOOK_SWAP_RUNES = Map.of(
+	public static final Map<Integer, Integer> SPELLBOOK_SWAP_RUNES = Map.of(
 		ItemID.ASTRALRUNE, 3,
 		ItemID.COSMICRUNE, 2,
 		ItemID.LAWRUNE, 1);

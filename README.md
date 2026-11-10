@@ -78,6 +78,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasMarkOfDarkness}`                   | true if Mark of Darkness is castable (Level not checked)                                                                                                         |
 | `{hasSurge}`                            | true if any elemental Surge is castable (Level not checked), or of those named, e.g. \{hasSurge water fire icon}                                                 |
 | `{hasBarrage}`                          | true if any Barrage is castable (Level not checked), or of those named, e.g. \{hasBarrage blood ice icon}                                                        |
+| `{hasSpellbookSwap}`                    | true if Spellbook Swap is castable (Level not checked)                                                                                                           |
 | `{active <effect>}`                     | true if vengeance, thrall, deathCharge, shadowVeil or Mark of Darkness is active. `icon` includes pie chart for time remaining.                                  |
 | `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
 | `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
@@ -165,7 +166,7 @@ Also usable in math and conditionals as the number of players in the party `{par
 - All variables that work for other members:
   - `readyCheck`, `rsn`, `partyNum`, `spec`, `runEnergy`, `invSpace`, `lvl_`, `boost_`, `active vengeance`
   - `equip_`, `weapon`, `hasItem`, `numItem`, `numDoses`, `showItems`, `showOneItem`
-  - `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasUndeadGrasp`, `hasMarkOfDarkness`, `hasSurge`, `hasBarrage`, `hasThralls`
+  - `spellbook`, `hasFreeze`, `hasAlchs`, `hasEntangle`, `hasVileVigour`, `hasVengeance`, `hasUndeadGrasp`, `hasMarkOfDarkness`, `hasSurge`, `hasBarrage`, `hasSpellbookSwap`, `hasThralls`
 - Special, `{party}` only variables include:
   - `{readyCheck}` -- Reads in-game chat for ready messages or shows `:telescope:` for not nearby, `R` / `ready`, `P` / `pot` / `potting`, `not r` / `no r` / `un r`, `brb` / `5 mins`
   - `{partyNum}` -- The member's number in order. Can be used in conditionals to hide long lists with `{hoverOnly}`.

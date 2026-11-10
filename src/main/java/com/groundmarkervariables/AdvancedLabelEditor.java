@@ -84,7 +84,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "runePouch", "miscellania", "col=", "time",
 		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
+		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "hasSpellbookSwap", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
 	);
 
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
@@ -148,7 +148,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 
 	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...
 	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasThralls"
+		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSpellbookSwap|hasThralls"
 			+ "|active\\s+\\w+|weapon|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 

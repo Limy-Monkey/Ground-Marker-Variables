@@ -65,6 +65,7 @@ public class VariableRegistry
 		HasMarkOfDarknessLabelVariable hasMarkOfDarkness,
 		HasSurgeLabelVariable hasSurge,
 		HasBarrageLabelVariable hasBarrage,
+		HasSpellbookSwapLabelVariable hasSpellbookSwap,
 		ActiveLabelVariable active,
 		InvSpaceLabelVariable invSpace,
 		GroupLabelVariable group,
@@ -76,7 +77,7 @@ public class VariableRegistry
 			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
 			attackStyle, attackType, autocast, dps, hasItem, showItems, runePouch, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, combatAchievements, numItem, numDoses, xp, rank,
-			party, partyNum, readyCheck, divine, world, hasVileVigour, hasVengeance, hasUndeadGrasp, hasMarkOfDarkness, hasSurge, hasBarrage, active, invSpace, group, quickPrayers);
+			party, partyNum, readyCheck, divine, world, hasVileVigour, hasVengeance, hasUndeadGrasp, hasMarkOfDarkness, hasSurge, hasBarrage, hasSpellbookSwap, active, invSpace, group, quickPrayers);
 	}
 
 	public List<LabelVariable> all()
