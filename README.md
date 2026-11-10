@@ -84,6 +84,7 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
 | `{showItems <name>, <name>, ...}`       | The icon of each listed item you hold, in order, e.g. \{showItems obligator, scythe, soulreaper axe}                                                             |
 | `{showOneItem <name>, <name>, ...}`     | Like `{showItems}`, but only the icon of the first listed item you hold                                                                                          |
+| `{runePouch}`                           | The icon of every rune you hold, in your inventory or rune pouch                                                                                                 |
 | `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |
 | `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                              |
 | `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
