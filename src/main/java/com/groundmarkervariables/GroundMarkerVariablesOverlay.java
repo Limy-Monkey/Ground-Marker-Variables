@@ -40,6 +40,7 @@ import com.groundmarkervariables.variables.meta.TextAlign;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.api.Client;
+import net.runelite.api.Model;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.WorldView;
@@ -86,6 +87,7 @@ public class GroundMarkerVariablesOverlay
 	private static final int MAX_SPLIT_ICONS = 4;
 	// {ground} icon rows are built at this multiple of the tallest icon.
 	private static final int GROUND_ROW_SCALE = 4;
+	private static final Pattern GROUND_NPC_PATTERN = Pattern.compile("<npc=(\\d+)(,head)?>", Pattern.CASE_INSENSITIVE);
 	// A 3-icon {split}'s wedge start angles: 12 to 8 o'clock, 4 to 12, 8 to 4.
 	private static final float[] WEDGE_STARTS = {90, 330, 210};
 	private static final int DEFAULT_CELL_PADDING = 4;
@@ -151,14 +153,18 @@ public class GroundMarkerVariablesOverlay
 	// Emoji and NPC images (cached by Emojis/NpcImages), drawn smooth on the ground rather than as pixel blocks.
 	private final Set<BufferedImage> smoothImages = Collections.newSetFromMap(new IdentityHashMap<>());
 	private final NpcImages npcImages;
+	private final GroundModelRenderer groundModelRenderer;
+	private final ItemModels itemModels;
 	private final GroundImageRenderer groundImageRenderer;
 	@Inject
 	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
 		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
 		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer,
-		NpcImages npcImages)
+		NpcImages npcImages, GroundModelRenderer groundModelRenderer, ItemModels itemModels)
 	{
+		this.itemModels = itemModels;
 		this.npcImages = npcImages;
+		this.groundModelRenderer = groundModelRenderer;
 		this.groundImageRenderer = groundImageRenderer;
 		this.tooltipManager = tooltipManager;
 		this.markerCulling = markerCulling;
@@ -183,6 +189,13 @@ public class GroundMarkerVariablesOverlay
 
 		// Built once per frame, same as the core overlay, rather than once per tile.
 		Stroke borderStroke = new BasicStroke((float) config.borderWidth());
+
+		// Parallax icons off: free the {ground} models, on the thread that draws them.
+		if (!labels && !config.parallaxIcons())
+		{
+			groundModelRenderer.clear();
+			itemModels.clear();
+		}
 
 		Instant now = Instant.now();
 		mouse = labels ? client.getMouseCanvasPosition() : null;
@@ -326,7 +339,7 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	// The {ground} blocks' icons in a row, flat on the tile. A {split} is one icon.
+	// The {ground} blocks' icons in a row, flat on the tile; a {split} is one icon. A lone <item=>/<npc=> is its model.
 	private void drawGroundIcons(Graphics2D graphics, LocalPoint localPoint, int plane, @Nullable String label, Color color, float opacity)
 	{
 		if (label == null || label.isEmpty())
@@ -334,27 +347,42 @@ public class GroundMarkerVariablesOverlay
 			return;
 		}
 
-		List<BufferedImage> icons = new ArrayList<>();
+		List<Object> segments = new ArrayList<>();
 		for (String line : labelLines(label, color))
 		{
 			for (Object segment : splitSegments(line))
 			{
-				if (segment instanceof ItemIcon)
+				if (segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof BufferedImage)
 				{
-					BufferedImage image = itemManager.getImage(((ItemIcon) segment).id);
-					if (image != null)
-					{
-						icons.add(dimmed(image, ((ItemIcon) segment).brightness));
-					}
+					segments.add(segment);
 				}
-				else if (segment instanceof SpriteIcon)
+			}
+		}
+
+		// Parallax icons off: the flat image, far cheaper.
+		if (segments.size() == 1 && config.parallaxIcons() && drawGroundModel(graphics, localPoint, plane, label, segments.get(0), opacity))
+		{
+			return;
+		}
+
+		List<BufferedImage> icons = new ArrayList<>();
+		for (Object segment : segments)
+		{
+			if (segment instanceof ItemIcon)
+			{
+				BufferedImage image = itemManager.getImage(((ItemIcon) segment).id);
+				if (image != null)
 				{
-					icons.add(((SpriteIcon) segment).image);
+					icons.add(dimmed(image, ((ItemIcon) segment).brightness));
 				}
-				else if (segment instanceof BufferedImage)
-				{
-					icons.add((BufferedImage) segment);
-				}
+			}
+			else if (segment instanceof SpriteIcon)
+			{
+				icons.add(((SpriteIcon) segment).image);
+			}
+			else
+			{
+				icons.add((BufferedImage) segment);
 			}
 		}
 
@@ -365,6 +393,37 @@ public class GroundMarkerVariablesOverlay
 		// A row already holds each icon at its own sampling, so it's drawn smooth.
 		BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
 		groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || smoothImages.contains(image), opacity);
+	}
+
+	// The lone icon's model, if it's an item or NPC whose model loads. An NPC image is the only icon, so its tag is the label's.
+	private boolean drawGroundModel(Graphics2D graphics, LocalPoint localPoint, int plane, String label, Object icon, float opacity)
+	{
+		if (icon instanceof ItemIcon)
+		{
+			ItemModels.Oriented item = itemModels.model(itemManager.canonicalize(((ItemIcon) icon).id));
+			if (item == null)
+			{
+				return false;
+			}
+			groundModelRenderer.draw(graphics, localPoint, plane, item.model, item.x, item.y, item.z, opacity);
+			return true;
+		}
+
+		Matcher npc = GROUND_NPC_PATTERN.matcher(label);
+		if (icon instanceof BufferedImage && smoothImages.contains(icon) && npc.find())
+		{
+			int npcId = Integer.parseInt(npc.group(1));
+			boolean head = npc.group(2) != null;
+			Model model = npcImages.model(npcId, head);
+			// Turned as its image.
+			float[][] turned = npcImages.turned(npcId, head);
+			if (model != null && turned != null)
+			{
+				groundModelRenderer.draw(graphics, localPoint, plane, model, turned[0], turned[1], turned[2], opacity);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// Icons side by side, each scaled to the tallest's height, with a small gap.

@@ -6,6 +6,7 @@ import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.label.PartyLabelVariable;
+import com.groundmarkervariables.variables.meta.GroundGuard;
 import com.groundmarkervariables.variables.meta.TileMetaGuard;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -77,7 +78,8 @@ public class LabelResolver
 		}
 
 		List<String> tileMeta = new ArrayList<>();
-		return TileMetaGuard.restore(resolve(TileMetaGuard.protect(expanded, tileMeta, this::isVariable)), tileMeta);
+		String guarded = TileMetaGuard.protect(GroundGuard.strip(expanded, this::isVariable), tileMeta, this::isVariable);
+		return TileMetaGuard.restore(resolve(guarded), tileMeta);
 	}
 
 	// text, braced, is a variable or math token.

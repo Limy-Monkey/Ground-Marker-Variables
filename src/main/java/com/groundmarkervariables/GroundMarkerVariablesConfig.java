@@ -307,6 +307,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			position = 8,
+			keyName = "parallaxIcons",
+			name = "Parallax icons",
+			description = "Controls whether items and npcs rendered on {ground} have depth",
+			section = richTextSection
+	)
+	default boolean parallaxIcons()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 			name = "Advanced Editor",
 			description = "Settings for the Advanced Label Editor.",

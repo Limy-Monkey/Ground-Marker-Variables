@@ -72,7 +72,7 @@ public final class TileMetaGuard
 	}
 
 	// True if every token enclosing pos is a condition on {group} alone, with pos in a branch.
-	private static boolean allowed(String label, int pos, Predicate<String> isVariable)
+	static boolean allowed(String label, int pos, Predicate<String> isVariable)
 	{
 		Deque<Integer> open = new ArrayDeque<>();
 		for (int i = 0; i < pos; i++)
@@ -107,7 +107,7 @@ public final class TileMetaGuard
 	}
 
 	// Each &&/|| part is "group <name>", or one compared with a literal (or [list]).
-	private static boolean groupOnly(String condition, Predicate<String> isVariable)
+	static boolean groupOnly(String condition, Predicate<String> isVariable)
 	{
 		if (condition.contains("{"))
 		{
@@ -133,7 +133,7 @@ public final class TileMetaGuard
 		return true;
 	}
 
-	private static int topLevelQuestion(String text)
+	static int topLevelQuestion(String text)
 	{
 		int depth = 0;
 		for (int i = 0; i < text.length(); i++)

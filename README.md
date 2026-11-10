@@ -26,6 +26,8 @@ Overrides the default Ground Marker plugin with a version that supports variable
 | `{b}Bold{/b}`, `{i}Italics{/i}` | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                    |
 | `{borderWidth=2.5}`             | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                       |
 | `{setGroup <name>, <options>}`  | Adds \<name>: \<option> picks to this tile's Shift right-click menu, shown by \{group \<name>} on any tile.     |
+| `{ground}...{/ground}`          | Lays the icons inside flat on the tile; text inside stays. Items and NPCs get depth with Parallax icons.        |
+| `<item/sprite/npc=ID>`          | Icon by ID: an item, game sprite or NPC (`<npc=ID,head>` for its chathead). `@50%` dims items and sprites.      |
 
 | Variable                                | Description                                                                                                                                                      |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -147,6 +149,7 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - A `:` between digits (`9:00`) is part of a time, not a branch separator.
 - `{metronome}` can't be used inside a conditional.
 - `{tileCol}`, `{highlight}` and `{borderWidth}` cannot be used in a conditional, except conditionals that only use `{group}`
+- `{ground}` cannot be used in a conditional or around one (including `||` / `&&`), except conditionals that only use `{group}`
 
 ### Math
 `{<a> <op> <b> ...}` with `+`, `-`, `*`, `/`. Operators need a space on each side, and parentheses group: `{(kc tob + kc hmt) / 2}`.
