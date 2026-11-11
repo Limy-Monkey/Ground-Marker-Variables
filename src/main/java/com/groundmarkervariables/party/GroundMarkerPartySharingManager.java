@@ -4,9 +4,9 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-import com.groundmarkervariables.GroundMarkerPointData;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.GroundMarkerVariablesSharingManager;
-import com.groundmarkervariables.ImportPreviewManager;
+import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.minify.MarkerCompression;
 import com.groundmarkervariables.minify.NewerFormatException;
 

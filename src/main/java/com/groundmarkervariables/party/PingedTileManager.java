@@ -1,18 +1,19 @@
 package com.groundmarkervariables.party;
 
-import com.groundmarkervariables.CachedMarker;
-import com.groundmarkervariables.GroundMarkerPointData;
+import com.groundmarkervariables.markers.CachedMarker;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
-import com.groundmarkervariables.MarkerStorage;
+import com.groundmarkervariables.markers.MarkerStorage;
+import com.groundmarkervariables.markers.RenderedTiles;
+import com.groundmarkervariables.markers.SourceMarker;
+import com.groundmarkervariables.markers.TileSource;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import java.awt.Color;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,10 +29,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.WorldViewLoaded;
-import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -43,16 +41,13 @@ import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
 
 // Shares a marker with the party from its shift+right-click "Share Marker", and displays markers shared by
-// others as a temporary, fading marker with its own "Save"/"Hide" right-click options.
+// others as a temporary, fading marker (a TileSource) with its own "Save"/"Hide" right-click options.
 @Slf4j
 @Singleton
-public class PingedTileManager
+public class PingedTileManager implements TileSource
 {
-	// Arrives on WSClient's own thread, not the client/AWT thread render()/menus run on.
+	// By stored (region) point. Arrives on WSClient's own thread, not the client/AWT thread render()/menus run on.
 	private final Map<WorldPoint, PingedTile> pingedTiles = new ConcurrentHashMap<>();
-
-	// Mirrors GroundMarkerVariablesPlugin's markersByWorldView, rebuilt by retranslate().
-	private final Map<WorldView, List<TranslatedPingedTile>> translatedByWorldView = new ConcurrentHashMap<>();
 
 	// Senders with one hide so far this session -- a second hide blocks them.
 	private final Set<Long> hiddenOnceSenderIds = ConcurrentHashMap.newKeySet();
@@ -70,12 +65,15 @@ public class PingedTileManager
 	private final PartyService partyService;
 	private final WSClient wsClient;
 	private final ChatMessageManager chatMessageManager;
+	private final RenderedTiles renderedTiles;
 
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
 		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager)
+		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager,
+		RenderedTiles renderedTiles)
 	{
+		this.renderedTiles = renderedTiles;
 		this.client = client;
 		this.clientThread = clientThread;
 		this.eventBus = eventBus;
@@ -118,7 +116,6 @@ public class PingedTileManager
 		}
 
 		pingedTiles.clear();
-		translatedByWorldView.clear();
 		hiddenOnceSenderIds.clear();
 		blockedSenderIds.clear();
 	}
@@ -179,7 +176,7 @@ public class PingedTileManager
 			CachedMarker marker = new CachedMarker(transientPoint, labelResolver, metaVariableResolver);
 			PingedTile pinged = new PingedTile(marker, share.getMemberId(), senderName, Instant.now());
 			pingedTiles.put(point, pinged);
-			retranslate();
+			renderedTiles.invalidate();
 
 			// Keyed to this exact instance, so a stale timer can never remove a later ping that
 			// landed on the same tile.
@@ -187,57 +184,31 @@ public class PingedTileManager
 			{
 				if (pingedTiles.remove(point, pinged))
 				{
-					retranslate();
+					renderedTiles.invalidate();
 				}
 			}), PingedTile.TTL.getSeconds(), TimeUnit.SECONDS);
 		});
 	}
 
-	@Subscribe
-	public void onGameTick(GameTick event)
+	// Below saved markers; newer pings win ties.
+	@Override
+	public Collection<SourceMarker> markers(int regionId)
 	{
-		pingedTiles.values().forEach(tile -> tile.marker.refresh(labelResolver, metaVariableResolver));
-	}
-
-	// Same two hooks GroundMarkerVariablesPlugin uses for its own markersByWorldView.
-	@Subscribe
-	public void onWorldViewLoaded(WorldViewLoaded event)
-	{
-		retranslate();
-	}
-
-	@Subscribe
-	public void onWorldViewUnloaded(WorldViewUnloaded event)
-	{
-		retranslate();
-	}
-
-	// Mirrors GroundMarkerVariablesPlugin#translateWorldView. Drops any tile that no longer
-	// resolves anywhere, instead of just skipping it.
-	private void retranslate()
-	{
-		Map<WorldView, List<TranslatedPingedTile>> rebuilt = new ConcurrentHashMap<>();
-		Set<WorldPoint> resolved = new HashSet<>();
-
-		for (WorldView wv : plugin.getTrackedWorldViews())
+		List<SourceMarker> markers = new ArrayList<>();
+		for (PingedTile tile : pingedTiles.values())
 		{
-			List<TranslatedPingedTile> translated = new ArrayList<>();
-			for (PingedTile tile : pingedTiles.values())
+			if (tile.marker.source.getRegionId() == regionId)
 			{
-				GroundMarkerPointData source = tile.marker.source;
-				WorldPoint point = WorldPoint.fromRegion(source.getRegionId(), source.getRegionX(), source.getRegionY(), source.getZ());
-				for (WorldPoint wp : WorldPoint.toLocalInstance(wv, point))
-				{
-					translated.add(new TranslatedPingedTile(wp, tile));
-					resolved.add(point);
-				}
+				markers.add(new SourceMarker(tile.marker, this, RenderedTiles.PINGED_PRIORITY, tile.receivedAt.toEpochMilli(), tile));
 			}
-			rebuilt.put(wv, translated);
 		}
+		return markers;
+	}
 
-		translatedByWorldView.clear();
-		translatedByWorldView.putAll(rebuilt);
-		pingedTiles.keySet().removeIf(point -> !resolved.contains(point));
+	@Override
+	public float opacity(SourceMarker marker, Instant now)
+	{
+		return ((PingedTile) marker.owner).opacity(now);
 	}
 
 	// Independent of GroundMarkerVariablesPlugin's own shift-gated Mark/Unmark/Label/Color --
@@ -287,7 +258,7 @@ public class PingedTileManager
 	private void hide(WorldPoint worldPoint, PingedTile pinged)
 	{
 		pingedTiles.remove(worldPoint);
-		retranslate();
+		renderedTiles.invalidate();
 
 		long senderId = pinged.senderMemberId;
 		if (hiddenOnceSenderIds.remove(senderId))
@@ -309,7 +280,7 @@ public class PingedTileManager
 		markerStorage.addPoints(List.of(point));
 		plugin.loadPoints();
 		pingedTiles.remove(worldPoint);
-		retranslate();
+		renderedTiles.invalidate();
 		sendChatMessage("Ground Marker saved from " + pinged.senderName + ".");
 	}
 
@@ -319,10 +290,5 @@ public class PingedTileManager
 			.type(ChatMessageType.CONSOLE)
 			.runeLiteFormattedMessage(message)
 			.build());
-	}
-
-	public Collection<TranslatedPingedTile> getTranslatedPingedTiles(WorldView wv)
-	{
-		return translatedByWorldView.getOrDefault(wv, Collections.emptyList());
 	}
 }

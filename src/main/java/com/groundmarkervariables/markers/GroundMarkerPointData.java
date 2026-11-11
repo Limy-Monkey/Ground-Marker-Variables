@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.markers;
 
 import java.awt.Color;
 import javax.annotation.Nullable;

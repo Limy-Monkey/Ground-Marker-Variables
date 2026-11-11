@@ -3,6 +3,18 @@ package com.groundmarkervariables;
 import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.groundmarkervariables.markers.CachedMarker;
+import com.groundmarkervariables.markers.DeletedMarkers;
+import com.groundmarkervariables.markers.ExternalMarkerManager;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.markers.ImportPreviewManager;
+import com.groundmarkervariables.markers.MarkerCulling;
+import com.groundmarkervariables.markers.MarkerManager;
+import com.groundmarkervariables.markers.MarkerStorage;
+import com.groundmarkervariables.markers.RenderedTile;
+import com.groundmarkervariables.markers.RenderedTiles;
+import com.groundmarkervariables.markers.SourceMarker;
+import com.groundmarkervariables.markers.TileSource;
 import com.google.inject.Provides;
 import com.groundmarkervariables.party.*;
 import com.groundmarkervariables.variables.support.BossKillCountTracker;
@@ -26,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -89,7 +100,7 @@ import net.runelite.client.util.ColorUtil;
 @PluginDependency(XpTrackerPlugin.class)
 // SlayerPlugin: Used for {slayerTask} variable, N/A if disabled.
 @PluginDependency(SlayerPlugin.class)
-public class GroundMarkerVariablesPlugin extends Plugin
+public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";
 	private static final String REGION_PREFIX = "region_";
@@ -235,13 +246,15 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	@Inject
 	private PluginMessageHandler pluginMessageHandler;
 
-	// Parsed + label-resolved markers keyed by region ID. Rebuilt when marker data or visible
-	// regions change (see onXxx subscribers); resolved labels refresh once per tick (onGameTick).
-	private final Map<Integer, List<CachedMarker>> markersByRegion = new ConcurrentHashMap<>();
+	@Inject
+	private ExternalMarkerManager externalMarkerManager;
 
-	// Instance-translated positions keyed by WorldView, mirroring core's
-	// ListMultimap<WorldView, ColorTileMarker> — avoids WorldPoint.toLocalInstance() in render().
-	private final Map<WorldView, List<TranslatedMarker>> markersByWorldView = new HashMap<>();
+	@Inject
+	private RenderedTiles renderedTiles;
+
+	// Saved markers by region, resolved. Rebuilt when marker data or visible regions change (see onXxx subscribers);
+	// drawn ones refresh once per tick (onGameTick). RenderedTiles translates and weighs them with other sources.
+	private final Map<Integer, List<SourceMarker>> markersByRegion = new ConcurrentHashMap<>();
 
 	// Guards against replying twice in the same tick if multiple party members target us.
 	private boolean hasRespondedThisTick;
@@ -284,6 +297,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		activeEffectTracker.startUp();
 		weaponStyleTracker.startUp();
 		dpsTracker.startUp();
+		renderedTiles.setSources(List.of(this, externalMarkerManager, pingedTileManager, importPreviewManager));
 		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())
@@ -354,6 +368,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		weaponStyleTracker.shutDown();
 		dpsTracker.shutDown();
 		pluginMessageHandler.shutDown();
+		externalMarkerManager.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(tileOverlay);
 		overlayManager.remove(labelOverlay);
@@ -361,7 +376,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		overlayManager.remove(partyNotificationOverlay);
 		sharingManager.removeMenuOptions();
 		markersByRegion.clear();
-		markersByWorldView.clear();
+		renderedTiles.clear();
 
 		try
 		{
@@ -402,13 +417,19 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, selectedSceneTile.getLocalLocation());
 		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 
-		client.createMenuEntry(-1)
-			.setOption(existing != null ? "Unmark" : "Mark")
-			.setTarget("Tile")
-			.setType(MenuAction.RUNELITE)
-			.onClick(e -> toggleMark(worldPoint));
+		// Not over another source's marker (a group's, a ping, a preview), which Mark/Unmark/Label/Color wouldn't affect.
+		RenderedTile drawn = renderedTiles.winner(wv, selectedSceneTile.getWorldLocation());
+		boolean savedDrawn = drawn == null || drawn.marker.source == this;
+		if (savedDrawn)
+		{
+			client.createMenuEntry(-1)
+				.setOption(existing != null ? "Unmark" : "Mark")
+				.setTarget("Tile")
+				.setType(MenuAction.RUNELITE)
+				.onClick(e -> toggleMark(worldPoint));
+		}
 
-		if (existing != null || config.labelUnmarkedTiles())
+		if (savedDrawn && (existing != null || config.labelUnmarkedTiles()))
 		{
 			client.createMenuEntry(-2)
 				.setOption("Label")
@@ -417,10 +438,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 				.onClick(e -> openLabelEditor(worldPoint));
 		}
 
+		buildConfigureMenu(existing, wv, selectedSceneTile.getWorldLocation());
 		if (existing != null)
 		{
-			buildColorMenu(worldPoint, existing);
-			buildConfigureMenu(existing, selectedSceneTile.getWorldLocation());
+			if (savedDrawn)
+			{
+				buildColorMenu(worldPoint, existing);
+			}
 
 			if (config.shareMarkerOption() && partyService.isInParty())
 			{
@@ -433,11 +457,21 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// Per-variable options for the tile's label, if it has any.
-	private void buildConfigureMenu(GroundMarkerPointData existing, WorldPoint tile)
+	// Tile Variables: per-variable options for the saved marker's label, and other plugins' markers' Hide/Show, if any.
+	private void buildConfigureMenu(@Nullable GroundMarkerPointData existing, WorldView wv, WorldPoint tile)
 	{
-		String label = existing.getLabel() == null ? "" : existing.getLabel();
 		Menu submenu = null;
+		for (ExternalMarkerManager.MenuOption option : externalMarkerManager.menuOptions(wv, tile))
+		{
+			submenu = addVariableOption(submenu, option.option, option.target, option.action);
+		}
+
+		if (existing == null)
+		{
+			return;
+		}
+
+		String label = existing.getLabel() == null ? "" : existing.getLabel();
 		if (DpsTracker.DPS_TOKEN.matcher(label).find())
 		{
 			submenu = addVariableOption(submenu, "Reset", "DPS", () -> dpsTracker.reset(tile));
@@ -475,21 +509,38 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// The marker drawn at tile (an instanced point), as last resolved.
+	// The saved marker at tile (an instanced point), as last resolved.
 	@Nullable
 	private CachedMarker markerAt(WorldPoint tile)
 	{
 		for (WorldView wv : getTrackedWorldViews())
 		{
-			for (TranslatedMarker translated : getTranslatedMarkers(wv))
+			for (RenderedTile rendered : renderedTiles.all(wv, tile))
 			{
-				if (translated.worldPoint.equals(tile))
+				if (rendered.marker.source == this)
 				{
-					return translated.marker;
+					return rendered.marker.marker;
 				}
 			}
 		}
 		return null;
+	}
+
+	// Every loaded saved marker, at its instanced points.
+	private List<RenderedTile> savedTiles()
+	{
+		List<RenderedTile> saved = new ArrayList<>();
+		for (WorldView wv : getTrackedWorldViews())
+		{
+			for (RenderedTile rendered : renderedTiles.all(wv))
+			{
+				if (rendered.marker.source == this)
+				{
+					saved.add(rendered);
+				}
+			}
+		}
+		return saved;
 	}
 
 	// e.g. "Reset DPS" with an orange "DPS". Creates the "Variables" submenu on first use.
@@ -590,15 +641,12 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	private List<Color> existingColors()
 	{
 		List<Color> colors = new ArrayList<>();
-		for (WorldView wv : getTrackedWorldViews())
+		for (RenderedTile saved : savedTiles())
 		{
-			for (TranslatedMarker translated : getTranslatedMarkers(wv))
+			Color color = saved.marker.marker.source.getColor();
+			if (color != null && !colors.contains(color))
 			{
-				Color color = translated.marker.source.getColor();
-				if (color != null && !colors.contains(color))
-				{
-					colors.add(color);
-				}
+				colors.add(color);
 			}
 		}
 
@@ -707,18 +755,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 	// worldPoint itself and any duplicate label text.
 	private List<String> findNearbyLabels(WorldPoint worldPoint)
 	{
-		List<TranslatedMarker> candidates = new ArrayList<>();
-		for (WorldView wv : getTrackedWorldViews())
-		{
-			candidates.addAll(getTranslatedMarkers(wv));
-		}
-
+		List<RenderedTile> candidates = savedTiles();
 		candidates.sort(Comparator.comparingInt(m -> m.worldPoint.distanceTo(worldPoint)));
 
 		List<String> labels = new ArrayList<>();
-		for (TranslatedMarker marker : candidates)
+		for (RenderedTile marker : candidates)
 		{
-			String label = marker.marker.source.getLabel();
+			String label = marker.marker.marker.source.getLabel();
 			if (label == null || label.isEmpty() || marker.worldPoint.equals(worldPoint)
 				|| marker.worldPoint.distanceTo(worldPoint) > NEARBY_LABEL_DISTANCE)
 			{
@@ -829,11 +872,11 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		loadPoints(event.getWorldView());
 	}
 
-	// Evicts the translation cache so we don't keep a dead WorldView referenced as a map key.
+	// So we don't keep a dead WorldView referenced.
 	@Subscribe
 	public void onWorldViewUnloaded(WorldViewUnloaded event)
 	{
-		markersByWorldView.remove(event.getWorldView());
+		renderedTiles.untrack(event.getWorldView());
 	}
 
 	// Core's own plugin writes mark/label/color/import/clear edits to config, not us — this
@@ -871,7 +914,7 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			clientThread.invoke(() ->
 			{
 				rebuildRegion(regionId);
-				retranslateWorldViewsShowing(regionId);
+				renderedTiles.invalidate();
 			});
 		}
 		catch (NumberFormatException e)
@@ -880,8 +923,8 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		}
 	}
 
-	// Refreshes cached labels once per tick instead of once per render() call, distance-culled
-	// the same way as the overlay's own render distance.
+	// Refreshes drawn markers' labels once per tick instead of once per render() call, at their own tile and
+	// distance-culled the same way as the overlay's own render distance.
 	private void refreshNearbyMarkers()
 	{
 		if (client.getLocalPlayer() == null)
@@ -894,15 +937,13 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		{
 			for (WorldView wv : getTrackedWorldViews())
 			{
-				for (TranslatedMarker translated : getTranslatedMarkers(wv))
+				for (RenderedTile rendered : renderedTiles.winners(wv))
 				{
-					if (!markerCulling.inRange(translated.worldPoint, REFRESH_DISTANCE))
+					if (markerCulling.inRange(rendered.worldPoint, REFRESH_DISTANCE))
 					{
-						continue;
+						resolvingTile.tile = rendered.worldPoint;
+						rendered.marker.marker.refresh(labelResolver, metaVariableResolver);
 					}
-
-					resolvingTile.tile = translated.worldPoint;
-					translated.marker.refresh(labelResolver, metaVariableResolver);
 				}
 			}
 		}
@@ -920,7 +961,6 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		RuneCounter.clearCache();
 		refreshNearbyMarkers();
 		groupState.tick();
-		importPreviewManager.refresh();
 
 		hasRespondedThisTick = false;
 		if (config.enablePartySync() && !config.syncTarget().isEmpty()
@@ -1021,19 +1061,15 @@ public class GroundMarkerVariablesPlugin extends Plugin
 		return displayName.replace('_', ' ').equalsIgnoreCase(target.replace('_', ' '));
 	}
 
-	Collection<CachedMarker> getMarkers(int regionId)
-	{
-		return markersByRegion.getOrDefault(regionId, Collections.emptyList());
-	}
-
 	public Collection<WorldView> getTrackedWorldViews()
 	{
-		return markersByWorldView.keySet();
+		return renderedTiles.worldViews();
 	}
 
-	Collection<TranslatedMarker> getTranslatedMarkers(WorldView wv)
+	@Override
+	public Collection<SourceMarker> markers(int regionId)
 	{
-		return markersByWorldView.getOrDefault(wv, Collections.emptyList());
+		return markersByRegion.getOrDefault(regionId, Collections.emptyList());
 	}
 
 	public void loadPoints()
@@ -1064,79 +1100,16 @@ public class GroundMarkerVariablesPlugin extends Plugin
 			rebuildRegion(regionId);
 		}
 
-		translateWorldView(wv);
+		renderedTiles.track(wv);
 	}
 
-	// Instance-translates every marker in wv's currently loaded regions, replacing (not
-	// mutating) the cached list — same reasoning as rebuildRegion().
-	private void translateWorldView(WorldView wv)
-	{
-		int[] regions = wv.getMapRegions();
-		if (regions == null)
-		{
-			markersByWorldView.remove(wv);
-			return;
-		}
-
-		// Resolved here rather than in rebuildRegion(), since only now is each marker's real
-		// (instance) tile known, which {dps} keeps its stats by.
-		List<TranslatedMarker> translated = new ArrayList<>();
-		try
-		{
-			for (int regionId : regions)
-			{
-				for (CachedMarker marker : getMarkers(regionId))
-				{
-					GroundMarkerPointData point = marker.source;
-					WorldPoint storedPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-					for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, storedPoint))
-					{
-						resolvingTile.tile = worldPoint;
-						marker.refresh(labelResolver, metaVariableResolver);
-						translated.add(new TranslatedMarker(worldPoint, marker));
-					}
-				}
-			}
-		}
-		finally
-		{
-			resolvingTile.tile = null;
-		}
-
-		markersByWorldView.put(wv, translated);
-	}
-
-	// Retranslates only the currently tracked worldviews whose loaded regions include
-	// regionId — core just retranslates everything after every edit, but it can do that
-	// synchronously from its own mutation methods; we only learn about edits via
-	// ConfigChanged, so it's worth narrowing this to the worldviews actually affected.
-	private void retranslateWorldViewsShowing(int regionId)
-	{
-		for (WorldView wv : new ArrayList<>(markersByWorldView.keySet()))
-		{
-			int[] regions = wv.getMapRegions();
-			if (regions == null)
-			{
-				continue;
-			}
-
-			for (int candidate : regions)
-			{
-				if (candidate == regionId)
-				{
-					translateWorldView(wv);
-					break;
-				}
-			}
-		}
-	}
-
-	// Replaces (not mutates) the cached list, so a concurrent render() never sees a
-	// partially-built list.
+	// Replaces (not mutates) the cached list, so a concurrent render() never sees a partially-built list. Resolved
+	// without a tile; the tick refresh then resolves each drawn one at its own tile ({dps} keeps stats by tile).
 	private void rebuildRegion(int regionId)
 	{
-		List<CachedMarker> markers = markerStorage.getStoredPoints(regionId).stream()
-			.map(CachedMarker::new)
+		List<SourceMarker> markers = markerStorage.getStoredPoints(regionId).stream()
+			.map(point -> new SourceMarker(new CachedMarker(point, labelResolver, metaVariableResolver), this,
+				RenderedTiles.SAVED_PRIORITY, Long.MAX_VALUE, null))
 			.collect(Collectors.toList());
 		markersByRegion.put(regionId, markers);
 	}

@@ -1,12 +1,12 @@
 package com.groundmarkervariables.party;
 
-import com.groundmarkervariables.CachedMarker;
+import com.groundmarkervariables.markers.CachedMarker;
 
 import java.time.Duration;
 import java.time.Instant;
 
 // One temp-cached tile shared by a party member's ping — not persisted, just displayed for a
-// while. Mirrors TranslatedMarker's style (a small holder around a CachedMarker).
+// while. A small holder around a CachedMarker.
 public class PingedTile
 {
 	private static final Duration FULL_OPACITY_DURATION = Duration.ofSeconds(5);

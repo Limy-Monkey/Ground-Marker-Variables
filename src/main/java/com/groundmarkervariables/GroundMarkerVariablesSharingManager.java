@@ -3,6 +3,11 @@ package com.groundmarkervariables;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Runnables;
 import com.google.gson.JsonSyntaxException;
+import com.groundmarkervariables.markers.DeletedMarkers;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.markers.ImportPreviewManager;
+import com.groundmarkervariables.markers.MarkerManager;
+import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.minify.MarkerMinifier;
 import com.groundmarkervariables.minify.NewerFormatException;
 import java.awt.Toolkit;
@@ -98,7 +103,7 @@ public class GroundMarkerVariablesSharingManager
 	}
 
 	// Also MarkerManager's "Copy".
-	String exportText(List<GroundMarkerPointData> points)
+	public String exportText(List<GroundMarkerPointData> points)
 	{
 		return markerMinifier.export(points);
 	}
@@ -179,7 +184,7 @@ public class GroundMarkerVariablesSharingManager
 	}
 
 	// Previews importPoints and asks before importing them -- also MarkerManager's Undo.
-	void confirmImport(List<GroundMarkerPointData> importPoints, String importedMessage, Runnable onImported, Runnable onCancelled)
+	public void confirmImport(List<GroundMarkerPointData> importPoints, String importedMessage, Runnable onImported, Runnable onCancelled)
 	{
 		List<GroundMarkerPointData> nonOverlapping = nonOverlapping(importPoints);
 		importPreviewManager.show(nonOverlapping);

@@ -1,5 +1,8 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.markers.CachedMarker;
+import com.groundmarkervariables.markers.RenderedTile;
+import com.groundmarkervariables.markers.RenderedTiles;
 import com.groundmarkervariables.variables.meta.MetaState;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -7,6 +10,7 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Stroke;
+import java.time.Instant;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -19,20 +23,20 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.util.ColorUtil;
 
-// Mirrors core's GroundMarkerMinimapOverlay — draws every marker's outline on the minimap,
+// Mirrors core's GroundMarkerMinimapOverlay — draws every drawn marker's outline (see RenderedTiles) on the minimap,
 // gated by the "Draw tiles on minimap" config item.
 class GroundMarkerVariablesMinimapOverlay extends Overlay
 {
 	private final Client client;
-	private final GroundMarkerVariablesPlugin plugin;
 	private final GroundMarkerVariablesConfig config;
+	private final RenderedTiles renderedTiles;
 
 	@Inject
-	private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config)
+	private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesConfig config, RenderedTiles renderedTiles)
 	{
 		this.client = client;
-		this.plugin = plugin;
 		this.config = config;
+		this.renderedTiles = renderedTiles;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_LOW);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
@@ -46,31 +50,45 @@ class GroundMarkerVariablesMinimapOverlay extends Overlay
 			return null;
 		}
 
-		for (WorldView wv : plugin.getTrackedWorldViews())
+		// The same marker per tile as the main overlay.
+		Instant now = Instant.now();
+		for (WorldView wv : renderedTiles.worldViews())
 		{
-			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
+			for (RenderedTile rendered : renderedTiles.winners(wv))
 			{
-				WorldPoint worldPoint = translated.worldPoint;
-				if (worldPoint.getPlane() != wv.getPlane())
+				float opacity = rendered.marker.source.opacity(rendered.marker, now);
+				if (opacity > 0f)
 				{
-					continue;
+					drawMarker(graphics, wv, rendered.worldPoint, rendered.marker.marker, opacity);
 				}
-
-				MetaState metaState = translated.marker.getMetaState();
-				Color baseColor = translated.marker.source.getColor() != null ? translated.marker.source.getColor() : config.markerColor();
-
-				// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
-				Color color = metaState.getTileColor() != null
-					? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
-				if (metaState.getTileOpacity() != null)
-				{
-					color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
-				}
-				drawOnMinimap(graphics, wv, worldPoint, color);
 			}
 		}
 
 		return null;
+	}
+
+	private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity)
+	{
+		if (worldPoint.getPlane() != wv.getPlane())
+		{
+			return;
+		}
+
+		MetaState metaState = marker.getMetaState();
+		Color baseColor = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
+
+		// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
+		Color color = metaState.getTileColor() != null
+			? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
+		if (metaState.getTileOpacity() != null)
+		{
+			color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
+		}
+		if (opacity < 1f)
+		{
+			color = ColorUtil.colorWithAlpha(color, Math.round(color.getAlpha() * opacity));
+		}
+		drawOnMinimap(graphics, wv, worldPoint, color);
 	}
 
 	private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color)

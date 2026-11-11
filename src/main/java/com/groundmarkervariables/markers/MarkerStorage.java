@@ -1,7 +1,8 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.markers;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

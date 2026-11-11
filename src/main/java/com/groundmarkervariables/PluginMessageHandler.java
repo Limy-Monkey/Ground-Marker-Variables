@@ -1,10 +1,16 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.markers.ExternalMarkerManager;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.minify.MarkerMinifier;
 import com.groundmarkervariables.variables.LabelResolver;
 
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginMessage;
@@ -47,20 +53,45 @@ import net.runelite.client.events.PluginMessage;
 //          "Resolve",
 //          java.util.Map.of("plugin", "test-script", "text", "{^rsn} kc: {^kc toa}")
 //  ));
+//
+// Markers: other plugins can render tiles through us, in memory only (never saved), drawn and culled like saved markers.
+//
+// SetMarkers, data {"plugin": <your namespace>, "group": <group name>, "priority": <number, default 0.5>,
+// "markers": <JSON array as exported, e.g. [{"regionId":12850,"regionX":10,"regionY":20,"z":0,"color":"#FFFF0000",
+// "label":"{hp}"}]>} replaces the whole group (at most 2000 markers). Any plugin may overwrite or clear any group.
+// ClearMarkers, data {"plugin": <your namespace>, "group": <group name>} removes it. Clear your groups in shutDown().
+//
+// Per tile one marker is drawn: the highest priority group (ties: the latest set). A saved marker counts as 0.6, so a
+// group above 0.6 is drawn instead of it, and one at or below isn't drawn where one exists. Users can hide a group's
+// tile or the whole group from Shift right-click > Tile Variables, until the group is cleared.
+//
+//  eventBus.post(new net.runelite.client.events.PluginMessage("ground-marker-variables", "SetMarkers", java.util.Map.of(
+//          "plugin", "test-script", "group", "test", "priority", 0.7,
+//          "markers", "[{\"regionId\":12850,\"regionX\":10,\"regionY\":20,\"z\":0,\"color\":\"#FFFF0000\",\"label\":\"{hp}\"}]")));
+@Slf4j
 @Singleton
 public class PluginMessageHandler
 {
 	static final String NAMESPACE = "ground-marker-variables";
 	static final String RESOLVE_EVENT = "Resolve";
+	static final String SET_MARKERS_EVENT = "SetMarkers";
+	static final String CLEAR_MARKERS_EVENT = "ClearMarkers";
 
 	private final EventBus eventBus;
 	private final LabelResolver labelResolver;
+	private final ClientThread clientThread;
+	private final MarkerMinifier markerMinifier;
+	private final ExternalMarkerManager externalMarkerManager;
 
 	@Inject
-	private PluginMessageHandler(EventBus eventBus, LabelResolver labelResolver)
+	private PluginMessageHandler(EventBus eventBus, LabelResolver labelResolver, ClientThread clientThread, MarkerMinifier markerMinifier,
+		ExternalMarkerManager externalMarkerManager)
 	{
 		this.eventBus = eventBus;
 		this.labelResolver = labelResolver;
+		this.clientThread = clientThread;
+		this.markerMinifier = markerMinifier;
+		this.externalMarkerManager = externalMarkerManager;
 	}
 
 	public void startUp()
@@ -76,7 +107,16 @@ public class PluginMessageHandler
 	@Subscribe
 	public void onPluginMessage(PluginMessage event)
 	{
-		if (!NAMESPACE.equals(event.getNamespace()) || !RESOLVE_EVENT.equals(event.getName()))
+		if (!NAMESPACE.equals(event.getNamespace()))
+		{
+			return;
+		}
+		if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName()))
+		{
+			onMarkers(event.getName(), event.getData());
+			return;
+		}
+		if (!RESOLVE_EVENT.equals(event.getName()))
 		{
 			return;
 		}
@@ -90,5 +130,51 @@ public class PluginMessageHandler
 
 		String resolved = labelResolver.resolve((String) text);
 		eventBus.post(new PluginMessage((String) requester, RESOLVE_EVENT, Map.of("text", text, "result", resolved)));
+	}
+
+	// Parsed here, on the sender's thread; applied on the client thread.
+	private void onMarkers(String name, Map<String, Object> data)
+	{
+		Object plugin = data.get("plugin");
+		Object group = data.get("group");
+		if (!(plugin instanceof String) || !(group instanceof String))
+		{
+			log.warn("Ignoring {}: \"plugin\" and \"group\" must be strings", name);
+			return;
+		}
+
+		if (CLEAR_MARKERS_EVENT.equals(name))
+		{
+			clientThread.invoke(() -> externalMarkerManager.clear((String) group));
+			return;
+		}
+
+		Object priority = data.get("priority");
+		Object markers = data.get("markers");
+		if (!(markers instanceof String) || (priority != null && !(priority instanceof Number)))
+		{
+			log.warn("Ignoring SetMarkers from {}: \"markers\" must be a JSON string and \"priority\" a number", plugin);
+			return;
+		}
+
+		List<GroundMarkerPointData> points;
+		try
+		{
+			points = markerMinifier.parse((String) markers);
+		}
+		catch (Exception e)
+		{
+			log.warn("Ignoring SetMarkers from {}: unreadable markers", plugin, e);
+			return;
+		}
+		if (points.size() > ExternalMarkerManager.MAX_MARKERS)
+		{
+			log.warn("SetMarkers from {}: only the first {} of {} markers are used", plugin, ExternalMarkerManager.MAX_MARKERS, points.size());
+			points = points.subList(0, ExternalMarkerManager.MAX_MARKERS);
+		}
+
+		float value = priority == null ? ExternalMarkerManager.DEFAULT_PRIORITY : ((Number) priority).floatValue();
+		List<GroundMarkerPointData> parsed = points;
+		clientThread.invoke(() -> externalMarkerManager.set((String) plugin, (String) group, value, parsed));
 	}
 }

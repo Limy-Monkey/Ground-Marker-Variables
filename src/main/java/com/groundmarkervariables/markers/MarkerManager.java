@@ -1,5 +1,6 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.markers;
 
+import com.groundmarkervariables.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
@@ -38,7 +39,7 @@ import net.runelite.client.util.Text;
 // ::manageGroundMarkerVariables -- every saved marker, grouped by area name (current area first),
 // with same-label markers in an area combined into one row. Rows and region headers have
 // checkboxes; the top bar filters to markers with variables, selects all shown, and exports or deletes the selection.
-class MarkerManager extends ChatboxInput implements KeyListener
+public class MarkerManager extends ChatboxInput implements KeyListener
 {
 	private static final int LINE_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 16;
@@ -127,7 +128,7 @@ class MarkerManager extends ChatboxInput implements KeyListener
 	}
 
 	// Rebuilds the list from storage, clearing the selection.
-	void load()
+	public void load()
 	{
 		entries.clear();
 		selected.clear();

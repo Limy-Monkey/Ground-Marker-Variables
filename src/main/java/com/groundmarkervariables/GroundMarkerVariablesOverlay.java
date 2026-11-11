@@ -1,5 +1,9 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.markers.CachedMarker;
+import com.groundmarkervariables.markers.MarkerCulling;
+import com.groundmarkervariables.markers.RenderedTile;
+import com.groundmarkervariables.markers.RenderedTiles;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -32,8 +36,6 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import com.groundmarkervariables.party.PingedTileManager;
-import com.groundmarkervariables.party.TranslatedPingedTile;
 import com.groundmarkervariables.variables.meta.HighlightCorner;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.meta.TextAlign;
@@ -63,7 +65,6 @@ import net.runelite.client.util.ImageUtil;
 public class GroundMarkerVariablesOverlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
-	private static final float PREVIEW_OPACITY = 0.5f;
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");
@@ -112,13 +113,11 @@ public class GroundMarkerVariablesOverlay
 		"za", SpriteID.WorldswitcherFlags._15);
 
 	private final Client client;
-	private final GroundMarkerVariablesPlugin plugin;
 	private final GroundMarkerVariablesConfig config;
 	private final ItemManager itemManager;
 	private final SpriteManager spriteManager;
 	private final Emojis emojis;
-	private final ImportPreviewManager importPreviewManager;
-	private final PingedTileManager pingedTileManager;
+	private final RenderedTiles renderedTiles;
 
 	private final TooltipManager tooltipManager;
 	private final MarkerCulling markerCulling;
@@ -157,11 +156,12 @@ public class GroundMarkerVariablesOverlay
 	private final ItemModels itemModels;
 	private final GroundImageRenderer groundImageRenderer;
 	@Inject
-	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesPlugin plugin, GroundMarkerVariablesConfig config,
-		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, ImportPreviewManager importPreviewManager,
-		PingedTileManager pingedTileManager, TooltipManager tooltipManager, MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer,
-		NpcImages npcImages, GroundModelRenderer groundModelRenderer, ItemModels itemModels)
+	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesConfig config,
+		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, RenderedTiles renderedTiles, TooltipManager tooltipManager,
+		MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer, NpcImages npcImages, GroundModelRenderer groundModelRenderer,
+		ItemModels itemModels)
 	{
+		this.renderedTiles = renderedTiles;
 		this.itemModels = itemModels;
 		this.npcImages = npcImages;
 		this.groundModelRenderer = groundModelRenderer;
@@ -169,13 +169,10 @@ public class GroundMarkerVariablesOverlay
 		this.tooltipManager = tooltipManager;
 		this.markerCulling = markerCulling;
 		this.client = client;
-		this.plugin = plugin;
 		this.config = config;
 		this.itemManager = itemManager;
 		this.spriteManager = spriteManager;
 		this.emojis = emojis;
-		this.importPreviewManager = importPreviewManager;
-		this.pingedTileManager = pingedTileManager;
 	}
 
 	// Called by both wrapper overlays, once per pass, so other overlays can draw between tiles
@@ -202,25 +199,16 @@ public class GroundMarkerVariablesOverlay
 		hoveredLabel = null;
 		tipItemId = -1;
 		tipText = null;
-		for (WorldView wv : plugin.getTrackedWorldViews())
+		// One marker per tile, across saved, group, pinged and preview markers (see RenderedTiles).
+		for (WorldView wv : renderedTiles.worldViews())
 		{
-			for (TranslatedMarker translated : plugin.getTranslatedMarkers(wv))
+			for (RenderedTile rendered : renderedTiles.winners(wv))
 			{
-				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, 1f, labels);
-			}
-
-			for (TranslatedPingedTile translated : pingedTileManager.getTranslatedPingedTiles(wv))
-			{
-				float opacity = translated.tile.opacity(now);
+				float opacity = rendered.marker.source.opacity(rendered.marker, now);
 				if (opacity > 0f)
 				{
-					drawTileAt(graphics, wv, translated.worldPoint, translated.tile.marker, borderStroke, opacity, labels);
+					drawTileAt(graphics, wv, rendered.worldPoint, rendered.marker.marker, borderStroke, opacity, labels);
 				}
-			}
-
-			for (TranslatedMarker translated : importPreviewManager.getPreviewMarkers(wv))
-			{
-				drawTileAt(graphics, wv, translated.worldPoint, translated.marker, borderStroke, PREVIEW_OPACITY, labels);
 			}
 		}
 
