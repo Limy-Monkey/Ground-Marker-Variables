@@ -27,6 +27,7 @@ import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.support.MetronomeResetHotkeyListener;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;

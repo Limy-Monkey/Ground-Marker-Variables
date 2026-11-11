@@ -1,11 +1,12 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.variables.support;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import javax.inject.Inject;
 import net.runelite.client.util.HotkeyListener;
 
-// Offsets every {metronome} tile to start counting rom the tick this hotkey is pressed.
-class MetronomeResetHotkeyListener extends HotkeyListener
+// Offsets every {metronome} tile to start counting from the tick this hotkey is pressed.
+public class MetronomeResetHotkeyListener extends HotkeyListener
 {
 	private final MetronomeLabelVariable metronome;
 
