@@ -1,6 +1,5 @@
-package com.groundmarkervariables.graphics;
+package com.groundmarkervariables;
 
-import com.groundmarkervariables.GroundMarkerVariablesOverlay;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
