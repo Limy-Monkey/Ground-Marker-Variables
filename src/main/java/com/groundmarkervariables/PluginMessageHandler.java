@@ -15,59 +15,83 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginMessage;
 
-// Lets another plugin resolve Ground Marker Variables label text through us over RuneLite's
-// own PluginMessage event, without needing to depend on or duplicate our own variable set.
+// Ground Marker Variables PluginMessage API.
 //
-// Request: post a PluginMessage with namespace=NAMESPACE, name=RESOLVE_EVENT, and data
-// {"plugin": <your own namespace, to reply to>, "text": <the literal to resolve, e.g.
-// "{rsn} is {lvl_agility}">}.
+// Other plugins talk to us through RuneLite's PluginMessage event: post one to the EventBus with
+// namespace "ground-marker-variables", a message name below, and its data. Unknown names and malformed data are
+// ignored (with a log warning for markers). There are two APIs:
 //
-// Response: we post a PluginMessage back with namespace=<your namespace>, name=RESOLVE_EVENT,
-// and data {"text": <your original literal, echoed back so you can match concurrent requests
-// to their replies>, "result": <the resolved text>}.
+//   1. Resolve      -- resolve label text containing our variables, e.g. "{rsn} is {lvl_agility}".
+//   2. SetMarkers / ClearMarkers -- render tiles through our engine.
 //
-// Resolution only ever runs LabelResolver -- MetaVariableResolver (the {tileCol=...},
-// {highlight...}, {align=...} family) is deliberately NOT run, since those configure a ground
-// marker tile's own rendering and don't mean anything for arbitrary text.
+// Replies: put an empty, mutable Map<String, Object> (e.g. a HashMap) in the data under "reply". EventBus.post() is
+// synchronous, so we fill it in before post() returns. If it's still empty afterwards, Ground Marker Variables isn't
+// running. Every reply includes "version" (Integer, currently 1), raised on breaking changes.
 //
-// Every token resolves as Rich Text by default (same as a marker's own label, per the user's
-// own "Rich Text by default" setting) unless you prefix it yourself: "{^...}" forces Plain
-// Text (e.g. "{^kc cg}" -> "385"), "{&...}" forces Rich Text (e.g. "{&kc cg}" -> "Chambers of
-// Xeric kc: 385"). Prefix explicitly if you need deterministic output regardless of the
-// user's own config.
+// ---------------------------------------------------------------------------------------------------------------
+// 1. Resolve
+// ---------------------------------------------------------------------------------------------------------------
+// Request   name "Resolve"
+//   text    String  required  Text to resolve.
+//   reply   Map     required  Filled in with the result.
 //
-// Some variables depend on another plugin being installed and enabled, and resolve
-// differently -- or not at all, leaving the literal token in "result" unchanged -- if that
-// plugin isn't running: {xpRate_<skill>} needs XP Tracker (otherwise "N/A"), {slayerTask}
-// needs Slayer, {loot <monster>} needs the core Loot Tracker plugin. Don't assume a token
-// resolves successfully just because its syntax is valid.
+// Reply
+//   result   String           The resolved text.
+//   version  Integer          API version.
 //
-//  EXAMPLE USAGE SCRIPT:
-//  subscribe(net.runelite.client.events.PluginMessage.class, ev -> {
-//	  if ("test-script".equals(ev.getNamespace()) && "Resolve".equals(ev.getName())) {
-//      log.info("Resolve reply: {}", ev.getData());
-//    }
-//  });
-//  eventBus.post(new net.runelite.client.events.PluginMessage(
-//          "ground-marker-variables",
-//          "Resolve",
-//          java.util.Map.of("plugin", "test-script", "text", "{^rsn} kc: {^kc toa}")
-//  ));
+// Notes
+//   - Only variables resolve. Tile settings ({tileCol}, {highlight}, {align}, {ground}, ...) are left as written.
+//   - Tokens resolve as Rich Text by default (the user's "Rich Text by default" setting). Prefix "{^...}" for Plain
+//     Text ("{^kc cg}" -> "385") or "{&...}" for Rich Text, for output independent of the user's config.
+//   - A token that can't resolve is left as written. Some need another plugin running: {xpRate_<skill>} needs XP
+//     Tracker ("N/A" otherwise), {loot <monster>} the Loot Tracker.
 //
-// Markers: other plugins can render tiles through us, in memory only (never saved), drawn and culled like saved markers.
+// Example
+//   Map<String, Object> reply = new HashMap<>();
+//   eventBus.post(new PluginMessage("ground-marker-variables", "Resolve",
+//       Map.of("text", "{^rsn} kc: {^kc toa}", "reply", reply)));
+//   String result = (String) reply.get("result"); // null if Ground Marker Variables isn't running
 //
-// SetMarkers, data {"plugin": <your namespace>, "group": <group name>, "priority": <number, default 0.5>,
-// "markers": <JSON array as exported, e.g. [{"regionId":12850,"regionX":10,"regionY":20,"z":0,"color":"#FFFF0000",
-// "label":"{hp}"}]>} replaces the whole group (at most 2000 markers). Any plugin may overwrite or clear any group.
-// ClearMarkers, data {"plugin": <your namespace>, "group": <group name>} removes it. Clear your groups in shutDown().
+// ---------------------------------------------------------------------------------------------------------------
+// 2. SetMarkers / ClearMarkers
+// ---------------------------------------------------------------------------------------------------------------
+// Request   name "SetMarkers": replaces every marker in the group.
+//   plugin    String  required  Your namespace, shown to users as the group's owner.
+//   group     String  required  Group name (case-sensitive). Any plugin may set or clear any group.
+//   priority  Number  optional  Default 0.5. See "Drawing" below.
+//   markers   String  required  JSON array, as our exports (gmv-compressed labels work too), at most 2000:
+//                                [{"regionId":12850,"regionX":10,"regionY":20,"z":0,"color":"#FFFF0000","label":"{rsn}"}]
+//   reply     Map     optional  Filled in with the outcome.
 //
-// Per tile one marker is drawn: the highest priority group (ties: the latest set). A saved marker counts as 0.6, so a
-// group above 0.6 is drawn instead of it, and one at or below isn't drawn where one exists. Users can hide a group's
-// tile or the whole group from Shift right-click > Tile Variables, until the group is cleared.
+// Request   name "ClearMarkers": removes the group.
+//   plugin    String  required  Your namespace.
+//   group     String  required  Group name.
+//   reply     Map     optional  Filled in with the outcome.
 //
-//  eventBus.post(new net.runelite.client.events.PluginMessage("ground-marker-variables", "SetMarkers", java.util.Map.of(
-//          "plugin", "test-script", "group", "test", "priority", 0.7,
-//          "markers", "[{\"regionId\":12850,\"regionX\":10,\"regionY\":20,\"z\":0,\"color\":\"#FFFF0000\",\"label\":\"{hp}\"}]")));
+// Reply
+//   ok       Boolean          Whether the request was accepted.
+//   count    Integer          SetMarkers only: markers accepted (after the 2000 cap).
+//   error    String           Why it was rejected or capped, if it was.
+//   version  Integer          API version.
+//
+// Drawing
+//   - Markers live in memory only (never saved).
+//   - Markers are cleared on shutDown() or on ClearMarkers API below.
+//   - One marker is drawn per tile: the highest priority, ties going to the latest set. Core saved markers count as 0.6,
+//     so a group above 0.6 is drawn over a core marker and one at or below 0.6 gives way to it. Party pings count
+//     as 0.55; import previews draw over everything.
+//   - Users have the option to hide these tiles (Shift right-click > Tile Variables). This lasts until the group is cleared.
+//
+// Examples
+//   Map<String, Object> reply = new HashMap<>();
+//   eventBus.post(new PluginMessage("ground-marker-variables", "SetMarkers", Map.of(
+//       "plugin", "my-plugin", "group", "my-plugin-tiles", "priority", 0.7, "reply", reply,
+//       "markers", "[{\"regionId\":12850,\"regionX\":10,\"regionY\":20,\"z\":0,\"color\":\"#FFFF0000\",\"label\":\"{rsn}\"}]")));
+//   if (reply.isEmpty()) { /* Ground Marker Variables isn't running */ }
+//   else if (!(Boolean) reply.get("ok")) { log.warn("Markers rejected: {}", reply.get("error")); }
+//
+//   eventBus.post(new PluginMessage("ground-marker-variables", "ClearMarkers",
+//       Map.of("plugin", "my-plugin", "group", "my-plugin-tiles")));
 @Slf4j
 @Singleton
 public class PluginMessageHandler
@@ -76,6 +100,8 @@ public class PluginMessageHandler
 	static final String RESOLVE_EVENT = "Resolve";
 	static final String SET_MARKERS_EVENT = "SetMarkers";
 	static final String CLEAR_MARKERS_EVENT = "ClearMarkers";
+	// Raised on breaking changes to the API above.
+	static final int API_VERSION = 1;
 
 	private final EventBus eventBus;
 	private final LabelResolver labelResolver;
@@ -121,31 +147,32 @@ public class PluginMessageHandler
 			return;
 		}
 
-		Object requester = event.getData().get("plugin");
 		Object text = event.getData().get("text");
-		if (!(requester instanceof String) || !(text instanceof String))
+		Map<String, Object> reply = reply(event.getData());
+		if (!(text instanceof String) || reply == null)
 		{
 			return;
 		}
 
-		String resolved = labelResolver.resolve((String) text);
-		eventBus.post(new PluginMessage((String) requester, RESOLVE_EVENT, Map.of("text", text, "result", resolved)));
+		fill(reply, Map.of("result", labelResolver.resolve((String) text)));
 	}
 
-	// Parsed here, on the sender's thread; applied on the client thread.
+	// Parsed and answered here, on the sender's thread; applied on the client thread.
 	private void onMarkers(String name, Map<String, Object> data)
 	{
+		Map<String, Object> reply = reply(data);
 		Object plugin = data.get("plugin");
 		Object group = data.get("group");
 		if (!(plugin instanceof String) || !(group instanceof String))
 		{
-			log.warn("Ignoring {}: \"plugin\" and \"group\" must be strings", name);
+			reject(reply, name, "\"plugin\" and \"group\" must be strings", null);
 			return;
 		}
 
 		if (CLEAR_MARKERS_EVENT.equals(name))
 		{
 			clientThread.invoke(() -> externalMarkerManager.clear((String) group));
+			fill(reply, Map.of("ok", true));
 			return;
 		}
 
@@ -153,7 +180,7 @@ public class PluginMessageHandler
 		Object markers = data.get("markers");
 		if (!(markers instanceof String) || (priority != null && !(priority instanceof Number)))
 		{
-			log.warn("Ignoring SetMarkers from {}: \"markers\" must be a JSON string and \"priority\" a number", plugin);
+			reject(reply, name, "\"markers\" must be a JSON string and \"priority\" a number", null);
 			return;
 		}
 
@@ -164,17 +191,53 @@ public class PluginMessageHandler
 		}
 		catch (Exception e)
 		{
-			log.warn("Ignoring SetMarkers from {}: unreadable markers", plugin, e);
+			reject(reply, name, "unreadable markers JSON", e);
 			return;
 		}
+
+		String error = null;
 		if (points.size() > ExternalMarkerManager.MAX_MARKERS)
 		{
-			log.warn("SetMarkers from {}: only the first {} of {} markers are used", plugin, ExternalMarkerManager.MAX_MARKERS, points.size());
+			error = "only the first " + ExternalMarkerManager.MAX_MARKERS + " of " + points.size() + " markers are used";
+			log.warn("SetMarkers from {}: {}", plugin, error);
 			points = points.subList(0, ExternalMarkerManager.MAX_MARKERS);
 		}
 
 		float value = priority == null ? ExternalMarkerManager.DEFAULT_PRIORITY : ((Number) priority).floatValue();
 		List<GroundMarkerPointData> parsed = points;
 		clientThread.invoke(() -> externalMarkerManager.set((String) plugin, (String) group, value, parsed));
+		fill(reply, error == null ? Map.of("ok", true, "count", parsed.size()) : Map.of("ok", true, "count", parsed.size(), "error", error));
+	}
+
+	private static void reject(Map<String, Object> reply, String name, String error, Exception e)
+	{
+		log.warn("Ignoring {}: {}", name, error, e);
+		fill(reply, Map.of("ok", false, "error", error));
+	}
+
+	// The caller's mutable map under "reply", or null.
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> reply(Map<String, Object> data)
+	{
+		Object reply = data.get("reply");
+		return reply instanceof Map ? (Map<String, Object>) reply : null;
+	}
+
+	// Fills the caller's reply, if they passed one, with values and the API version.
+	private static void fill(Map<String, Object> reply, Map<String, Object> values)
+	{
+		if (reply == null)
+		{
+			return;
+		}
+		try
+		{
+			reply.putAll(values);
+			reply.put("version", API_VERSION);
+		}
+		catch (UnsupportedOperationException | ClassCastException e)
+		{
+			log.warn("Couldn't fill a PluginMessage reply: it must be a mutable Map<String, Object>", e);
+		}
 	}
 }
