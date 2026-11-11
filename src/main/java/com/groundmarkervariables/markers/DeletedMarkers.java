@@ -15,7 +15,7 @@ public class DeletedMarkers
 		last = List.copyOf(points);
 	}
 
-	List<GroundMarkerPointData> last()
+	public List<GroundMarkerPointData> last()
 	{
 		return last;
 	}

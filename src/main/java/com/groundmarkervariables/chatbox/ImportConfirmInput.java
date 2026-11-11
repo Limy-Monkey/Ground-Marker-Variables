@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.chatbox;
 
 import javax.annotation.Nullable;
 import net.runelite.api.widgets.JavaScriptCallback;

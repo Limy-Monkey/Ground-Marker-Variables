@@ -1,12 +1,12 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.chatbox;
 
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Runnables;
 import com.google.gson.JsonSyntaxException;
+import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.ImportPreviewManager;
-import com.groundmarkervariables.markers.MarkerManager;
 import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.minify.MarkerMinifier;
 import com.groundmarkervariables.minify.NewerFormatException;
@@ -69,18 +69,18 @@ public class GroundMarkerVariablesSharingManager
 		this.markerMinifier = markerMinifier;
 	}
 
-	void addImportExportMenuOptions()
+	public void addImportExportMenuOptions()
 	{
 		menuManager.addManagedCustomMenu(EXPORT_MARKERS_OPTION, this::exportGroundMarkers);
 		menuManager.addManagedCustomMenu(IMPORT_MARKERS_OPTION, this::promptForImport);
 	}
 
-	void addClearMenuOption()
+	public void addClearMenuOption()
 	{
 		menuManager.addManagedCustomMenu(CLEAR_MARKERS_OPTION, this::promptForClear);
 	}
 
-	void removeMenuOptions()
+	public void removeMenuOptions()
 	{
 		menuManager.removeManagedCustomMenu(EXPORT_MARKERS_OPTION);
 		menuManager.removeManagedCustomMenu(IMPORT_MARKERS_OPTION);

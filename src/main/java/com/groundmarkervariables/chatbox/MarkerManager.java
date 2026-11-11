@@ -1,6 +1,8 @@
-package com.groundmarkervariables.markers;
+package com.groundmarkervariables.chatbox;
 
-import com.groundmarkervariables.GroundMarkerVariablesSharingManager;
+import com.groundmarkervariables.markers.DeletedMarkers;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;

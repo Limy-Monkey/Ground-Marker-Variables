@@ -1,6 +1,7 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.chatbox;
 
 import com.google.gson.Gson;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
@@ -55,7 +56,7 @@ import net.runelite.client.util.Text;
 // stays visible regardless, so it's always there to click back to. Section titles use Quill 8
 // like the prompt; entries themselves are plain RuneScape 12 text, clickable to fill the
 // input with that text.
-class AdvancedLabelEditor extends ChatboxTextInput
+public class AdvancedLabelEditor extends ChatboxTextInput
 {
 	private static final int LINE_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 16;
@@ -314,7 +315,7 @@ class AdvancedLabelEditor extends ChatboxTextInput
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
 	// onRemoveRecent handles right-click "Remove" on a Recent entry. tileColor is used to
 	// underline </col> — see buildColorTagUnderlines().
-	AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels,
+	public AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels,
 		Consumer<String> onRemoveRecent, Color tileColor)
 	{
 		this.originalLabel = originalLabel == null ? "" : originalLabel;
