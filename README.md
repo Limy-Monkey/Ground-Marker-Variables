@@ -1,119 +1,82 @@
 # Ground Marker Variables
 
-Overrides the default Ground Marker plugin with a version that supports variables in labels.
-
-[Join our Discord Server](https://discord.gg/ehyvCPpdSn) to share your creations!
+Ground Markers with variables in their labels. [Join our Discord](https://discord.gg/ehyvCPpdSn) to share your creations!
 
 <img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check
 
-```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align\u003dleft}{spellbook} {spellbook \u003d\u003d Ancient ? -- {hasFreeze} : }{spellbook \u003d\u003d Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo !\u003d Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align=left}{spellbook} {spellbook == Ancient ? -- {hasFreeze} : }{spellbook == Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo != Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
 
 <br clear="left"/><br />
 
 <details>
-<summary>Supported variables:</summary>
+<summary>Variables</summary>
 
-| Modifiers                       | Description                                                                                                     |
-|---------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `{^...}`                        | Plain Text version of one of the below, e.g. `{^kc cg}` may evaluate to `385`.                                  |
-| `{&...}`                        | Rich Text version of one of the below, e.g. `{&kc cg}` may evaluate to `Corrupted Gauntlet kc: 385`             |
-| `\n`                            | Newline.                                                                                                        |
-| `:emoji:`                       | Emoji, e.g. `:balloon:`. Add `@` e.g. `:check_mark@green:` to change color.                                     |
-| `{col=<col>}`                   | Changes the text color. \<col>: named color or 6-digit hex.                                                     |
-| `{tileCol=<col>}`               | Overrides the tile's color. \<col>: named color, hex, 8-digit hex with leading alpha, "N%", or a named opacity. |
-| `{highlightSW=<col>}`           | Draws a bracket at \<corner> (SW/NW/NE/SE, or Corners/All). \<col>: named color.                                |
-| `{align=left/right/center}`     | Changes text alignment from this line onward, until the next \{align}/\{/align} (which resets to center).       |
-| `{b}Bold{/b}`, `{i}Italics{/i}` | Bold / italic text from this point onward (across lines), until the matching \{/b} or \{/i}.                    |
-| `{borderWidth=2.5}`             | Overrides the tile's outline width (and \{highlight} brackets), up to 10.                                       |
-| `{setGroup <name>, <options>}`  | Adds \<name>: \<option> picks to this tile's Shift right-click menu, shown by \{group \<name>} on any tile.     |
-| `{ground}...{/ground}`          | Lays the icons inside flat on the tile; text inside stays. Items and NPCs get depth with Parallax icons.        |
-| `<item/sprite/npc=ID>`          | Icon by ID: an item, game sprite or NPC (`<npc=ID,head>` for its chathead). `@50%` dims items and sprites.      |
+**Formatting**
 
-| Variable                                | Description                                                                                                                                                      |
-|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `{rsn}`                                 | Current player's display name                                                                                                                                    |
-| `{date}`                                | Today's date, e.g. `October 20th 2026`                                                                                                                           |
-| `{time}` / `{time24}`                   | Current local time, 12-hour h:mm am/pm or 24-hour HH:mm                                                                                                          |
-| `{weekday}`                             | Day of the week, 1 (Monday) through 7 (Sunday)                                                                                                                   |
-| `{world}` / `{worldInfo}`               | Current world number. Rich Text shows the world type; `{worldInfo}` adds the region flag, player count and ping (rounded up, avg over 10 ticks)                  |
-| `{worldInfo hideWorld}`                 | `{worldInfo}` without the world number, e.g. for streaming                                                                                                       |
-| `{metronome<N>}` / `{metronome<N>_<M>}` | Counts down N → 1 and repeats, advancing every M ticks (default 1). `{m+4}`/`{m-4}` force up/down. Not usable inside a conditional                               |
-| `{6HourTimeRemaining < 1.5}`            | Warning when you are within 1.5 hours of being 6-hour-logged. Shows highlighted color normally, red under compared time.                                         |
-| `{dps <template>}`                      | avgDps, shareDps, splitDps, total/takenDamage, acc, \<N>s, thrall/recoilDps, theoryDps, pureTheoryDps, numAttacks/Hits/Misses, timeSpent, ticksSpent/Used/Lost   |
-| `{dps report <template>}`               | A dps report with a line per weapon, e.g. `{dps report totalDamage}`. Defaults to `theoryDps (splitDps \| acc)`                                                  |
-| `{dps groupReport/bossReport}`          | A line per boss stage or NPC name. Template defaults: groupReport `totalDamage (shareDps \| theoryDps)`, bossReport `timeSpent (theoryDps \| acc)`               |
-| `{dps fullReport <template>}`           | bossReport's lines, each with a line per weapon used on it. Defaults to `theoryDps (totalDamage \| numHits/numAttacks \| acc)`                                   |
-| `{kc <boss>}`                           | Tracked kill count for \<boss>, e.g. \{kc Zulrah}                                                                                                                |
-| `{pb <boss>}`                           | Personal best time for \<boss>                                                                                                                                   |
-| `{rank <boss>}`                         | Hiscores rank for \<boss>                                                                                                                                        |
-| `{loot <monster>}`                      | Gp value of loot tracked for \<monster> by the core Loot Tracker plugin, e.g. \{loot toa, items=6, lines=2}                                                      |
-| `{spellbook}`                           | Active spellbook: Standard, Ancient, Lunar, or Arceuus                                                                                                           |
-| `{weapon}`                              | Equipped weapon's item name, or Unarmed                                                                                                                          |
-| `{equip_<slot>}`                        | Equipped item name in \<slot> (helm, cape, amulet, body, shield, legs, gloves, boots, ring, ammo, quiver), or Empty                                              |
-| `{attackStyle}`                         | Current combat style name, e.g. Accurate, Rapid, Casting. Optional `weapon=<name>` for that weapon's last seen style, e.g. `{attackStyle weapon=Scythe}`         |
-| `{attackType}`                          | Current combat style's damage type, e.g. Stab, Slash, Crush, Ranged, Magic. Optional `weapon=<name>`                                                             |
-| `{autocast}`                            | Last autocast spell seen on a weapon that can autocast, or None                                                                                                  |
-| `{party <template>}`                    | Takes a template as parameters, with limited other variable usage, e.g. `{party {readyCheck} {rsn}}` see advanced label usage for more info.                     |
-| `{partyCount {<expr>}}`                 | Summary (total) numbers across the entire party, e.g. `{partyCount {hasFreeze} freezers and {numItem scorching bow} scobows}`                                    |
-| `{lvl_<skill>}`                         | Unboosted level in \<skill>, e.g. \{lvl_mining}                                                                                                                  |
-| `{xp_<skill>}` / `{xp_<level>}`         | Exact experience in \<skill>, or needed for \<level> (1-126), e.g. \{xp_99}. Rich Text \<skill> also shows level and rank                                        |
-| `{boost_<skill>}`                       | Current boosted level in \<skill>                                                                                                                                |
-| `{xpRate_<skill>}`                      | Current xp/hour in \<skill> from XP Tracker, or N/A if that plugin isn't running                                                                                 |
-| `{miscellania}`                         | Kingdom of Miscellania approval rating, 0-127                                                                                                                    |
-| `{slayerTask}`                          | Current slayer task. Requires Slayer plugin to be running.                                                                                                       |
-| `{slayerStreak}`                        | Current slayer task streak (tasks completed in a row)                                                                                                            |
-| `{slayerPoints}`                        | Current slayer points                                                                                                                                            |
-| `{runEnergy}`                           | Current run energy, 0-100                                                                                                                                        |
-| `{invSpace}`                            | Empty inventory spaces, 0-28                                                                                                                                     |
-| `{quickPrayers}`                        | Sprites of your quick prayers. `{quickPrayers <name>}`: true if set, Rich Text its sprite, dimmed if not, e.g. \{quickPrayers piety}                             |
-| `{group <name>}`                        | The option picked for \<name> by a nearby \{setGroup}, the first option until one is picked. Resets when the client restarts                                     |
-| `{spec}`                                | Current special attack energy, 0-100                                                                                                                             |
-| `{combatAchievement}`                   | Current Combat Achievement tier, 0 (none) through 6 (Grandmaster)                                                                                                |
-| `{questPoints}`                         | Current quest points                                                                                                                                             |
-| `{hasThralls}`                          | true if on Arceuus Spellbook, has book of the dead, and runes for thralls                                                                                        |
-| `{hasAlchs}`                            | true if on Standard Spellbook and has nature and fire runes for High Alchemy                                                                                     |
-| `{hasFreeze}`                           | true if Ice Barrage is castable (Level not checked)                                                                                                              |
-| `{hasEntangle}`                         | true if Entangle is castable (Level not checked)                                                                                                                 |
-| `{hasVileVigour}`                       | true if Vile Vigour is castable (Level not checked)                                                                                                              |
-| `{hasVengeance}`                        | true if Vengeance is castable (Level and cooldown not checked)                                                                                                   |
-| `{hasUndeadGrasp}`                      | true if Undead Grasp is castable (Level not checked)                                                                                                             |
-| `{hasMarkOfDarkness}`                   | true if Mark of Darkness is castable (Level not checked)                                                                                                         |
-| `{hasSurge}`                            | true if any elemental Surge is castable (Level not checked), or of those named, e.g. \{hasSurge water fire icon}                                                 |
-| `{hasBarrage}`                          | true if any Barrage is castable (Level not checked), or of those named, e.g. \{hasBarrage blood ice icon}                                                        |
-| `{hasSpellbookSwap}`                    | true if Spellbook Swap is castable (Level not checked)                                                                                                           |
-| `{active <effect>}`                     | true if vengeance, thrall, deathCharge, shadowVeil or Mark of Darkness is active. `icon` includes pie chart for time remaining.                                  |
-| `{autoRetaliate}` / `{autoRetal}`       | true if Auto Retaliate is on                                                                                                                                     |
-| `{divine <potion>}`                     | Ticks remaining on \<potion>'s buff. Green > 25 ticks remaining, Yellow <= 25 ticks, Red = 0 ticks                                                               |
-| `{hasItem <name>}`                      | true if any item name in your inventory or equipment contains \<name>, e.g. \{hasItem rune pouch}                                                                |
-| `{showItems <name>, <name>, ...}`       | The icon of each listed item you hold, in order, e.g. \{showItems obligator, scythe, soulreaper axe}                                                             |
-| `{showOneItem <name>, <name>, ...}`     | Like `{showItems}`, but only the icon of the first listed item you hold                                                                                          |
-| `{runePouch}`                           | The icon of every rune you hold, in your inventory or rune pouch                                                                                                 |
-| `{numItem <name>}`                      | Total quantity of every item whose name contains \<name>, e.g. \{numItem dragon arrow}                                                                           |
-| `{numDoses <name>}`                     | Total doses (quantity × the "(N)" in the item's name) of every matching item, e.g. \{numDoses brew}                                                              |
-| `{<a> +-*/ <b> ...}`                    | Math — arithmetic over numeric variables and/or literal numbers or dates, e.g. \{kc tob + kc hmt}. Usable inside a conditional's \<expr>.                        |
-| `{<when> - now}`                        | Countdown as d days h:mm, e.g. `{nov 4 7am - now}`, `{now - 10/20/2026 6am}`, `{dec 25 - now}`, `{6pm - now}`                                                    |
-| `{<cond>}`                              | Boolean Variable — evaluates one of the above (==/!=/</>/<=/>=) and displays the Plain Text version of the variable, colored Green or Red.                       |
-| `{<cond1> && / \|\| <cond2> ? A : B}`   | Conditional — evaluates one or two of the above (==/!=/</>/<=/>=, or a bare boolean) and displays A or B. Conditions always evaluate using Plain Text variables. |
+| Token | Description |
+|---|---|
+| `\n`, `\t`, `\s` | New line, table column, non-breaking space |
+| `{col=<col>}`, `{b}…{/b}`, `{i}…{/i}` | Color, bold, italic |
+| `{align=left\|right\|center}` | Alignment from this line |
+| `:emoji:` / `:emoji@<col>:` | Emoji, optionally tinted |
+| `<item=ID>`, `<sprite=ID>`, `<npc=ID[,head]>`, `<flag=us>` | Icons; `@50%` dims items and sprites |
+| `<badge>` / `<badge=N>` | Dot or pie on the previous icon |
+| `{split}…{/split}` | 2–4 icons as one |
+| `{hover}`, `{hoverOnly}…`, `{hoverHide}…`, `{tip=<text>}…{/tip}` | Hover background, hover-only / hidden text, tooltip |
+| `{setGroup <name>, <a>, <b>}` | Pick an option from the tile's Shift right-click menu |
 
-</details>
-<details>
-<summary>Examples:</summary>
+**Tile settings**: not allowed in conditionals, except conditionals that only use `{group}`.
 
-- `{equip_helm}`
-  - Helm: Helm of Neitiznot
-- `{lvl_agility < 87 ? Bring Summer Pie! : }`
-  - Reminder to bring summer pie to boost for Hallowed Sepulcher!
-  - Empty if you're already level 87.
-- `{hasFreeze && hasItem staff of the dead ? Gigachad : Noob}`
-  - Remind yourself what it takes to be a gigachad
-- `{metronome4}`
-  - 4 tick metronome on the tile
-  - Cannot be used inside a \<cond\>.
-  - `{m4}` works as an alias as well.
-- `{(weekday <= 4 || weekday == 7) && time > 10pm ? Go to bed : One more raid!}`
-- `{Oct 20 - date} to Raids 4 release!`
-- `This text is {col=cyan}cyan!`
-  - Changes color of the word "cyan!" to `#00FFFF`
+| Token | Description |
+|---|---|
+| `{tileCol=<col>}` | Tile color: named color, hex, 8-digit hex with leading alpha, `N%`, or a named opacity |
+| `{highlightSW=<col>}` | Corner bracket: SW, NW, NE, SE, or Corners / All |
+| `{borderWidth=2.5}` | Outline width, up to 10 |
+| `{ground}…{/ground}` | Icons inside drawn flat on the tile (not around a conditional either) |
+
+**Returns** is the Plain Text value used by conditions and math: Number works in math, Number\* only in comparisons. **Party** ✓ works for other members in `{party}`. **Icon** ✓ takes `icon` for an icon instead of text, e.g. `{weapon icon}`.
+
+| Variable                                             | Returns         | Party | Icon | Description                                                                                                                                             |
+|------------------------------------------------------|-----------------|-------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `{rsn}`                                              | Text            | ✓     |      | Display name                                                                                                                                            |
+| `{world}` / `{worldInfo}`                            | Number\*        |       |      | World; `worldInfo` adds flag, players and ping (`hideWorld` hides the number)                                                                           |
+| `{runEnergy}` / `{spec}`                             | Number          | ✓     |      | 0–100                                                                                                                                                   |
+| `{invSpace}`                                         | Number          | ✓     |      | Empty inventory slots                                                                                                                                   |
+| `{questPoints}`                                      | Number          |       |      | Quest points                                                                                                                                            |
+| `{combatAchievement}`                                | Number          |       |      | CA tier, 0–6                                                                                                                                            |
+| `{autoRetaliate}`                                    | Boolean         |       |      | Auto Retaliate on                                                                                                                                       |
+| `{lvl_<skill>}` / `{boost_<skill>}`                  | Number          | ✓     |      | Real / boosted level                                                                                                                                    |
+| `{xp_<skill>}` / `{xp_<level>}`                      | Number          |       |      | XP in a skill / needed for a level                                                                                                                      |
+| `{xpRate_<skill>}`                                   | Number          |       |      | XP/hour, uses XP Tracker plugin                                                                                                                         |
+| `{weapon}` / `{equip_<slot>}`                        | Text            | ✓     | ✓    | Equipped item name, `Unarmed` / `Empty`                                                                                                                 |
+| `{attackStyle}` / `{attackType}`                     | Text            |       |      | Style / damage type; `weapon=<name>` for that weapon's last                                                                                             |
+| `{autocast}`                                         | Text            |       | ✓    | Last autocast spell                                                                                                                                     |
+| `{hasItem <name>}`                                   | Boolean         | ✓     |      | Holding an item with `<name>` in its name                                                                                                               |
+| `{numItem <name>}` / `{numDoses <name>}`             | Number          | ✓     |      | Total quantity / doses of matching items                                                                                                                |
+| `{showItems <a>, <b>}` / `{showOneItem …}`           | Boolean         | ✓     | *    | Icons of the listed items you hold (all / first)                                                                                                        |
+| `{runePouch}`                                        | Boolean         | ✓     | *    | Icons of every rune you hold                                                                                                                            |
+| `{spellbook}`                                        | Text            | ✓     | ✓    | Standard, Ancient, Lunar or Arceuus                                                                                                                     |
+| `{has<Spell>}` / `{has<Spell> icon}`                 | Boolean         | ✓     | ✓    | Spell castable (runes and spellbook).<br />Supports Freeze, Thralls, Alchs, Entangle, VileVigour, Vengeance, UndeadGrasp, MarkOfDarkness, SpellbookSwap |
+| `{hasSurge [elements]}` / `{hasBarrage [elements]}`  | Boolean         | ✓     | ✓    | Any, or the named, Surge / Barrage castable                                                                                                             |
+| `{active <effect>}`                                  | Boolean         | ✓     | ✓    | vengeance, thrall, deathCharge, shadowVeil or markOfDarkness active                                                                                     |
+| `{quickPrayers}` / `{quickPrayers <name>}`           | Icons / Boolean |       | *    | Quick prayer icons / that prayer is set                                                                                                                 |
+| `{divine <potion>}`                                  | Number\*        |       |      | Ticks left on a divine potion                                                                                                                           |
+| `{kc <boss>}`                                        | Number          |       |      | Kill count, uses Chat Commands plugin                                                                                                                   |
+| `{pb <boss>}`                                        | Duration        |       |      | Personal best, uses Chat Commands plugin                                                                                                                |
+| `{rank <boss>}`                                      | Number\*        |       |      | Hiscores rank                                                                                                                                           |
+| `{loot <monster>}`                                   | Number          |       | *    | Loot Tracker gp; `items=N`, `lines=N`, `itemsOnly`, uses Loot Tracker plugin                                                                            |
+| `{dps <template>}`                                   | Text            |       |      | Damage tracker, see below                                                                                                                               |
+| `{date}` / `{time}` / `{time24}`                     | Text / Time     |       |      | Date / clock time                                                                                                                                       |
+| `{weekday}`                                          | Number          |       |      | 1 (Mon) – 7 (Sun)                                                                                                                                       |
+| `{6HourTimeRemaining}`                               | Duration        |       |      | Time until 6-hour log, e.g. `{6HourTimeRemaining < 1.5}`                                                                                                |
+| `{slayerTask}` / `{slayerStreak}` / `{slayerPoints}` | Text / Number   |       |      | Slayer (task needs the Slayer plugin)                                                                                                                   |
+| `{miscellania}`                                      | Number          |       |      | Miscellania approval, 0–127                                                                                                                             |
+| `{metronome<N>}` / `{m<N>}`                          | Number\*        |       |      | Counts to N each tick; `_<M>` every M ticks                                                                                                             |
+| `{party <template>}`                                 | Text            |       |      | A row per party member; a number in math                                                                                                                |
+| `{partyCount <template>}`                            | Number          |       |      | Sums the template across the party                                                                                                                      |
+| `{partyNum}` / `{readyCheck}`                        | Number / Text   | ✓     |      | Row number / ready check status                                                                                                                         |
+| `{group <name>}`                                     | Text            |       |      | Option picked with `{setGroup}`                                                                                                                         |
+
 </details>
 <details>
 <summary>Advanced Variable Usage:</summary>
@@ -162,6 +125,11 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - **Time until / since a time of day**: `{6am - time}` → `1:23`, wrapping past midnight (at 7am it's `23:00`). `{time - 2am}` is time since 2am. Times can be `6am`, `8 pm`, `6:30 a.m.`, `7:00` or `15:00`, and two times work too: `{6am - 2am}` → `4:00`. Write `7:00` or `7am`, not `7`.
 - **Countdown to a date and time**: `{nov 4 7am - now}`. Rich Text shows `9 days 21:06`, Plain Text shows total hours `237:06`, and it goes negative once the time has passed. `now` also works in place of `date` or `time` above.
 
+### Other parameters
+- `{attackStyle weapon=Twisted bow}` / `{attackType weapon=...}`: the style or type you last used with that weapon this session.
+- `{loot <monster>, items=6, lines=2}`: how many items to list, and over how many lines.
+- `{loot <monster>, itemsOnly}`: only the items and how many of each, without the name, kill count or gp value.
+
 ### Party
 Shows a row based on `{party <template>}` per party member.
 
@@ -180,6 +148,8 @@ Also usable in math and conditionals as the number of players in the party `{par
   - `has<Spell>` variables only check their runes, shows slightly dimmed icon.
 
 ### DPS
+WARNING: DPS has been deprecated, and may be subject to removal in the future.
+
 Tracks your damage while you're near the tile. Each `{dps <template>}` tile keeps its own numbers, and they reset once you walk away from the tile. Only damage to NPCs counts.
 - Keywords, replaced in the template like `{party}`:
 
@@ -215,29 +185,20 @@ Tracks your damage while you're near the tile. Each `{dps <template>}` tile keep
 - **Full report**: `{dps fullReport <per row>}` is `bossReport` with an indented line per weapon under each target, e.g. your Twisted bow's damage on Xarth.
 - **Pausing**: dying, or 30 seconds with no damage, pauses the tracking and shows `(paused)`. Your next weapon hit starts again from zero.
 - **Shift right-click** the tile → **Variables** → **Reset DPS** to start over, **Export to Chat DPS** to send the current numbers to your chatbox, **Export Report DPS** to copy every row with all keywords' values, or **Export Raw Data DPS** to copy every hit (tick, source, target, weapon, damage), both ready to paste into Google Sheets.
-
-### Other parameters
-- `{attackStyle weapon=Twisted bow}` / `{attackType weapon=...}`: the style or type you last used with that weapon this session.
-- `{loot <monster>, items=6, lines=2}`: how many items to list, and over how many lines.
-- `{loot <monster>, itemsOnly}`: only the items and how many of each, without the name, kill count or gp value.
 </details>
+
 <details>
-<summary>Managing Ground Markers:</summary>
+<summary>Managing markers</summary>
 
-With Smart Save on (the default), markers with a `{variable}` label are saved to core's Ground Markers without their label, which Ground Marker Variables keeps separately.
-
-Uninstalling Ground Marker Variables and using core's Ground Markers plugin again will show those tiles without a label. Markers saved with Smart Save off keep their label in core.
-
-To improve the experience of migrating, type `::manageGroundMarkerVariables` in chat to open the Manager Window.
-
-From here, you can select markers with variables to copy to clipboard and to delete and re-import if you wish to migrate.
-
-<img width="857" height="234" alt="java_ZgXhq7fRF6" src="https://github.com/user-attachments/assets/3b62431e-3d08-4ccb-ada5-eed6a8a5faee" />
+- **Smart Save** (on by default) keeps `{variable}` labels separately, so core's Ground Markers shows those tiles without a label.
+- `::manageGroundMarkerVariables` opens the Manager to copy, delete and re-import markers.
+- Other plugins can resolve labels and draw tiles through us: see [PluginMessageHandler.java](https://github.com/Limy-Monkey/Ground-Marker-Variables/blob/master/src/main/java/com/groundmarkervariables/PluginMessageHandler.java).
 
 </details>
 
 <details>
-<summary>Images:</summary>
+<summary>Gallery</summary>
+
 <img align="left" height="521" alt="image" src="https://github.com/user-attachments/assets/8ee3ee10-3ec6-473c-8b04-520e7a70dd53" /> Tombs of Amascut Loot
 
 ```[{"regionId":13454,"regionX":31,"regionY":27,"z":0,"color":"#00FFFFFF","label":"{loot Tombs of Amascut}"}]```
@@ -255,4 +216,5 @@ From here, you can select markers with variables to copy to clipboard and to del
 ```[{"regionId":11050,"regionX":20,"regionY":10,"z":0,"color":"#00FFFFFF","label":"{xpRate_woodcutting}"}]```
 
 <br clear="left"/><br />
+
 </details>
