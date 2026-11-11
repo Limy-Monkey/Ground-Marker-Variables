@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,7 +14,7 @@ import net.runelite.api.ModelData;
 // {ground}<item=ID>: the item's inventory model, lit and recolored as in game. Equippable items lie as when dropped,
 // others as their inventory icon. Client thread only; cached per item.
 @Singleton
-class ItemModels
+public class ItemModels
 {
 	// The game's item lighting, before each item's own ambient/contrast.
 	private static final int AMBIENT = 64;
@@ -34,12 +34,12 @@ class ItemModels
 	}
 
 	// A lit model and its turned vertices: x right, y down, front toward -z.
-	static final class Oriented
+	public static final class Oriented
 	{
-		final Model model;
-		final float[] x;
-		final float[] y;
-		final float[] z;
+		public final Model model;
+		public final float[] x;
+		public final float[] y;
+		public final float[] z;
 
 		private Oriented(Model model, float[] x, float[] y, float[] z)
 		{
@@ -51,13 +51,13 @@ class ItemModels
 	}
 
 	// E.g. with Parallax icons turned off.
-	void clear()
+	public void clear()
 	{
 		models.clear();
 	}
 
 	@Nullable
-	Oriented model(int itemId)
+	public Oriented model(int itemId)
 	{
 		Optional<Oriented> cached = models.get(itemId);
 		if (cached != null)

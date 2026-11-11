@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
 import java.awt.Color;
 import java.awt.Rectangle;

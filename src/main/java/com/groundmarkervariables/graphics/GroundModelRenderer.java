@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -26,7 +26,7 @@ import net.runelite.api.coords.LocalPoint;
 // ABOVE over and BELOW under the ground; the part below is clipped to the tile, as if seen through it. Projected through
 // the game camera every frame, Gouraud shaded, textures scrolling as in game.
 @Singleton
-class GroundModelRenderer
+public class GroundModelRenderer
 {
 	// Space around the model inside the tile, in local units.
 	private static final int MARGIN = 8;
@@ -88,7 +88,7 @@ class GroundModelRenderer
 	}
 
 	// E.g. with Parallax icons turned off.
-	void clear()
+	public void clear()
 	{
 		flats.clear();
 	}
@@ -99,7 +99,7 @@ class GroundModelRenderer
 	}
 
 	// model's faces and colors, with its vertices turned to x, y, z (x right, y down, front toward -z).
-	void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float[] x, float[] y, float[] z, float opacity)
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float[] x, float[] y, float[] z, float opacity)
 	{
 		Flat flat = flats.computeIfAbsent(model, m -> layFlat(m, x, y, z));
 		if (flat == null)

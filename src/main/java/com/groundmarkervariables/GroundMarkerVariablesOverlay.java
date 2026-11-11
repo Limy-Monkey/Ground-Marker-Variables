@@ -1,5 +1,9 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.graphics.GroundImageRenderer;
+import com.groundmarkervariables.graphics.GroundModelRenderer;
+import com.groundmarkervariables.graphics.ItemModels;
+import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.MarkerCulling;
 import com.groundmarkervariables.markers.RenderedTile;
@@ -177,7 +181,7 @@ public class GroundMarkerVariablesOverlay
 
 	// Called by both wrapper overlays, once per pass, so other overlays can draw between tiles
 	// and labels. Both passes walk the same cached marker lists.
-	void renderMarkers(Graphics2D graphics, boolean labels)
+	public void renderMarkers(Graphics2D graphics, boolean labels)
 	{
 		if (client.getLocalPlayer() == null)
 		{

@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
 import java.awt.AlphaComposite;
 import java.awt.Composite;
@@ -22,7 +22,7 @@ import net.runelite.client.util.AsyncBufferedImage;
 // {ground}: an image drawn flat on a tile, top to the north. The tile is cut into cells whose corners are
 // projected separately (so it follows slopes and perspective), each cell drawn as two affine-mapped triangles.
 @Singleton
-class GroundImageRenderer
+public class GroundImageRenderer
 {
 	// Space left around the image inside the tile, in local units.
 	private static final int MARGIN = 8;
@@ -46,7 +46,7 @@ class GroundImageRenderer
 	}
 
 	// smooth: sampled straight from image (emoji); otherwise blown up into even pixel blocks first (items, sprites).
-	void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity)
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity)
 	{
 		// The image fitted inside the tile, aspect kept, in local units.
 		double size = Perspective.LOCAL_TILE_SIZE - MARGIN * 2;
@@ -158,7 +158,7 @@ class GroundImageRenderer
 	}
 
 	// image blown up factor times with nearest-neighbour, cached per image and factor.
-	static BufferedImage upscaled(BufferedImage image, int factor)
+	public static BufferedImage upscaled(BufferedImage image, int factor)
 	{
 		if (factor <= 1)
 		{

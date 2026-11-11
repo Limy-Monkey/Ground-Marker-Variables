@@ -1,5 +1,6 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.RenderedTile;
 import com.groundmarkervariables.markers.RenderedTiles;
@@ -25,7 +26,7 @@ import net.runelite.client.util.ColorUtil;
 
 // Mirrors core's GroundMarkerMinimapOverlay — draws every drawn marker's outline (see RenderedTiles) on the minimap,
 // gated by the "Draw tiles on minimap" config item.
-class GroundMarkerVariablesMinimapOverlay extends Overlay
+public class GroundMarkerVariablesMinimapOverlay extends Overlay
 {
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;

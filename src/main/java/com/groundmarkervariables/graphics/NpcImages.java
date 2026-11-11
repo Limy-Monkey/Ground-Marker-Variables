@@ -1,4 +1,4 @@
-package com.groundmarkervariables;
+package com.groundmarkervariables.graphics;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -23,7 +23,7 @@ import net.runelite.api.NPCComposition;
 // <npc=ID[,head]>: the NPC's model (or chathead) drawn into a flat-shaded image. Its model is also used on {ground}
 // (GroundModelRenderer). Client thread only; cached per NPC.
 @Singleton
-class NpcImages
+public class NpcImages
 {
 	private static final int SIZE = 64;
 	// Drawn this many times larger, then scaled down, which smooths the edges.
@@ -48,7 +48,7 @@ class NpcImages
 	}
 
 	@Nullable
-	BufferedImage image(int npcId, boolean head)
+	public BufferedImage image(int npcId, boolean head)
 	{
 		String key = npcId + (head ? ",head" : "");
 		Optional<BufferedImage> cached = images.get(key);
@@ -66,7 +66,7 @@ class NpcImages
 
 	// Lit and recolored as the NPC is.
 	@Nullable
-	Model model(int npcId, boolean head)
+	public Model model(int npcId, boolean head)
 	{
 		String key = npcId + (head ? ",head" : "");
 		Optional<Model> cached = models.get(key);
@@ -123,7 +123,7 @@ class NpcImages
 
 	// Vertices turned to the image's three-quarter view, {x right, y down, z away}; shared with {ground}.
 	@Nullable
-	float[][] turned(int npcId, boolean head)
+	public float[][] turned(int npcId, boolean head)
 	{
 		Model model = model(npcId, head);
 		return model == null ? null : turnedVertices.computeIfAbsent(model, m -> turn(m, head ? HEAD_YAW : BODY_YAW, head ? HEAD_PITCH : BODY_PITCH));
