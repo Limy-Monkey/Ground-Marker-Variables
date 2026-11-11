@@ -1,4 +1,4 @@
-package com.groundmarkervariables.minify;
+package com.groundmarkervariables.markers.minify;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

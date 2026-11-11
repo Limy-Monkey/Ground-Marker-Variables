@@ -7,8 +7,8 @@ import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.markers.ImportPreviewManager;
-import com.groundmarkervariables.minify.MarkerCompression;
-import com.groundmarkervariables.minify.NewerFormatException;
+import com.groundmarkervariables.markers.minify.MarkerCompression;
+import com.groundmarkervariables.markers.minify.NewerFormatException;
 
 import java.awt.Color;
 import java.time.Duration;

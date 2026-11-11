@@ -1,4 +1,4 @@
-package com.groundmarkervariables.minify;
+package com.groundmarkervariables.markers.minify;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;

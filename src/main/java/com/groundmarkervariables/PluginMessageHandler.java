@@ -2,7 +2,7 @@ package com.groundmarkervariables;
 
 import com.groundmarkervariables.markers.ExternalMarkerManager;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
-import com.groundmarkervariables.minify.MarkerMinifier;
+import com.groundmarkervariables.markers.minify.MarkerMinifier;
 import com.groundmarkervariables.variables.LabelResolver;
 
 import java.util.List;

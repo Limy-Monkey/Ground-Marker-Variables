@@ -1,4 +1,4 @@
-package com.groundmarkervariables.minify;
+package com.groundmarkervariables.markers.minify;
 
 import java.math.BigInteger;
 import java.util.Arrays;
