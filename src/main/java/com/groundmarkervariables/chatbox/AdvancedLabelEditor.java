@@ -7,6 +7,7 @@ import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.Emojis;
+import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import java.awt.Color;
@@ -171,6 +172,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// ":<partial emoji name>" at the cursor. The colon can't follow a name character, so a
 	// finished ":name:", a "9:30" time, or a conditional's " : " never starts one.
 	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
+	// "<npc=<partial name>" / "<item=..." / "<sprite=..." at the cursor -- see IconNames.
+	private static final Pattern ICON_NAME_PARTIAL = Pattern.compile("<(npc|item|sprite)=([^<>{}=,@]*)$", Pattern.CASE_INSENSITIVE);
+	// "<it" -> "<item=". Not right after a name character, so "{hp<sp...}" stays a comparison.
+	private static final Pattern ICON_TAG_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_])<([a-z]+)$", Pattern.CASE_INSENSITIVE);
+	private static final List<String> ICON_TAGS = List.of("item=", "npc=", "sprite=");
 
 	// {metronomeN} / {metronomeN_M} (or its {mN} alias) — the N/N_M parameter completes from
 	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
@@ -266,6 +272,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final Gson gson;
 	private final Emojis emojis;
 	private final WeaponStyleTracker weaponStyleTracker;
+	private final IconNames iconNames;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -285,7 +292,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker)
+		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker, IconNames iconNames)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -294,6 +301,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.gson = gson;
 		this.emojis = emojis;
 		this.weaponStyleTracker = weaponStyleTracker;
+		this.iconNames = iconNames;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
 	}
@@ -323,6 +331,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.nearbyLabels = nearbyLabels;
 		this.onRemoveRecent = onRemoveRecent;
 		this.tileColor = tileColor;
+		iconNames.refreshNearby();
 		return this;
 	}
 
@@ -821,6 +830,23 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		if (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor)))
 		{
 			return null;
+		}
+
+		Matcher iconNamePartial = ICON_NAME_PARTIAL.matcher(text.substring(0, cursor));
+		if (iconNamePartial.find())
+		{
+			IconNames.Kind kind = IconNames.Kind.valueOf(iconNamePartial.group(1).toUpperCase(Locale.ROOT));
+			return completeIconName(kind, iconNamePartial.group(2), text.startsWith(">", cursor));
+		}
+
+		Matcher iconTagPartial = ICON_TAG_PARTIAL.matcher(text.substring(0, cursor));
+		if (iconTagPartial.find())
+		{
+			String completion = completeFromList(iconTagPartial.group(1), ICON_TAGS, "");
+			if (completion != null && !completion.equals("}"))
+			{
+				return completion;
+			}
 		}
 
 		Matcher emojiPartial = EMOJI_PARTIAL.matcher(text.substring(0, cursor));
@@ -1359,6 +1385,18 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
 		return chosen.substring(monsterPartial.length());
+	}
+
+	// <npc=Name> / <item=Name> / <sprite=Name>, closed with ">" unless one already follows. IDs aren't completed.
+	private String completeIconName(IconNames.Kind kind, String partial, boolean closed)
+	{
+		if (partial.isEmpty() || partial.chars().allMatch(Character::isDigit))
+		{
+			return null;
+		}
+
+		String name = iconNames.complete(kind, partial);
+		return name == null ? null : name.substring(partial.length()) + (closed ? "" : ">");
 	}
 
 	// Shortest matching name first, unless a recent/nearby label already uses one; ":" closes an exact name.

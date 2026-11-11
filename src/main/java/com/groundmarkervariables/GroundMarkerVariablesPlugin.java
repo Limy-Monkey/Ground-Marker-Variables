@@ -33,6 +33,7 @@ import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
 import com.groundmarkervariables.variables.support.DpsTracker;
+import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
 import com.groundmarkervariables.variables.label.SixHourTimeRemainingLabelVariable;
@@ -242,6 +243,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 
 	@Inject
 	private WeaponStyleTracker weaponStyleTracker;
+
+	@Inject
+	private IconNames iconNames;
 
 	@Inject
 	private DpsTracker dpsTracker;
@@ -821,7 +825,13 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	// Mirrors core's labelTile()/savePoints() persistence — we can't call those directly since
 	// they're private on core's plugin instance, but writing to the same config key means our
 	// own onConfigChanged picks this up and refreshes the overlay for free.
+	// <npc=Name> / <item=Name> / <sprite=Name> become IDs here, on the client thread (IconNames reads game data).
 	private void saveLabel(WorldPoint worldPoint, String newLabel)
+	{
+		clientThread.invoke(() -> saveExpandedLabel(worldPoint, iconNames.expand(newLabel)));
+	}
+
+	private void saveExpandedLabel(WorldPoint worldPoint, String newLabel)
 	{
 		int regionId = worldPoint.getRegionID();
 		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
