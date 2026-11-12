@@ -31,8 +31,8 @@ public class GroundModelRenderer
 	// Space around the model inside the tile, in local units.
 	private static final int MARGIN = 8;
 	// Shares of the model's depth over and under the ground.
-	private static final double ABOVE = 0.1;
-	private static final double BELOW = 0.15;
+	private static final double ABOVE = 0.05;
+	private static final double BELOW = 0.1;
 	// Share of the model's depth each render priority level moves a face forward when sorting.
 	static final double PRIORITY_STEP = 0.01;
 	// Faces are grown this many px, closing hairline gaps between neighbours.
