@@ -6,6 +6,7 @@ import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
+import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -84,7 +85,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final List<String> VARIABLE_NAMES = List.of(
 		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType", "autocast", "dps",
 		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "runePouch", "miscellania", "col=", "time",
-		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
+		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "log", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
 		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
 		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "hasSpellbookSwap", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
 	);
@@ -92,7 +93,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
 	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "metronome", "hasItem", "showItems", "showOneItem","numItem", "numDoses", "tileCol=", "highlight",
+		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "log", "metronome", "hasItem", "showItems", "showOneItem","numItem", "numDoses", "tileCol=", "highlight",
 		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup", "active");
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
@@ -168,6 +169,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// {loot <monster>, items=N, lines=N, itemsOnly} -- see LootLabelVariable.
 	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+)", Pattern.CASE_INSENSITIVE);
 	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2", "itemsOnly");
+
+	// {log <page>, missing, noicons, iconsOnly, itemsPerLine=N, maxItems=N} -- page names from the game's collection log;
+	// see LogLabelVariable.
+	private static final String LOG_PREFIX = "log ";
+	private static final Pattern LOG_OPTION = Pattern.compile("\\s*,\\s*(?:missing|noicons|iconsOnly|(?:itemsPerLine|maxItems)=\\d+)",
+		Pattern.CASE_INSENSITIVE);
+	private static final List<String> LOG_OPTION_COMPLETIONS = List.of("missing", "noicons", "iconsOnly", "itemsPerLine=", "maxItems=");
 
 	// ":<partial emoji name>" at the cursor. The colon can't follow a name character, so a
 	// finished ":name:", a "9:30" time, or a conditional's " : " never starts one.
@@ -273,6 +281,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final Emojis emojis;
 	private final WeaponStyleTracker weaponStyleTracker;
 	private final IconNames iconNames;
+	private final CollectionLog collectionLog;
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -292,7 +301,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker, IconNames iconNames)
+		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker, IconNames iconNames,
+		CollectionLog collectionLog)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -302,6 +312,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.emojis = emojis;
 		this.weaponStyleTracker = weaponStyleTracker;
 		this.iconNames = iconNames;
+		this.collectionLog = collectionLog;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
 	}
@@ -1023,6 +1034,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return completeLootMonster(partial.substring(LOOT_PREFIX.length()));
 		}
 
+		if (partial.length() >= LOG_PREFIX.length() && partial.regionMatches(true, 0, LOG_PREFIX, 0, LOG_PREFIX.length()))
+		{
+			return completeLogPage(partial.substring(LOG_PREFIX.length()));
+		}
+
 		if (!restrictToNumeric && partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
 		{
 			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
@@ -1385,6 +1401,57 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
 		return chosen.substring(monsterPartial.length());
+	}
+
+	// Same idea as completeLootMonster, from the collection log's page names (plus any BossAliases short name for one).
+	// After a full page name and a ",", an option instead.
+	private String completeLogPage(String pagePartial)
+	{
+		if (pagePartial.isEmpty())
+		{
+			return null;
+		}
+
+		List<String> pages = collectionLog.pageNames();
+		List<String> names = new ArrayList<>(pages);
+		for (String alias : BossAliases.aliases())
+		{
+			String boss = BossAliases.resolve(alias);
+			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && pages.stream().anyMatch(boss::equalsIgnoreCase))
+			{
+				names.add(alias);
+			}
+		}
+
+		int comma = pagePartial.lastIndexOf(',');
+		if (comma >= 0)
+		{
+			String head = LOG_OPTION.matcher(pagePartial.substring(0, comma)).replaceAll("").trim();
+			return names.stream().anyMatch(head::equalsIgnoreCase) ? completeLogOption(pagePartial.substring(comma + 1).trim()) : null;
+		}
+		return completeFromList(pagePartial, names, LOG_PREFIX);
+	}
+
+	private static String completeLogOption(String word)
+	{
+		if (word.isEmpty())
+		{
+			return null;
+		}
+
+		if (LOG_OPTION.matcher(", " + word).matches())
+		{
+			return "}";
+		}
+
+		for (String option : LOG_OPTION_COMPLETIONS)
+		{
+			if (word.length() < option.length() && option.regionMatches(true, 0, word, 0, word.length()))
+			{
+				return option.substring(word.length());
+			}
+		}
+		return null;
 	}
 
 	// <npc=Name> / <item=Name> / <sprite=Name>, closed with ">" unless one already follows. IDs aren't completed.

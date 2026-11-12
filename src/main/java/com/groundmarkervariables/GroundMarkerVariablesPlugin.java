@@ -31,6 +31,7 @@ import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
 import com.groundmarkervariables.variables.support.DpsTracker;
+import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import com.groundmarkervariables.variables.support.RecentLootTracker;
@@ -249,6 +250,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private DpsTracker dpsTracker;
 
 	@Inject
+	private RuneProfileCollectionLog runeProfileCollectionLog;
+
+	@Inject
 	private ImportPreviewManager importPreviewManager;
 
 	@Inject
@@ -305,6 +309,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		activeEffectTracker.startUp();
 		weaponStyleTracker.startUp();
 		dpsTracker.startUp();
+		runeProfileCollectionLog.startUp();
 		renderedTiles.setSources(List.of(this, externalMarkerManager, pingedTileManager, importPreviewManager));
 		pluginMessageHandler.startUp();
 
@@ -375,6 +380,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		RuneCounter.clearCache();
 		weaponStyleTracker.shutDown();
 		dpsTracker.shutDown();
+		runeProfileCollectionLog.shutDown();
 		pluginMessageHandler.shutDown();
 		externalMarkerManager.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);

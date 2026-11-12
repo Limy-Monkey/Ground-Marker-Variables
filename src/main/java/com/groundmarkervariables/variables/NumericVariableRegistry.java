@@ -4,6 +4,7 @@ import com.groundmarkervariables.variables.label.BoostedSkillLevelLabelVariable;
 import com.groundmarkervariables.variables.label.CombatAchievementsLabelVariable;
 import com.groundmarkervariables.variables.label.InvSpaceLabelVariable;
 import com.groundmarkervariables.variables.label.KcLabelVariable;
+import com.groundmarkervariables.variables.label.LogLabelVariable;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.label.MiscellaniaLabelVariable;
 import com.groundmarkervariables.variables.label.NumDosesLabelVariable;
@@ -31,7 +32,7 @@ public class NumericVariableRegistry
 {
 	// AdvancedLabelEditor's own autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
-		"kc", "loot", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
+		"kc", "loot", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
 		"combatAchievement", "numItem", "numDoses", "partyNum", "party", "invSpace", "xp_"
 	);
 
@@ -41,6 +42,7 @@ public class NumericVariableRegistry
 	private NumericVariableRegistry(
 		KcLabelVariable kc,
 		LootLabelVariable loot,
+		LogLabelVariable log,
 		SkillLevelLabelVariable skillLevel,
 		BoostedSkillLevelLabelVariable boostedSkillLevel,
 		XpRateLabelVariable xpRate,
@@ -59,7 +61,7 @@ public class NumericVariableRegistry
 		InvSpaceLabelVariable invSpace,
 		XpLabelVariable xp)
 	{
-		this.variables = List.of(kc, loot, skillLevel, boostedSkillLevel, xpRate, runEnergy, spec,
+		this.variables = List.of(kc, loot, log, skillLevel, boostedSkillLevel, xpRate, runEnergy, spec,
 			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements, numItem, numDoses, partyNum, party, invSpace, xp);
 	}
 
