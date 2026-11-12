@@ -95,15 +95,19 @@ public class GroundModelRenderer
 
 	void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float opacity)
 	{
-		draw(graphics, center, plane, model, model.getVerticesX(), model.getVerticesY(), model.getVerticesZ(), opacity);
+		draw(graphics, center, plane, model, model.getVerticesX(), model.getVerticesY(), model.getVerticesZ(), opacity, 0, 1, 0, () -> {});
 	}
 
-	// model's faces and colors, with its vertices turned to x, y, z (x right, y down, front toward -z).
-	public void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float[] x, float[] y, float[] z, float opacity)
+	// model's faces and colors, with its vertices turned to x, y, z (x right, y down, front toward -z). Shrunk by scale
+	// and moved offsetNorth local units north, in a frame turned facing degrees clockwise so the model's top faces that
+	// way. onGround runs once, between the faces under the ground and those over it.
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float[] x, float[] y, float[] z, float opacity,
+		int facing, double scale, double offsetNorth, Runnable onGround)
 	{
 		Flat flat = flats.computeIfAbsent(model, m -> layFlat(m, x, y, z));
 		if (flat == null)
 		{
+			onGround.run();
 			return;
 		}
 
@@ -111,10 +115,14 @@ public class GroundModelRenderer
 		int[] sx = new int[vertexCount];
 		int[] sy = new int[vertexCount];
 		boolean[] visible = new boolean[vertexCount];
+		double angle = Math.toRadians(facing);
+		double sin = Math.sin(angle), cos = Math.cos(angle);
 		for (int i = 0; i < vertexCount; i++)
 		{
-			LocalPoint point = new LocalPoint(center.getX() + flat.east[i], center.getY() + flat.north[i], center.getWorldView());
-			Point p = Perspective.localToCanvas(client, point, plane, flat.height[i]);
+			double east = flat.east[i] * scale, north = flat.north[i] * scale + offsetNorth;
+			LocalPoint point = new LocalPoint(center.getX() + (int) Math.round(east * cos + north * sin),
+				center.getY() + (int) Math.round(-east * sin + north * cos), center.getWorldView());
+			Point p = Perspective.localToCanvas(client, point, plane, (int) Math.round(flat.height[i] * scale));
 			if (p != null)
 			{
 				visible[i] = true;
@@ -126,6 +134,7 @@ public class GroundModelRenderer
 		Polygon tile = Perspective.getCanvasTilePoly(client, center);
 		if (tile == null)
 		{
+			onGround.run();
 			return;
 		}
 		Graphics2D above = (Graphics2D) graphics.create();
@@ -137,13 +146,15 @@ public class GroundModelRenderer
 			above.setComposite(faded);
 			below.setComposite(faded);
 		}
-		drawFaces(above, below, flat, sx, sy, visible);
+		drawFaces(below, flat, sx, sy, visible, true);
+		onGround.run();
+		drawFaces(above, flat, sx, sy, visible, false);
 		above.dispose();
 		below.dispose();
 	}
 
-	// Faces with a corner under the ground go to below (clipped to the tile), the rest to above.
-	private void drawFaces(Graphics2D above, Graphics2D below, Flat flat, int[] sx, int[] sy, boolean[] visible)
+	// The faces with a corner under the ground (graphics clipped to the tile), or the rest.
+	private void drawFaces(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, boolean underground)
 	{
 		int cycle = client.getGameCycle();
 		Polygon triangle = new Polygon(new int[3], new int[3], 3);
@@ -151,7 +162,8 @@ public class GroundModelRenderer
 		{
 			int f = flat.faces[i];
 			int a = flat.f1[f], b = flat.f2[f], c = flat.f3[f];
-			if (!visible[a] || !visible[b] || !visible[c])
+			if (!visible[a] || !visible[b] || !visible[c]
+				|| (flat.height[a] < 0 || flat.height[b] < 0 || flat.height[c] < 0) != underground)
 			{
 				continue;
 			}
@@ -168,7 +180,6 @@ public class GroundModelRenderer
 			triangle.ypoints[2] = sy[c];
 			triangle.invalidate();
 
-			Graphics2D graphics = flat.height[a] < 0 || flat.height[b] < 0 || flat.height[c] < 0 ? below : above;
 			if (flat.textures[i] >= 0)
 			{
 				// The texture's average color if the texture can't be drawn.

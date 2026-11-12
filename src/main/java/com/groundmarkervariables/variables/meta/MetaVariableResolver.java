@@ -46,6 +46,7 @@ public class MetaVariableResolver
 		if (GroundIcons.has(remaining))
 		{
 			state.setGroundLabel(GroundIcons.content(remaining));
+			state.setGroundFacing(GroundIcons.facing(remaining));
 			remaining = GroundIcons.remove(remaining);
 		}
 

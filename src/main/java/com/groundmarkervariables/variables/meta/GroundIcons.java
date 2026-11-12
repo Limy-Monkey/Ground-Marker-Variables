@@ -1,19 +1,19 @@
 package com.groundmarkervariables.variables.meta;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// {ground}...{/ground} -- the icons inside are drawn flat on the tile, top to the north; text inside stays in the
-// label. An unclosed block runs to the label's end.
+// {ground[@dir]}...{/ground} -- the icons and text inside are drawn flat on the tile, top to the north (or dir: n, ne,
+// e, se, s, sw, w, nw), text below the icons. An unclosed block runs to the label's end.
 final class GroundIcons
 {
-	private static final Pattern BLOCK = Pattern.compile("\\{ground\\}(.*?)(?:\\{/ground\\}|$)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	private static final Pattern TAG = Pattern.compile("\\{/?ground\\}", Pattern.CASE_INSENSITIVE);
-	// The overlay's icon tags. An unclosed {split} runs to the line's end.
-	private static final Pattern ICON = Pattern.compile(
-		"\\{split\\}.*?(?:\\{/split\\}|(?=\\\\n)|$)|<item=\\d+(?:@\\d{1,3}%)?>|<flag=[a-z_]+>|<emoji=[0-9a-f]+(?:@[0-9a-f]{6})?>"
-			+ "|<sprite=\\d+(?:,\\d+)?(?:@\\d{1,3}%)?>|<badge(?:=\\d{1,3})?>|<npc=\\d+(?:,head)?>",
-		Pattern.CASE_INSENSITIVE);
+	private static final String DIRECTION = "(?:@(ne|nw|se|sw|n|e|s|w))?";
+	private static final Pattern BLOCK = Pattern.compile("\\{ground" + DIRECTION + "\\}(.*?)(?:\\{/ground\\}|$)",
+		Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+	static final Pattern TAG = Pattern.compile("\\{ground" + DIRECTION + "\\}|\\{/ground\\}", Pattern.CASE_INSENSITIVE);
+	private static final List<String> DIRECTIONS = List.of("n", "ne", "e", "se", "s", "sw", "w", "nw");
 	private static final String LINE_BREAK = "\\n";
 
 	private GroundIcons()
@@ -32,13 +32,20 @@ final class GroundIcons
 		Matcher block = BLOCK.matcher(label);
 		while (block.find())
 		{
-			content.append(content.length() > 0 ? LINE_BREAK : "").append(block.group(1));
+			content.append(content.length() > 0 ? LINE_BREAK : "").append(block.group(2));
 		}
 		return content.toString();
 	}
 
-	// The label without the blocks' icons. A block left empty that filled its whole line takes the line break
-	// with it, and empty lines left at either end are dropped.
+	// The first block's @dir, in degrees clockwise from north; 0 without one.
+	static int facing(String label)
+	{
+		Matcher block = BLOCK.matcher(label);
+		return block.find() && block.group(1) != null ? DIRECTIONS.indexOf(block.group(1).toLowerCase(Locale.ROOT)) * 45 : 0;
+	}
+
+	// The label without the blocks. A block that filled its whole line takes the line break with it, and empty
+	// lines left at either end are dropped.
 	static String remove(String label)
 	{
 		Matcher block = BLOCK.matcher(label);
@@ -47,11 +54,9 @@ final class GroundIcons
 		while (block.find())
 		{
 			out.append(label, last, block.start());
-			String text = ICON.matcher(block.group(1)).replaceAll("");
-			out.append(text);
 			last = block.end();
 			boolean lineStart = block.start() == 0 || label.startsWith(LINE_BREAK, block.start() - LINE_BREAK.length());
-			if (text.trim().isEmpty() && lineStart && label.startsWith(LINE_BREAK, last))
+			if (lineStart && label.startsWith(LINE_BREAK, last))
 			{
 				last += LINE_BREAK.length();
 			}

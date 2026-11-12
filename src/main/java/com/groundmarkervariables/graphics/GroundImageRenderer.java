@@ -11,6 +11,7 @@ import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
@@ -24,16 +25,17 @@ import net.runelite.client.util.AsyncBufferedImage;
 @Singleton
 public class GroundImageRenderer
 {
-	// Space left around the image inside the tile, in local units.
+	// Space left around the image inside the tile, in local units, and the size left inside it.
 	private static final int MARGIN = 8;
+	public static final int SIZE = Perspective.LOCAL_TILE_SIZE - MARGIN * 2;
 	private static final int CELLS = 4;
 	// Each triangle's clip is grown this many px, hiding hairline gaps between neighbours.
 	private static final double GROW = 0.7;
 	private static final int MAX_UPSCALE = 8;
 	// Keyed by the (already cached) source image, then factor.
 	private static final Map<BufferedImage, Map<Integer, BufferedImage>> UPSCALED = new IdentityHashMap<>();
-	// Keyed by the (already cached) emoji image or icon row.
-	private static final Map<BufferedImage, BufferedImage> PADDED = new IdentityHashMap<>();
+	// Keyed by the (already cached) emoji image, icon row or text image; weak, as text images come and go.
+	private static final Map<BufferedImage, BufferedImage> PADDED = new WeakHashMap<>();
 
 	private final Client client;
 	// Triangles are drawn here with Src, so overlaps overwrite rather than double up, then blended once.
@@ -48,9 +50,45 @@ public class GroundImageRenderer
 	// smooth: sampled straight from image (emoji); otherwise blown up into even pixel blocks first (items, sprites).
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity)
 	{
-		// The image fitted inside the tile, aspect kept, in local units.
-		double size = Perspective.LOCAL_TILE_SIZE - MARGIN * 2;
-		double scale = size / Math.max(image.getWidth(), image.getHeight());
+		draw(graphics, center, plane, image, smooth, opacity, 0, 0, SIZE, SIZE);
+	}
+
+	// center moved east and north local units in a frame turned facing degrees clockwise (its north toward facing).
+	public static LocalPoint turned(LocalPoint center, double east, double north, int facing)
+	{
+		double angle = Math.toRadians(facing);
+		double sin = Math.sin(angle), cos = Math.cos(angle);
+		return new LocalPoint((int) Math.round(center.getX() + east * cos + north * sin),
+			(int) Math.round(center.getY() - east * sin + north * cos), center.getWorldView());
+	}
+
+	// Screen px per local unit across a width x height box centered offsetNorth north of the tile's center (in a frame
+	// turned to facing), from its widest projected extent; 0 if a corner isn't on screen.
+	public double pixelsPerUnit(LocalPoint center, int plane, int facing, double offsetNorth, double width, double height)
+	{
+		int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+		for (int corner = 0; corner < 4; corner++)
+		{
+			Point p = Perspective.localToCanvas(client,
+				turned(center, (corner % 2 == 0 ? -width : width) / 2, offsetNorth + (corner < 2 ? -height : height) / 2, facing), plane);
+			if (p == null)
+			{
+				return 0;
+			}
+			minX = Math.min(minX, p.getX());
+			minY = Math.min(minY, p.getY());
+			maxX = Math.max(maxX, p.getX());
+			maxY = Math.max(maxY, p.getY());
+		}
+		return Math.max(maxX - minX, maxY - minY) / Math.max(width, height);
+	}
+
+	// Fitted inside a width x height box (local units) centered offsetNorth north of the tile's center, aspect kept, in a
+	// frame turned facing degrees clockwise so the image's top faces that way.
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
+		int facing, double offsetNorth, double width, double height)
+	{
+		double scale = Math.min(width / image.getWidth(), height / image.getHeight());
 		// Smooth sampling stops hard at the image's edge, so pixels touching it would end in a straight cut; a
 		// transparent border lets them fade out like any other edge.
 		int pad = smooth ? 1 : 0;
@@ -60,18 +98,14 @@ public class GroundImageRenderer
 		{
 			image = padded(image);
 		}
-		double west = center.getX() - halfW;
-		double north = center.getY() + halfH;
-
 		Point[][] corners = new Point[CELLS + 1][CELLS + 1];
 		int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
 		for (int row = 0; row <= CELLS; row++)
 		{
 			for (int col = 0; col <= CELLS; col++)
 			{
-				int x = (int) Math.round(west + halfW * 2 * col / CELLS);
-				int y = (int) Math.round(north - halfH * 2 * row / CELLS);
-				Point p = Perspective.localToCanvas(client, new LocalPoint(x, y, center.getWorldView()), plane);
+				LocalPoint point = turned(center, -halfW + halfW * 2 * col / CELLS, offsetNorth + halfH - halfH * 2 * row / CELLS, facing);
+				Point p = Perspective.localToCanvas(client, point, plane);
 				corners[row][col] = p;
 				if (p != null)
 				{

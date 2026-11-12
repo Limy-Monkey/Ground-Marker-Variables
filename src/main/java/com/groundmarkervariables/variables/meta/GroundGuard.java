@@ -8,12 +8,12 @@ import java.util.regex.Pattern;
 
 import com.groundmarkervariables.variables.label.ConditionalVariable;
 
-// {ground} and {/ground} only apply outside any token but a condition on {group} alone (as TileMetaGuard), around
+// {ground[@dir]} and {/ground} only apply outside any token but a condition on {group} alone (as TileMetaGuard), around
 // content with no conditional (?, || or &&) but one on {group} alone. Others are removed before resolving, leaving their
 // content as normal label text.
 public final class GroundGuard
 {
-	private static final Pattern TAG = Pattern.compile("\\{/?ground\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern TAG = GroundIcons.TAG;
 
 	private GroundGuard()
 	{

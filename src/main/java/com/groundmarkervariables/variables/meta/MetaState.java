@@ -28,6 +28,7 @@ public class MetaState
 	// What's inside the label's {ground} blocks, whose icons are drawn on the tile.
 	@Nullable
 	private String groundLabel;
+	private int groundFacing;
 
 	@Nullable
 	public String getGroundLabel()
@@ -38,6 +39,17 @@ public class MetaState
 	void setGroundLabel(String groundLabel)
 	{
 		this.groundLabel = groundLabel;
+	}
+
+	// {ground@dir}: where the top of the {ground} content faces, in degrees clockwise from north.
+	public int getGroundFacing()
+	{
+		return groundFacing;
+	}
+
+	void setGroundFacing(int groundFacing)
+	{
+		this.groundFacing = groundFacing;
 	}
 
 	// A {setGroup} in the resolved label: its group, and its own options in order, or null for the declared ones.

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,6 +93,15 @@ public class GroundMarkerVariablesOverlay
 	private static final int MAX_SPLIT_ICONS = 4;
 	// {ground} icon rows are built at this multiple of the tallest icon.
 	private static final int GROUND_ROW_SCALE = 4;
+	// {ground} text: local units per text pixel at most, the tile share it may take below icons, the gap to them
+	// (local units), and how many text images are kept.
+	private static final double GROUND_TEXT_SCALE = 2.5;
+	private static final double GROUND_TEXT_MAX_SHARE = 0.5;
+	private static final double GROUND_TEXT_GAP = 4;
+	private static final int MAX_GROUND_TEXTS = 64;
+	// Bounds on the screen px per text px a {ground} text image is rendered at.
+	private static final double MIN_GROUND_TEXT_RESOLUTION = 0.25;
+	private static final double MAX_GROUND_TEXT_RESOLUTION = 16;
 	private static final Pattern GROUND_NPC_PATTERN = Pattern.compile("<npc=(\\d+)(,head)?>", Pattern.CASE_INSENSITIVE);
 	// A 3-icon {split}'s wedge start angles: 12 to 8 o'clock, 4 to 12, 8 to 4.
 	private static final float[] WEDGE_STARTS = {90, 330, 210};
@@ -153,6 +163,15 @@ public class GroundMarkerVariablesOverlay
 	private final Map<List<BufferedImage>, BufferedImage> splitIcons = new HashMap<>();
 	// {ground} icon rows, keyed the same way.
 	private final Map<List<BufferedImage>, BufferedImage> groundRows = new HashMap<>();
+	// {ground} text images, keyed by font, color and the {ground} label; least recently used dropped.
+	private final Map<String, BufferedImage> groundTexts = new LinkedHashMap<String, BufferedImage>(16, 0.75f, true)
+	{
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<String, BufferedImage> eldest)
+		{
+			return size() > MAX_GROUND_TEXTS;
+		}
+	};
 	// Emoji and NPC images (cached by Emojis/NpcImages), drawn smooth on the ground rather than as pixel blocks.
 	private final Set<BufferedImage> smoothImages = Collections.newSetFromMap(new IdentityHashMap<>());
 	private final NpcImages npcImages;
@@ -285,10 +304,10 @@ public class GroundMarkerVariablesOverlay
 				OverlayUtil.renderPolygon(graphics, poly, fadedColor, fill, stroke);
 				drawHighlights(graphics, poly, metaState.getHighlights(), stroke, opacity);
 			}
-			// {ground} icons are part of the tile, under every label.
+			// {ground} is part of the tile, under every label.
 			if (metaState.getGroundLabel() != null)
 			{
-				drawGroundIcons(graphics, localPoint, worldPoint.getPlane(), metaState.getGroundLabel(), color, opacity);
+				drawGround(graphics, localPoint, worldPoint.getPlane(), metaState.getGroundLabel(), metaState.getGroundFacing(), color, opacity);
 			}
 			return;
 		}
@@ -331,8 +350,11 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	// The {ground} blocks' icons in a row, flat on the tile; a {split} is one icon. A lone <item=>/<npc=> is its model.
-	private void drawGroundIcons(Graphics2D graphics, LocalPoint localPoint, int plane, @Nullable String label, Color color, float opacity)
+	// The {ground} blocks flat on the tile: their icons in a row (a {split} is one icon, a lone <item=>/<npc=> its model),
+	// and their text below the icons, over a model's part under the ground but under its part over it. Their top faces
+	// facing (degrees clockwise from north).
+	private void drawGround(Graphics2D graphics, LocalPoint localPoint, int plane, @Nullable String label, int facing, Color color,
+		float opacity)
 	{
 		if (label == null || label.isEmpty())
 		{
@@ -340,19 +362,48 @@ public class GroundMarkerVariablesOverlay
 		}
 
 		List<Object> segments = new ArrayList<>();
+		List<List<Object>> textLines = new ArrayList<>();
 		for (String line : labelLines(label, color))
 		{
+			List<Object> text = new ArrayList<>();
+			boolean visible = false;
 			for (Object segment : splitSegments(line))
 			{
 				if (segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof BufferedImage)
 				{
 					segments.add(segment);
 				}
+				else if (!(segment instanceof TipToggle) && !(segment instanceof Badge))
+				{
+					text.add(segment);
+					visible |= segment instanceof String && !COLOR_TAG_PATTERN.matcher((String) segment).replaceAll("").trim().isEmpty();
+				}
+			}
+			if (visible)
+			{
+				textLines.add(text);
 			}
 		}
 
+		// Text alone fills the tile. With icons it runs along the bottom edge, shrunk to fit and to leave the icons at
+		// least GROUND_TEXT_MAX_SHARE; icons above it. Turned diagonally, the square shrinks to stay inside the tile, and
+		// text alone shrinks to its own turned extent.
+		boolean diagonal = facing % 90 != 0;
+		double size = GroundImageRenderer.SIZE / (diagonal && !segments.isEmpty() ? Math.sqrt(2) : 1);
+		BufferedImage text = textLines.isEmpty() ? null : groundText(graphics, textLines, color, label, 1);
+		double textScale = text == null ? 0 : segments.isEmpty()
+			? Math.min(Math.min(size / text.getWidth(), size / text.getHeight()),
+				diagonal ? size * Math.sqrt(2) / (text.getWidth() + text.getHeight()) : Double.MAX_VALUE)
+			: Math.min(GROUND_TEXT_SCALE, Math.min(size / text.getWidth(), size * GROUND_TEXT_MAX_SHARE / text.getHeight()));
+		double textHeight = text == null ? 0 : text.getHeight() * textScale;
+		double iconSize = text == null ? size : size - textHeight - GROUND_TEXT_GAP;
+		double iconNorth = (size - iconSize) / 2;
+		Runnable drawText = text == null ? () -> {} : () -> drawGroundText(graphics, localPoint, plane, textLines, color, label, opacity,
+			facing, textScale, segments.isEmpty() ? 0 : -(size - textHeight) / 2, text.getWidth() * textScale, textHeight);
+
 		// Parallax icons off: the flat image, far cheaper.
-		if (segments.size() == 1 && config.parallaxIcons() && drawGroundModel(graphics, localPoint, plane, label, segments.get(0), opacity))
+		if (segments.size() == 1 && config.parallaxIcons() && drawGroundModel(graphics, localPoint, plane, label, segments.get(0), opacity,
+			facing, iconSize / GroundImageRenderer.SIZE, iconNorth, drawText))
 		{
 			return;
 		}
@@ -378,17 +429,122 @@ public class GroundMarkerVariablesOverlay
 			}
 		}
 
-		if (icons.isEmpty())
+		if (!icons.isEmpty())
 		{
-			return;
+			// A row already holds each icon at its own sampling, so it's drawn smooth.
+			BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
+			groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || smoothImages.contains(image), opacity,
+				facing, iconNorth, size, iconSize);
 		}
-		// A row already holds each icon at its own sampling, so it's drawn smooth.
-		BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
-		groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || smoothImages.contains(image), opacity);
+		drawText.run();
 	}
 
-	// The lone icon's model, if it's an item or NPC whose model loads. An NPC image is the only icon, so its tag is the label's.
-	private boolean drawGroundModel(Graphics2D graphics, LocalPoint localPoint, int plane, String label, Object icon, float opacity)
+	// The text in a width x height box offsetNorth north of the tile's center, textScale local units per text px. Drawn
+	// from an image rendered at about its size on screen, so it stays sharp at any zoom.
+	private void drawGroundText(Graphics2D graphics, LocalPoint localPoint, int plane, List<List<Object>> lines, Color color, String label,
+		float opacity, int facing, double textScale, double offsetNorth, double width, double height)
+	{
+		double perUnit = groundImageRenderer.pixelsPerUnit(localPoint, plane, facing, offsetNorth, width, height);
+		// Screen px per text px, in quarter-octave steps so zooming reuses a few images.
+		double resolution = perUnit <= 0 ? 1 : perUnit * textScale;
+		resolution = Math.pow(2, Math.round(Math.log(resolution) / Math.log(2) * 4) / 4.0);
+		resolution = Math.max(MIN_GROUND_TEXT_RESOLUTION, Math.min(MAX_GROUND_TEXT_RESOLUTION, resolution));
+		BufferedImage image = groundText(graphics, lines, color, label, resolution);
+		if (image != null)
+		{
+			groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height);
+		}
+	}
+
+	// The text lines as labels draw them (shadow, colors, {b}/{i}, tables), centered on a transparent image, resolution
+	// image px per text px. Cached by font, color and label (which the lines come from), and resolution.
+	@Nullable
+	private BufferedImage groundText(Graphics2D graphics, List<List<Object>> lines, Color color, String label, double resolution)
+	{
+		Font font = graphics.getFont();
+		String key = font + "|" + color.getRGB() + "|" + resolution + "|" + label;
+		BufferedImage image = groundTexts.get(key);
+		if (image != null)
+		{
+			return image;
+		}
+
+		List<LineLayout> layouts = new ArrayList<>();
+		int style = Font.PLAIN;
+		for (List<Object> line : lines)
+		{
+			LineLayout layout = layoutSegments(graphics, line, style);
+			layouts.add(layout);
+			style = layout.endStyle;
+		}
+		int[] widths = new int[layouts.size()];
+		int[][] columnOffsets = new int[layouts.size()][];
+		layoutTables(layouts, widths, columnOffsets);
+		int maxWidth = 0;
+		for (int width : widths)
+		{
+			maxWidth = Math.max(maxWidth, width);
+		}
+		if (maxWidth == 0)
+		{
+			return null;
+		}
+
+		// 1px more below and right for the shadow, and 1px slack each side for glyphs scaled a little wider.
+		FontMetrics fontMetrics = graphics.getFontMetrics();
+		int lineHeight = fontMetrics.getHeight();
+		int width = maxWidth + 3;
+		int height = (layouts.size() - 1) * lineHeight + lineHeight(fontMetrics) + 1;
+		image = new BufferedImage((int) Math.ceil(width * resolution), (int) Math.ceil(height * resolution), BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = image.createGraphics();
+		g.setRenderingHints(graphics.getRenderingHints());
+		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		g.scale(resolution, resolution);
+		g.setFont(font);
+		Point anchor = new Point(maxWidth / 2 + 1, fontMetrics.getAscent());
+		for (int i = 0; i < layouts.size(); i++)
+		{
+			drawLine(g, anchor, layouts.get(i), widths[i], columnOffsets[i], maxWidth, TextAlign.CENTER, color, i * lineHeight);
+		}
+		g.dispose();
+		// Fitted by its glyphs, not its line spacing and padding.
+		image = cropped(image);
+		if (image != null)
+		{
+			groundTexts.put(key, image);
+		}
+		return image;
+	}
+
+	// image cut to its drawn pixels, or null if it has none.
+	@Nullable
+	private static BufferedImage cropped(BufferedImage image)
+	{
+		int width = image.getWidth(), height = image.getHeight();
+		int minX = width, minY = height, maxX = -1, maxY = -1;
+		int[] row = new int[width];
+		for (int y = 0; y < height; y++)
+		{
+			image.getRGB(0, y, width, 1, row, 0, width);
+			for (int x = 0; x < width; x++)
+			{
+				if (row[x] >>> 24 != 0)
+				{
+					minX = Math.min(minX, x);
+					maxX = Math.max(maxX, x);
+					minY = Math.min(minY, y);
+					maxY = y;
+				}
+			}
+		}
+		return maxX < 0 ? null : image.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
+	}
+
+	// The lone icon's model, if it's an item or NPC whose model loads, scale times its size and offsetNorth north of
+	// the tile's center, top toward facing; onGround runs between its parts under and over the ground. An NPC image is
+	// the only icon, so its tag is the label's.
+	private boolean drawGroundModel(Graphics2D graphics, LocalPoint localPoint, int plane, String label, Object icon, float opacity,
+		int facing, double scale, double offsetNorth, Runnable onGround)
 	{
 		if (icon instanceof ItemIcon)
 		{
@@ -397,7 +553,8 @@ public class GroundMarkerVariablesOverlay
 			{
 				return false;
 			}
-			groundModelRenderer.draw(graphics, localPoint, plane, item.model, item.x, item.y, item.z, opacity);
+			groundModelRenderer.draw(graphics, localPoint, plane, item.model, item.x, item.y, item.z, opacity, facing, scale, offsetNorth,
+				onGround);
 			return true;
 		}
 
@@ -411,7 +568,8 @@ public class GroundMarkerVariablesOverlay
 			float[][] turned = npcImages.turned(npcId, head);
 			if (model != null && turned != null)
 			{
-				groundModelRenderer.draw(graphics, localPoint, plane, model, turned[0], turned[1], turned[2], opacity);
+				groundModelRenderer.draw(graphics, localPoint, plane, model, turned[0], turned[1], turned[2], opacity, facing, scale,
+					offsetNorth, onGround);
 				return true;
 			}
 		}
@@ -848,7 +1006,11 @@ public class GroundMarkerVariablesOverlay
 
 	private LineLayout layoutLine(Graphics2D graphics, String line, int startStyle)
 	{
-		List<Object> segments = splitSegments(line);
+		return layoutSegments(graphics, splitSegments(line), startStyle);
+	}
+
+	private LineLayout layoutSegments(Graphics2D graphics, List<Object> segments, int startStyle)
+	{
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 
 		// Icons are scaled to font height (aspect preserved), not drawn at native sprite size.
