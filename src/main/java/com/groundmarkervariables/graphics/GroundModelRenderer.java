@@ -4,11 +4,16 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -35,13 +40,20 @@ public class GroundModelRenderer
 	private static final double BELOW = 0.1;
 	// Share of the model's depth each render priority level moves a face forward when sorting.
 	static final double PRIORITY_STEP = 0.01;
-	// Faces are grown this many px, closing hairline gaps between neighbours.
+	// Textured faces are grown this many px, closing hairline gaps between neighbours.
 	private static final double GROW = 0.7;
+	// Faces are shaded at this multiple of the screen size, then scaled down, for smooth edges.
+	private static final int SUPERSAMPLE = 2;
+	// How far outside a triangle a pixel center may sit and still count, so shared edges leave no gaps.
+	private static final double EDGE = 1e-9;
 
 	private final Client client;
 	private final ModelColors modelColors;
 	// Keyed by the (cached) model.
 	private final Map<Model, Flat> flats = new IdentityHashMap<>();
+	// Shared by both passes of every model; client thread only.
+	private BufferedImage buffer;
+	private int[] bufferPixels;
 
 	@Inject
 	private GroundModelRenderer(Client client, ModelColors modelColors)
@@ -91,6 +103,8 @@ public class GroundModelRenderer
 	public void clear()
 	{
 		flats.clear();
+		buffer = null;
+		bufferPixels = null;
 	}
 
 	void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float opacity)
@@ -132,32 +146,49 @@ public class GroundModelRenderer
 		}
 
 		Polygon tile = Perspective.getCanvasTilePoly(client, center);
-		if (tile == null)
+		Rectangle bounds = tile == null ? null : bounds(sx, sy, visible);
+		if (bounds == null)
 		{
 			onGround.run();
 			return;
 		}
-		Graphics2D above = (Graphics2D) graphics.create();
-		Graphics2D below = (Graphics2D) graphics.create();
-		below.clip(tile);
-		if (opacity < 1f)
-		{
-			AlphaComposite faded = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity);
-			above.setComposite(faded);
-			below.setComposite(faded);
-		}
-		drawFaces(below, flat, sx, sy, visible, true);
+		drawPass(graphics, flat, sx, sy, visible, bounds, true, tile, opacity);
 		onGround.run();
-		drawFaces(above, flat, sx, sy, visible, false);
-		above.dispose();
-		below.dispose();
+		drawPass(graphics, flat, sx, sy, visible, bounds, false, null, opacity);
 	}
 
-	// The faces with a corner under the ground (graphics clipped to the tile), or the rest.
-	private void drawFaces(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, boolean underground)
+	// The visible vertices' screen area, on the canvas; null if none.
+	@Nullable
+	private Rectangle bounds(int[] sx, int[] sy, boolean[] visible)
 	{
+		int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+		for (int i = 0; i < sx.length; i++)
+		{
+			if (visible[i])
+			{
+				minX = Math.min(minX, sx[i]);
+				minY = Math.min(minY, sy[i]);
+				maxX = Math.max(maxX, sx[i]);
+				maxY = Math.max(maxY, sy[i]);
+			}
+		}
+		Rectangle bounds = new Rectangle(minX - 1, minY - 1, maxX - minX + 2, maxY - minY + 2)
+			.intersection(new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight()));
+		return minX > maxX || bounds.isEmpty() ? null : bounds;
+	}
+
+	// The faces with a corner under the ground, or the rest, shaded into the buffer at SUPERSAMPLE times the size, then
+	// drawn once (clipped to clip if any), scaled down so edges come out smooth.
+	private void drawPass(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, Rectangle bounds, boolean underground,
+		@Nullable Shape clip, float opacity)
+	{
+		int width = bounds.width * SUPERSAMPLE, height = bounds.height * SUPERSAMPLE;
+		int[] pixels = buffer(width, height);
+		int stride = buffer.getWidth();
 		int cycle = client.getGameCycle();
 		Polygon triangle = new Polygon(new int[3], new int[3], 3);
+		Graphics2D textured = null;
+		boolean drawn = false;
 		for (int i = 0; i < flat.faces.length; i++)
 		{
 			int f = flat.faces[i];
@@ -172,30 +203,166 @@ public class GroundModelRenderer
 			{
 				continue;
 			}
-			triangle.xpoints[0] = sx[a];
-			triangle.xpoints[1] = sx[b];
-			triangle.xpoints[2] = sx[c];
-			triangle.ypoints[0] = sy[a];
-			triangle.ypoints[1] = sy[b];
-			triangle.ypoints[2] = sy[c];
-			triangle.invalidate();
+			drawn = true;
 
 			if (flat.textures[i] >= 0)
 			{
-				// The texture's average color if the texture can't be drawn.
-				if (!drawTextured(graphics, flat, i, triangle, cycle))
+				// Through Java2D, into the same buffer in screen coordinates, so faces stay in order.
+				if (textured == null)
 				{
-					graphics.setColor(flat.colors[i]);
-					graphics.fill(grown(triangle));
+					textured = buffer.createGraphics();
+					textured.scale(SUPERSAMPLE, SUPERSAMPLE);
+					textured.translate(-bounds.x, -bounds.y);
+				}
+				triangle.xpoints[0] = sx[a];
+				triangle.xpoints[1] = sx[b];
+				triangle.xpoints[2] = sx[c];
+				triangle.ypoints[0] = sy[a];
+				triangle.ypoints[1] = sy[b];
+				triangle.ypoints[2] = sy[c];
+				triangle.invalidate();
+				// The texture's average color if the texture can't be drawn.
+				if (!drawTextured(textured, flat, i, triangle, cycle))
+				{
+					textured.setColor(flat.colors[i]);
+					textured.fill(grown(triangle));
 				}
 				continue;
 			}
-			// No outline: it would show as lines along every edge.
-			graphics.setPaint(new GouraudPaint(
-				new double[]{sx[a], sx[b], sx[c]}, new double[]{sy[a], sy[b], sy[c]},
-				new int[]{flat.corners[i * 3], flat.corners[i * 3 + 1], flat.corners[i * 3 + 2]}, flat.colors[i].getAlpha()));
-			graphics.fill(grown(triangle));
+			fillGouraud(pixels, stride, width, height,
+				(sx[a] - bounds.x) * SUPERSAMPLE, (sy[a] - bounds.y) * SUPERSAMPLE,
+				(sx[b] - bounds.x) * SUPERSAMPLE, (sy[b] - bounds.y) * SUPERSAMPLE,
+				(sx[c] - bounds.x) * SUPERSAMPLE, (sy[c] - bounds.y) * SUPERSAMPLE,
+				flat.corners[i * 3], flat.corners[i * 3 + 1], flat.corners[i * 3 + 2], flat.colors[i].getAlpha());
 		}
+		if (textured != null)
+		{
+			textured.dispose();
+		}
+		if (!drawn)
+		{
+			return;
+		}
+
+		Graphics2D g = (Graphics2D) graphics.create();
+		if (clip != null)
+		{
+			g.clip(clip);
+		}
+		if (opacity < 1f)
+		{
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+		}
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g.drawImage(buffer, bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height, 0, 0, width, height, null);
+		g.dispose();
+	}
+
+	// The shared buffer's pixels, grown if needed and cleared over width x height.
+	private int[] buffer(int width, int height)
+	{
+		if (buffer == null || buffer.getWidth() < width || buffer.getHeight() < height)
+		{
+			buffer = new BufferedImage(Math.max(width, buffer == null ? 0 : buffer.getWidth()),
+				Math.max(height, buffer == null ? 0 : buffer.getHeight()), BufferedImage.TYPE_INT_ARGB_PRE);
+			bufferPixels = ((DataBufferInt) buffer.getRaster().getDataBuffer()).getData();
+		}
+		int stride = buffer.getWidth();
+		for (int row = 0; row < height; row++)
+		{
+			Arrays.fill(bufferPixels, row * stride, row * stride + width, 0);
+		}
+		return bufferPixels;
+	}
+
+	// A triangle's corner colors (0xRRGGBB) blended across it, as the game shades models, over the pixels whose centers
+	// it covers; alpha over what's there. Premultiplied pixels.
+	private static void fillGouraud(int[] pixels, int stride, int width, int height, double ax, double ay, double bx, double by,
+		double cx, double cy, int ca, int cb, int cc, int alpha)
+	{
+		double area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+		if (Math.abs(area) < 1e-9)
+		{
+			return;
+		}
+		double inv = 1 / area;
+		int minX = Math.max(0, (int) Math.floor(Math.min(ax, Math.min(bx, cx))));
+		int maxX = Math.min(width - 1, (int) Math.ceil(Math.max(ax, Math.max(bx, cx))));
+		int minY = Math.max(0, (int) Math.floor(Math.min(ay, Math.min(by, cy))));
+		int maxY = Math.min(height - 1, (int) Math.ceil(Math.max(ay, Math.max(by, cy))));
+
+		// Each corner's weight is the area opposite it as a share of the whole, linear across a row: its step per pixel,
+		// and the color's.
+		double dwa = (by - cy) * inv, dwb = (cy - ay) * inv, dwc = -dwa - dwb;
+		int ra = ca >> 16 & 0xFF, ga = ca >> 8 & 0xFF, ba = ca & 0xFF;
+		int rb = cb >> 16 & 0xFF, gb = cb >> 8 & 0xFF, bb = cb & 0xFF;
+		int rc = cc >> 16 & 0xFF, gc = cc >> 8 & 0xFF, bc = cc & 0xFF;
+		double dr = ra * dwa + rb * dwb + rc * dwc;
+		double dg = ga * dwa + gb * dwb + gc * dwc;
+		double db = ba * dwa + bb * dwb + bc * dwc;
+		int inverse = 255 - alpha;
+		double[] starts = new double[3], steps = {dwa, dwb, dwc};
+		for (int y = minY; y <= maxY; y++)
+		{
+			// Weights at this row's first pixel center (x = 0).
+			double py = y + 0.5;
+			double wa = ((bx - 0.5) * (cy - py) - (by - py) * (cx - 0.5)) * inv;
+			double wb = ((cx - 0.5) * (ay - py) - (cy - py) * (ax - 0.5)) * inv;
+			double wc = 1 - wa - wb;
+
+			// The run of pixels whose centers every weight keeps inside.
+			double lo = minX, hi = maxX;
+			starts[0] = wa;
+			starts[1] = wb;
+			starts[2] = wc;
+			for (int k = 0; k < 3; k++)
+			{
+				double edge = (-EDGE - starts[k]) / steps[k];
+				if (steps[k] > 0)
+				{
+					lo = Math.max(lo, edge);
+				}
+				else if (steps[k] < 0)
+				{
+					hi = Math.min(hi, edge);
+				}
+				else if (starts[k] < -EDGE)
+				{
+					hi = lo - 1;
+				}
+			}
+			int start = (int) Math.ceil(lo), end = (int) Math.floor(hi);
+			if (start > end)
+			{
+				continue;
+			}
+
+			double r = ra * (wa + dwa * start) + rb * (wb + dwb * start) + rc * (wc + dwc * start);
+			double g = ga * (wa + dwa * start) + gb * (wb + dwb * start) + gc * (wc + dwc * start);
+			double b = ba * (wa + dwa * start) + bb * (wb + dwb * start) + bc * (wc + dwc * start);
+			int index = y * stride + start;
+			for (int x = start; x <= end; x++, index++, r += dr, g += dg, b += db)
+			{
+				int red = clamp(r), green = clamp(g), blue = clamp(b);
+				if (alpha == 255)
+				{
+					pixels[index] = 0xFF000000 | red << 16 | green << 8 | blue;
+					continue;
+				}
+				int dst = pixels[index];
+				pixels[index] = (alpha + (dst >>> 24) * inverse / 255) << 24
+					| (red * alpha + (dst >> 16 & 0xFF) * inverse) / 255 << 16
+					| (green * alpha + (dst >> 8 & 0xFF) * inverse) / 255 << 8
+					| (blue * alpha + (dst & 0xFF) * inverse) / 255;
+			}
+		}
+	}
+
+	// Rounded into 0..255.
+	private static int clamp(double value)
+	{
+		int rounded = (int) (value + 0.5);
+		return rounded < 0 ? 0 : Math.min(rounded, 255);
 	}
 
 	// The face's texture, scrolled to this game cycle and darkened by its lighting. False if it can't be drawn.
