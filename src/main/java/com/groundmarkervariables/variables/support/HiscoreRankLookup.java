@@ -42,6 +42,18 @@ public class HiscoreRankLookup
 		return rank <= -1 ? null : rank;
 	}
 
+	// Another player's boss kc, on our world type's hiscores; 0 if unranked, null while loading.
+	public Integer kc(String player, HiscoreSkill skill)
+	{
+		HiscoreResult result = hiscoreManager.lookupAsync(player, HiscoreEndpoint.fromWorldTypes(client.getWorldType()));
+		if (result == null)
+		{
+			return null;
+		}
+
+		return Math.max(result.getSkill(skill).getLevel(), 0);
+	}
+
 	// Mirrors ChatCommandsPlugin's own local-player-only endpoint detection.
 	private HiscoreEndpoint localEndpoint()
 	{

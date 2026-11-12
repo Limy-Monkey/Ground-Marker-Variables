@@ -1,30 +1,41 @@
 package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.BossAliases;
+import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.BossKillCountTracker;
+import com.groundmarkervariables.variables.support.HiscoreRankLookup;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import net.runelite.api.Client;
+import net.runelite.client.hiscore.HiscoreSkill;
+import net.runelite.client.party.PartyMember;
 
 // {kc <boss>} -> the player's tracked kill count for <boss> (case-insensitive), or 0 if none
 // has been recorded yet. <boss> may be a short alias (e.g. "cg") — see BossAliases — as well
 // as the canonical name. See BossKillCountTracker for how kill counts are learned/stored.
-public class KcLabelVariable implements LabelVariable
+// For another party member, their kill count from the hiscores; only bosses on the hiscores.
+public class KcLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	// Excludes ?:<>=! so a trailing BooleanVariable/ConditionalVariable comparator (e.g. "{kc
 	// cg > 10}") isn't swallowed into the boss name here.
 	private static final Pattern PATTERN = Pattern.compile("\\{kc\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
 
+	private final Client client;
 	private final BossKillCountTracker tracker;
+	private final HiscoreRankLookup hiscores;
 	private final RichText richText;
 
 	@Inject
-	private KcLabelVariable(BossKillCountTracker tracker, RichText richText)
+	private KcLabelVariable(Client client, BossKillCountTracker tracker, HiscoreRankLookup hiscores, RichText richText)
 	{
+		this.client = client;
 		this.tracker = tracker;
+		this.hiscores = hiscores;
 		this.richText = richText;
 	}
 
@@ -58,5 +69,28 @@ public class KcLabelVariable implements LabelVariable
 
 		String canonicalBoss = BossAliases.resolve(matcher.group(1).trim());
 		return richText.labeled(canonicalBoss + " kc", kc);
+	}
+
+	// Null (unavailable) while the hiscores load, and for bosses not on them.
+	@Override
+	public String resolvePlain(Matcher matcher, PartyMember member)
+	{
+		String boss = matcher.group(1).trim();
+		HiscoreSkill skill = boss.isEmpty() ? null : BossHiscoreSkill.find(BossAliases.resolve(boss));
+		String name = member.getDisplayName();
+		if (skill == null || name == null || name.isEmpty())
+		{
+			return null;
+		}
+
+		Integer kc = hiscores.kc(name, skill);
+		return kc == null ? null : String.valueOf(kc);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher, PartyMember member)
+	{
+		String kc = resolvePlain(matcher, member);
+		return kc == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(kc);
 	}
 }
