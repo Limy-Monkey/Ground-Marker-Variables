@@ -39,8 +39,8 @@ import net.runelite.client.util.Text;
 //
 // A scrollable list is shown below the separator — Current (the tile's own original label), Recent (the last few
 // labels saved anywhere) and Nearby (other markers' labels within 150 tiles), see recommendations(). Recent/Nearby
-// only show while the input is still unedited; once edited, Suggestions lists every way to complete the token at the
-// cursor (see LabelCompleter) instead. Section titles use Quill 8 like the prompt; entries are clickable: a label
+// only show while the input is still unedited; once edited, untitled suggestion rows list every way to complete the
+// token at the cursor (see LabelCompleter) instead. Section titles use Quill 8 like the prompt; entries are clickable: a label
 // fills the input, a suggestion completes the token like Tab.
 public class AdvancedLabelEditor extends ChatboxTextInput
 {
@@ -49,7 +49,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int VISIBLE_ROWS = 5;
 	// Caps ChatboxTextInput's own word-wrap (see lines() in the constructor) — also mirrored
 	// by computeWrappedLines(), since the wrapped row count isn't otherwise exposed.
-	private static final int MAX_EDIT_LINES = 3;
+	private static final int MAX_EDIT_LINES = 5;
 	private static final int SCROLLBAR_WIDTH = 14;
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
@@ -155,6 +155,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private Consumer<String> onRemoveRecent = label -> { };
 	private Color tileColor = Color.YELLOW;
 	private int scrollOffset;
+	// List rows that fit under the edit text, up to VISIBLE_ROWS; fewer as it wraps, none at MAX_EDIT_LINES.
+	private int visibleRows = VISIBLE_ROWS;
 	// The value the list was last scrolled for: a new value starts it back at the top.
 	private String scrolledValue = "";
 
@@ -754,6 +756,14 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		int separatorY = editRowY(wrappedLines.size()) - 1;
 		int resultsStartY = separatorY + 8;
+		// The list ends where all VISIBLE_ROWS end under one edit line.
+		int listBottom = editRowY(1) + 7 + VISIBLE_ROWS * ROW_HEIGHT;
+		visibleRows = Math.max(0, Math.min(VISIBLE_ROWS, (listBottom - resultsStartY) / ROW_HEIGHT));
+		if (visibleRows == 0)
+		{
+			iconOverlay.show(iconPlacements);
+			return;
+		}
 
 		Widget separator = container.createChild(-1, WidgetType.LINE);
 		separator.setXPositionMode(WidgetPositionMode.ABSOLUTE_CENTER);
@@ -930,7 +940,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		rows.add(Row.title("Suggestions"));
 		for (int i = 0; i < listed.size(); i += SUGGESTION_COLUMNS)
 		{
 			List<Completion.Option> row = listed.subList(i, Math.min(i + SUGGESTION_COLUMNS, listed.size()));
@@ -951,7 +960,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			scrolledValue = getValue();
 			scrollOffset = 0;
 		}
-		int maxOffset = Math.max(0, rows.size() - VISIBLE_ROWS + 1);
+		int maxOffset = Math.max(0, rows.size() - visibleRows + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
 
 		// Invisible — purely captures mouse wheel input over the recommendations area.
@@ -961,13 +970,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		scrollCapture.setOriginalX(0);
 		scrollCapture.setOriginalY(resultsStartY);
 		scrollCapture.setOriginalWidth(container.getWidth());
-		scrollCapture.setOriginalHeight(VISIBLE_ROWS * ROW_HEIGHT);
+		scrollCapture.setOriginalHeight(visibleRows * ROW_HEIGHT);
 		scrollCapture.setHasListener(true);
 		scrollCapture.setNoScrollThrough(true);
 		scrollCapture.setOnScrollWheelListener((JavaScriptCallback) ev -> scroll(ev.getMouseY()));
 		scrollCapture.revalidate();
 
-		int visibleCount = Math.min(VISIBLE_ROWS, rows.size() - scrollOffset);
+		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
 		for (int i = 0; i < visibleCount; i++)
 		{
 			Row row = rows.get(scrollOffset + i);
@@ -1111,19 +1120,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	private void scroll(int direction)
 	{
-		int maxOffset = Math.max(0, buildRows().size() - VISIBLE_ROWS + 1);
+		int maxOffset = Math.max(0, buildRows().size() - visibleRows + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset + direction, maxOffset));
 		update();
 	}
 
 	private void buildScrollbar(Widget container, int rowCount, int maxOffset, int resultsStartY)
 	{
-		if (maxOffset <= 0)
+		int resultsHeight = visibleRows * ROW_HEIGHT;
+		// Needs room for both arrows and a thumb; the wheel still scrolls without it.
+		if (maxOffset <= 0 || resultsHeight < SCROLLBAR_ARROW_HEIGHT * 2 + SCROLLBAR_THUMB_MIN_HEIGHT)
 		{
 			return;
 		}
-
-		int resultsHeight = VISIBLE_ROWS * ROW_HEIGHT;
 
 		Widget upArrow = container.createChild(-1, WidgetType.TEXT);
 		upArrow.setText("^");
@@ -1175,7 +1184,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		track.setOriginalHeight(trackHeight);
 		track.revalidate();
 
-		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * VISIBLE_ROWS / rowCount);
+		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * visibleRows / rowCount);
 		int thumbY = trackY + (trackHeight - thumbHeight) * scrollOffset / maxOffset;
 
 		Widget thumb = container.createChild(-1, WidgetType.RECTANGLE);
