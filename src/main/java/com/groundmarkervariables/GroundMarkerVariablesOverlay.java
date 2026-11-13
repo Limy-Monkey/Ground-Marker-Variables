@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -99,6 +100,9 @@ public class GroundMarkerVariablesOverlay
 	private static final double GROUND_TEXT_MAX_SHARE = 0.5;
 	private static final double GROUND_TEXT_GAP = 4;
 	private static final int MAX_GROUND_TEXTS = 64;
+	// {ground} text's height over the ground, and its shadow's under it, in local units.
+	private static final int GROUND_TEXT_LIFT = 3;
+	private static final int GROUND_SHADOW_DROP = 6;
 	// Bounds on the screen px per text px a {ground} text image is rendered at.
 	private static final double MIN_GROUND_TEXT_RESOLUTION = 0.25;
 	private static final double MAX_GROUND_TEXT_RESOLUTION = 16;
@@ -164,6 +168,8 @@ public class GroundMarkerVariablesOverlay
 	// {ground} icon rows, keyed the same way.
 	private final Map<List<BufferedImage>, BufferedImage> groundRows = new HashMap<>();
 	// {ground} text images, keyed by font, color and the {ground} label; least recently used dropped.
+	// Each {ground} text image's shadow; weak, so it goes with its text image.
+	private final Map<BufferedImage, BufferedImage> groundShadows = new WeakHashMap<>();
 	private final Map<String, BufferedImage> groundTexts = new LinkedHashMap<String, BufferedImage>(16, 0.75f, true)
 	{
 		@Override
@@ -450,14 +456,35 @@ public class GroundMarkerVariablesOverlay
 		resolution = Math.pow(2, Math.round(Math.log(resolution) / Math.log(2) * 4) / 4.0);
 		resolution = Math.max(MIN_GROUND_TEXT_RESOLUTION, Math.min(MAX_GROUND_TEXT_RESOLUTION, resolution));
 		BufferedImage image = groundText(graphics, lines, color, label, resolution);
-		if (image != null)
+		BufferedImage shadow = image == null ? null : groundShadows.get(image);
+		if (image == null || shadow == null)
 		{
-			groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height);
+			return;
 		}
+		// Parallax icons off: both flat on the tile, as one text with its shadow.
+		if (!config.parallaxIcons())
+		{
+			groundImageRenderer.draw(graphics, localPoint, plane, shadow, true, opacity, facing, offsetNorth, width, height);
+			groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height);
+			return;
+		}
+
+		// The shadow just under the ground, seen through the tile only (clipped to it), and the text just over it, so they
+		// part with the camera angle.
+		Polygon tile = Perspective.getCanvasTilePoly(client, localPoint);
+		if (tile != null)
+		{
+			Graphics2D clipped = (Graphics2D) graphics.create();
+			clipped.clip(tile);
+			groundImageRenderer.draw(clipped, localPoint, plane, shadow, true, opacity, facing, offsetNorth, width, height, -GROUND_SHADOW_DROP);
+			clipped.dispose();
+		}
+		groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height, GROUND_TEXT_LIFT);
 	}
 
-	// The text lines as labels draw them (shadow, colors, {b}/{i}, tables), centered on a transparent image, resolution
-	// image px per text px. Cached by font, color and label (which the lines come from), and resolution.
+	// The text lines as labels draw them (colors, {b}/{i}, tables) but without a shadow, centered on a transparent image,
+	// resolution image px per text px; its shadow, the same size, goes in groundShadows. Cached by font, color and label
+	// (which the lines come from), and resolution.
 	@Nullable
 	private BufferedImage groundText(Graphics2D graphics, List<List<Object>> lines, Color color, String label, double resolution)
 	{
@@ -490,7 +517,7 @@ public class GroundMarkerVariablesOverlay
 			return null;
 		}
 
-		// 1px more below and right for the shadow, and 1px slack each side for glyphs scaled a little wider.
+		// 1px slack each side for glyphs scaled a little wider, and 1px below and right as before (cropped off).
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 		int lineHeight = fontMetrics.getHeight();
 		int width = maxWidth + 3;
@@ -504,15 +531,35 @@ public class GroundMarkerVariablesOverlay
 		Point anchor = new Point(maxWidth / 2 + 1, fontMetrics.getAscent());
 		for (int i = 0; i < layouts.size(); i++)
 		{
-			drawLine(g, anchor, layouts.get(i), widths[i], columnOffsets[i], maxWidth, TextAlign.CENTER, color, i * lineHeight);
+			drawLine(g, anchor, layouts.get(i), widths[i], columnOffsets[i], maxWidth, TextAlign.CENTER, color, i * lineHeight, false);
 		}
 		g.dispose();
 		// Fitted by its glyphs, not its line spacing and padding.
-		image = cropped(image);
-		if (image != null)
+		BufferedImage glyphs = cropped(image);
+		if (glyphs == null)
 		{
-			groundTexts.put(key, image);
+			return null;
 		}
+
+		// Both images grown by the shadow's offset (1 text px), the shadow a black copy of the text moved by it.
+		int offset = Math.max(1, (int) Math.round(resolution));
+		image = new BufferedImage(glyphs.getWidth() + offset, glyphs.getHeight() + offset, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D textGraphics = image.createGraphics();
+		textGraphics.drawImage(glyphs, 0, 0, null);
+		textGraphics.dispose();
+		BufferedImage shadow = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		int[] row = new int[glyphs.getWidth()];
+		for (int y = 0; y < glyphs.getHeight(); y++)
+		{
+			glyphs.getRGB(0, y, row.length, 1, row, 0, row.length);
+			for (int x = 0; x < row.length; x++)
+			{
+				row[x] &= 0xFF000000;
+			}
+			shadow.setRGB(offset, y + offset, row.length, 1, row, 0, row.length);
+		}
+		groundTexts.put(key, image);
+		groundShadows.put(image, shadow);
 		return image;
 	}
 
@@ -807,7 +854,7 @@ public class GroundMarkerVariablesOverlay
 		for (int i = 0; i < label.layouts.size(); i++)
 		{
 			drawLine(graphics, label.anchor, label.layouts.get(i), label.widths[i], label.columnOffsets[i], label.blockMaxWidths[i],
-				lineAlign(label.alignments, i), color, label.startY + i * label.lineHeight);
+				lineAlign(label.alignments, i), color, label.startY + i * label.lineHeight, true);
 		}
 	}
 
@@ -1146,9 +1193,10 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	// columnOffsets: each table column's x relative to the line's start, or null if not a table.
+	// columnOffsets: each table column's x relative to the line's start, or null if not a table. shadow: text with
+	// TextComponent's own shadow, else without.
 	private void drawLine(Graphics2D graphics, Point anchor, LineLayout layout, int width, int[] columnOffsets, int maxWidth,
-		TextAlign align, Color color, int yOffset)
+		TextAlign align, Color color, int yOffset, boolean shadow)
 	{
 		FontMetrics fontMetrics = graphics.getFontMetrics();
 		int lineStart = lineX(anchor.getX(), align, width, maxWidth);
@@ -1222,12 +1270,19 @@ public class GroundMarkerVariablesOverlay
 				String text = (String) segment;
 				lastIcon = null;
 				Font font = styledFont(graphics.getFont(), style);
-				TextComponent textComponent = new TextComponent();
-				textComponent.setText(text);
-				textComponent.setFont(font);
-				textComponent.setColor(textColor);
-				textComponent.setPosition(x, y);
-				textComponent.render(graphics);
+				if (shadow)
+				{
+					TextComponent textComponent = new TextComponent();
+					textComponent.setText(text);
+					textComponent.setFont(font);
+					textComponent.setColor(textColor);
+					textComponent.setPosition(x, y);
+					textComponent.render(graphics);
+				}
+				else
+				{
+					drawRuns(graphics, text, font, textColor, x, y);
+				}
 				int textWidth = graphics.getFontMetrics(font).stringWidth(COLOR_TAG_PATTERN.matcher(text).replaceAll(""));
 				hitTest(x, y - fontMetrics.getAscent(), textWidth, lineHeight(fontMetrics), -1);
 				x += textWidth;
@@ -1240,6 +1295,34 @@ public class GroundMarkerVariablesOverlay
 				}
 			}
 		}
+	}
+
+	// text as TextComponent draws it, each <col=> starting a new color, but without its shadow.
+	private static void drawRuns(Graphics2D graphics, String text, Font font, Color color, int x, int y)
+	{
+		Font previous = graphics.getFont();
+		graphics.setFont(font);
+		FontMetrics metrics = graphics.getFontMetrics();
+		Matcher tag = COLOR_TAG_PATTERN.matcher(text);
+		int start = 0;
+		while (true)
+		{
+			boolean found = tag.find();
+			String run = text.substring(start, found ? tag.start() : text.length());
+			if (!run.isEmpty())
+			{
+				graphics.setColor(color);
+				graphics.drawString(run, x, y);
+				x += metrics.stringWidth(run);
+			}
+			if (!found)
+			{
+				break;
+			}
+			color = Color.decode("#" + tag.group(1));
+			start = tag.end();
+		}
+		graphics.setFont(previous);
 	}
 
 	// Under the mouse, an open {tip=} wins over an item's own name tooltip.

@@ -88,6 +88,13 @@ public class GroundImageRenderer
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
 		int facing, double offsetNorth, double width, double height)
 	{
+		draw(graphics, center, plane, image, smooth, opacity, facing, offsetNorth, width, height, 0);
+	}
+
+	// As above, lift local units over the ground (under it if negative).
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
+		int facing, double offsetNorth, double width, double height, int lift)
+	{
 		double scale = Math.min(width / image.getWidth(), height / image.getHeight());
 		// Smooth sampling stops hard at the image's edge, so pixels touching it would end in a straight cut; a
 		// transparent border lets them fade out like any other edge.
@@ -105,7 +112,7 @@ public class GroundImageRenderer
 			for (int col = 0; col <= CELLS; col++)
 			{
 				LocalPoint point = turned(center, -halfW + halfW * 2 * col / CELLS, offsetNorth + halfH - halfH * 2 * row / CELLS, facing);
-				Point p = Perspective.localToCanvas(client, point, plane);
+				Point p = Perspective.localToCanvas(client, point, plane, lift);
 				corners[row][col] = p;
 				if (p != null)
 				{
