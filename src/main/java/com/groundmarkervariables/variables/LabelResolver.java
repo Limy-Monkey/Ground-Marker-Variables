@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.markers.PreparedLabel;
 import com.groundmarkervariables.variables.label.BooleanVariable;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.label.MathVariable;
@@ -71,15 +72,26 @@ public class LabelResolver
 	// for {variable} / {cond ? a : b} syntax.
 	public String resolveMarker(String label)
 	{
+		return resolveMarker(prepareMarker(label));
+	}
+
+	public String resolveMarker(PreparedLabel prepared)
+	{
+		return prepared.getGuarded() == null ? null : TileMetaGuard.restore(resolve(prepared.getGuarded()), prepared.getTileMeta());
+	}
+
+	// The work before resolving that depends only on the label, so a marker can keep it.
+	public PreparedLabel prepareMarker(String label)
+	{
 		String expanded = emojis.expand(label == null ? null : NamedColors.expandColorAliases(label));
 		if (expanded == null)
 		{
-			return null;
+			return new PreparedLabel(null, List.of());
 		}
 
 		List<String> tileMeta = new ArrayList<>();
 		String guarded = TileMetaGuard.protect(GroundGuard.strip(expanded, this::isVariable), tileMeta, this::isVariable);
-		return TileMetaGuard.restore(resolve(guarded), tileMeta);
+		return new PreparedLabel(guarded, tileMeta);
 	}
 
 	// text, braced, is a variable or math token.

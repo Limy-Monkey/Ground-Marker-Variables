@@ -9,12 +9,15 @@ import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 public class CachedMarker
 {
 	public final GroundMarkerPointData source;
+	// source's label made ready to resolve, once (the label never changes).
+	private final PreparedLabel preparedLabel;
 	private volatile String resolvedLabel;
 	private volatile MetaState metaState = new MetaState();
 
 	public CachedMarker(GroundMarkerPointData source, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
 	{
 		this.source = source;
+		this.preparedLabel = labelResolver.prepareMarker(source.getLabel());
 		refresh(labelResolver, metaVariableResolver);
 	}
 
@@ -22,7 +25,7 @@ public class CachedMarker
 	// conditional's winning branch still applies.
 	public void refresh(LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
 	{
-		String resolved = labelResolver.resolveMarker(source.getLabel());
+		String resolved = labelResolver.resolveMarker(preparedLabel);
 		MetaVariableResolver.Result meta = metaVariableResolver.resolve(resolved);
 		metaState = meta.state;
 		resolvedLabel = meta.label;
