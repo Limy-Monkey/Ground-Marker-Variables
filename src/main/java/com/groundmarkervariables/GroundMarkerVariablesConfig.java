@@ -387,6 +387,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			position = 6,
+			keyName = "showSuggestions",
+			name = "Suggestions",
+			description = "Once a label is edited, list every way to complete what's being typed, with icons, below the Advanced Label Editor.",
+			section = advancedEditorSection
+	)
+	default boolean showSuggestions()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 			name = "Variables",
 			description = "Quick reference for every available variable — see the README for full details.",

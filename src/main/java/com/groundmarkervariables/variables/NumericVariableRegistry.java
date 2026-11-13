@@ -30,7 +30,7 @@ import javax.inject.Inject;
 // ConditionEvaluator (circular -- see ConditionEvaluator's own comment).
 public class NumericVariableRegistry
 {
-	// AdvancedLabelEditor's own autocomplete name/prefix for each variable above.
+	// LabelCompleter's autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
 		"kc", "loot", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
 		"combatAchievement", "numItem", "numDoses", "partyNum", "party", "invSpace", "xp_"

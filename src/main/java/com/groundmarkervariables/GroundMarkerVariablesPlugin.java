@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.chatbox.MarkerManager;
+import com.groundmarkervariables.chatbox.SuggestionIconOverlay;
 import com.groundmarkervariables.graphics.GroundMarkerVariablesMinimapOverlay;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.DeletedMarkers;
@@ -199,6 +200,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private PartyNotificationOverlay partyNotificationOverlay;
 
 	@Inject
+	private SuggestionIconOverlay suggestionIconOverlay;
+
+	@Inject
 	private KeyManager keyManager;
 
 	@Inject
@@ -299,6 +303,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		overlayManager.add(labelOverlay);
 		overlayManager.add(minimapOverlay);
 		overlayManager.add(partyNotificationOverlay);
+		overlayManager.add(suggestionIconOverlay);
 		keyManager.registerKeyListener(metronomeResetHotkeyListener);
 		pingedTileManager.startUp();
 		partyDataSharing.startUp(this);
@@ -388,6 +393,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		overlayManager.remove(labelOverlay);
 		overlayManager.remove(minimapOverlay);
 		overlayManager.remove(partyNotificationOverlay);
+		overlayManager.remove(suggestionIconOverlay);
+		suggestionIconOverlay.clear();
 		sharingManager.removeMenuOptions();
 		markersByRegion.clear();
 		renderedTiles.clear();

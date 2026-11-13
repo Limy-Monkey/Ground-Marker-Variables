@@ -126,6 +126,8 @@ public class IconNames
 	// Lowercase names of nearby NPCs / held items, ranked first by complete().
 	private volatile Set<String> nearbyNpcs = Set.of();
 	private volatile Set<String> heldItems = Set.of();
+	// See bossSprite(). Client thread only.
+	private Map<String, Integer> bossSprites;
 
 	@Inject
 	private IconNames(Client client, ClientThread clientThread)
@@ -199,6 +201,108 @@ public class IconNames
 			}
 		}
 		return nearby != null ? nearby : shortest;
+	}
+
+	// Client thread. A boss's hiscores icon by the names {kc} uses, which differ from the hiscores table's ("Gauntlet"
+	// for "The Gauntlet", "Obor" for "Obor chests opened", ...); null if none.
+	@Nullable
+	public Integer bossSprite(String name)
+	{
+		if (bossSprites == null)
+		{
+			bossSprites = loadBossSprites();
+		}
+		return bossSprites.get(bossKey(name));
+	}
+
+	// Each row by its whole name; one with a colon also by the part before it, unless a row has that name already.
+	private Map<String, Integer> loadBossSprites()
+	{
+		Map<String, Integer> sprites = new HashMap<>();
+		Map<String, Integer> beforeColon = new HashMap<>();
+		try
+		{
+			for (int row : client.getDBTableRows(DBTableID.HiscoresBossesInfo.ID))
+			{
+				Object[] name = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSNAME, 0);
+				Object[] icon = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSICON, 0);
+				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer)
+				{
+					String bossName = (String) name[0];
+					sprites.putIfAbsent(bossKey(bossName), (Integer) icon[0]);
+					int colon = bossName.indexOf(':');
+					if (colon > 0)
+					{
+						beforeColon.putIfAbsent(bossKey(bossName.substring(0, colon)), (Integer) icon[0]);
+					}
+				}
+			}
+		}
+		catch (RuntimeException e)
+		{
+			log.warn("Couldn't read boss icons", e);
+		}
+		beforeColon.forEach(sprites::putIfAbsent);
+		return sprites;
+	}
+
+	// Lowercase, without a leading "The ", colons, or a trailing "chest(s) (opened)".
+	private static String bossKey(String name)
+	{
+		String key = Text.removeTags(name).toLowerCase(Locale.ROOT).trim();
+		if (key.startsWith("the "))
+		{
+			key = key.substring(4);
+		}
+		return key.replace(":", "").replaceAll("\\s+chests?(\\s+opened)?$", "").replaceAll("\\s+", " ").trim();
+	}
+
+	// Up to limit names starting with partial (any case), in complete()'s order: an exact match, then nearby NPCs / held
+	// items, then the rest shortest first; then names only containing it, shortest first. Empty if none, or while the
+	// names are still loading.
+	public List<String> matches(Kind kind, String partial, int limit)
+	{
+		Index index = index(kind);
+		if (index == null || partial.isEmpty())
+		{
+			return List.of();
+		}
+
+		String lower = partial.toLowerCase(Locale.ROOT);
+		Set<String> preferred = kind == Kind.NPC ? nearbyNpcs : kind == Kind.ITEM ? heldItems : Set.of();
+		List<String> exact = new ArrayList<>();
+		List<String> nearby = new ArrayList<>();
+		List<String> rest = new ArrayList<>();
+		List<String> contained = new ArrayList<>();
+		for (String name : index.names)
+		{
+			String key = name.toLowerCase(Locale.ROOT);
+			if (!key.startsWith(lower))
+			{
+				if (contained.size() < limit && key.contains(lower))
+				{
+					contained.add(name);
+				}
+				continue;
+			}
+			if (key.equals(lower))
+			{
+				exact.add(name);
+			}
+			else if (preferred.contains(key))
+			{
+				nearby.add(name);
+			}
+			else if (rest.size() < limit)
+			{
+				rest.add(name);
+			}
+		}
+		List<String> ranked = new ArrayList<>(exact);
+		ranked.addAll(nearby);
+		ranked.addAll(rest);
+		ranked.addAll(contained);
+		return ranked.size() > limit ? ranked.subList(0, limit) : ranked;
 	}
 
 	// Client thread. "<npc=Verzik Vitur>" -> "<npc=8369>", "<item=Abyssal whip@50%>" -> "<item=4151@50%>",

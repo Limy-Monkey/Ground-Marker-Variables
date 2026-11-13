@@ -1,35 +1,23 @@
 package com.groundmarkervariables.chatbox;
 
-import com.google.gson.Gson;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
-import com.groundmarkervariables.variables.NumericVariableRegistry;
-import com.groundmarkervariables.variables.label.LootLabelVariable;
-import com.groundmarkervariables.variables.support.BossAliases;
-import com.groundmarkervariables.variables.support.BossHiscoreSkill;
-import com.groundmarkervariables.variables.support.CollectionLog;
-import com.groundmarkervariables.variables.support.Emojis;
-import com.groundmarkervariables.variables.support.IconNames;
+import com.groundmarkervariables.chatbox.completion.Completion;
+import com.groundmarkervariables.chatbox.completion.LabelCompleter;
 import com.groundmarkervariables.variables.support.NamedColors;
-import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import java.awt.Color;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.time.Instant;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
-import net.runelite.api.Skill;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetPositionMode;
@@ -40,8 +28,6 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.game.chatbox.ChatboxTextInput;
-import net.runelite.client.hiscore.HiscoreSkill;
-import net.runelite.client.hiscore.HiscoreSkillType;
 import net.runelite.client.util.Text;
 
 // Our own version of Ground Markers' "Tile label" editor (see GroundMarkerVariablesConfig's
@@ -51,13 +37,11 @@ import net.runelite.client.util.Text;
 // The input line uses RuneScape 12 (FontID.PLAIN_12) instead of the default Quill font;
 // the title above it stays Quill 8, matching Ground Markers' own "Tile label" prompt.
 //
-// A scrollable list of recommended labels is shown below the separator — Current (the tile's
-// own original label, always shown), Recent (the last few labels saved anywhere), and Nearby
-// (other markers' labels within 150 tiles) — see recommendations(). Recent/Nearby only show
-// while the input is still unedited (its value equals the tile's own original label); Current
-// stays visible regardless, so it's always there to click back to. Section titles use Quill 8
-// like the prompt; entries themselves are plain RuneScape 12 text, clickable to fill the
-// input with that text.
+// A scrollable list is shown below the separator — Current (the tile's own original label), Recent (the last few
+// labels saved anywhere) and Nearby (other markers' labels within 150 tiles), see recommendations(). Recent/Nearby
+// only show while the input is still unedited; once edited, Suggestions lists every way to complete the token at the
+// cursor (see LabelCompleter) instead. Section titles use Quill 8 like the prompt; entries are clickable: a label
+// fills the input, a suggestion completes the token like Tab.
 public class AdvancedLabelEditor extends ChatboxTextInput
 {
 	private static final int LINE_HEIGHT = 20;
@@ -73,6 +57,14 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int HOVER_COLOR = 0x444444;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
 	private static final int GHOST_BACKGROUND_COLOR = 0xFFFFFF;
+	private static final int ROW_COLOR = 0x000000;
+	// The suggestion Tab would insert.
+	private static final int PREFERRED_SUGGESTION_COLOR = 0x0000A0;
+	// Suggestions per row, and each one's icon size and gap before its name.
+	private static final int SUGGESTION_COLUMNS = 3;
+	private static final int ICON_WIDTH = 18;
+	private static final int ICON_HEIGHT = 16;
+	private static final int ICON_GAP = 2;
 
 	// Undo/"_"/"x", right-aligned in the prompt row.
 	private static final int TOP_BAR_GAP = 4;
@@ -80,155 +72,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
 	private static final int UNDO_BUTTON_WIDTH = 12;
 
-	// The completable name of every variable — "lvl_"/"boost_"/"xpRate_"/"col=" include their
-	// trailing underscore/equals, since a skill name or color value follows them.
-	private static final List<String> VARIABLE_NAMES = List.of(
-		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType", "autocast", "dps",
-		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "runePouch", "miscellania", "col=", "time",
-		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "log", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "hasSpellbookSwap", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip="
-	);
-
-	// VARIABLE_NAMES entries that need more typed before the token is complete (a skill/slot/
-	// boss/monster/color/param follows) -- excluded from the auto-"}" on Tab-accept.
-	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "log", "metronome", "hasItem", "showItems", "showOneItem","numItem", "numDoses", "tileCol=", "highlight",
-		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup", "active");
-
-	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>} — once typing continues
-	// past any of these prefixes, autocomplete switches from variable names to skill names.
-	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_", "xp_");
-
-	// {equip_<slot>} — once "equip_" is fully typed, autocomplete switches to this fixed slot
-	// list (EquipLabelVariable's own SLOTS keys, plus "quiver").
-	private static final String EQUIP_PREFIX = "equip_";
-	private static final List<String> EQUIP_SLOTS = List.of(
-		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
-
-	// {kc <boss>} / {pb <boss>} / {rank <boss>} — once any is fully typed, autocomplete
-	// switches to HiscoreSkill's BOSS entries (the same boss list all three use).
-	private static final String KC_PREFIX = "kc ";
-	private static final String PB_PREFIX = "pb ";
-	private static final String RANK_PREFIX = "rank ";
-
-	// {party <template>} — completes whichever keyword is currently being typed.
-	private static final String PARTY_PREFIX = "party ";
-	private static final List<String> PARTY_KEYWORDS = List.of("num", "name", "hp", "prayer");
-	private static final Pattern PARTY_WORD = Pattern.compile("[a-zA-Z]*$");
-
-	// {dps <template>} -- same keyword completion as {party}. <N>s isn't completed.
-	private static final String DPS_PREFIX = "dps ";
-	private static final List<String> DPS_KEYWORDS = List.of(
-		"avgDps", "report", "groupReport", "bossReport", "fullReport","theoryDps", "pureTheoryDps", "shareDps", "splitDps", "totalDamage", "takenDamage", "acc",
-		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses", "timeSpent", "ticksSpent", "ticksUsed", "ticksLost", "noLegend");
-
-	// {divine <potion>} — fixed candidate list, closed with "}" once exactly typed.
-	private static final String DIVINE_PREFIX = "divine ";
-	private static final List<String> DIVINE_POTIONS = List.of(
-		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage", "Salts", "Overload");
-
-	// {hasBarrage <element> ... [icon]} / {hasSurge ...} — each word once, completing the last. "air" is {hasSurge}'s
-	// alias for "wind", so either one used rules out both.
-	private static final Pattern SPELL_SET_WORDS = Pattern.compile("(?i)^(hasBarrage|hasSurge)((?:\\s+\\w+)*?)\\s+(\\w*)$");
-	private static final Map<String, List<String>> SPELL_SET_OPTIONS = Map.of(
-		"hasbarrage", List.of("smoke", "shadow", "blood", "ice", "icon"),
-		"hassurge", List.of("wind", "air", "water", "earth", "fire", "icon"));
-	private static final Map<String, String> SPELL_SET_ALIASES = Map.of("air", "wind", "wind", "air");
-
-	// {active <effect>} — the same, before an optional " icon".
-	private static final String ACTIVE_PREFIX = "active ";
-	private static final List<String> ACTIVE_EFFECTS = List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness");
-
-	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>} -- names from WeaponStyleTracker.
-	private static final Pattern WEAPON_OPTION = Pattern.compile("(?i)^(attack(?:Style|Type)(?:\\s*,\\s*|\\s+))(\\w*)$");
-	private static final Pattern WEAPON_VALUE = Pattern.compile("(?i)^attack(?:Style|Type)\\s*,?\\s*weapon\\s*=\\s*(.*)$");
-	private static final String WEAPON_OPTION_NAME = "weapon=";
-
-	// {worldInfo hideWorld}
-	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
-	private static final String HIDE_WORLD = "hideWorld";
-
-	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...
-	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSpellbookSwap|hasThralls"
-			+ "|active\\s+\\w+|weapon|equip_\\w+)\\s+(\\w*)$");
-	private static final String ICON = "icon";
-
-	// Trackable activities with no HiscoreSkill entry and no BossAliases short form at all —
-	// autocomplete-only, since typing the full name already resolves correctly on its own.
-	private static final List<String> EXTRA_BOSS_NAMES = List.of(
-		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket"
-	);
-
-	// {loot <monster>} — once "loot " is fully typed, autocomplete offers every monster Loot
-	// Tracker has recorded loot for, since it covers far more than named bosses.
-	private static final String LOOT_PREFIX = "loot ";
-	private static final String LOOT_TRACKER_GROUP = "loottracker";
-	private static final String LOOT_KEY_PREFIX = "drops_";
-	// {loot <monster>, items=N, lines=N, itemsOnly} -- see LootLabelVariable.
-	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+)", Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOOT_OPTION_COMPLETIONS = List.of("items=", "lines=2", "itemsOnly");
-
-	// {log <page>, missing, noicons, iconsOnly, itemsPerLine=N, maxItems=N} -- page names from the game's collection log;
-	// see LogLabelVariable.
-	private static final String LOG_PREFIX = "log ";
-	private static final Pattern LOG_OPTION = Pattern.compile("\\s*,\\s*(?:missing|noicons|iconsOnly|(?:itemsPerLine|maxItems)=\\d+)",
-		Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOG_OPTION_COMPLETIONS = List.of("missing", "noicons", "iconsOnly", "itemsPerLine=", "maxItems=");
-
-	// ":<partial emoji name>" at the cursor. The colon can't follow a name character, so a
-	// finished ":name:", a "9:30" time, or a conditional's " : " never starts one.
-	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
-	// "<npc=<partial name>" / "<item=..." / "<sprite=..." at the cursor -- see IconNames.
-	private static final Pattern ICON_NAME_PARTIAL = Pattern.compile("<(npc|item|sprite)=([^<>{}=,@]*)$", Pattern.CASE_INSENSITIVE);
-	// "<it" -> "<item=". Not right after a name character, so "{hp<sp...}" stays a comparison.
-	private static final Pattern ICON_TAG_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_])<([a-z]+)$", Pattern.CASE_INSENSITIVE);
-	private static final List<String> ICON_TAGS = List.of("item=", "npc=", "sprite=");
-
-	// {metronomeN} / {metronomeN_M} (or its {mN} alias) — the N/N_M parameter completes from
-	// recent/nearby labels' own usage, same idea as colors: no fixed candidate list.
-	private static final String METRONOME_NAME = "metronome";
-	private static final String METRONOME_ALIAS = "m";
-	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile("\\{(?:metronome|m)([+-]?\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
-
-	// <col=RRGGBB> — the literal tag itself completes like a variable name; once "col=" is
-	// fully typed, the hex value completes from recent/nearby labels' own <col=> usage (there's
-	// no fixed candidate list for colors the way Skill.values() is for skills).
-	private static final String COLOR_TAG_PREFIX = "col=";
-	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
-
-	// {tileCol=<col>} — a named color, a named opacity, or "N%".
-	private static final String TILECOL_PREFIX = "tileCol=";
-	private static final Pattern TILECOL_PERCENT = Pattern.compile("\\d{1,3}%");
-
-	// {highlight<corner>} / {highlight<corner>=<col>} — <col> is a named color/opacity.
-	private static final String HIGHLIGHT_NAME = "highlight";
-	private static final List<String> HIGHLIGHT_CORNERS = List.of("SW", "NW", "NE", "SE", "Corners", "All");
-
-	// For underlining only — also matches {col=HEX|NAME}, </col>, and {/col} (no groups means
-	// </col> or {/col}, both reverting to the tile's own color).
+	// For underlining only — matches <col=HEX|NAME>, {col=HEX|NAME}, </col> and {/col} (no groups means </col> or
+	// {/col}, both reverting to the tile's own color).
 	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile(
 		"<col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>"
 			+ "|\\{col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")\\}"
 			+ "|</col>|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
-
-	// {/col} / {/align} / {/b} / {/i} / ... — diverge from their own opening token at the leading "/".
-	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}", "/hoverOnly}", "/hoverHide}", "/tip}");
-
-	// {align=<align>} — fixed value set, closed with "}" immediately like {col=}.
-	private static final String ALIGN_PREFIX = "align=";
-	private static final List<String> ALIGN_VALUES = List.of("Left", "Right", "Center");
-
-	// Tracked separately: a math operand can only be a NumericVariableRegistry name. "(" needs
-	// no padding, matching MathVariable's own paren handling (e.g. "(kc tob").
-	private static final Pattern MATH_OPERATOR_BOUNDARY = Pattern.compile("\\s[+\\-*/]\\s|\\(");
-	private static final Pattern CONDITION_BOUNDARY = Pattern.compile("==|!=|<=|>=|<|>|&&|\\|\\|");
-
-	// {spellbook == <name>} / {spellbook != <name>} -- the 4 possible spellbook names.
-	private static final Pattern SPELLBOOK_CONDITION = Pattern.compile("(?i)\\bspellbook\\s*(==|!=)\\s*(\\w*)$");
-	private static final List<String> SPELLBOOK_NAMES = List.of("Standard", "Ancient", "Lunar", "Arceuus");
 
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
 	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
@@ -236,26 +86,43 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Every complete {...} token, up to one level of nesting — used by selectTokenAt().
 	private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{(?:[^{}]|\\{[^{}]*\\})*\\}");
 
-	// One row in the recommendations list: either a section title (not selectable) or a
-	// label suggestion (selectable — click fills the input with text). Only Recent entries
-	// are removable (right-click "Remove"), since Current/Nearby aren't backed by the saved
-	// recent-labels list.
+	// One row in the list: a section title (not selectable), a label (click fills the input; only Recent ones are
+	// removable, since Current/Nearby aren't backed by the saved recent-labels list), or up to SUGGESTION_COLUMNS
+	// suggestions (click inserts).
 	private static final class Row
 	{
 		private final String text;
 		private final boolean title;
 		private final boolean removable;
+		@Nullable
+		private final List<Completion.Option> suggestions;
+		// The suggestion Tab would insert, if in this row.
+		@Nullable
+		private final Completion.Option preferred;
 
-		private Row(String text, boolean title)
-		{
-			this(text, title, false);
-		}
-
-		private Row(String text, boolean title, boolean removable)
+		private Row(String text, boolean title, boolean removable, @Nullable List<Completion.Option> suggestions,
+			@Nullable Completion.Option preferred)
 		{
 			this.text = text;
 			this.title = title;
 			this.removable = removable;
+			this.suggestions = suggestions;
+			this.preferred = preferred;
+		}
+
+		private static Row title(String text)
+		{
+			return new Row(text, true, false, null, null);
+		}
+
+		private static Row label(String text, boolean removable)
+		{
+			return new Row(text, false, removable, null, null);
+		}
+
+		private static Row suggestions(List<Completion.Option> suggestions, @Nullable Completion.Option preferred)
+		{
+			return new Row("", false, false, suggestions, preferred);
 		}
 	}
 
@@ -277,11 +144,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final GroundMarkerVariablesConfig config;
 	private final ConfigManager configManager;
-	private final Gson gson;
-	private final Emojis emojis;
-	private final WeaponStyleTracker weaponStyleTracker;
-	private final IconNames iconNames;
-	private final CollectionLog collectionLog;
+	private final LabelCompleter completer;
+	private final SuggestionIconOverlay iconOverlay;
+	// This update's suggestion icons, for iconOverlay.
+	private final List<SuggestionIconOverlay.Placement> iconPlacements = new ArrayList<>();
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -289,6 +155,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private Consumer<String> onRemoveRecent = label -> { };
 	private Color tileColor = Color.YELLOW;
 	private int scrollOffset;
+	// The value the list was last scrolled for: a new value starts it back at the top.
+	private String scrolledValue = "";
 
 	// -1 when no shift+Left/Right selection is in progress; otherwise the fixed end of the
 	// selection (where shift was first held down) — see keyPressed() for why this is needed.
@@ -301,20 +169,23 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, Gson gson, Emojis emojis, WeaponStyleTracker weaponStyleTracker, IconNames iconNames,
-		CollectionLog collectionLog)
+		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.config = config;
 		this.configManager = configManager;
-		this.gson = gson;
-		this.emojis = emojis;
-		this.weaponStyleTracker = weaponStyleTracker;
-		this.iconNames = iconNames;
-		this.collectionLog = collectionLog;
+		this.completer = completer;
+		this.iconOverlay = iconOverlay;
 		fontID(FontID.PLAIN_12);
 		lines(MAX_EDIT_LINES);
+	}
+
+	@Override
+	protected void close()
+	{
+		super.close();
+		iconOverlay.clear();
 	}
 
 	// Persisted (not RS-profile-scoped, like recentLabels) so the "_" toggle survives restarts.
@@ -342,8 +213,37 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.nearbyLabels = nearbyLabels;
 		this.onRemoveRecent = onRemoveRecent;
 		this.tileColor = tileColor;
-		iconNames.refreshNearby();
+		completer.labels(this.recentLabels, this.nearbyLabels);
 		return this;
+	}
+
+	// What completes the token at the cursor, or null (e.g. with text selected).
+	@Nullable
+	private Completion completion()
+	{
+		return getCursorStart() != getCursorEnd() ? null : completer.complete(getValue(), getCursorStart());
+	}
+
+	// The preferred completion's text: the ghost, and what Tab inserts. Null if none.
+	@Nullable
+	private String pendingCompletion()
+	{
+		Completion completion = completion();
+		String insert = completion == null ? null : completion.preferredInsert();
+		return insert == null || insert.isEmpty() ? null : insert;
+	}
+
+	private void insertAtCursor(String insert)
+	{
+		insertAtCursor(insert, 0);
+	}
+
+	// insert in place of the replace characters before the cursor.
+	private void insertAtCursor(String insert, int replace)
+	{
+		String before = getValue().substring(0, Math.max(0, getCursorStart() - replace));
+		value(before + insert + getValue().substring(getCursorEnd()));
+		cursorAt(before.length() + insert.length());
 	}
 
 	// Fixes a bug in ChatboxTextInput's own shift+Left/Right handling: once a selection
@@ -387,14 +287,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		if (code == KeyEvent.VK_TAB || isCtrlSpace(ev))
 		{
 			String completion = pendingCompletion();
-			if (completion != null && !completion.isEmpty())
+			if (completion != null)
 			{
 				ev.consume();
-				int cursor = getCursorStart();
-				String before = getValue().substring(0, cursor);
-				String after = getValue().substring(cursor);
-				value(before + completion + after);
-				cursorAt(before.length() + completion.length());
+				insertAtCursor(completion);
 				return;
 			}
 		}
@@ -629,7 +525,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private void buildAutocomplete(Widget container, List<WrappedLine> wrappedLines)
 	{
 		String completion = pendingCompletion();
-		if (completion == null || completion.isEmpty())
+		if (completion == null)
 		{
 			return;
 		}
@@ -819,1139 +715,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return lines.size() - 1;
 	}
 
-	// null if autocomplete doesn't apply right now; otherwise the remaining letters that
-	// would complete the variable name currently being typed. The single choke point for the
-	// "Autocomplete" config toggle — disabling it here also disables the ghost display
-	// (buildAutocomplete) and Tab-to-accept (keyPressed) for free, since both go through this.
-	private String pendingCompletion()
-	{
-		if (!config.autocomplete())
-		{
-			return null;
-		}
-
-		String text = getValue();
-		int cursor = getCursorStart();
-		if (getCursorStart() != getCursorEnd())
-		{
-			return null;
-		}
-
-		// Mid-value completion would otherwise run straight into whatever comes next.
-		if (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor)))
-		{
-			return null;
-		}
-
-		Matcher iconNamePartial = ICON_NAME_PARTIAL.matcher(text.substring(0, cursor));
-		if (iconNamePartial.find())
-		{
-			IconNames.Kind kind = IconNames.Kind.valueOf(iconNamePartial.group(1).toUpperCase(Locale.ROOT));
-			return completeIconName(kind, iconNamePartial.group(2), text.startsWith(">", cursor));
-		}
-
-		Matcher iconTagPartial = ICON_TAG_PARTIAL.matcher(text.substring(0, cursor));
-		if (iconTagPartial.find())
-		{
-			String completion = completeFromList(iconTagPartial.group(1), ICON_TAGS, "");
-			if (completion != null && !completion.equals("}"))
-			{
-				return completion;
-			}
-		}
-
-		Matcher emojiPartial = EMOJI_PARTIAL.matcher(text.substring(0, cursor));
-		if (emojiPartial.find())
-		{
-			return completeEmoji(emojiPartial.group(1));
-		}
-
-		int open = -1;
-		for (int i = cursor - 1; i >= 0; i--)
-		{
-			char c = text.charAt(i);
-			if (c == '}')
-			{
-				return null;
-			}
-			if (c == '{')
-			{
-				open = i;
-				break;
-			}
-		}
-
-		if (open == -1)
-		{
-			return null;
-		}
-
-		String partial = text.substring(open + 1, cursor);
-
-		if (partial.isEmpty())
-		{
-			return null;
-		}
-
-		// {^var} / {&var} / {*var} -- Rich/Plain override prefix; skip it before completing.
-		if ("^&*".indexOf(partial.charAt(0)) >= 0)
-		{
-			partial = partial.substring(1);
-			if (partial.isEmpty())
-			{
-				return null;
-			}
-		}
-
-		Matcher spellbookMatcher = SPELLBOOK_CONDITION.matcher(partial);
-		if (spellbookMatcher.find())
-		{
-			return completeSpellbookName(spellbookMatcher.group(2), partial.substring(spellbookMatcher.start(), spellbookMatcher.start(2)));
-		}
-
-		// {<a> + <b>} / {<expr> < <value> ? ...} -- complete whatever's typed after the last
-		// operator/comparator/&&/||, same as completing right after the opening brace. Whichever
-		// boundary type is actually last determines restrictToNumeric below.
-		int mathBoundaryEnd = lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial);
-		int conditionBoundaryEnd = lastMatchEnd(CONDITION_BOUNDARY, partial);
-		boolean restrictToNumeric = mathBoundaryEnd > conditionBoundaryEnd;
-		int boundaryEnd = restrictToNumeric ? mathBoundaryEnd : conditionBoundaryEnd;
-		if (boundaryEnd >= 0)
-		{
-			partial = partial.substring(boundaryEnd).trim();
-			if (partial.isEmpty())
-			{
-				return null;
-			}
-		}
-
-		// {/col} / {/align} — diverge from {col=...}/{align=...} at the first character.
-		if (!restrictToNumeric && partial.charAt(0) == '/')
-		{
-			return completeCloseAlias(partial);
-		}
-
-		for (String prefix : SKILL_PREFIXES)
-		{
-			if (partial.length() >= prefix.length() && partial.regionMatches(true, 0, prefix, 0, prefix.length()))
-			{
-				return completeSkill(partial.substring(prefix.length()), prefix);
-			}
-		}
-
-		Matcher spellSet = SPELL_SET_WORDS.matcher(partial);
-		if (!restrictToNumeric && spellSet.matches())
-		{
-			List<String> used = List.of(spellSet.group(2).trim().toLowerCase(Locale.ROOT).split("\\s+"));
-			List<String> options = new ArrayList<>();
-			for (String option : SPELL_SET_OPTIONS.get(spellSet.group(1).toLowerCase(Locale.ROOT)))
-			{
-				if (!used.contains(option) && !used.contains(SPELL_SET_ALIASES.getOrDefault(option, option)))
-				{
-					options.add(option);
-				}
-			}
-			return completeFromList(spellSet.group(3), options, partial.substring(0, spellSet.start(3)));
-		}
-
-		Matcher iconOption = ICON_OPTION.matcher(partial);
-		if (!restrictToNumeric && iconOption.matches())
-		{
-			String word = iconOption.group(1);
-			if (word.equalsIgnoreCase(ICON))
-			{
-				return "}";
-			}
-			return ICON.regionMatches(true, 0, word, 0, word.length()) ? ICON.substring(word.length()) : null;
-		}
-
-		if (!restrictToNumeric && partial.length() >= EQUIP_PREFIX.length() && partial.regionMatches(true, 0, EQUIP_PREFIX, 0, EQUIP_PREFIX.length()))
-		{
-			return completeEquipSlot(partial.substring(EQUIP_PREFIX.length()));
-		}
-
-		if (partial.length() >= KC_PREFIX.length() && partial.regionMatches(true, 0, KC_PREFIX, 0, KC_PREFIX.length()))
-		{
-			return completeBossName(partial.substring(KC_PREFIX.length()), KC_PREFIX, false);
-		}
-
-		if (!restrictToNumeric && partial.length() >= RANK_PREFIX.length() && partial.regionMatches(true, 0, RANK_PREFIX, 0, RANK_PREFIX.length()))
-		{
-			return completeBossName(partial.substring(RANK_PREFIX.length()), RANK_PREFIX, true);
-		}
-
-		if (!restrictToNumeric && partial.length() >= PARTY_PREFIX.length() && partial.regionMatches(true, 0, PARTY_PREFIX, 0, PARTY_PREFIX.length()))
-		{
-			return completeTemplateKeyword(partial.substring(PARTY_PREFIX.length()), PARTY_KEYWORDS, PARTY_PREFIX);
-		}
-
-		if (!restrictToNumeric && partial.length() >= DPS_PREFIX.length() && partial.regionMatches(true, 0, DPS_PREFIX, 0, DPS_PREFIX.length()))
-		{
-			return completeTemplateKeyword(partial.substring(DPS_PREFIX.length()), DPS_KEYWORDS, DPS_PREFIX);
-		}
-
-		if (!restrictToNumeric && partial.length() >= DIVINE_PREFIX.length() && partial.regionMatches(true, 0, DIVINE_PREFIX, 0, DIVINE_PREFIX.length()))
-		{
-			return completeFromList(partial.substring(DIVINE_PREFIX.length()), DIVINE_POTIONS, DIVINE_PREFIX);
-		}
-
-		if (!restrictToNumeric && partial.length() >= ACTIVE_PREFIX.length() && partial.regionMatches(true, 0, ACTIVE_PREFIX, 0, ACTIVE_PREFIX.length()))
-		{
-			return completeFromList(partial.substring(ACTIVE_PREFIX.length()), ACTIVE_EFFECTS, ACTIVE_PREFIX);
-		}
-
-		Matcher weaponValue = WEAPON_VALUE.matcher(partial);
-		if (!restrictToNumeric && weaponValue.matches())
-		{
-			return completeWeaponName(weaponValue.group(1), partial.substring(0, weaponValue.start(1)));
-		}
-
-		Matcher worldInfoOption = WORLD_INFO_OPTION.matcher(partial);
-		if (!restrictToNumeric && worldInfoOption.matches())
-		{
-			String word = worldInfoOption.group(1);
-			if (word.equalsIgnoreCase(HIDE_WORLD))
-			{
-				return "}";
-			}
-			return HIDE_WORLD.regionMatches(true, 0, word, 0, word.length()) ? HIDE_WORLD.substring(word.length()) : null;
-		}
-
-		Matcher weaponOption = WEAPON_OPTION.matcher(partial);
-		if (!restrictToNumeric && weaponOption.matches())
-		{
-			String word = weaponOption.group(2);
-			return WEAPON_OPTION_NAME.regionMatches(true, 0, word, 0, word.length()) ? WEAPON_OPTION_NAME.substring(word.length()) : null;
-		}
-
-		if (!restrictToNumeric && partial.length() >= PB_PREFIX.length() && partial.regionMatches(true, 0, PB_PREFIX, 0, PB_PREFIX.length()))
-		{
-			return completeBossName(partial.substring(PB_PREFIX.length()), PB_PREFIX, false);
-		}
-
-		if (partial.length() >= LOOT_PREFIX.length() && partial.regionMatches(true, 0, LOOT_PREFIX, 0, LOOT_PREFIX.length()))
-		{
-			return completeLootMonster(partial.substring(LOOT_PREFIX.length()));
-		}
-
-		if (partial.length() >= LOG_PREFIX.length() && partial.regionMatches(true, 0, LOG_PREFIX, 0, LOG_PREFIX.length()))
-		{
-			return completeLogPage(partial.substring(LOG_PREFIX.length()));
-		}
-
-		if (!restrictToNumeric && partial.length() >= METRONOME_NAME.length() && partial.regionMatches(true, 0, METRONOME_NAME, 0, METRONOME_NAME.length()))
-		{
-			return completeMetronomeParams(partial.substring(METRONOME_NAME.length()));
-		}
-
-		// "m" alias -- only once a digit or +/- follows, so "{mis..." still completes to miscellania.
-		if (!restrictToNumeric && partial.length() >= 2 && partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1)
-			&& (Character.isDigit(partial.charAt(1)) || partial.charAt(1) == '+' || partial.charAt(1) == '-'))
-		{
-			return completeMetronomeParams(partial.substring(1));
-		}
-
-		// {col=...} — the {col=} alias for <col=...>, closed with "}" instead of ">".
-		if (!restrictToNumeric && partial.length() >= COLOR_TAG_PREFIX.length() && partial.regionMatches(true, 0, COLOR_TAG_PREFIX, 0, COLOR_TAG_PREFIX.length()))
-		{
-			return completeColorAliasValue(partial.substring(COLOR_TAG_PREFIX.length()));
-		}
-
-		if (!restrictToNumeric && partial.length() >= TILECOL_PREFIX.length() && partial.regionMatches(true, 0, TILECOL_PREFIX, 0, TILECOL_PREFIX.length()))
-		{
-			return completeTileColValue(partial.substring(TILECOL_PREFIX.length()));
-		}
-
-		if (!restrictToNumeric && partial.length() >= HIGHLIGHT_NAME.length() && partial.regionMatches(true, 0, HIGHLIGHT_NAME, 0, HIGHLIGHT_NAME.length()))
-		{
-			return completeHighlight(partial.substring(HIGHLIGHT_NAME.length()));
-		}
-
-		if (!restrictToNumeric && partial.length() >= ALIGN_PREFIX.length() && partial.regionMatches(true, 0, ALIGN_PREFIX, 0, ALIGN_PREFIX.length()))
-		{
-			return completeAlignValue(partial.substring(ALIGN_PREFIX.length()));
-		}
-
-		for (int i = 0; i < partial.length(); i++)
-		{
-			if (!Character.isLetterOrDigit(partial.charAt(i)))
-			{
-				return null;
-			}
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : VARIABLE_NAMES)
-		{
-			if (restrictToNumeric && !NumericVariableRegistry.NAMES.contains(name))
-			{
-				continue;
-			}
-
-			if (name.length() > partial.length() && name.regionMatches(true, 0, partial, 0, partial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(partial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch && !isNeedsMoreName(partial) ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{");
-		return chosen.substring(partial.length());
-	}
-
-	private static boolean isNeedsMoreName(String name)
-	{
-		for (String needsMore : VARIABLE_NAMES_NEEDING_MORE)
-		{
-			if (needsMore.equalsIgnoreCase(name))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static int lastMatchEnd(Pattern pattern, String text)
-	{
-		int end = -1;
-		Matcher matcher = pattern.matcher(text);
-		while (matcher.find())
-		{
-			end = matcher.end();
-		}
-		return end;
-	}
-
-	// Same idea as the general variable-name matching above, but against skill names — e.g.
-	// typing "{lvl_a" completes from Agility/Attack, tie-broken the same recent/nearby way.
-	private String completeSkill(String skillPartial, String prefix)
-	{
-		if (skillPartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (Skill skill : Skill.values())
-		{
-			String name = skill.getName().toLowerCase();
-			if (name.length() > skillPartial.length() && name.regionMatches(true, 0, skillPartial, 0, skillPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(skillPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		// {lvl_combat} / {lvl_total} -- not real Skill entries, and not supported by {boost_}/{xpRate_}.
-		if ("lvl_".equals(prefix))
-		{
-			for (String extra : List.of("combat", "total"))
-			{
-				if (extra.length() > skillPartial.length() && extra.regionMatches(true, 0, skillPartial, 0, skillPartial.length()))
-				{
-					candidates.add(extra);
-				}
-				else if (extra.equalsIgnoreCase(skillPartial))
-				{
-					exactMatch = true;
-				}
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
-		return chosen.substring(skillPartial.length());
-	}
-
-	// Same idea as completeSkill, but against EQUIP_SLOTS instead of Skill.values().
-	private String completeEquipSlot(String slotPartial)
-	{
-		if (slotPartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : EQUIP_SLOTS)
-		{
-			if (name.length() > slotPartial.length() && name.regionMatches(true, 0, slotPartial, 0, slotPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(slotPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + EQUIP_PREFIX);
-		return chosen.substring(slotPartial.length());
-	}
-
-	// Same idea as completeEquipSlot, against the 4 spellbook names. Empty partial still
-	// autocompletes, same as colors/metronome.
-	private String completeSpellbookName(String namePartial, String tokenPrefix)
-	{
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : SPELLBOOK_NAMES)
-		{
-			if (name.length() > namePartial.length() && name.regionMatches(true, 0, namePartial, 0, namePartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(namePartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, tokenPrefix);
-		return chosen.substring(namePartial.length());
-	}
-
-	// Same idea as completeSkill, but against HiscoreSkill's BOSS entries, BossAliases (both
-	// short forms and canonical names), and EXTRA_BOSS_NAMES. onlyHiscoreTracked is true for
-	// {rank}, which only works for bosses actually on the hiscores (e.g. not "tob em").
-	private String completeBossName(String bossPartial, String prefix, boolean onlyHiscoreTracked)
-	{
-		if (bossPartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (HiscoreSkill skill : HiscoreSkill.values())
-		{
-			if (skill.getType() != HiscoreSkillType.BOSS)
-			{
-				continue;
-			}
-
-			// Matches BossKillCountTracker's stored key: no "The " prefix, no colon.
-			String name = skill.getName();
-			if (name.regionMatches(true, 0, "The ", 0, 4))
-			{
-				name = name.substring(4);
-			}
-
-			name = name.replace(":", "");
-
-			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(bossPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		for (String alias : BossAliases.aliases())
-		{
-			if (alias.contains(" - ") || (onlyHiscoreTracked && BossHiscoreSkill.find(BossAliases.resolve(alias)) == null))
-			{
-				continue;
-			}
-
-			if (alias.length() > bossPartial.length() && alias.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
-			{
-				candidates.add(alias);
-			}
-			else if (alias.equalsIgnoreCase(bossPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		for (String name : BossAliases.canonicalNames())
-		{
-			if (onlyHiscoreTracked && BossHiscoreSkill.find(name) == null)
-			{
-				continue;
-			}
-
-			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(bossPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		for (String name : onlyHiscoreTracked ? List.<String>of() : EXTRA_BOSS_NAMES)
-		{
-			if (name.length() > bossPartial.length() && name.regionMatches(true, 0, bossPartial, 0, bossPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(bossPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
-		return chosen.substring(bossPartial.length());
-	}
-
-	// Same idea as completeBossName, but candidates come from lootMonsters() (plus any BossAliases
-	// short name for one of them) instead of a fixed list.
-	private String completeLootMonster(String monsterPartial)
-	{
-		if (monsterPartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> monsters = lootMonsters();
-		List<String> names = new ArrayList<>();
-		for (String monster : monsters)
-		{
-			names.add(monster);
-			for (String alias : BossAliases.aliases())
-			{
-				if (!alias.contains(" - ") && !alias.equalsIgnoreCase(monster) && BossAliases.resolve(alias).equalsIgnoreCase(monster))
-				{
-					names.add(alias);
-				}
-			}
-		}
-
-		for (Map.Entry<String, List<String>> combined : LootLabelVariable.COMBINED_MONSTERS.entrySet())
-		{
-			if (monsters.stream().anyMatch(monster -> combined.getValue().stream().anyMatch(monster::equalsIgnoreCase)))
-			{
-				names.add(combined.getKey());
-			}
-		}
-
-		String playerKeyPrefix = LOOT_KEY_PREFIX + LootLabelVariable.PLAYER_TYPE + "_";
-		if (!configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, configManager.getRSProfileKey(), playerKeyPrefix).isEmpty())
-		{
-			names.addAll(LootLabelVariable.PLAYER_NAMES);
-		}
-
-		// After a full monster name (and any finished options), complete an option instead.
-		int split = Math.max(monsterPartial.lastIndexOf(' '), monsterPartial.lastIndexOf(','));
-		if (split >= 0)
-		{
-			String head = LOOT_OPTION.matcher(monsterPartial.substring(0, split)).replaceAll("").replaceAll("[\\s,]+$", "");
-			String option = completeLootOption(monsterPartial.substring(split + 1));
-			if (option != null && names.stream().anyMatch(head::equalsIgnoreCase))
-			{
-				return option;
-			}
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : names)
-		{
-			if (name.length() > monsterPartial.length() && name.regionMatches(true, 0, monsterPartial, 0, monsterPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(monsterPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + LOOT_PREFIX);
-		return chosen.substring(monsterPartial.length());
-	}
-
-	// Same idea as completeLootMonster, from the collection log's page names (plus any BossAliases short name for one).
-	// After a full page name and a ",", an option instead.
-	private String completeLogPage(String pagePartial)
-	{
-		if (pagePartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> pages = collectionLog.pageNames();
-		List<String> names = new ArrayList<>(pages);
-		for (String alias : BossAliases.aliases())
-		{
-			String boss = BossAliases.resolve(alias);
-			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && pages.stream().anyMatch(boss::equalsIgnoreCase))
-			{
-				names.add(alias);
-			}
-		}
-
-		int comma = pagePartial.lastIndexOf(',');
-		if (comma >= 0)
-		{
-			String head = LOG_OPTION.matcher(pagePartial.substring(0, comma)).replaceAll("").trim();
-			return names.stream().anyMatch(head::equalsIgnoreCase) ? completeLogOption(pagePartial.substring(comma + 1).trim()) : null;
-		}
-		return completeFromList(pagePartial, names, LOG_PREFIX);
-	}
-
-	private static String completeLogOption(String word)
-	{
-		if (word.isEmpty())
-		{
-			return null;
-		}
-
-		if (LOG_OPTION.matcher(", " + word).matches())
-		{
-			return "}";
-		}
-
-		for (String option : LOG_OPTION_COMPLETIONS)
-		{
-			if (word.length() < option.length() && option.regionMatches(true, 0, word, 0, word.length()))
-			{
-				return option.substring(word.length());
-			}
-		}
-		return null;
-	}
-
-	// <npc=Name> / <item=Name> / <sprite=Name>, closed with ">" unless one already follows. IDs aren't completed.
-	private String completeIconName(IconNames.Kind kind, String partial, boolean closed)
-	{
-		if (partial.isEmpty() || partial.chars().allMatch(Character::isDigit))
-		{
-			return null;
-		}
-
-		String name = iconNames.complete(kind, partial);
-		return name == null ? null : name.substring(partial.length()) + (closed ? "" : ">");
-	}
-
-	// Shortest matching name first, unless a recent/nearby label already uses one; ":" closes an exact name.
-	private String completeEmoji(String partial)
-	{
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : emojis.names())
-		{
-			if (name.length() > partial.length() && name.startsWith(partial))
-			{
-				candidates.add(name);
-			}
-			else if (name.equals(partial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? ":" : null;
-		}
-
-		candidates.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, ":");
-		return chosen.substring(partial.length()) + ":";
-	}
-
-	// "lines" completes straight to lines=2, since 1 is the default.
-	private static String completeLootOption(String word)
-	{
-		if (word.isEmpty())
-		{
-			return null;
-		}
-
-		if (LOOT_OPTION.matcher(word).matches())
-		{
-			return "}";
-		}
-
-		for (String option : LOOT_OPTION_COMPLETIONS)
-		{
-			if (word.length() < option.length() && option.regionMatches(true, 0, word, 0, word.length()))
-			{
-				return option.substring(word.length());
-			}
-		}
-		return null;
-	}
-
-	// Every monster Loot Tracker has recorded loot for, most recent first (only used to
-	// tie-break resolveAmbiguousCandidate's fallback — no cap on the candidate pool itself).
-	private List<String> lootMonsters()
-	{
-		String profile = configManager.getRSProfileKey();
-		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
-		for (String key : configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, profile, LOOT_KEY_PREFIX))
-		{
-			// Skip the "<TYPE>_" (NPC/EVENT/PLAYER/...) that precedes the name.
-			String rest = key.substring(LOOT_KEY_PREFIX.length());
-			int typeEnd = rest.indexOf('_');
-			if (typeEnd < 0)
-			{
-				continue;
-			}
-
-			String json = configManager.getConfiguration(LOOT_TRACKER_GROUP, profile, key);
-			Instant last = gson.fromJson(json, LootLast.class).last;
-			if (last != null)
-			{
-				byLast.add(new SimpleEntry<>(rest.substring(typeEnd + 1), last));
-			}
-		}
-
-		byLast.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-
-		List<String> names = new ArrayList<>();
-		for (Map.Entry<String, Instant> entry : byLast)
-		{
-			names.add(entry.getKey());
-		}
-		return names;
-	}
-
-	// Matches the "last" field of Loot Tracker's own (package-private) ConfigLoot for Gson.
-	private static final class LootLast
-	{
-		Instant last;
-	}
-
-	// {col=...} alias — "col=" itself completes via VARIABLE_NAMES like any other variable name.
-	private String completeColorAliasValue(String hexPartial)
-	{
-		return completeColorValue(hexPartial, "{" + COLOR_TAG_PREFIX, "}");
-	}
-
-	// Value completion for "{col=": named colors first, else a hex value from history.
-	private String completeColorValue(String hexPartial, String tokenPrefix, String closer)
-	{
-		List<String> namedCandidates = new ArrayList<>();
-		for (String name : NamedColors.HEX_BY_NAME.keySet())
-		{
-			if (name.length() > hexPartial.length() && name.regionMatches(true, 0, hexPartial, 0, hexPartial.length()))
-			{
-				namedCandidates.add(name);
-			}
-		}
-
-		if (!namedCandidates.isEmpty())
-		{
-			String chosen = namedCandidates.size() == 1 ? namedCandidates.get(0) : resolveAmbiguousCandidate(namedCandidates, tokenPrefix);
-			return chosen.substring(hexPartial.length()) + closer;
-		}
-
-		// Unlike skill names, an empty hex partial still autocompletes here — colors have no
-		// large fixed candidate list to guess from, only actual recent/nearby usage, so
-		// suggesting one only ever reflects something the user has genuinely typed before.
-		String hex = findRecentColor(hexPartial);
-		return hex == null ? null : hex.substring(hexPartial.length()) + closer;
-	}
-
-	// {tileCol=...} value completion -- named color/opacity or "N%", closing with "}".
-	private String completeTileColValue(String valuePartial)
-	{
-		if (TILECOL_PERCENT.matcher(valuePartial).matches())
-		{
-			return "}";
-		}
-
-		List<String> candidates = new ArrayList<>();
-		for (String name : NamedColors.OPACITY_BY_NAME.keySet())
-		{
-			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
-			{
-				candidates.add(name);
-			}
-		}
-		for (String name : NamedColors.HEX_BY_NAME.keySet())
-		{
-			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
-			{
-				candidates.add(name);
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + TILECOL_PREFIX);
-		return chosen.substring(valuePartial.length()) + "}";
-	}
-
-	// {highlight<corner>[=<col>]} — corner name completes/closes like a variable name; once an
-	// "=" follows a complete corner name, the value completes like completeTileColValue (named
-	// color/opacity only, no hex/percent).
-	private String completeHighlight(String rest)
-	{
-		int eq = rest.indexOf('=');
-		if (eq >= 0)
-		{
-			String cornerPart = rest.substring(0, eq);
-			boolean validCorner = HIGHLIGHT_CORNERS.stream().anyMatch(name -> name.equalsIgnoreCase(cornerPart));
-			return validCorner ? completeHighlightValue(rest.substring(eq + 1)) : null;
-		}
-
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : HIGHLIGHT_CORNERS)
-		{
-			if (name.length() > rest.length() && name.regionMatches(true, 0, rest, 0, rest.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(rest))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + HIGHLIGHT_NAME);
-		return chosen.substring(rest.length());
-	}
-
-	private String completeHighlightValue(String valuePartial)
-	{
-		List<String> candidates = new ArrayList<>();
-		for (String name : NamedColors.HEX_BY_NAME.keySet())
-		{
-			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
-			{
-				candidates.add(name);
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + HIGHLIGHT_NAME);
-		return chosen.substring(valuePartial.length()) + "}";
-	}
-
-	private String completeCloseAlias(String partial)
-	{
-		List<String> candidates = new ArrayList<>();
-		for (String alias : CLOSE_ALIASES)
-		{
-			if (alias.length() > partial.length() && alias.regionMatches(true, 0, partial, 0, partial.length()))
-			{
-				candidates.add(alias);
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{");
-		return chosen.substring(partial.length());
-	}
-
-	private String completeAlignValue(String valuePartial)
-	{
-		List<String> candidates = new ArrayList<>();
-		for (String name : ALIGN_VALUES)
-		{
-			if (name.length() > valuePartial.length() && name.regionMatches(true, 0, valuePartial, 0, valuePartial.length()))
-			{
-				candidates.add(name);
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + ALIGN_PREFIX);
-		return chosen.substring(valuePartial.length()) + "}";
-	}
-
-	// Completes only the trailing word being typed -- no closer, since more may follow.
-	// Completes whichever keyword is being typed in a {party}/{dps} template.
-	private String completeTemplateKeyword(String templatePartial, List<String> keywords, String prefix)
-	{
-		Matcher wordMatcher = PARTY_WORD.matcher(templatePartial);
-		wordMatcher.find();
-		String wordPartial = wordMatcher.group();
-
-		// Empty only because the cursor sits right after a separator (e.g. "num.") -- nothing
-		// new is being typed yet, unlike a genuinely empty templatePartial ("{party ").
-		if (wordPartial.isEmpty() && !templatePartial.isEmpty())
-		{
-			return null;
-		}
-
-		List<String> candidates = new ArrayList<>();
-		for (String keyword : keywords)
-		{
-			if (keyword.length() > wordPartial.length() && keyword.regionMatches(true, 0, wordPartial, 0, wordPartial.length()))
-			{
-				candidates.add(keyword);
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
-		return chosen.substring(wordPartial.length());
-	}
-
-	// A fixed list of names after prefix, e.g. {divine <potion>}; closed with "}" once one is exactly typed.
-	private String completeFromList(String namePartial, List<String> names, String prefix)
-	{
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : names)
-		{
-			if (name.length() > namePartial.length() && name.regionMatches(true, 0, namePartial, 0, namePartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(namePartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + prefix);
-		return chosen.substring(namePartial.length());
-	}
-
-	private String completeWeaponName(String weaponPartial, String tokenPrefix)
-	{
-		List<String> candidates = new ArrayList<>();
-		boolean exactMatch = false;
-		for (String name : weaponStyleTracker.weaponNames())
-		{
-			if (name.length() > weaponPartial.length() && name.regionMatches(true, 0, weaponPartial, 0, weaponPartial.length()))
-			{
-				candidates.add(name);
-			}
-			else if (name.equalsIgnoreCase(weaponPartial))
-			{
-				exactMatch = true;
-			}
-		}
-
-		if (candidates.isEmpty())
-		{
-			return exactMatch ? "}" : null;
-		}
-
-		String chosen = candidates.size() == 1 ? candidates.get(0) : resolveAmbiguousCandidate(candidates, "{" + tokenPrefix);
-		return chosen.substring(weaponPartial.length());
-	}
-
-	// paramPartial is whatever's been typed after "metronome" so far — digits, optionally
-	// with one underscore (e.g. "4", "4_", "4_2"); an empty partial still autocompletes, same
-	// reasoning as colors.
-	private String completeMetronomeParams(String paramPartial)
-	{
-		// Optional leading +/- direction.
-		for (int i = 0; i < paramPartial.length(); i++)
-		{
-			char c = paramPartial.charAt(i);
-			if (!Character.isDigit(c) && c != '_' && !(i == 0 && (c == '+' || c == '-')))
-			{
-				return null;
-			}
-		}
-
-		String param = findRecentMetronomeParam(paramPartial);
-		if (param != null)
-		{
-			return param.substring(paramPartial.length());
-		}
-
-		if (paramPartial.isEmpty() || paramPartial.equals("+") || paramPartial.equals("-"))
-		{
-			return "4";
-		}
-
-		// Nothing left to suggest for the number -- if what's typed is already a complete N or
-		// N_M on its own, offer the closing brace instead.
-		return paramPartial.matches("[+-]?\\d+(_\\d+)?") ? "}" : null;
-	}
-
-	private String findRecentMetronomeParam(String paramPartial)
-	{
-		for (String label : recentLabels)
-		{
-			String match = firstMatchingMetronomeParam(label, paramPartial);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		for (String label : nearbyLabels)
-		{
-			String match = firstMatchingMetronomeParam(label, paramPartial);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		return null;
-	}
-
-	private static String firstMatchingMetronomeParam(String label, String paramPartial)
-	{
-		Matcher matcher = METRONOME_TOKEN_PATTERN.matcher(label);
-		while (matcher.find())
-		{
-			String param = matcher.group(1);
-			if (param.length() > paramPartial.length() && param.regionMatches(true, 0, paramPartial, 0, paramPartial.length()))
-			{
-				return param;
-			}
-		}
-
-		return null;
-	}
-
-	private String findRecentColor(String hexPartial)
-	{
-		for (String label : recentLabels)
-		{
-			String match = firstMatchingColor(label, hexPartial);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		for (String label : nearbyLabels)
-		{
-			String match = firstMatchingColor(label, hexPartial);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		return null;
-	}
-
-	private static String firstMatchingColor(String label, String hexPartial)
-	{
-		Matcher matcher = COLOR_TAG_PATTERN.matcher(label);
-		while (matcher.find())
-		{
-			String hex = matcher.group(1);
-			if (hex.length() > hexPartial.length() && hex.regionMatches(true, 0, hexPartial, 0, hexPartial.length()))
-			{
-				return hex;
-			}
-		}
-
-		return null;
-	}
-
-	// The first candidate mentioned (as "tokenPrefix + candidate") by any recent/nearby label
-	// (recent first), falling back to the first candidate in list order if none mention any.
-	private String resolveAmbiguousCandidate(List<String> candidates, String tokenPrefix)
-	{
-		for (String label : recentLabels)
-		{
-			String match = firstMatchingCandidate(label, candidates, tokenPrefix);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		for (String label : nearbyLabels)
-		{
-			String match = firstMatchingCandidate(label, candidates, tokenPrefix);
-			if (match != null)
-			{
-				return match;
-			}
-		}
-
-		return candidates.get(0);
-	}
-
-	private static String firstMatchingCandidate(String label, List<String> candidates, String tokenPrefix)
-	{
-		String lower = label.toLowerCase();
-		String lowerPrefix = tokenPrefix.toLowerCase();
-		for (String candidate : candidates)
-		{
-			if (lower.contains(lowerPrefix + candidate.toLowerCase()))
-			{
-				return candidate;
-			}
-		}
-
-		return null;
-	}
-
 	@Override
 	protected void update()
 	{
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
+		iconPlacements.clear();
 
 		Widget promptWidget = container.createChild(-1, WidgetType.TEXT);
 		promptWidget.setText(getPrompt());
@@ -1997,6 +766,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		separator.revalidate();
 
 		buildRecommendations(container, resultsStartY);
+		iconOverlay.show(iconPlacements);
 	}
 
 	// Undo (grayed out/unclickable once the value matches originalLabel), "_" (font size
@@ -2075,15 +845,21 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	{
 		List<Row> rows = new ArrayList<>();
 		boolean hasCurrent = !originalLabel.isEmpty();
-		if (hasCurrent && config.showCurrent())
+		boolean edited = !getValue().equals(originalLabel);
+
+		// Once edited, Recent/Nearby no longer apply; what can complete the token at the cursor does.
+		if (edited && config.showSuggestions())
 		{
-			rows.add(new Row("Current", true));
-			rows.add(new Row(originalLabel, false));
+			addSuggestions(rows);
 		}
 
-		// Recent/Nearby only make sense as suggestions for what to type next — once the value
-		// has diverged from the original, they no longer apply to what's being edited.
-		if (getValue().equals(originalLabel))
+		if (hasCurrent && config.showCurrent())
+		{
+			rows.add(Row.title("Current"));
+			rows.add(Row.label(originalLabel, false));
+		}
+
+		if (!edited)
 		{
 			// Skip anything already shown as Current, so the same label isn't listed twice.
 			// Left empty when Show Recent is off, so Nearby's own dedup below naturally excludes
@@ -2101,10 +877,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 				if (!dedupedRecent.isEmpty())
 				{
-					rows.add(new Row("Recent", true));
+					rows.add(Row.title("Recent"));
 					for (String label : dedupedRecent)
 					{
-						rows.add(new Row(label, false, true));
+						rows.add(Row.label(label, true));
 					}
 				}
 			}
@@ -2123,16 +899,43 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 				if (!dedupedNearby.isEmpty())
 				{
-					rows.add(new Row("Nearby", true));
+					rows.add(Row.title("Nearby"));
 					for (String label : dedupedNearby)
 					{
-						rows.add(new Row(label, false));
+						rows.add(Row.label(label, false));
 					}
 				}
 			}
 		}
 
 		return rows;
+	}
+
+	// Every listed completion of the token at the cursor, SUGGESTION_COLUMNS to a row, the one Tab would insert marked.
+	private void addSuggestions(List<Row> rows)
+	{
+		Completion completion = completion();
+		if (completion == null || !completion.hasListed())
+		{
+			return;
+		}
+
+		Completion.Option preferred = completion.preferred < 0 ? null : completion.options.get(completion.preferred);
+		List<Completion.Option> listed = new ArrayList<>();
+		for (Completion.Option option : completion.options)
+		{
+			if (option.label != null)
+			{
+				listed.add(option);
+			}
+		}
+
+		rows.add(Row.title("Suggestions"));
+		for (int i = 0; i < listed.size(); i += SUGGESTION_COLUMNS)
+		{
+			List<Completion.Option> row = listed.subList(i, Math.min(i + SUGGESTION_COLUMNS, listed.size()));
+			rows.add(Row.suggestions(row, row.contains(preferred) ? preferred : null));
+		}
 	}
 
 	private void buildRecommendations(Widget container, int resultsStartY)
@@ -2143,6 +946,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
+		if (!getValue().equals(scrolledValue))
+		{
+			scrolledValue = getValue();
+			scrollOffset = 0;
+		}
 		int maxOffset = Math.max(0, rows.size() - VISIBLE_ROWS + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
 
@@ -2164,13 +972,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		{
 			Row row = rows.get(scrollOffset + i);
 			int y = resultsStartY + (ROW_HEIGHT * i);
+			if (row.suggestions != null)
+			{
+				buildSuggestionRow(container, row, y);
+				continue;
+			}
+			int color = row.title ? 0x800000 : ROW_COLOR;
 
 			Widget text = container.createChild(-1, WidgetType.TEXT);
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
 			// Jagex markup) shows as literal text instead of actually being applied.
 			text.setText(row.title ? row.text : Text.escapeJagex(row.text));
 			text.setFontId(row.title ? FontID.QUILL_8 : editorFontId());
-			text.setTextColor(row.title ? 0x800000 : 0x000000);
+			text.setTextColor(color);
 			text.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
 			text.setOriginalX(row.title ? 6 : 13);
 			text.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
@@ -2184,37 +998,108 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 			if (!row.title)
 			{
-				String selected = row.text;
-				text.setHasListener(true);
-				text.setAction(0, "Select");
-				if (row.removable)
-				{
-					text.setAction(1, "Remove");
-				}
-				// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
-				text.setName(NamedColors.expandColorAliases(selected));
-				text.setOnOpListener((JavaScriptCallback) ev ->
-				{
-					if (ev.getOp() == 2)
-					{
-						removeRecentEntry(selected);
-					}
-					else
-					{
-						selectRecommendation(selected);
-					}
-				});
-				text.setOnMouseRepeatListener((JavaScriptCallback) ev -> text.setTextColor(HOVER_COLOR));
-				text.setOnMouseLeaveListener((JavaScriptCallback) ev -> text.setTextColor(0x000000));
+				addRowActions(text, row, color);
 			}
 		}
 
 		buildScrollbar(container, rows.size(), maxOffset, resultsStartY);
 	}
 
-	private void selectRecommendation(String text)
+	// A label fills the input; a Recent one can be removed.
+	private void addRowActions(Widget text, Row row, int color)
 	{
-		value(text);
+		text.setHasListener(true);
+		// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
+		text.setName(NamedColors.expandColorAliases(row.text));
+		String selected = row.text;
+		text.setAction(0, "Select");
+		if (row.removable)
+		{
+			text.setAction(1, "Remove");
+		}
+		text.setOnOpListener((JavaScriptCallback) ev ->
+		{
+			if (ev.getOp() == 2)
+			{
+				removeRecentEntry(selected);
+			}
+			else
+			{
+				value(selected);
+			}
+		});
+		addHoverHighlight(text, color);
+	}
+
+	// Each suggestion in its column: its icon if it has one, then its name cut to fit. Clicking either inserts it.
+	private void buildSuggestionRow(Widget container, Row row, int y)
+	{
+		int left = 13;
+		int columnWidth = (container.getWidth() - left - SCROLLBAR_WIDTH - 6) / SUGGESTION_COLUMNS;
+		for (int column = 0; column < row.suggestions.size(); column++)
+		{
+			Completion.Option option = row.suggestions.get(column);
+			int x = left + column * columnWidth;
+			// After the icon's space whether or not there's an icon, so names line up.
+			int textX = x + ICON_WIDTH + ICON_GAP;
+			Completion.Icon icon = option.icon == null ? null : completer.icon(option.icon);
+			if (icon != null)
+			{
+				// Empty: SuggestionIconOverlay draws the icon over it, smoothly scaled.
+				Widget placeholder = container.createChild(-1, WidgetType.GRAPHIC);
+				placeholder.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
+				placeholder.setOriginalX(x);
+				placeholder.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
+				placeholder.setOriginalY(y);
+				placeholder.setOriginalWidth(ICON_WIDTH);
+				placeholder.setOriginalHeight(ICON_HEIGHT);
+				addInsertAction(placeholder, option);
+				placeholder.revalidate();
+				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT), icon));
+			}
+
+			int color = option == row.preferred ? PREFERRED_SUGGESTION_COLOR : ROW_COLOR;
+			int textWidth = x + columnWidth - textX - 2;
+			Widget text = container.createChild(-1, WidgetType.TEXT);
+			text.setText(Text.escapeJagex(fit(option.label, textWidth)));
+			text.setFontId(editorFontId());
+			text.setTextColor(color);
+			text.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
+			text.setOriginalX(textX);
+			text.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
+			text.setOriginalY(y);
+			text.setOriginalWidth(textWidth);
+			text.setOriginalHeight(ROW_HEIGHT);
+			text.setXTextAlignment(WidgetTextAlignment.LEFT);
+			text.setYTextAlignment(WidgetTextAlignment.CENTER);
+			addInsertAction(text, option);
+			addHoverHighlight(text, color);
+			text.revalidate();
+		}
+	}
+
+	// "Insert": completes the token at the cursor with option. Its full name shows on hover.
+	private void addInsertAction(Widget widget, Completion.Option option)
+	{
+		widget.setHasListener(true);
+		widget.setName(NamedColors.expandColorAliases(option.label));
+		widget.setAction(0, "Insert");
+		widget.setOnOpListener((JavaScriptCallback) ev -> insertAtCursor(option.insert, option.replace));
+	}
+
+	// text cut short with ".." to fit width px in the editor font.
+	private String fit(String text, int width)
+	{
+		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
+		{
+			return text;
+		}
+		String cut = text;
+		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut + "..")) > width)
+		{
+			cut = cut.substring(0, cut.length() - 1);
+		}
+		return cut + "..";
 	}
 
 	private void removeRecentEntry(String label)
@@ -2304,5 +1189,4 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		thumb.setOriginalHeight(thumbHeight);
 		thumb.revalidate();
 	}
-
 }
