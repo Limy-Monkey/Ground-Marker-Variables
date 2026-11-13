@@ -100,8 +100,8 @@ public class GroundMarkerVariablesOverlay
 	private static final double GROUND_TEXT_MAX_SHARE = 0.5;
 	private static final double GROUND_TEXT_GAP = 4;
 	private static final int MAX_GROUND_TEXTS = 64;
-	// {ground} text's height over the ground, and its shadow's under it, in local units.
-	private static final int GROUND_TEXT_LIFT = 3;
+	// With Parallax icons, flat {ground} images' height over the ground, and their shadow's under it, in local units.
+	private static final int GROUND_LIFT = 3;
 	private static final int GROUND_SHADOW_DROP = 6;
 	// Bounds on the screen px per text px a {ground} text image is rendered at.
 	private static final double MIN_GROUND_TEXT_RESOLUTION = 0.25;
@@ -170,6 +170,7 @@ public class GroundMarkerVariablesOverlay
 	// {ground} text images, keyed by font, color and the {ground} label; least recently used dropped.
 	// Each {ground} text image's shadow; weak, so it goes with its text image.
 	private final Map<BufferedImage, BufferedImage> groundShadows = new WeakHashMap<>();
+	private final Map<BufferedImage, BufferedImage> silhouettes = new WeakHashMap<>();
 	private final Map<String, BufferedImage> groundTexts = new LinkedHashMap<String, BufferedImage>(16, 0.75f, true)
 	{
 		@Override
@@ -375,7 +376,7 @@ public class GroundMarkerVariablesOverlay
 			boolean visible = false;
 			for (Object segment : splitSegments(line))
 			{
-				if (segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof BufferedImage)
+				if (segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof SymbolIcon || segment instanceof BufferedImage)
 				{
 					segments.add(segment);
 				}
@@ -429,6 +430,11 @@ public class GroundMarkerVariablesOverlay
 			{
 				icons.add(((SpriteIcon) segment).image);
 			}
+			else if (segment instanceof SymbolIcon)
+			{
+				// Lifted, a symbol's shadow is the row's.
+				icons.add(config.parallaxIcons() ? ((SymbolIcon) segment).glyph : ((SymbolIcon) segment).shadowed);
+			}
 			else
 			{
 				icons.add((BufferedImage) segment);
@@ -439,10 +445,37 @@ public class GroundMarkerVariablesOverlay
 		{
 			// A row already holds each icon at its own sampling, so it's drawn smooth.
 			BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
-			groundImageRenderer.draw(graphics, localPoint, plane, image, icons.size() > 1 || smoothImages.contains(image), opacity,
-				facing, iconNorth, size, iconSize);
+			drawLifted(graphics, localPoint, plane, image, config.parallaxIcons() ? image : null,
+				icons.size() > 1 || smoothImages.contains(image), opacity, facing, iconNorth, size, iconSize);
 		}
 		drawText.run();
+	}
+
+	// image flat on the tile over its shadow (shadow drawn black), or with Parallax icons, the shadow just under the
+	// ground, seen through the tile only (clipped to it), and the image just over it, so they part with the camera angle.
+	private void drawLifted(Graphics2D graphics, LocalPoint localPoint, int plane, BufferedImage image, @Nullable BufferedImage shadow,
+		boolean smooth, float opacity, int facing, double offsetNorth, double width, double height)
+	{
+		if (!config.parallaxIcons())
+		{
+			if (shadow != null)
+			{
+				groundImageRenderer.draw(graphics, localPoint, plane, shadow, smooth, opacity, facing, offsetNorth, width, height, 0, true);
+			}
+			groundImageRenderer.draw(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height);
+			return;
+		}
+
+		Polygon tile = shadow == null ? null : Perspective.getCanvasTilePoly(client, localPoint);
+		if (tile != null)
+		{
+			Graphics2D clipped = (Graphics2D) graphics.create();
+			clipped.clip(tile);
+			groundImageRenderer.draw(clipped, localPoint, plane, shadow, smooth, opacity, facing, offsetNorth, width, height, -GROUND_SHADOW_DROP,
+				true);
+			clipped.dispose();
+		}
+		groundImageRenderer.draw(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height, GROUND_LIFT);
 	}
 
 	// The text in a width x height box offsetNorth north of the tile's center, textScale local units per text px. Drawn
@@ -457,29 +490,10 @@ public class GroundMarkerVariablesOverlay
 		resolution = Math.max(MIN_GROUND_TEXT_RESOLUTION, Math.min(MAX_GROUND_TEXT_RESOLUTION, resolution));
 		BufferedImage image = groundText(graphics, lines, color, label, resolution);
 		BufferedImage shadow = image == null ? null : groundShadows.get(image);
-		if (image == null || shadow == null)
+		if (image != null && shadow != null)
 		{
-			return;
+			drawLifted(graphics, localPoint, plane, image, shadow, true, opacity, facing, offsetNorth, width, height);
 		}
-		// Parallax icons off: both flat on the tile, as one text with its shadow.
-		if (!config.parallaxIcons())
-		{
-			groundImageRenderer.draw(graphics, localPoint, plane, shadow, true, opacity, facing, offsetNorth, width, height);
-			groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height);
-			return;
-		}
-
-		// The shadow just under the ground, seen through the tile only (clipped to it), and the text just over it, so they
-		// part with the camera angle.
-		Polygon tile = Perspective.getCanvasTilePoly(client, localPoint);
-		if (tile != null)
-		{
-			Graphics2D clipped = (Graphics2D) graphics.create();
-			clipped.clip(tile);
-			groundImageRenderer.draw(clipped, localPoint, plane, shadow, true, opacity, facing, offsetNorth, width, height, -GROUND_SHADOW_DROP);
-			clipped.dispose();
-		}
-		groundImageRenderer.draw(graphics, localPoint, plane, image, true, opacity, facing, offsetNorth, width, height, GROUND_TEXT_LIFT);
 	}
 
 	// The text lines as labels draw them (colors, {b}/{i}, tables) but without a shadow, centered on a transparent image,
@@ -1003,6 +1017,19 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
+	// A unicode symbol's <emoji=>: its white glyph, and the glyph with its shadow as drawn flat.
+	private static final class SymbolIcon
+	{
+		private final BufferedImage glyph;
+		private final BufferedImage shadowed;
+
+		private SymbolIcon(BufferedImage glyph, BufferedImage shadowed)
+		{
+			this.glyph = glyph;
+			this.shadowed = shadowed;
+		}
+	}
+
 	// <badge[=N]> over the previous icon, percent null for a full dot.
 	private static final class Badge
 	{
@@ -1087,9 +1114,10 @@ public class GroundMarkerVariablesOverlay
 				continue;
 			}
 
-			if (segment instanceof BufferedImage || segment instanceof SpriteIcon)
+			if (segment instanceof BufferedImage || segment instanceof SpriteIcon || segment instanceof SymbolIcon)
 			{
-				BufferedImage source = segment instanceof SpriteIcon ? ((SpriteIcon) segment).image : (BufferedImage) segment;
+				BufferedImage source = segment instanceof SpriteIcon ? ((SpriteIcon) segment).image
+					: segment instanceof SymbolIcon ? ((SymbolIcon) segment).glyph : (BufferedImage) segment;
 				BufferedImage flag = scaledIcon(source, iconHeight);
 				images.add(flag);
 				iconWidths.add(flag.getWidth());
@@ -1148,6 +1176,22 @@ public class GroundMarkerVariablesOverlay
 			dimmedIcons.computeIfAbsent(image, i -> new HashMap<>()).put(brightness, dimmed);
 		}
 		return dimmed;
+	}
+
+	// A black copy, cached while the image is in use.
+	private BufferedImage silhouette(BufferedImage image)
+	{
+		return silhouettes.computeIfAbsent(image, i ->
+		{
+			int[] pixels = i.getRGB(0, 0, i.getWidth(), i.getHeight(), null, 0, i.getWidth());
+			for (int p = 0; p < pixels.length; p++)
+			{
+				pixels[p] &= 0xFF000000;
+			}
+			BufferedImage black = new BufferedImage(i.getWidth(), i.getHeight(), BufferedImage.TYPE_INT_ARGB);
+			black.setRGB(0, 0, i.getWidth(), i.getHeight(), pixels, 0, i.getWidth());
+			return black;
+		});
 	}
 
 	// Native size, or smoothly scaled down to the text height when that's shorter.
@@ -1234,13 +1278,18 @@ public class GroundMarkerVariablesOverlay
 				column++;
 				x = columnOffsets != null && column < columnOffsets.length ? lineStart + columnOffsets[column] : x + ((CellBreak) segment).padding;
 			}
-			else if (segment instanceof BufferedImage || segment instanceof SpriteIcon)
+			else if (segment instanceof BufferedImage || segment instanceof SpriteIcon || segment instanceof SymbolIcon)
 			{
 				BufferedImage flag = layout.images.get(i);
 				int flagY = y - fontMetrics.getAscent() + (lineHeight(fontMetrics) - flag.getHeight()) / 2;
 				if (segment instanceof SpriteIcon && config.iconBackground())
 				{
 					drawGlow(graphics, x, flagY, flag.getWidth(), flag.getHeight());
+				}
+				// A symbol's shadow as text's: a black copy 1px down-right.
+				if (segment instanceof SymbolIcon)
+				{
+					graphics.drawImage(silhouette(flag), x + 1, flagY + 1, null);
 				}
 				graphics.drawImage(flag, x, flagY, null);
 				hitTest(x, flagY, flag.getWidth(), flag.getHeight(), -1);
@@ -1390,7 +1439,7 @@ public class GroundMarkerVariablesOverlay
 		return fontMetrics.getAscent() + fontMetrics.getDescent();
 	}
 
-	// Splits a line into text (String), ItemIcons, SpriteIcons, flags/emojis (BufferedImage) and StyleToggles.
+	// Splits a line into text (String), ItemIcons, SpriteIcons, SymbolIcons, flags/emojis (BufferedImage) and StyleToggles.
 	private List<Object> splitSegments(String line)
 	{
 		List<Object> segments = new ArrayList<>();
@@ -1420,12 +1469,18 @@ public class GroundMarkerVariablesOverlay
 			}
 			else if (matcher.group(6) != null)
 			{
+				String codepoint = matcher.group(6).toLowerCase(Locale.ROOT);
 				String tint = matcher.group(7) == null ? null : matcher.group(7).toLowerCase(Locale.ROOT);
-				BufferedImage emoji = emojis.image(matcher.group(6).toLowerCase(Locale.ROOT), tint);
+				BufferedImage emoji = emojis.image(codepoint, tint);
+				BufferedImage shadowed = emojis.shadowed(codepoint, tint);
 				if (emoji != null)
 				{
 					smoothImages.add(emoji);
-					icons.add(emoji);
+					if (shadowed != null)
+					{
+						smoothImages.add(shadowed);
+					}
+					icons.add(shadowed != null ? new SymbolIcon(emoji, shadowed) : emoji);
 				}
 			}
 			else if (matcher.group(8) != null)
@@ -1503,6 +1558,10 @@ public class GroundMarkerVariablesOverlay
 			{
 				parts.add(((SpriteIcon) icon).image);
 				sprite = true;
+			}
+			else if (icon instanceof SymbolIcon)
+			{
+				parts.add(((SymbolIcon) icon).shadowed);
 			}
 			else
 			{

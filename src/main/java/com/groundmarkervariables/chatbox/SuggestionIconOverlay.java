@@ -117,7 +117,8 @@ public class SuggestionIconOverlay extends Overlay
 			case NPC:
 				return npcImages.image(Integer.parseInt(icon.id), false);
 			case EMOJI:
-				return emojis.image(icon.id, null);
+				BufferedImage symbol = emojis.shadowed(icon.id, null);
+				return symbol != null ? symbol : emojis.image(icon.id, null);
 			default:
 				return spriteManager.getSprite(Integer.parseInt(icon.id), 0);
 		}

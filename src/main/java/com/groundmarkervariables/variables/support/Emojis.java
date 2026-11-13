@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.support;
 
 import com.google.gson.Gson;
 import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -27,23 +28,52 @@ import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.util.ImageUtil;
 
-// :name: emojis from a bundled copy of RuneLite's emoji set (static.runelite.net/emoji), licensed
-// CC BY 4.0: see LICENSE-GRAPHICS inside emoji/assets.zip.
+// :name: images from two sets, both used as :name:. emoji/: a bundled copy of RuneLite's emoji set
+// (static.runelite.net/emoji), licensed CC BY 4.0: see LICENSE-GRAPHICS inside emoji/assets.zip. unicode/: unicode
+// symbols that set lacks, rendered for this plugin from the DejaVu fonts as white glyphs (their shadow is added when
+// drawn): see LICENSE-FONTS inside unicode/images.zip.
 @Slf4j
 @Singleton
 public class Emojis
 {
 	// ":name:" or ":name@color:", color a named color or 6-digit hex.
 	private static final Pattern EMOJI = Pattern.compile(":([a-z0-9_!().\\-ñ]+)(?:@([a-z]+|[0-9a-fA-F]{6}))?:");
+	private static final String RESOURCES = "/com/groundmarkervariables/";
+
+	// One set's names (name -> codepoint) and images (codepoint -> PNG bytes, read from its zip on first use).
+	private static final class ImageSet
+	{
+		private final Map<String, String> names;
+		private final String zip;
+		@Nullable
+		private Map<String, byte[]> pngs;
+
+		private ImageSet(Map<String, String> names, String zip)
+		{
+			this.names = names;
+			this.zip = zip;
+		}
+
+		@Nullable
+		private byte[] png(String codepoint)
+		{
+			if (pngs == null)
+			{
+				pngs = loadPngs(zip);
+			}
+			return pngs.get(codepoint);
+		}
+	}
 
 	private final Gson gson;
 
+	// Loaded on first use. Every set's names together.
+	@Nullable
+	private List<ImageSet> sets;
 	@Nullable
 	private Map<String, String> names;
-	// codepoint -> PNG bytes, read from assets.zip on first use.
-	@Nullable
-	private Map<String, byte[]> pngs;
 	private final Map<String, Optional<BufferedImage>> images = new HashMap<>();
 
 	@Inject
@@ -101,6 +131,29 @@ public class Emojis
 			key -> Optional.of(tint(image, new Color(Integer.parseInt(tintHex, 16))))).orElse(null);
 	}
 
+	// A unicode symbol over a black copy of it, 1/16 of its size down-right; null for an emoji.
+	@Nullable
+	public synchronized BufferedImage shadowed(String codepoint, @Nullable String tintHex)
+	{
+		BufferedImage image = image(codepoint, tintHex);
+		if (image == null || sets().get(0).png(codepoint) != null)
+		{
+			return null;
+		}
+		return images.computeIfAbsent(codepoint + "@" + tintHex + "/shadowed", key -> Optional.of(withShadow(image))).orElse(null);
+	}
+
+	private static BufferedImage withShadow(BufferedImage image)
+	{
+		int offset = Math.max(1, image.getHeight() / 16);
+		BufferedImage shadowed = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = shadowed.createGraphics();
+		graphics.drawImage(ImageUtil.luminanceScale(image, 0f), offset, offset, null);
+		graphics.drawImage(image, 0, 0, null);
+		graphics.dispose();
+		return shadowed;
+	}
+
 	// Keeps the emoji's shading: each pixel is color scaled by its brightness. Pixels at the 80th
 	// percentile of brightness and above get the full color, so small bright details don't leave the
 	// rest dim. Alpha is unchanged.
@@ -138,22 +191,30 @@ public class Emojis
 	{
 		if (names == null)
 		{
-			names = loadNames();
+			names = new HashMap<>();
+			for (ImageSet set : sets())
+			{
+				names.putAll(set.names);
+			}
 		}
 		return names;
 	}
 
-	// RuneLite's names, plus emoji-toolkit shortnames (aliases.json) for the same emojis.
-	private Map<String, String> loadNames()
+	// RuneLite's emoji names, plus emoji-toolkit shortnames (aliases.json) for the same emojis; then the unicode symbols.
+	private synchronized List<ImageSet> sets()
 	{
-		Map<String, String> names = new HashMap<>(readNames("aliases.json", Index::aliases));
-		names.putAll(readNames("index.json", Index::names));
-		return names;
+		if (sets == null)
+		{
+			Map<String, String> emoji = new HashMap<>(readNames("emoji/aliases.json", Index::aliases));
+			emoji.putAll(readNames("emoji/index.json", Index::names));
+			sets = List.of(new ImageSet(emoji, "emoji/assets.zip"), new ImageSet(readNames("unicode/names.json", Index::names), "unicode/images.zip"));
+		}
+		return sets;
 	}
 
 	private Map<String, String> readNames(String file, Function<Index, Map<String, String>> field)
 	{
-		try (InputStream in = Emojis.class.getResourceAsStream("/com/groundmarkervariables/emoji/" + file);
+		try (InputStream in = Emojis.class.getResourceAsStream(RESOURCES + file);
 			Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8))
 		{
 			Index index = gson.fromJson(reader, Index.class);
@@ -167,36 +228,36 @@ public class Emojis
 		}
 	}
 
+	// From whichever set has the codepoint.
 	private Optional<BufferedImage> decode(String codepoint)
 	{
-		if (pngs == null)
+		for (ImageSet set : sets())
 		{
-			pngs = loadPngs();
-		}
-
-		byte[] png = pngs.get(codepoint);
-		if (png == null)
-		{
-			return Optional.empty();
-		}
-		try
-		{
-			synchronized (ImageIO.class)
+			byte[] png = set.png(codepoint);
+			if (png == null)
 			{
-				return Optional.ofNullable(ImageIO.read(new ByteArrayInputStream(png)));
+				continue;
+			}
+			try
+			{
+				synchronized (ImageIO.class)
+				{
+					return Optional.ofNullable(ImageIO.read(new ByteArrayInputStream(png)));
+				}
+			}
+			catch (IOException e)
+			{
+				log.debug("Unable to read emoji {}", codepoint, e);
+				return Optional.empty();
 			}
 		}
-		catch (IOException e)
-		{
-			log.debug("Unable to read emoji {}", codepoint, e);
-			return Optional.empty();
-		}
+		return Optional.empty();
 	}
 
-	private static Map<String, byte[]> loadPngs()
+	private static Map<String, byte[]> loadPngs(String zipFile)
 	{
 		Map<String, byte[]> pngs = new HashMap<>();
-		try (ZipInputStream zip = new ZipInputStream(Emojis.class.getResourceAsStream("/com/groundmarkervariables/emoji/assets.zip")))
+		try (ZipInputStream zip = new ZipInputStream(Emojis.class.getResourceAsStream(RESOURCES + zipFile)))
 		{
 			ZipEntry entry;
 			while ((entry = zip.getNextEntry()) != null)
@@ -210,12 +271,12 @@ public class Emojis
 		}
 		catch (IOException | RuntimeException e)
 		{
-			log.warn("Unable to read the emoji images", e);
+			log.warn("Unable to read the emoji images {}", zipFile, e);
 		}
 		return pngs;
 	}
 
-	// index.json has names, aliases.json has aliases.
+	// The names and aliases files: "names" (index.json, unicode/names.json) or "aliases" (aliases.json).
 	private static final class Index
 	{
 		Map<String, String> names;

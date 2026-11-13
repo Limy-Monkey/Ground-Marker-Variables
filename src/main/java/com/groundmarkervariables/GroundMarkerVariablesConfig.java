@@ -311,7 +311,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			position = 8,
 			keyName = "parallaxIcons",
 			name = "Parallax icons",
-			description = "Controls whether items and npcs rendered on {ground} have depth",
+			description = "Controls whether everything rendered on {ground} has depth: items and npcs as models, the rest lifted over its shadow",
 			section = richTextSection
 	)
 	default boolean parallaxIcons()

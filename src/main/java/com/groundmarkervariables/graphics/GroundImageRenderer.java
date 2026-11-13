@@ -1,6 +1,7 @@
 package com.groundmarkervariables.graphics;
 
 import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -95,6 +96,13 @@ public class GroundImageRenderer
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
 		int facing, double offsetNorth, double width, double height, int lift)
 	{
+		draw(graphics, center, plane, image, smooth, opacity, facing, offsetNorth, width, height, lift, false);
+	}
+
+	// As above, black (only the image's alpha kept) if silhouette.
+	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
+		int facing, double offsetNorth, double width, double height, int lift, boolean silhouette)
+	{
 		double scale = Math.min(width / image.getWidth(), height / image.getHeight());
 		// Smooth sampling stops hard at the image's edge, so pixels touching it would end in a straight cut; a
 		// transparent border lets them fade out like any other edge.
@@ -156,6 +164,12 @@ public class GroundImageRenderer
 				drawTriangle(bg, image, u0, v0, u1, v0, u0, v1, nw, ne, sw);
 				drawTriangle(bg, image, u1, v0, u1, v1, u0, v1, ne, se, sw);
 			}
+		}
+		if (silhouette)
+		{
+			bg.setComposite(AlphaComposite.SrcIn);
+			bg.setColor(Color.BLACK);
+			bg.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
 		}
 		bg.dispose();
 
