@@ -20,11 +20,9 @@ public class VariableRegistry
 	private VariableRegistry(
 		RsnLabelVariable rsn,
 		SpellbookLabelVariable spellbook,
-		HasThrallsLabelVariable hasThralls,
+		HasSpellLabelVariable hasSpell,
 		WeaponLabelVariable weapon,
 		SkillLevelLabelVariable skillLevel,
-		HasFreezeLabelVariable hasFreeze,
-		HasEntangleLabelVariable hasEntangle,
 		BoostedSkillLevelLabelVariable boostedSkillLevel,
 		AttackStyleLabelVariable attackStyle,
 		AttackTypeLabelVariable attackType,
@@ -32,7 +30,6 @@ public class VariableRegistry
 		ShowItemsLabelVariable showItems,
 		RunePouchLabelVariable runePouch,
 		MiscellaniaLabelVariable miscellania,
-		HasAlchsLabelVariable hasAlchs,
 		TimeLabelVariable time,
 		DateLabelVariable date,
 		WeekdayLabelVariable weekday,
@@ -60,13 +57,8 @@ public class VariableRegistry
 		ReadyCheckLabelVariable readyCheck,
 		DivineLabelVariable divine,
 		WorldLabelVariable world,
-		HasVileVigourLabelVariable hasVileVigour,
-		HasVengeanceLabelVariable hasVengeance,
-		HasUndeadGraspLabelVariable hasUndeadGrasp,
-		HasMarkOfDarknessLabelVariable hasMarkOfDarkness,
 		HasSurgeLabelVariable hasSurge,
 		HasBarrageLabelVariable hasBarrage,
-		HasSpellbookSwapLabelVariable hasSpellbookSwap,
 		ActiveLabelVariable active,
 		InvSpaceLabelVariable invSpace,
 		GroupLabelVariable group,
@@ -75,10 +67,10 @@ public class VariableRegistry
 		DpsLabelVariable dps)
 	{
 		this.variables = List.of(
-			rsn, spellbook, hasThralls, weapon, skillLevel, hasFreeze, hasEntangle, boostedSkillLevel,
-			attackStyle, attackType, autocast, dps, hasItem, showItems, runePouch, miscellania, hasAlchs, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
+			rsn, spellbook, hasSpell, weapon, skillLevel, boostedSkillLevel,
+			attackStyle, attackType, autocast, dps, hasItem, showItems, runePouch, miscellania, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, log, combatAchievements, numItem, numDoses, xp, rank,
-			party, partyNum, readyCheck, divine, world, hasVileVigour, hasVengeance, hasUndeadGrasp, hasMarkOfDarkness, hasSurge, hasBarrage, hasSpellbookSwap, active, invSpace, group, quickPrayers);
+			party, partyNum, readyCheck, divine, world, hasSurge, hasBarrage, active, invSpace, group, quickPrayers);
 	}
 
 	public List<LabelVariable> all()
