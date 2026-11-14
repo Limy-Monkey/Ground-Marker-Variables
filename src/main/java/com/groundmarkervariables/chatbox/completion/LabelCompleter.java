@@ -451,12 +451,14 @@ public class LabelCompleter
 	}
 
 	// The variable names partial starts (numeric ones only after a math operator); every one with no ghost if empty.
+	// Each with its icon and description.
 	@Nullable
 	private Completion variableNames(String partial, boolean numeric)
 	{
 		boolean needsMore = VARIABLE_NAMES_NEEDING_MORE.stream().anyMatch(partial::equalsIgnoreCase);
-		return withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VARIABLE_NAMES, "{", "", needsMore ? null : "}", false),
+		Completion names = withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VARIABLE_NAMES, "{", "", needsMore ? null : "}", false),
 			name -> ICON_VARIABLES.contains(name) ? "{" + name + " icon}" : null);
+		return names == null ? null : names.withDescriptions(VariableDescriptions::of);
 	}
 
 	// The names starting with partial (any case), those only containing it, and whether one equals it.

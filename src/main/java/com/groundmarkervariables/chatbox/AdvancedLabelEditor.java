@@ -146,8 +146,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final ConfigManager configManager;
 	private final LabelCompleter completer;
 	private final SuggestionIconOverlay iconOverlay;
-	// This update's suggestion icons, for iconOverlay.
+	// This update's suggestion icons and tooltips, for iconOverlay.
 	private final List<SuggestionIconOverlay.Placement> iconPlacements = new ArrayList<>();
+	private final List<SuggestionIconOverlay.Tip> tips = new ArrayList<>();
 
 	private String originalLabel = "";
 	private List<String> recentLabels = Collections.emptyList();
@@ -723,6 +724,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
 		iconPlacements.clear();
+		tips.clear();
 
 		Widget promptWidget = container.createChild(-1, WidgetType.TEXT);
 		promptWidget.setText(getPrompt());
@@ -761,7 +763,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		visibleRows = Math.max(0, Math.min(VISIBLE_ROWS, (listBottom - resultsStartY) / ROW_HEIGHT));
 		if (visibleRows == 0)
 		{
-			iconOverlay.show(iconPlacements);
+			iconOverlay.show(iconPlacements, tips);
 			return;
 		}
 
@@ -776,7 +778,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		separator.revalidate();
 
 		buildRecommendations(container, resultsStartY);
-		iconOverlay.show(iconPlacements);
+		iconOverlay.show(iconPlacements, tips);
 	}
 
 	// Undo (grayed out/unclickable once the value matches originalLabel), "_" (font size
@@ -1065,6 +1067,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				addInsertAction(placeholder, option);
 				placeholder.revalidate();
 				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT), icon));
+			}
+
+			if (option.description != null)
+			{
+				tips.add(new SuggestionIconOverlay.Tip(container, new Rectangle(x, y, columnWidth, ROW_HEIGHT), option.description));
 			}
 
 			int color = option == row.preferred ? PREFERRED_SUGGESTION_COLOR : ROW_COLOR;

@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 public final class Completion
 {
 	// One completion: its list label (null for a bare closer), the text it inserts over the replace chars before the
-	// cursor, and its icon syntax.
+	// cursor, its icon syntax, and its tooltip description.
 	public static final class Option
 	{
 		@Nullable
@@ -18,13 +18,21 @@ public final class Completion
 		public final int replace;
 		@Nullable
 		public final String icon;
+		@Nullable
+		public final String description;
 
 		Option(@Nullable String label, String insert, int replace, @Nullable String icon)
+		{
+			this(label, insert, replace, icon, null);
+		}
+
+		Option(@Nullable String label, String insert, int replace, @Nullable String icon, @Nullable String description)
 		{
 			this.label = label;
 			this.insert = insert;
 			this.replace = replace;
 			this.icon = icon;
+			this.description = description;
 		}
 	}
 
@@ -100,7 +108,7 @@ public final class Completion
 		{
 			if (option.label != null)
 			{
-				all.add(new Option(" " + option.label, " " + option.insert, option.replace, option.icon));
+				all.add(new Option(" " + option.label, " " + option.insert, option.replace, option.icon, option.description));
 			}
 		}
 		int shift = all.size();
@@ -118,9 +126,22 @@ public final class Completion
 		List<Option> withIcons = new ArrayList<>(options.size());
 		for (Option option : options)
 		{
-			withIcons.add(option.label == null ? option : new Option(option.label, option.insert, option.replace, icon.apply(option.label)));
+			withIcons.add(option.label == null ? option
+				: new Option(option.label, option.insert, option.replace, icon.apply(option.label), option.description));
 		}
 		return new Completion(withIcons, preferred);
+	}
+
+	// This, each labeled option given description(label) as its description (null for none).
+	Completion withDescriptions(Function<String, String> description)
+	{
+		List<Option> described = new ArrayList<>(options.size());
+		for (Option option : options)
+		{
+			described.add(option.label == null ? option
+				: new Option(option.label, option.insert, option.replace, option.icon, description.apply(option.label)));
+		}
+		return new Completion(described, preferred);
 	}
 
 	// The ghost text / Tab insertion, or null.
