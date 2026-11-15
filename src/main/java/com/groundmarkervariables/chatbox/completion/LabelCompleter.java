@@ -135,8 +135,6 @@ public class LabelCompleter
 	private static final Pattern ICON_NAME_PARTIAL = Pattern.compile("<(npc|item|sprite)=([^<>{}=,@]*)$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern ICON_TAG_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_])<([a-z]+)$", Pattern.CASE_INSENSITIVE);
 	private static final List<String> ICON_TAGS = List.of("item=", "npc=", "sprite=");
-	// How many NPC/item/sprite names the suggestion list shows.
-	private static final int MAX_ICON_NAMES = 50;
 
 	// {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage.
 	private static final String METRONOME_NAME = "metronome";
@@ -246,7 +244,7 @@ public class LabelCompleter
 			Integer sprite = iconNames.bossSprite(name);
 			if (sprite == null)
 			{
-				return icon(spriteNamed(name));
+				return icon(spriteNamed(name, "Hiscore"));
 			}
 			Completion.Icon icon = new Completion.Icon(Completion.Icon.Kind.SPRITE, String.valueOf(sprite));
 			icons.put(syntax, Optional.of(icon));
@@ -276,9 +274,10 @@ public class LabelCompleter
 	}
 
 	// A named sprite tag, for IconNames to expand.
-	private static String spriteNamed(String name)
+	// A sprite by its IconNames name, "Name (Category)", e.g. "Piety (Prayer)".
+	private static String spriteNamed(String name, String category)
 	{
-		return "<sprite=" + name + ">";
+		return "<sprite=" + name + " (" + category + ")>";
 	}
 
 	// The freely typed parameters, "name: description", of the variable whose arguments are being typed at cursor,
@@ -439,7 +438,7 @@ public class LabelCompleter
 		list.add(prefix(DPS_PREFIX, false, rest -> completeTemplateKeyword(rest, DPS_KEYWORDS, DPS_PREFIX)));
 		list.add(prefix(DIVINE_PREFIX, false, rest -> described(match(rest, DIVINE_POTIONS, "{" + DIVINE_PREFIX, "", "}", true), DIVINE_PREFIX)));
 		list.add(prefix(QUICK_PRAYERS_PREFIX, false, rest -> described(withIcons(match(rest, PRAYERS, "{" + QUICK_PRAYERS_PREFIX, "", "}", true),
-			LabelCompleter::spriteNamed), QUICK_PRAYERS_PREFIX)));
+			prayer -> spriteNamed(prayer, "Prayer")), QUICK_PRAYERS_PREFIX)));
 		list.add(prefix(ACTIVE_PREFIX, false, rest -> described(withIcons(match(rest, ACTIVE_EFFECTS, "{" + ACTIVE_PREFIX, "", "}", true),
 			effect -> "{" + ACTIVE_PREFIX + effect + " icon}"), ACTIVE_PREFIX)));
 		list.add(pattern(WEAPON_VALUE, m -> withIcons(
@@ -603,7 +602,7 @@ public class LabelCompleter
 		{
 			names.addAll(LEVEL_EXTRAS);
 		}
-		return described(withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill)),
+		return described(withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill, "Skill")),
 			prefix);
 	}
 
@@ -794,11 +793,12 @@ public class LabelCompleter
 	@Nullable
 	private Completion completeIconName(IconNames.Kind kind, String partial, boolean closed)
 	{
-		if (partial.isEmpty() || partial.chars().allMatch(Character::isDigit))
+		// Every name, even before anything's typed; icons load only for the rows shown.
+		if (!partial.isEmpty() && partial.chars().allMatch(Character::isDigit))
 		{
 			return null;
 		}
-		List<String> names = iconNames.matches(kind, partial, MAX_ICON_NAMES);
+		List<String> names = iconNames.matches(kind, partial);
 		if (names.isEmpty())
 		{
 			return null;
@@ -810,7 +810,7 @@ public class LabelCompleter
 			(name.regionMatches(true, 0, partial, 0, partial.length()) ? starting : contained).add(name);
 		}
 		String closer = closed ? "" : ">";
-		return Completion.of(starting, partial.length(), closer, starting.isEmpty() ? null : starting.get(0))
+		return Completion.of(starting, partial.length(), closer, starting.isEmpty() || partial.isEmpty() ? null : starting.get(0))
 			.withContained(contained, partial.length(), closer)
 			.withIcons(name -> "<" + kind.tag + "=" + name + ">");
 	}

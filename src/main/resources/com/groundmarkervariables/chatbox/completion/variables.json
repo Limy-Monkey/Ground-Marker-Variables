@@ -302,10 +302,10 @@
     "examples": ["<npc=Vorkath>", "<npc=Hans,head>"]},
   "<sprite=": {"syntax": "<sprite=name>", "description": "A game sprite as an icon", "category": "Icons",
     "parameters": [
-      {"name": "name", "description": "A prayer, skill, spell or boss name as in game, turned into its ID when saved; or the sprite ID itself"},
+      {"name": "name", "description": "A sprite's name with its category, e.g. Wind Surge (Spell), Piety (Prayer), The Hueycoatl (Hiscore), turned into its ID when saved; or the sprite ID itself"},
       {"name": ",frame", "description": "Optional: which frame of a sprite with several"},
       {"name": "@N%", "description": "Optional: drawn at N% brightness"}],
-    "examples": ["<sprite=Ice Barrage>", "<sprite=Piety@50%>"]},
+    "examples": ["<sprite=Ice Barrage (Spell)>", "<sprite=Piety (Prayer)@50%>", "<sprite=The Hueycoatl (Hiscore)>"]},
   "<flag=": {"syntax": "<flag=us>", "description": "A world region's flag", "category": "Icons",
     "parameters": [{"name": "<region>", "description": "us, us_west, us_east, uk, aus, ger, br, jp, sg or za"}]},
   ":emoji:": {"syntax": ":name:", "description": "An emoji or unicode symbol, by any name on the Symbols page", "category": "Icons",
@@ -314,7 +314,7 @@
     "parameters": [{"name": "=N", "description": "Optional: a pie of N% left instead"}]},
   "split": {"syntax": "{split}...{/split}", "description": "2-4 icons drawn as one, each cut to its half, third or quarter", "category": "Icons",
     "parameters": [{"name": "...", "description": "Icons: <item=>, <sprite=>, <npc=>, <flag=> and :emoji:, including variables' icons. Text inside is dropped, and icons past the 4th are left out"}],
-    "examples": ["{split}<sprite=Ice Barrage><sprite=Blood Barrage>{/split}"]},
+    "examples": ["{split}<sprite=Ice Barrage (Spell)><sprite=Blood Barrage (Spell)>{/split}"]},
 
   "\\n": {"syntax": "\\n", "description": "New line", "category": "Special characters"},
   "\\t": {"syntax": "\\t", "description": "Table column: what follows lines up with the same column on other lines", "category": "Special characters",

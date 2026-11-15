@@ -1,5 +1,10 @@
 package com.groundmarkervariables.variables.support;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,7 +38,7 @@ import net.runelite.client.util.Text;
 
 // <npc=Name[,head]> / <item=Name[@N%]> / <sprite=Name[@N%]>: names typed in a label, turned into the overlay's ID
 // tags when the label is saved. A name matches any case. NPCs and items: nearby NPCs and held items win, then the
-// lowest ID. Sprites: prayers, skills, spells and bosses, named as in game.
+// lowest ID. Sprites: "Name (Category)", from the game's prayers, skills, spells and bosses, then sprite-names.json.
 @Slf4j
 @Singleton
 public class IconNames
@@ -65,6 +70,7 @@ public class IconNames
 	private static final int SPELL_ICON = 597;
 
 	private static final Map<String, Integer> PRAYERS = new LinkedHashMap<>();
+	private static final Map<String, Integer> JSON_SPRITES = loadJsonSprites();
 
 	static
 	{
@@ -257,13 +263,13 @@ public class IconNames
 		return key.replace(":", "").replaceAll("\\s+chests?(\\s+opened)?$", "").replaceAll("\\s+", " ").trim();
 	}
 
-	// Up to limit names starting with partial (any case), in complete()'s order: an exact match, then nearby NPCs / held
-	// items, then the rest shortest first; then names only containing it, shortest first. Empty if none, or while the
-	// names are still loading.
-	public List<String> matches(Kind kind, String partial, int limit)
+	// Every name starting with partial (any case; all of them if it's empty), in complete()'s order: an exact match,
+	// then nearby NPCs / held items, then the rest shortest first; then names only containing it, shortest first. Empty
+	// if none, or while the names are still loading.
+	public List<String> matches(Kind kind, String partial)
 	{
 		Index index = index(kind);
-		if (index == null || partial.isEmpty())
+		if (index == null)
 		{
 			return List.of();
 		}
@@ -279,7 +285,7 @@ public class IconNames
 			String key = name.toLowerCase(Locale.ROOT);
 			if (!key.startsWith(lower))
 			{
-				if (contained.size() < limit && key.contains(lower))
+				if (key.contains(lower))
 				{
 					contained.add(name);
 				}
@@ -293,7 +299,7 @@ public class IconNames
 			{
 				nearby.add(name);
 			}
-			else if (rest.size() < limit)
+			else
 			{
 				rest.add(name);
 			}
@@ -302,11 +308,11 @@ public class IconNames
 		ranked.addAll(nearby);
 		ranked.addAll(rest);
 		ranked.addAll(contained);
-		return ranked.size() > limit ? ranked.subList(0, limit) : ranked;
+		return ranked;
 	}
 
 	// Client thread. "<npc=Verzik Vitur>" -> "<npc=8369>", "<item=Abyssal whip@50%>" -> "<item=4151@50%>",
-	// "<sprite=Piety>" -> "<sprite=946>". Unknown names are left as-is.
+	// "<sprite=Piety (Prayer)>" -> "<sprite=946>". Unknown names are left as-is.
 	public String expand(String label)
 	{
 		if (label == null || label.indexOf('<') < 0)
@@ -431,12 +437,13 @@ public class IconNames
 		}
 	}
 
-	// Prayers, skills, spells, then bosses: the first to take a name keeps it.
+	// Prayers, skills, spells, bosses from the game, then sprite-names.json; each named "Name (Category)", e.g.
+	// "Wind Surge (Spell)". The first to take a name keeps it.
 	private void buildSprites(Map<String, String> names, Map<String, Integer> ids)
 	{
-		PRAYERS.forEach((name, id) -> addSprite(names, ids, name, id));
+		PRAYERS.forEach((name, id) -> addSprite(names, ids, name + " (Prayer)", id));
 		addTableSprites(names, ids, DBTableID.HiscoresSkillInfo.ID, DBTableID.HiscoresSkillInfo.COL_SKILLNAME,
-			DBTableID.HiscoresSkillInfo.COL_SKILLICON);
+			DBTableID.HiscoresSkillInfo.COL_SKILLICON, " (Skill)");
 
 		try
 		{
@@ -446,7 +453,8 @@ public class IconNames
 				for (int spell : spells.getIntVals())
 				{
 					ItemComposition definition = client.getItemDefinition(spell);
-					addSprite(names, ids, definition.getStringValue(ParamID.SPELL_NAME), definition.getIntValue(SPELL_ICON));
+					String spellName = definition.getStringValue(ParamID.SPELL_NAME);
+					addSprite(names, ids, spellName == null ? null : spellName + " (Spell)", definition.getIntValue(SPELL_ICON));
 				}
 			}
 		}
@@ -456,10 +464,30 @@ public class IconNames
 		}
 
 		addTableSprites(names, ids, DBTableID.HiscoresBossesInfo.ID, DBTableID.HiscoresBossesInfo.COL_BOSSNAME,
-			DBTableID.HiscoresBossesInfo.COL_BOSSICON);
+			DBTableID.HiscoresBossesInfo.COL_BOSSICON, " (Hiscore)");
+		JSON_SPRITES.forEach((name, id) -> addSprite(names, ids, name, id));
 	}
 
-	private void addTableSprites(Map<String, String> names, Map<String, Integer> ids, int table, int nameColumn, int iconColumn)
+	// sprite-names.json: RuneLite's SpriteID constants as "Name (Category)" -> id.
+	private static Map<String, Integer> loadJsonSprites()
+	{
+		Map<String, Integer> sprites = new LinkedHashMap<>();
+		try (Reader reader = new InputStreamReader(IconNames.class.getResourceAsStream("sprite-names.json"), StandardCharsets.UTF_8))
+		{
+			for (Map.Entry<String, JsonElement> sprite : new JsonParser().parse(reader).getAsJsonObject().getAsJsonObject("sprites").entrySet())
+			{
+				sprites.put(sprite.getKey(), sprite.getValue().getAsInt());
+			}
+		}
+		catch (Exception e)
+		{
+			log.warn("Couldn't load sprite names", e);
+		}
+		return sprites;
+	}
+
+	private void addTableSprites(Map<String, String> names, Map<String, Integer> ids, int table, int nameColumn, int iconColumn,
+		String suffix)
 	{
 		try
 		{
@@ -469,7 +497,7 @@ public class IconNames
 				Object[] icon = client.getDBTableField(row, iconColumn, 0);
 				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer)
 				{
-					addSprite(names, ids, (String) name[0], (Integer) icon[0]);
+					addSprite(names, ids, name[0] + suffix, (Integer) icon[0]);
 				}
 			}
 		}
