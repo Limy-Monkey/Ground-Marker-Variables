@@ -3,12 +3,14 @@ package com.groundmarkervariables.chatbox;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.variables.support.Emojis;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,10 @@ public class SuggestionIconOverlay extends Overlay
 	private final Emojis emojis;
 	private volatile List<Placement> placements = List.of();
 	private volatile List<Tip> tips = List.of();
+	// Color swatches by RRGGBB.
+	private static final int SWATCH_SIZE = 12;
+	private static final Color SWATCH_OUTLINE = new Color(0, 0, 0, 160);
+	private final Map<String, BufferedImage> swatches = new HashMap<>();
 	// Keyed by the source image, then shrunk to the placeholder's size. Client thread only.
 	private final Map<BufferedImage, BufferedImage> scaled = new IdentityHashMap<>();
 	private final Set<BufferedImage> watched = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -168,9 +174,25 @@ public class SuggestionIconOverlay extends Overlay
 			case EMOJI:
 				BufferedImage symbol = emojis.shadowed(icon.id, null);
 				return symbol != null ? symbol : emojis.image(icon.id, null);
+			case COLOR:
+				return swatches.computeIfAbsent(icon.id, SuggestionIconOverlay::swatch);
 			default:
 				return spriteManager.getSprite(Integer.parseInt(icon.id), 0);
 		}
+	}
+
+	// A small circle of color RRGGBB, outlined so light colors show on the chatbox.
+	private static BufferedImage swatch(String hex)
+	{
+		BufferedImage image = new BufferedImage(SWATCH_SIZE, SWATCH_SIZE, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = image.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setColor(new Color(Integer.parseInt(hex, 16)));
+		g.fillOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
+		g.setColor(SWATCH_OUTLINE);
+		g.drawOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
+		g.dispose();
+		return image;
 	}
 
 	// Fitted inside width x height, aspect kept and never enlarged, halving step by step for a smooth result.

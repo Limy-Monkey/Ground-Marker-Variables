@@ -49,6 +49,8 @@ public class LabelCompleter
 	private static final Set<String> ICON_VARIABLES = VariableCatalog.WITH_ICON;
 	// Icon syntax of a boss by name: its hiscores icon, else a sprite of that name.
 	private static final String BOSS_ICON = "boss:";
+	// Icon syntax of a color swatch: "color:RRGGBB".
+	private static final String COLOR_ICON = "color:";
 	// The first icon tag in a resolved icon.
 	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)|(emoji)=([0-9a-f]+))");
 
@@ -231,6 +233,11 @@ public class LabelCompleter
 		if (cached != null)
 		{
 			return cached.orElse(null);
+		}
+
+		if (syntax.startsWith(COLOR_ICON))
+		{
+			return new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(COLOR_ICON.length()));
 		}
 
 		if (syntax.startsWith(BOSS_ICON))
@@ -833,7 +840,7 @@ public class LabelCompleter
 	@Nullable
 	private Completion completeColorValue(String partial)
 	{
-		Completion named = match(partial, NamedColors.HEX_BY_NAME.keySet(), "{" + COLOR_PREFIX, "}", null, true);
+		Completion named = withIcons(match(partial, NamedColors.SUGGESTED, "{" + COLOR_PREFIX, "}", null, true), LabelCompleter::colorIcon);
 		if (named != null)
 		{
 			return named;
@@ -851,8 +858,16 @@ public class LabelCompleter
 			return Completion.closer("}");
 		}
 		List<String> names = new ArrayList<>(NamedColors.OPACITY_BY_NAME.keySet());
-		names.addAll(NamedColors.HEX_BY_NAME.keySet());
-		return match(partial, names, "{" + TILECOL_PREFIX, "}", null, true);
+		names.addAll(NamedColors.SUGGESTED);
+		return withIcons(match(partial, names, "{" + TILECOL_PREFIX, "}", null, true), LabelCompleter::colorIcon);
+	}
+
+	// A named color's swatch icon syntax, or null if name isn't a color (e.g. an opacity name).
+	@Nullable
+	private static String colorIcon(String name)
+	{
+		String hex = NamedColors.HEX_BY_NAME.get(name.toLowerCase(Locale.ROOT));
+		return hex == null ? null : COLOR_ICON + hex;
 	}
 
 	// The corner; once "=" follows a full corner name, a named color closed with "}".
@@ -866,7 +881,8 @@ public class LabelCompleter
 		}
 		String corner = rest.substring(0, eq);
 		return HIGHLIGHT_CORNERS.stream().anyMatch(corner::equalsIgnoreCase)
-			? match(rest.substring(eq + 1), NamedColors.HEX_BY_NAME.keySet(), "{" + HIGHLIGHT_NAME, "}", null, true) : null;
+			? withIcons(match(rest.substring(eq + 1), NamedColors.SUGGESTED, "{" + HIGHLIGHT_NAME, "}", null, true), LabelCompleter::colorIcon)
+			: null;
 	}
 
 	// A direction, closed with "}"; an exact one ("n", which "ne"/"nw" also start) closes as it is.

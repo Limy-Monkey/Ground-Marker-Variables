@@ -1,17 +1,34 @@
 package com.groundmarkervariables.variables.support;
 
+import com.google.gson.JsonElement;
+import java.awt.Color;
+import com.google.gson.JsonParser;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
-// Standard color names usable as <col=NAME>, e.g. <col=red> — expanded to <col=FF0000> at
-// render time (see GroundMarkerVariablesOverlay) and offered as autocomplete candidates once
-// "<col=" has been typed (see AdvancedLabelEditor).
+// Color names usable as <col=NAME>, e.g. <col=red> -> <col=FF0000>: named-colors.json, plus highlight and limy.
+@Slf4j
 public final class NamedColors
 {
-	public static final Map<String, String> HEX_BY_NAME = createHexByName();
+	private static final String LIMY = "limy";
+	// The Highlight Color config option's color; see setHighlight.
+	private static final String HIGHLIGHT = "highlight";
+	private static final Map<String, String> COLORS = createHexByName();
+	public static final Map<String, String> HEX_BY_NAME = Collections.unmodifiableMap(COLORS);
+	// Offered as suggestions: all but limy, which works but stays unlisted.
+	public static final Set<String> SUGGESTED = HEX_BY_NAME.keySet().stream().filter(name -> !name.equals(LIMY))
+		.collect(Collectors.toCollection(LinkedHashSet::new));
 
 	// Opacity-only names for {tileCol=...} (not valid in <col=...>/{col=...}) -- percent values.
 	public static final Map<String, Integer> OPACITY_BY_NAME = createOpacityByName();
@@ -27,25 +44,30 @@ public final class NamedColors
 	{
 	}
 
+	// named-colors.json's colors in its order, then limy.
 	private static Map<String, String> createHexByName()
 	{
 		Map<String, String> colors = new LinkedHashMap<>();
-		colors.put("red", "FF0000");
-		colors.put("green", "00FF00");
-		colors.put("blue", "0000FF");
-		colors.put("teal", "00FFFF");
-		colors.put("cyan", "00FFFF");
-		colors.put("yellow", "FFFF00");
-		colors.put("purple", "FF00FF");
-		colors.put("magenta", "FF00FF");
-		colors.put("white", "FFFFFF");
-		colors.put("black", "000000");
-		colors.put("gray", "808080");
-		colors.put("lightgray", "C0C0C0");
-		colors.put("darkgray", "404040");
-		colors.put("orange", "FFA500");
-		colors.put("limy", "FFC3A0");
-		return Collections.unmodifiableMap(colors);
+		try (Reader reader = new InputStreamReader(NamedColors.class.getResourceAsStream("named-colors.json"), StandardCharsets.UTF_8))
+		{
+			for (Map.Entry<String, JsonElement> color : new JsonParser().parse(reader).getAsJsonObject().getAsJsonObject("colors").entrySet())
+			{
+				colors.put(color.getKey().toLowerCase(Locale.ROOT), color.getValue().getAsString());
+			}
+		}
+		catch (Exception e)
+		{
+			log.warn("Couldn't load named colors", e);
+		}
+		colors.put(HIGHLIGHT, "FFC3A0");
+		colors.put(LIMY, "FFC3A0");
+		return colors;
+	}
+
+	// highlight's color, from the Highlight Color config option.
+	public static void setHighlight(Color color)
+	{
+		COLORS.put(HIGHLIGHT, String.format("%06X", color.getRGB() & 0xFFFFFF));
 	}
 
 	private static Map<String, Integer> createOpacityByName()

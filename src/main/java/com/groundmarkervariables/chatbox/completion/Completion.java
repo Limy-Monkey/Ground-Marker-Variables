@@ -36,13 +36,13 @@ public final class Completion
 		}
 	}
 
-	// A resolved icon: a sprite, an item's image, an NPC's or an emoji. id is the number, or for an emoji its hex
-	// codepoint.
+	// A resolved icon: a sprite, an item's image, an NPC's, an emoji or a color swatch. id is the number, for an emoji
+	// its hex codepoint, or for a color its RRGGBB.
 	public static final class Icon
 	{
 		public enum Kind
 		{
-			SPRITE, ITEM, NPC, EMOJI
+			SPRITE, ITEM, NPC, EMOJI, COLOR
 		}
 
 		public final Kind kind;

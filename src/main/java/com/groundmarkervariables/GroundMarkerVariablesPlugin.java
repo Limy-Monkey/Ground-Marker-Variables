@@ -28,6 +28,7 @@ import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.MetronomeResetHotkeyListener;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
+import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
@@ -289,6 +290,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	@Override
 	protected void startUp()
 	{
+		NamedColors.setHighlight(config.highlightColor());
 		freshInstall = configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY) == null;
 		if (freshInstall)
 		{
@@ -921,6 +923,14 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 				sharingManager.addImportExportMenuOptions();
 				sharingManager.addClearMenuOption();
 			}
+			return;
+		}
+
+		// The "highlight" named color follows it; markers keep their labels' colors expanded, so rebuild them.
+		if (GroundMarkerVariablesConfig.GROUP.equals(event.getGroup()) && "highlightColor".equals(event.getKey()))
+		{
+			NamedColors.setHighlight(config.highlightColor());
+			clientThread.invoke(() -> loadPoints());
 			return;
 		}
 
