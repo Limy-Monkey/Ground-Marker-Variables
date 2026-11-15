@@ -282,14 +282,30 @@ public class LabelCompleter
 	}
 
 	// The freely typed parameters, "name: description", of the variable whose arguments are being typed at cursor,
-	// e.g. "{showOneItem " -> "<a>, <b>, …: Parts of item names, …". Empty if none.
+	// e.g. "{showOneItem " -> "<a>, <b>, ...: Parts of item names, ...". Empty if none.
 	public List<String> parameterHints(String text, int cursor)
+	{
+		String token = token(text, cursor);
+		return token == null ? List.of() : VariableCatalog.hints(token);
+	}
+
+	// The variable's own line when the token at cursor is exactly its name, e.g. "{rsn" -> "{rsn}: Display name".
+	@Nullable
+	public String variableSummary(String text, int cursor)
+	{
+		String token = token(text, cursor);
+		return token == null ? null : VariableCatalog.summary(token);
+	}
+
+	// What's typed at cursor after the open "{" (and any ^&* prefix or operator), or null outside one.
+	@Nullable
+	private static String token(String text, int cursor)
 	{
 		String before = text.substring(0, cursor);
 		int open = before.lastIndexOf('{');
 		if (open < 0 || before.indexOf('}', open) >= 0)
 		{
-			return List.of();
+			return null;
 		}
 		String partial = before.substring(open + 1);
 		if (!partial.isEmpty() && "^&*".indexOf(partial.charAt(0)) >= 0)
@@ -297,7 +313,7 @@ public class LabelCompleter
 			partial = partial.substring(1);
 		}
 		int boundaryEnd = Math.max(lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial), lastMatchEnd(CONDITION_BOUNDARY, partial));
-		return VariableCatalog.hints(boundaryEnd >= 0 ? partial.substring(boundaryEnd).stripLeading() : partial);
+		return boundaryEnd >= 0 ? partial.substring(boundaryEnd).stripLeading() : partial;
 	}
 
 	// What completes the token ending at cursor in text, or null. Not mid-word: completing there would run into what

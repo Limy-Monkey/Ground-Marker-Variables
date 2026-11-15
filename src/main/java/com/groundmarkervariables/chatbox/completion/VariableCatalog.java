@@ -36,8 +36,8 @@ final class VariableCatalog
 	private static final Map<String, String> DESCRIPTIONS = new HashMap<>();
 	// Each entry's parameters' "complete" words, in order.
 	private static final Map<String, List<String>> COMPLETIONS = new HashMap<>();
-	// Each entry's parameters with nothing to complete (typed freely), as "name: description".
-	private static final Map<String, List<String>> HINTS = new HashMap<>();
+	// Lowercase name of each variable typed after "{" -> what to show while typing it, see hints().
+	private static final Map<String, Hint> HINTS = new HashMap<>();
 	// A parameter that's one word, optionally "=<value>" after it: the word (with its "=").
 	private static final Pattern WORD_OPTION = Pattern.compile("([A-Za-z]+=?)(?:<[^>]*>)?");
 	// Lowercase entry name -> lowercase completed word -> its parameter's description.
@@ -82,23 +82,48 @@ final class VariableCatalog
 		return words == null ? null : words.get(word.replaceFirst("^[\\s,]+", "").toLowerCase(Locale.ROOT));
 	}
 
-	// The free-typed parameters of the variable partial (what follows "{") is giving arguments to, e.g. "showOneItem "
-	// or "loot Vorkath"; empty if none. Names ending "_" or "=" take theirs straight after.
+	// A variable's line ("{rsn}: Display name") and its freely typed parameters' ("name: description").
+	private static final class Hint
+	{
+		// Its parameters follow its name directly (no space in its syntax), e.g. {highlightSW=<col>}, {lvl_<skill>}.
+		private final boolean joined;
+		@Nullable
+		private final String summary;
+		private final List<String> parameters;
+
+		private Hint(boolean joined, @Nullable String summary, List<String> parameters)
+		{
+			this.joined = joined;
+			this.summary = summary;
+			this.parameters = parameters;
+		}
+	}
+
+	// The variable's own line ("{rsn}: Display name") when partial (what follows "{") is exactly its name, else null.
+	@Nullable
+	static String summary(String partial)
+	{
+		Hint hint = HINTS.get(partial.toLowerCase(Locale.ROOT));
+		return hint == null ? null : hint.summary;
+	}
+
+	// The free-typed parameters of the variable partial is giving arguments to ("showOneItem ", "highlightSW"); empty
+	// if none, or if partial is just the name.
 	static List<String> hints(String partial)
 	{
 		String lower = partial.toLowerCase(Locale.ROOT);
 		String best = null;
-		for (String key : HINTS.keySet())
+		for (Map.Entry<String, Hint> entry : HINTS.entrySet())
 		{
-			String name = key.toLowerCase(Locale.ROOT);
-			boolean joined = name.endsWith("_") || name.endsWith("=");
-			if ((joined ? lower.startsWith(name) : lower.startsWith(name + " ") || lower.startsWith(name + ","))
-				&& (best == null || key.length() > best.length()))
+			String name = entry.getKey();
+			boolean matches = entry.getValue().joined ? lower.startsWith(name)
+				: lower.equals(name) || lower.startsWith(name + " ") || lower.startsWith(name + ",");
+			if (matches && (best == null || name.length() > best.length()))
 			{
-				best = key;
+				best = name;
 			}
 		}
-		return best == null ? Collections.emptyList() : HINTS.get(best);
+		return best == null || lower.equals(best) ? Collections.emptyList() : HINTS.get(best).parameters;
 	}
 
 	private static void add(String key, JsonObject entry)
@@ -143,15 +168,13 @@ final class VariableCatalog
 			}
 		}
 		COMPLETIONS.put(key, completions);
-		if (!hints.isEmpty())
-		{
-			HINTS.put(key, hints);
-		}
 
-		if (!entry.get("syntax").getAsString().startsWith("{"))
+		String syntax = entry.get("syntax").getAsString();
+		if (!syntax.startsWith("{"))
 		{
 			return;
 		}
+		boolean joined = !syntax.startsWith("{" + key + " ");
 		boolean requiresArgument = entry.has("requiresArgument") && entry.get("requiresArgument").getAsBoolean();
 		boolean icon = entry.has("icon") && "yes".equals(entry.get("icon").getAsString());
 		List<String> names = new ArrayList<>();
@@ -179,6 +202,11 @@ final class VariableCatalog
 		for (String name : names)
 		{
 			NAMES.add(name);
+			// A variant's line is its own name and description.
+			String description = DESCRIPTIONS.get(name);
+			String line = entry.has("variants") ? "{" + name + "}" : syntax;
+			HINTS.put(name.toLowerCase(Locale.ROOT), new Hint(joined,
+				description == null ? null : line + ": " + description.replace("<br>", "; "), hints));
 			if (requiresArgument)
 			{
 				REQUIRING_ARGUMENT.add(name);

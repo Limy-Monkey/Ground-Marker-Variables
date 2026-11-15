@@ -936,19 +936,26 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return rows;
 	}
 
-	// Every listed completion of the token at the cursor, SUGGESTION_COLUMNS to a row, the one Tab would insert marked.
-	// With none, what the variable being typed takes there, from its parameters' descriptions.
+	// A variable's exact name first gets its own line. Then every listed completion of the token at the cursor,
+	// SUGGESTION_COLUMNS to a row, the one Tab would insert marked; with none, what the variable takes there.
 	private void addSuggestions(List<Row> rows)
 	{
+		boolean caret = getCursorStart() == getCursorEnd();
+		if (caret)
+		{
+			String summary = completer.variableSummary(getValue(), getCursorStart());
+			if (summary != null)
+			{
+				addHint(rows, summary);
+			}
+		}
+
 		Completion completion = completion();
 		if (completion == null || !completion.hasListed())
 		{
-			if (getCursorStart() == getCursorEnd())
+			if (caret)
 			{
-				for (String hint : completer.parameterHints(getValue(), getCursorStart()))
-				{
-					wrap(hint, rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
-				}
+				completer.parameterHints(getValue(), getCursorStart()).forEach(hint -> addHint(rows, hint));
 			}
 			return;
 		}
@@ -1122,6 +1129,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		widget.setName(NamedColors.expandColorAliases(option.label));
 		widget.setAction(0, "Insert");
 		widget.setOnOpListener((JavaScriptCallback) ev -> insertAtCursor(option.insert, option.replace));
+	}
+
+	// hint as rows, wrapped to the list's width.
+	private void addHint(List<Row> rows, String hint)
+	{
+		wrap(hint, rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
 	}
 
 	// text split at spaces into lines of at most width px in the editor font (a longer word stays whole).
