@@ -60,6 +60,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int ROW_COLOR = 0x000000;
 	// The suggestion Tab would insert.
 	private static final int PREFERRED_SUGGESTION_COLOR = 0x0000A0;
+	// A parameter's description, shown when nothing can be suggested.
+	private static final int HINT_COLOR = 0x505050;
 	// Suggestions per row, and each one's icon size and gap before its name.
 	private static final int SUGGESTION_COLUMNS = 3;
 	private static final int ICON_WIDTH = 18;
@@ -87,8 +89,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{(?:[^{}]|\\{[^{}]*\\})*\\}");
 
 	// One row in the list: a section title (not selectable), a label (click fills the input; only Recent ones are
-	// removable, since Current/Nearby aren't backed by the saved recent-labels list), or up to SUGGESTION_COLUMNS
-	// suggestions (click inserts).
+	// removable, since Current/Nearby aren't backed by the saved recent-labels list), up to SUGGESTION_COLUMNS
+	// suggestions (click inserts), or a line of a parameter's description (not selectable).
 	private static final class Row
 	{
 		private final String text;
@@ -99,30 +101,37 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		// The suggestion Tab would insert, if in this row.
 		@Nullable
 		private final Completion.Option preferred;
+		private final boolean hint;
 
 		private Row(String text, boolean title, boolean removable, @Nullable List<Completion.Option> suggestions,
-			@Nullable Completion.Option preferred)
+			@Nullable Completion.Option preferred, boolean hint)
 		{
 			this.text = text;
 			this.title = title;
 			this.removable = removable;
 			this.suggestions = suggestions;
 			this.preferred = preferred;
+			this.hint = hint;
 		}
 
 		private static Row title(String text)
 		{
-			return new Row(text, true, false, null, null);
+			return new Row(text, true, false, null, null, false);
 		}
 
 		private static Row label(String text, boolean removable)
 		{
-			return new Row(text, false, removable, null, null);
+			return new Row(text, false, removable, null, null, false);
 		}
 
 		private static Row suggestions(List<Completion.Option> suggestions, @Nullable Completion.Option preferred)
 		{
-			return new Row("", false, false, suggestions, preferred);
+			return new Row("", false, false, suggestions, preferred, false);
+		}
+
+		private static Row hint(String text)
+		{
+			return new Row(text, false, false, null, null, true);
 		}
 	}
 
@@ -158,6 +167,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private int scrollOffset;
 	// List rows that fit under the edit text, up to VISIBLE_ROWS; fewer as it wraps, none at MAX_EDIT_LINES.
 	private int visibleRows = VISIBLE_ROWS;
+	// A list row's text width, for wrapping parameter descriptions; set each update.
+	private int rowTextWidth = Integer.MAX_VALUE;
 	// The value the list was last scrolled for: a new value starts it back at the top.
 	private String scrolledValue = "";
 
@@ -777,6 +788,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		separator.setWidthMode(WidgetSizeMode.MINUS);
 		separator.revalidate();
 
+		// As a label row's text: from x 13 to the scrollbar.
+		rowTextWidth = container.getWidth() - 13 - SCROLLBAR_WIDTH - 6;
 		buildRecommendations(container, resultsStartY);
 		iconOverlay.show(iconPlacements, tips);
 	}
@@ -924,11 +937,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Every listed completion of the token at the cursor, SUGGESTION_COLUMNS to a row, the one Tab would insert marked.
+	// With none, what the variable being typed takes there, from its parameters' descriptions.
 	private void addSuggestions(List<Row> rows)
 	{
 		Completion completion = completion();
 		if (completion == null || !completion.hasListed())
 		{
+			if (getCursorStart() == getCursorEnd())
+			{
+				for (String hint : completer.parameterHints(getValue(), getCursorStart()))
+				{
+					wrap(hint, rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
+				}
+			}
 			return;
 		}
 
@@ -988,7 +1009,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				buildSuggestionRow(container, row, y);
 				continue;
 			}
-			int color = row.title ? 0x800000 : ROW_COLOR;
+			int color = row.title ? 0x800000 : row.hint ? HINT_COLOR : ROW_COLOR;
 
 			Widget text = container.createChild(-1, WidgetType.TEXT);
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
@@ -1007,7 +1028,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			text.setYTextAlignment(WidgetTextAlignment.CENTER);
 			text.revalidate();
 
-			if (!row.title)
+			if (!row.title && !row.hint)
 			{
 				addRowActions(text, row, color);
 			}
@@ -1101,6 +1122,28 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		widget.setName(NamedColors.expandColorAliases(option.label));
 		widget.setAction(0, "Insert");
 		widget.setOnOpListener((JavaScriptCallback) ev -> insertAtCursor(option.insert, option.replace));
+	}
+
+	// text split at spaces into lines of at most width px in the editor font (a longer word stays whole).
+	private List<String> wrap(String text, int width)
+	{
+		List<String> lines = new ArrayList<>();
+		StringBuilder line = new StringBuilder();
+		for (String word : text.split(" "))
+		{
+			String next = line.length() == 0 ? word : line + " " + word;
+			if (line.length() > 0 && font != null && font.getTextWidth(Text.escapeJagex(next)) > width)
+			{
+				lines.add(line.toString());
+				line = new StringBuilder(word);
+			}
+			else
+			{
+				line = new StringBuilder(next);
+			}
+		}
+		lines.add(line.toString());
+		return lines;
 	}
 
 	// text cut short with ".." to fit width px in the editor font.

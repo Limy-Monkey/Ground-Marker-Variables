@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import net.runelite.api.Skill;
@@ -39,40 +40,29 @@ import net.runelite.client.hiscore.HiscoreSkillType;
 // editor; labels() gives it that editor's recent/nearby labels.
 public class LabelCompleter
 {
-	// The completable name of every variable; "lvl_", "col=", ... include what joins them to their argument.
-	private static final List<String> VARIABLE_NAMES = List.of(
-		"rsn", "spellbook", "metronome", "weapon", "attackStyle", "attackType", "autocast", "dps",
-		"lvl_", "boost_", "xpRate_", "xp_", "hasThralls", "hasAlchs", "hasFreeze", "hasEntangle", "hasItem", "showItems", "showOneItem", "runePouch", "miscellania", "col=", "time",
-		"time24", "date", "weekday", "questPoints", "equip_", "kc", "pb", "rank", "loot", "log", "autoRetaliate", "runEnergy", "spec", "6HourTimeRemaining", "slayerTask",
-		"slayerStreak", "slayerPoints", "combatAchievement", "numItem", "numDoses", "tileCol=", "highlight", "align=", "party", "partyNum", "partyCount", "readyCheck", "divine",
-		"borderWidth=", "world", "worldInfo", "hasVileVigour", "hasVengeance", "hasUndeadGrasp", "hasMarkOfDarkness", "hasSurge", "hasBarrage", "hasSpellbookSwap", "active", "invSpace", "group", "setGroup", "quickPrayers", "hover", "hoverOnly", "hoverHide", "tip=", "ground"
-	);
+	// The completable name of every variable (variables.json); "lvl_", "col=", ... include what joins them to their argument.
+	private static final List<String> VARIABLE_NAMES = VariableCatalog.NAMES;
 	private static final List<String> NUMERIC_VARIABLE_NAMES = VARIABLE_NAMES.stream()
 		.filter(NumericVariableRegistry.NAMES::contains).collect(Collectors.toList());
 
 	// Variables with an icon option: listed with what "{<name> icon}" shows.
-	private static final Set<String> ICON_VARIABLES = Set.of(
-		"spellbook", "autocast", "weapon", "hasFreeze", "hasAlchs", "hasEntangle", "hasVileVigour", "hasVengeance", "hasUndeadGrasp",
-		"hasMarkOfDarkness", "hasSpellbookSwap", "hasThralls", "hasSurge", "hasBarrage");
+	private static final Set<String> ICON_VARIABLES = VariableCatalog.WITH_ICON;
 	// Icon syntax of a boss by name: its hiscores icon, else a sprite of that name.
 	private static final String BOSS_ICON = "boss:";
 	// The first icon tag in a resolved icon.
 	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)|(emoji)=([0-9a-f]+))");
 
 	// Names that need more typed before the token is complete, so an exact one isn't closed with "}".
-	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = Set.of(
-		"lvl_", "boost_", "xpRate_", "xp_", "equip_", "col=", "kc", "pb", "rank", "loot", "log", "metronome", "hasItem", "showItems", "showOneItem", "numItem", "numDoses", "tileCol=", "highlight",
-		"align=", "divine", "borderWidth=", "tip=", "partyCount", "group", "setGroup", "active");
+	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = VariableCatalog.REQUIRING_ARGUMENT;
 
 	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>}.
 	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_", "xp_");
 	// {lvl_combat} / {lvl_total}: not real skills, and only for {lvl_}.
-	private static final List<String> LEVEL_EXTRAS = List.of("combat", "total");
+	private static final List<String> LEVEL_EXTRAS = VariableCatalog.completions("lvl_");
 
 	// {equip_<slot>}: EquipLabelVariable's slots, plus "quiver".
 	private static final String EQUIP_PREFIX = "equip_";
-	private static final List<String> EQUIP_SLOTS = List.of(
-		"helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver");
+	private static final List<String> EQUIP_SLOTS = VariableCatalog.completions(EQUIP_PREFIX);
 
 	// {kc <boss>} / {pb <boss>} / {rank <boss>}.
 	private static final String KC_PREFIX = "kc ";
@@ -82,27 +72,27 @@ public class LabelCompleter
 	private static final List<String> EXTRA_BOSS_NAMES = List.of(
 		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
 
-	// {party <template>} / {dps <template>}: the keyword being typed. <N>s isn't completed.
+	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
+	// <N>s isn't completed.
 	private static final String PARTY_PREFIX = "party ";
-	private static final List<String> PARTY_KEYWORDS = List.of("num", "name", "hp", "prayer");
 	private static final String DPS_PREFIX = "dps ";
-	private static final List<String> DPS_KEYWORDS = List.of(
-		"avgDps", "report", "groupReport", "bossReport", "fullReport", "theoryDps", "pureTheoryDps", "shareDps", "splitDps", "totalDamage", "takenDamage", "acc",
-		"thrallDps", "recoilDps", "numAttacks", "numHits", "numMisses", "timeSpent", "ticksSpent", "ticksUsed", "ticksLost", "noLegend");
+	private static final List<String> DPS_KEYWORDS = VariableCatalog.completions("dps");
 	private static final Pattern TEMPLATE_WORD = Pattern.compile("[a-zA-Z]*$");
 
 	// {divine <potion>} / {active <effect>}.
 	private static final String DIVINE_PREFIX = "divine ";
-	private static final List<String> DIVINE_POTIONS = List.of(
-		"Attack", "Strength", "Defence", "Range", "Magic", "Combat", "Bastion", "Battlemage", "Salts", "Overload");
+	// {quickPrayers <name>}: the standard prayer book's prayers.
+	private static final String QUICK_PRAYERS_PREFIX = "quickPrayers ";
+	private static final List<String> PRAYERS = VariableCatalog.completions("quickPrayers");
+	private static final List<String> DIVINE_POTIONS = VariableCatalog.completions("divine");
 	private static final String ACTIVE_PREFIX = "active ";
-	private static final List<String> ACTIVE_EFFECTS = List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness");
+	private static final List<String> ACTIVE_EFFECTS = VariableCatalog.completions("active");
 
 	// {hasBarrage <element> ... [icon]} / {hasSurge ...}: each word once. "air" is {hasSurge}'s alias for "wind".
 	private static final Pattern SPELL_SET_WORDS = Pattern.compile("(?i)^(hasBarrage|hasSurge)((?:\\s+\\w+)*?)\\s+(\\w*)$");
 	private static final Map<String, List<String>> SPELL_SET_OPTIONS = Map.of(
-		"hasbarrage", List.of("smoke", "shadow", "blood", "ice", "icon"),
-		"hassurge", List.of("wind", "air", "water", "earth", "fire", "icon"));
+		"hasbarrage", VariableCatalog.completions("hasBarrage"),
+		"hassurge", VariableCatalog.completions("hasSurge"));
 	private static final Map<String, String> SPELL_SET_ALIASES = Map.of("air", "wind", "wind", "air");
 
 	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>}: names from WeaponStyleTracker.
@@ -114,10 +104,12 @@ public class LabelCompleter
 	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
 	private static final String HIDE_WORLD = "hideWorld";
 
-	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...
-	private static final Pattern ICON_OPTION = Pattern.compile(
-		"(?i)^(?:spellbook|autocast|hasFreezes?|hasAlchs|hasEntangle|hasVileVigour|hasVengeance|hasUndeadGrasp|hasMarkOfDarkness|hasSpellbookSwap|hasThralls"
-			+ "|active\\s+\\w+|weapon|equip_\\w+)\\s+(\\w*)$");
+	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...: the icon variables and their aliases ({hasSurge}
+	// and {hasBarrage} complete "icon" among their words).
+	private static final Pattern ICON_OPTION = Pattern.compile("(?i)^(?:" + ICON_VARIABLES.stream()
+		.filter(name -> !SPELL_SET_OPTIONS.containsKey(name.toLowerCase(Locale.ROOT)))
+		.flatMap(name -> Stream.concat(Stream.of(name), VariableCatalog.ALIASES.getOrDefault(name, List.of()).stream()))
+		.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
 	// {loot <monster>[, items=N][, lines=N][, itemsOnly]}: monsters Loot Tracker has recorded, most recent first.
@@ -126,13 +118,13 @@ public class LabelCompleter
 	private static final String LOOT_KEY_PREFIX = "drops_";
 	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+)", Pattern.CASE_INSENSITIVE);
 	// "lines" completes straight to lines=2, since 1 is the default.
-	private static final List<String> LOOT_OPTIONS = List.of("items=", "lines=2", "itemsOnly");
+	private static final List<String> LOOT_OPTIONS = VariableCatalog.completions("loot");
 
 	// {log <page>[, missing][, noicons][, iconsOnly][, itemsPerLine=N][, maxItems=N]}: the collection log's pages.
 	private static final String LOG_PREFIX = "log ";
 	private static final Pattern LOG_OPTION = Pattern.compile("\\s*,\\s*(?:missing|noicons|iconsOnly|(?:itemsPerLine|maxItems)=\\d+)",
 		Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOG_OPTIONS = List.of("missing", "noicons", "iconsOnly", "itemsPerLine=", "maxItems=");
+	private static final List<String> LOG_OPTIONS = VariableCatalog.completions("log");
 
 	// ":<partial emoji name>" at the cursor. Not after a name character, so ":name:", "9:30" and " : " never start one.
 	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
@@ -282,6 +274,25 @@ public class LabelCompleter
 		return "<sprite=" + name + ">";
 	}
 
+	// The freely typed parameters, "name: description", of the variable whose arguments are being typed at cursor,
+	// e.g. "{showOneItem " -> "<a>, <b>, …: Parts of item names, …". Empty if none.
+	public List<String> parameterHints(String text, int cursor)
+	{
+		String before = text.substring(0, cursor);
+		int open = before.lastIndexOf('{');
+		if (open < 0 || before.indexOf('}', open) >= 0)
+		{
+			return List.of();
+		}
+		String partial = before.substring(open + 1);
+		if (!partial.isEmpty() && "^&*".indexOf(partial.charAt(0)) >= 0)
+		{
+			partial = partial.substring(1);
+		}
+		int boundaryEnd = Math.max(lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial), lastMatchEnd(CONDITION_BOUNDARY, partial));
+		return VariableCatalog.hints(boundaryEnd >= 0 ? partial.substring(boundaryEnd).stripLeading() : partial);
+	}
+
 	// What completes the token ending at cursor in text, or null. Not mid-word: completing there would run into what
 	// follows.
 	@Nullable
@@ -356,8 +367,10 @@ public class LabelCompleter
 		}
 
 		Completion completion = afterBrace(partial, numeric);
-		// A full variable name lists what can follow it after a space first (e.g. "{spellbook" -> " icon").
-		if (Character.isLetterOrDigit(partial.charAt(partial.length() - 1)))
+		// A full variable name or word lists what can follow it after a space first (e.g. "{spellbook" -> " icon"); not
+		// while a word is still being completed (e.g. "{hasSurge a" -> "air"), only merely contained.
+		if (Character.isLetterOrDigit(partial.charAt(partial.length() - 1))
+			&& (completion == null || completion.options.stream().noneMatch(option -> option.label != null && option.replace == 0)))
 		{
 			Completion arguments = afterBrace(partial + " ", numeric);
 			if (arguments != null && arguments.hasListed())
@@ -393,21 +406,25 @@ public class LabelCompleter
 			list.add(prefix(prefix, true, rest -> completeSkill(rest, prefix)));
 		}
 		list.add(pattern(SPELL_SET_WORDS, this::completeSpellSet));
-		list.add(pattern(ICON_OPTION, m -> completeWord(m.group(1), ICON, true)));
-		list.add(prefix(EQUIP_PREFIX, false, rest -> withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
-			slot -> "{" + EQUIP_PREFIX + slot + " icon}")));
+		list.add(pattern(ICON_OPTION, m -> described(completeWord(m.group(1), ICON, true),
+			m.group().startsWith(EQUIP_PREFIX) ? EQUIP_PREFIX : m.group().split("\\s+")[0])));
+		list.add(prefix(EQUIP_PREFIX, false, rest -> described(withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
+			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
 		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
-		list.add(prefix(PARTY_PREFIX, false, rest -> completeTemplateKeyword(rest, PARTY_KEYWORDS, PARTY_PREFIX)));
+		list.add(prefix(PARTY_PREFIX, false, rest -> null));
 		list.add(prefix(DPS_PREFIX, false, rest -> completeTemplateKeyword(rest, DPS_KEYWORDS, DPS_PREFIX)));
-		list.add(prefix(DIVINE_PREFIX, false, rest -> match(rest, DIVINE_POTIONS, "{" + DIVINE_PREFIX, "", "}", true)));
-		list.add(prefix(ACTIVE_PREFIX, false, rest -> withIcons(match(rest, ACTIVE_EFFECTS, "{" + ACTIVE_PREFIX, "", "}", true),
-			effect -> "{" + ACTIVE_PREFIX + effect + " icon}")));
+		list.add(prefix(DIVINE_PREFIX, false, rest -> described(match(rest, DIVINE_POTIONS, "{" + DIVINE_PREFIX, "", "}", true), DIVINE_PREFIX)));
+		list.add(prefix(QUICK_PRAYERS_PREFIX, false, rest -> described(withIcons(match(rest, PRAYERS, "{" + QUICK_PRAYERS_PREFIX, "", "}", true),
+			LabelCompleter::spriteNamed), QUICK_PRAYERS_PREFIX)));
+		list.add(prefix(ACTIVE_PREFIX, false, rest -> described(withIcons(match(rest, ACTIVE_EFFECTS, "{" + ACTIVE_PREFIX, "", "}", true),
+			effect -> "{" + ACTIVE_PREFIX + effect + " icon}"), ACTIVE_PREFIX)));
 		list.add(pattern(WEAPON_VALUE, m -> withIcons(
 			match(m.group(1), weaponStyleTracker.weaponNames(), "{" + m.group().substring(0, m.start(1)), "", "}", true),
 			name -> "<item=" + name + ">")));
-		list.add(pattern(WORLD_INFO_OPTION, m -> completeWord(m.group(1), HIDE_WORLD, true)));
-		list.add(pattern(WEAPON_OPTION, m -> completeWord(m.group(2), WEAPON_OPTION_NAME, false)));
+		list.add(pattern(WORLD_INFO_OPTION, m -> described(completeWord(m.group(1), HIDE_WORLD, true), "worldInfo")));
+		list.add(pattern(WEAPON_OPTION, m -> described(completeWord(m.group(2), WEAPON_OPTION_NAME, false),
+			m.group(1).replaceAll("[\\s,]+$", ""))));
 		list.add(prefix(PB_PREFIX, false, rest -> completeBoss(rest, PB_PREFIX, false)));
 		list.add(prefix(LOOT_PREFIX, true, this::completeLootMonster));
 		list.add(prefix(LOG_PREFIX, true, this::completeLogPage));
@@ -458,7 +475,7 @@ public class LabelCompleter
 		boolean needsMore = VARIABLE_NAMES_NEEDING_MORE.stream().anyMatch(partial::equalsIgnoreCase);
 		Completion names = withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VARIABLE_NAMES, "{", "", needsMore ? null : "}", false),
 			name -> ICON_VARIABLES.contains(name) ? "{" + name + " icon}" : null);
-		return names == null ? null : names.withDescriptions(VariableDescriptions::of);
+		return names == null ? null : names.withDescriptions(VariableCatalog::description);
 	}
 
 	// The names starting with partial (any case), those only containing it, and whether one equals it.
@@ -563,7 +580,8 @@ public class LabelCompleter
 		{
 			names.addAll(LEVEL_EXTRAS);
 		}
-		return withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill));
+		return described(withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill)),
+			prefix);
 	}
 
 	// Each spell word once ("air"/"wind" counting as one).
@@ -578,8 +596,8 @@ public class LabelCompleter
 				options.add(option);
 			}
 		}
-		return withIcons(match(spellSet.group(3), options, "{" + spellSet.group().substring(0, spellSet.start(3)), "", "}", true),
-			word -> ICON.equals(word) ? null : "{" + spellSet.group(1) + " " + word + " icon}");
+		return described(withIcons(match(spellSet.group(3), options, "{" + spellSet.group().substring(0, spellSet.start(3)), "", "}", true),
+			word -> ICON.equals(word) ? null : "{" + spellSet.group(1) + " " + word + " icon}"), spellSet.group(1));
 	}
 
 	// Hiscores bosses (no "The ", no colon, as BossKillCountTracker keys them), BossAliases' short forms and names, and
@@ -655,7 +673,8 @@ public class LabelCompleter
 			// With nothing typed yet, a longer name (e.g. "tob" -> "tob hm") still comes first.
 			if (names.stream().anyMatch(head::equalsIgnoreCase) && !(word.isEmpty() && name != null && name.preferred >= 0))
 			{
-				Completion option = completeOption(word, LOOT_OPTIONS, !word.isEmpty() && LOOT_OPTION.matcher(word).matches());
+				Completion option = described(completeOption(word, LOOT_OPTIONS, !word.isEmpty() && LOOT_OPTION.matcher(word).matches()),
+					LOOT_PREFIX);
 				if (option != null)
 				{
 					return option;
@@ -716,7 +735,7 @@ public class LabelCompleter
 			String head = LOG_OPTION.matcher(partial.substring(0, comma)).replaceAll("").trim();
 			String word = partial.substring(comma + 1).trim();
 			return names.stream().anyMatch(head::equalsIgnoreCase)
-				? completeOption(word, LOG_OPTIONS, !word.isEmpty() && LOG_OPTION.matcher(", " + word).matches()) : null;
+				? described(completeOption(word, LOG_OPTIONS, !word.isEmpty() && LOG_OPTION.matcher(", " + word).matches()), LOG_PREFIX) : null;
 		}
 		return withIcons(match(partial, names, "{" + LOG_PREFIX, "", "}", false), LabelCompleter::bossIcon);
 	}
@@ -738,7 +757,14 @@ public class LabelCompleter
 		{
 			return null;
 		}
-		return match(word.group(), keywords, "{" + prefix, "", null, true);
+		return described(match(word.group(), keywords, "{" + prefix, "", null, true), prefix);
+	}
+
+	// Each option given the description of the parameter it completes for variable (variables.json), if any.
+	@Nullable
+	private static Completion described(@Nullable Completion completion, String variable)
+	{
+		return completion == null ? null : completion.withDescriptions(word -> VariableCatalog.completionDescription(variable, word));
 	}
 
 	// Names closed with ">" unless one already follows; numeric IDs aren't completed.

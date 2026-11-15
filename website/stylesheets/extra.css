@@ -1,0 +1,24 @@
+/* The header logo: the plugin's pixel-art icon, kept crisp. */
+.md-header__button.md-logo img { image-rendering: pixelated; height: 1.8rem; }
+
+/* Variable badges: Returns, Party, Icon. */
+.badge { display: inline-block; font-size: .7rem; padding: 0 .5em; margin-right: .3em; border-radius: 1em;
+  background: var(--md-default-fg-color--lightest); color: var(--md-default-fg-color--light); }
+.badge.party { color: #2f8f4e; }
+.badge.icon { color: #8a56c2; }
+
+/* Variables: the index of links at the top, a line per category. */
+.var-index p { margin: .3em 0; line-height: 2; }
+.var-index a { margin-right: .2em; }
+
+/* Symbols: a filter box and a grid of copyable :name: cells. */
+.sym-filter { width: 100%; padding: .5em .7em; margin: .5em 0 1em; font: inherit; border-radius: .2rem;
+  border: 1px solid var(--md-default-fg-color--lightest); background: var(--md-default-bg-color); color: var(--md-default-fg-color); }
+.sym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .3rem; }
+.sym { display: flex; gap: .5em; align-items: center; padding: .25em .4em; cursor: pointer; min-width: 0;
+  border: 1px solid var(--md-default-fg-color--lightest); border-radius: .2rem; font-size: .65rem; overflow-wrap: anywhere; }
+.sym:hover { border-color: var(--md-accent-fg-color); }
+.sym img { width: 32px; height: 32px; flex: none; padding: 2px; border-radius: .2rem; background: #3a3833; }
+.sym.unicode img { filter: drop-shadow(1px 1px 0 #000); }
+.sym .alias { color: var(--md-default-fg-color--light); }
+.sym.hidden, .sym-section.hidden { display: none; }
