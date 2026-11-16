@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -47,9 +48,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int LINE_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 16;
 	private static final int VISIBLE_ROWS = 5;
-	// Caps ChatboxTextInput's own word-wrap (see lines() in the constructor) — also mirrored
-	// by computeWrappedLines(), since the wrapped row count isn't otherwise exposed.
+	// Edit rows shown; longer text wraps on and scrolls (see update()). Shrunk to COMPACT_EDIT_LINES by its button.
 	private static final int MAX_EDIT_LINES = 5;
+	private static final int COMPACT_EDIT_LINES = 2;
 	private static final int SCROLLBAR_WIDTH = 14;
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
@@ -68,11 +69,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int ICON_HEIGHT = 16;
 	private static final int ICON_GAP = 2;
 
-	// Undo/"_"/"x", right-aligned in the prompt row.
+	// Shrink/Undo/"_"/"x", right-aligned in the prompt row.
 	private static final int TOP_BAR_GAP = 4;
 	private static final int CLOSE_BUTTON_WIDTH = 12;
 	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
 	private static final int UNDO_BUTTON_WIDTH = 12;
+	private static final int SHRINK_BUTTON_WIDTH = 12;
 
 	// For underlining only — matches <col=HEX|NAME>, {col=HEX|NAME}, </col> and {/col} (no groups means </col> or
 	// {/col}, both reverting to the tile's own color).
@@ -165,12 +167,27 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private Consumer<String> onRemoveRecent = label -> { };
 	private Color tileColor = Color.YELLOW;
 	private int scrollOffset;
-	// List rows that fit under the edit text, up to VISIBLE_ROWS; fewer as it wraps, none at MAX_EDIT_LINES.
+	// List rows that fit under the edit text, up to VISIBLE_ROWS; fewer as it wraps, none with MAX_EDIT_LINES shown.
 	private int visibleRows = VISIBLE_ROWS;
 	// A list row's text width, for wrapping parameter descriptions; set each update.
 	private int rowTextWidth = Integer.MAX_VALUE;
 	// The value the list was last scrolled for: a new value starts it back at the top.
 	private String scrolledValue = "";
+
+	// The edit text's wrapped lines, those shown (its window), the first shown, and its x span; set each update.
+	private int editLines = 1;
+	private int editWindow = 1;
+	private int editScroll;
+	private int editX;
+	private int editWidth;
+	// Shrunk to COMPACT_EDIT_LINES rows by its button.
+	private boolean compact;
+	// The value and caret the window last followed: it scrolls to the caret only when they change.
+	private String followedValue;
+	private int followedCaret = -1;
+	// The shown rows' canvas y span, for mousePressed() (input thread).
+	private volatile int editTopCanvasY;
+	private volatile int editBottomCanvasY;
 
 	// -1 when no shift+Left/Right selection is in progress; otherwise the fixed end of the
 	// selection (where shift was first held down) — see keyPressed() for why this is needed.
@@ -192,7 +209,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.completer = completer;
 		this.iconOverlay = iconOverlay;
 		fontID(FontID.PLAIN_12);
-		lines(MAX_EDIT_LINES);
+		// Unlimited: every line wraps, and update() shows a window of them.
+		lines(0);
 	}
 
 	@Override
@@ -533,6 +551,97 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return 5 + LINE_HEIGHT + (LINE_HEIGHT * lineIndex);
 	}
 
+	// Whether wrapped line lineIndex is in the shown window.
+	private boolean shown(int lineIndex)
+	{
+		return lineIndex >= editScroll && lineIndex < editScroll + editWindow;
+	}
+
+	// Scrolls the window to the caret's line when the value or caret changed since last time, else keeps it in range.
+	private void followCaret(List<WrappedLine> wrappedLines)
+	{
+		int caret = getCursorEnd();
+		if (!getValue().equals(followedValue) || caret != followedCaret)
+		{
+			followedValue = getValue();
+			followedCaret = caret;
+			int line = findLineIndex(wrappedLines, caret);
+			if (line < editScroll)
+			{
+				editScroll = line;
+			}
+			else if (line >= editScroll + editWindow)
+			{
+				editScroll = line - editWindow + 1;
+			}
+		}
+		editScroll = Math.max(0, Math.min(editScroll, editLines - editWindow));
+	}
+
+	// Hides buildEdit()'s widgets (from index from on) outside the shown rows.
+	private void hideOutsideWindow(Widget container, int from)
+	{
+		Widget[] children = container.getDynamicChildren();
+		for (int i = from; i < children.length; i++)
+		{
+			int y = children[i].getOriginalY();
+			if (y < editRowY(0) || y >= editRowY(editWindow))
+			{
+				children[i].setHidden(true);
+			}
+		}
+	}
+
+	// With more lines than shown: the wheel over the edit rows scrolls them, and a scrollbar shows where they are.
+	private void buildEditScrolling(Widget container)
+	{
+		int maxScroll = editLines - editWindow;
+		if (maxScroll <= 0)
+		{
+			return;
+		}
+
+		Widget scrollCapture = container.createChild(-1, WidgetType.TEXT);
+		scrollCapture.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
+		scrollCapture.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
+		scrollCapture.setOriginalX(0);
+		scrollCapture.setOriginalY(editRowY(0));
+		scrollCapture.setOriginalWidth(container.getWidth());
+		scrollCapture.setOriginalHeight(editWindow * LINE_HEIGHT);
+		scrollCapture.setHasListener(true);
+		scrollCapture.setNoScrollThrough(true);
+		scrollCapture.setOnScrollWheelListener((JavaScriptCallback) ev -> scrollEdit(ev.getMouseY()));
+		scrollCapture.revalidate();
+
+		buildScrollbar(container, editRowY(0), editWindow * LINE_HEIGHT, editScroll, maxScroll, editWindow, editLines, this::scrollEdit);
+	}
+
+	private void scrollEdit(int direction)
+	{
+		editScroll = Math.max(0, Math.min(editScroll + direction, editLines - editWindow));
+		update();
+	}
+
+	// The shrink button: COMPACT_EDIT_LINES rows, or back to MAX_EDIT_LINES, showing the caret's line.
+	private void toggleCompact()
+	{
+		compact = !compact;
+		followedCaret = -1;
+		update();
+	}
+
+	// Core's click area covers every wrapped line, hidden ones too (over the top bar and the list): presses outside
+	// the shown rows aren't for the text.
+	@Override
+	public MouseEvent mousePressed(MouseEvent mouseEvent)
+	{
+		if (mouseEvent.getY() < editTopCanvasY || mouseEvent.getY() >= editBottomCanvasY)
+		{
+			return mouseEvent;
+		}
+		return super.mousePressed(mouseEvent);
+	}
+
 	// Renders the rest of a variable name as ghost text right after the caret — display-only,
 	// never inserted into the real value. Caret may be mid-value now, so its row/X come from
 	// findLineIndex the same way buildColorTagUnderlines locates a match.
@@ -546,16 +655,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		int cursor = getCursorStart();
 		int lineIndex = findLineIndex(wrappedLines, cursor);
+		if (!shown(lineIndex))
+		{
+			return;
+		}
 		WrappedLine line = wrappedLines.get(lineIndex);
 		int localCursor = cursor - line.start;
 
 		String escapedCompletion = Text.escapeJagex(completion);
-		int w = container.getWidth();
 		int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
-		int lineStartX = (w - lineFullWidth) / 2;
+		int lineStartX = editX + (editWidth - lineFullWidth) / 2;
 		int ghostX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localCursor)));
 		int ghostWidth = font.getTextWidth(escapedCompletion);
-		int ghostY = editRowY(lineIndex) + ghostYOffset();
+		int ghostY = editRowY(lineIndex - editScroll) + ghostYOffset();
 
 		// No native rounded-rect widget exists, so this is a plain filled backing behind the
 		// ghost text — same technique buildEdit() itself uses for its selection highlight. Only
@@ -606,14 +718,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		int w = container.getWidth();
-
 		matcher.reset();
 		while (matcher.find())
 		{
 			int lineIndex = findLineIndex(wrappedLines, matcher.start());
 			WrappedLine line = wrappedLines.get(lineIndex);
-			if (matcher.end() - 1 > line.end)
+			if (matcher.end() - 1 > line.end || !shown(lineIndex))
 			{
 				continue;
 			}
@@ -640,7 +750,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			}
 
 			int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
-			int lineStartX = (w - lineFullWidth) / 2;
+			int lineStartX = editX + (editWidth - lineFullWidth) / 2;
 			int localStart = matcher.start() - line.start;
 			int localEnd = matcher.end() - line.start;
 			int startX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localStart)));
@@ -653,7 +763,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			underline.setOriginalX(startX);
 			underline.setOriginalWidth(Math.max(1, endX - startX));
 			underline.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			underline.setOriginalY(editRowY(lineIndex) + LINE_HEIGHT - 3);
+			underline.setOriginalY(editRowY(lineIndex - editScroll) + LINE_HEIGHT - 3);
 			underline.setOriginalHeight(1);
 			underline.revalidate();
 		}
@@ -696,20 +806,17 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				continue;
 			}
 
-			if (result.size() < MAX_EDIT_LINES - 1)
+			if (breakIndex > 1)
 			{
-				if (breakIndex > 1)
-				{
-					String str = sb.substring(0, breakIndex);
-					result.add(new WrappedLine(count, count + str.length() - 1, str));
-					sb.replace(0, breakIndex, "");
-					breakIndex = -1;
-					continue;
-				}
-
-				result.add(new WrappedLine(count, count + sb.length() - 1, sb.toString()));
-				sb.replace(0, sb.length(), "");
+				String str = sb.substring(0, breakIndex);
+				result.add(new WrappedLine(count, count + str.length() - 1, str));
+				sb.replace(0, breakIndex, "");
+				breakIndex = -1;
+				continue;
 			}
+
+			result.add(new WrappedLine(count, count + sb.length() - 1, sb.toString()));
+			sb.replace(0, sb.length(), "");
 		}
 
 		return result;
@@ -751,8 +858,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		promptWidget.setWidthMode(WidgetSizeMode.MINUS);
 		promptWidget.revalidate();
 
-		buildTopBar(container);
-
 		if (font == null)
 		{
 			Widget probe = container.createChild(-1, WidgetType.TEXT);
@@ -760,14 +865,35 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			font = probe.getFont();
 		}
 
+		// Every line wraps; a window of them shows. When it can scroll, a scrollbar takes the right margin, and the
+		// centered text gives up both.
 		List<WrappedLine> wrappedLines = computeWrappedLines(getValue(), container.getWidth());
+		int window = Math.min(wrappedLines.size(), compact ? COMPACT_EDIT_LINES : MAX_EDIT_LINES);
+		editX = wrappedLines.size() > window ? SCROLLBAR_WIDTH : 0;
+		editWidth = container.getWidth() - 2 * editX;
+		if (editX > 0)
+		{
+			wrappedLines = computeWrappedLines(getValue(), editWidth);
+		}
+		editLines = wrappedLines.size();
+		editWindow = window;
+		followCaret(wrappedLines);
+
+		buildTopBar(container);
 
 		fontID(editorFontId());
-		buildEdit(0, 5 + LINE_HEIGHT, container.getWidth(), LINE_HEIGHT);
+		int before = container.getDynamicChildren().length;
+		buildEdit(editX, editRowY(-editScroll), editWidth, LINE_HEIGHT);
+		hideOutsideWindow(container, before);
 		buildAutocomplete(container, wrappedLines);
 		buildColorTagUnderlines(container, wrappedLines);
+		buildEditScrolling(container);
 
-		int separatorY = editRowY(wrappedLines.size()) - 1;
+		int canvasY = container.getCanvasLocation().getY();
+		editTopCanvasY = canvasY + editRowY(0);
+		editBottomCanvasY = canvasY + editRowY(window);
+
+		int separatorY = editRowY(window) - 1;
 		int resultsStartY = separatorY + 8;
 		// The list ends where all VISIBLE_ROWS end under one edit line.
 		int listBottom = editRowY(1) + 7 + VISIBLE_ROWS * ROW_HEIGHT;
@@ -828,6 +954,18 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			addHoverHighlight(undo, 0x000000);
 		}
 		undo.revalidate();
+		rightX += UNDO_BUTTON_WIDTH + TOP_BAR_GAP;
+
+		// From 3 wrapped lines: "-" shrinks the text to COMPACT_EDIT_LINES rows, "+" brings back MAX_EDIT_LINES.
+		if (editLines >= 3)
+		{
+			Widget shrink = createTopBarButton(container, compact ? "+" : "-", rightX, SHRINK_BUTTON_WIDTH);
+			shrink.setHasListener(true);
+			shrink.setAction(0, compact ? "Expand" : "Shrink");
+			shrink.setOnOpListener((JavaScriptCallback) ev -> toggleCompact());
+			addHoverHighlight(shrink, 0x000000);
+			shrink.revalidate();
+		}
 	}
 
 	private void addHoverHighlight(Widget widget, int normalColor)
@@ -1043,7 +1181,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		buildScrollbar(container, rows.size(), maxOffset, resultsStartY);
+		buildScrollbar(container, resultsStartY, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(), this::scroll);
 	}
 
 	// A label fills the input; a Recent one can be removed.
@@ -1190,11 +1328,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		update();
 	}
 
-	private void buildScrollbar(Widget container, int rowCount, int maxOffset, int resultsStartY)
+	// A scrollbar at the right of the area top..top+height showing visible of count rows from offset (up to
+	// maxOffset); its arrows call scroll(-1) / scroll(1).
+	private void buildScrollbar(Widget container, int top, int height, int offset, int maxOffset, int visible, int count,
+		IntConsumer scroll)
 	{
-		int resultsHeight = visibleRows * ROW_HEIGHT;
 		// Needs room for both arrows and a thumb; the wheel still scrolls without it.
-		if (maxOffset <= 0 || resultsHeight < SCROLLBAR_ARROW_HEIGHT * 2 + SCROLLBAR_THUMB_MIN_HEIGHT)
+		if (maxOffset <= 0 || height < SCROLLBAR_ARROW_HEIGHT * 2 + SCROLLBAR_THUMB_MIN_HEIGHT)
 		{
 			return;
 		}
@@ -1202,39 +1342,39 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		Widget upArrow = container.createChild(-1, WidgetType.TEXT);
 		upArrow.setText("^");
 		upArrow.setFontId(FontID.BOLD_12);
-		upArrow.setTextColor(scrollOffset == 0 ? 0x888888 : 0x000000);
+		upArrow.setTextColor(offset == 0 ? 0x888888 : 0x000000);
 		upArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
 		upArrow.setOriginalX(0);
 		upArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		upArrow.setOriginalY(resultsStartY);
+		upArrow.setOriginalY(top);
 		upArrow.setOriginalWidth(SCROLLBAR_WIDTH);
 		upArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
 		upArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
 		upArrow.setYTextAlignment(WidgetTextAlignment.CENTER);
 		upArrow.setHasListener(true);
 		upArrow.setAction(0, "Scroll up");
-		upArrow.setOnOpListener((JavaScriptCallback) ev -> scroll(-1));
+		upArrow.setOnOpListener((JavaScriptCallback) ev -> scroll.accept(-1));
 		upArrow.revalidate();
 
 		Widget downArrow = container.createChild(-1, WidgetType.TEXT);
 		downArrow.setText("v");
 		downArrow.setFontId(FontID.BOLD_12);
-		downArrow.setTextColor(scrollOffset >= maxOffset ? 0x888888 : 0x000000);
+		downArrow.setTextColor(offset >= maxOffset ? 0x888888 : 0x000000);
 		downArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
 		downArrow.setOriginalX(0);
 		downArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		downArrow.setOriginalY(resultsStartY + resultsHeight - SCROLLBAR_ARROW_HEIGHT);
+		downArrow.setOriginalY(top + height - SCROLLBAR_ARROW_HEIGHT);
 		downArrow.setOriginalWidth(SCROLLBAR_WIDTH);
 		downArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
 		downArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
 		downArrow.setYTextAlignment(WidgetTextAlignment.CENTER);
 		downArrow.setHasListener(true);
 		downArrow.setAction(0, "Scroll down");
-		downArrow.setOnOpListener((JavaScriptCallback) ev -> scroll(1));
+		downArrow.setOnOpListener((JavaScriptCallback) ev -> scroll.accept(1));
 		downArrow.revalidate();
 
-		int trackY = resultsStartY + SCROLLBAR_ARROW_HEIGHT;
-		int trackHeight = resultsHeight - (SCROLLBAR_ARROW_HEIGHT * 2);
+		int trackY = top + SCROLLBAR_ARROW_HEIGHT;
+		int trackHeight = height - (SCROLLBAR_ARROW_HEIGHT * 2);
 		int trackX = (SCROLLBAR_WIDTH - SCROLLBAR_TRACK_WIDTH) / 2;
 
 		Widget track = container.createChild(-1, WidgetType.RECTANGLE);
@@ -1249,8 +1389,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		track.setOriginalHeight(trackHeight);
 		track.revalidate();
 
-		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * visibleRows / rowCount);
-		int thumbY = trackY + (trackHeight - thumbHeight) * scrollOffset / maxOffset;
+		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * visible / count);
+		int thumbY = trackY + (trackHeight - thumbHeight) * offset / maxOffset;
 
 		Widget thumb = container.createChild(-1, WidgetType.RECTANGLE);
 		thumb.setFilled(true);
