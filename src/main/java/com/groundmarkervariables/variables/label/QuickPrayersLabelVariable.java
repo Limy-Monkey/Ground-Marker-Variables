@@ -100,7 +100,7 @@ public class QuickPrayersLabelVariable implements LabelVariable
 		}
 
 		Prayer prayer = find(matcher.group(1));
-		return prayer == null ? null : String.valueOf(selected().contains(current(prayer)));
+		return prayer == null ? null : String.valueOf(selected().contains(asked(prayer)));
 	}
 
 	@Override
@@ -123,8 +123,15 @@ public class QuickPrayersLabelVariable implements LabelVariable
 			return null;
 		}
 
-		prayer = current(prayer);
+		prayer = asked(prayer);
 		return Icons.sprite(prayer.spriteId, selected().contains(prayer));
+	}
+
+	// The prayer to check for a named one: Eagle Eye / Mystic Might / Piety mean their replacement once it's
+	// unlocked; Deadeye / Mystic Vigour / Zeal only ever mean themselves, never set while locked.
+	private Prayer asked(Prayer prayer)
+	{
+		return prayer == Prayer.DEADEYE || prayer == Prayer.MYSTIC_VIGOUR || prayer == Prayer.ZEAL ? prayer : current(prayer);
 	}
 
 	// The set quick prayers.
