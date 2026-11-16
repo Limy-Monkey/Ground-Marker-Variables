@@ -1,0 +1,155 @@
+package com.groundmarkervariables.variables.label;
+
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.LabelVariable;
+import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Emojis;
+import com.groundmarkervariables.variables.support.IconNames;
+import com.groundmarkervariables.variables.support.ItemCharges;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.inject.Inject;
+
+// {charges <item>[, icon][, icons][, <stored item>]...}: an item's saved charges (see ItemCharges).
+public class ChargesLabelVariable implements LabelVariable
+{
+	// Excludes ?:<>=! so a trailing comparator (e.g. "{charges toxic blowpipe < 100}") isn't part of the name.
+	private static final Pattern PATTERN = Pattern.compile("\\{charges\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
+	private static final String ICON = "icon";
+	private static final String ICONS = "icons";
+	private static final String UNLIMITED_PLAIN = "999999";
+	private static final String INFINITY = ":math_infinity:";
+	private static final String INFINITY_HIGHLIGHTED = ":math_infinity@highlight:";
+
+	private final ItemCharges itemCharges;
+	private final IconNames iconNames;
+	private final GroundMarkerVariablesConfig config;
+	private final Emojis emojis;
+	private final RichText richText;
+
+	@Inject
+	private ChargesLabelVariable(ItemCharges itemCharges, IconNames iconNames, GroundMarkerVariablesConfig config, Emojis emojis,
+		RichText richText)
+	{
+		this.itemCharges = itemCharges;
+		this.iconNames = iconNames;
+		this.config = config;
+		this.emojis = emojis;
+		this.richText = richText;
+	}
+
+	// "<item>, icon, icons, <stored item>, ..." split up.
+	private static final class Arguments
+	{
+		private final String item;
+		private final boolean icon;
+		private final boolean icons;
+		private final List<String> only = new ArrayList<>();
+
+		private Arguments(String text)
+		{
+			String[] parts = text.split(",");
+			item = parts[0];
+			boolean wantsIcon = false;
+			boolean wantsIcons = false;
+			for (int i = 1; i < parts.length; i++)
+			{
+				String part = parts[i].trim();
+				if (part.equalsIgnoreCase(ICON))
+				{
+					wantsIcon = true;
+				}
+				else if (part.equalsIgnoreCase(ICONS))
+				{
+					wantsIcons = true;
+				}
+				else if (!part.isEmpty())
+				{
+					only.add(part);
+				}
+			}
+			icon = wantsIcon;
+			icons = wantsIcons;
+		}
+	}
+
+	@Override
+	public Pattern pattern()
+	{
+		return PATTERN;
+	}
+
+	@Override
+	public String resolvePlain(Matcher matcher)
+	{
+		Arguments arguments = new Arguments(matcher.group(1));
+		if (arguments.icon || arguments.icons)
+		{
+			return iconsOf(arguments);
+		}
+		Integer charges = charges(arguments);
+		if (charges == null)
+		{
+			return null;
+		}
+		return charges == ItemCharges.UNLIMITED_CHARGES ? UNLIMITED_PLAIN : String.valueOf(charges);
+	}
+
+	@Override
+	public String resolveRich(Matcher matcher)
+	{
+		Arguments arguments = new Arguments(matcher.group(1));
+		if (arguments.icon || arguments.icons)
+		{
+			return iconsOf(arguments);
+		}
+		Integer charges = charges(arguments);
+		if (charges == null)
+		{
+			return null;
+		}
+		String label = ItemCharges.readable(arguments.item) + " charges";
+		// The symbol carries its own highlight.
+		return charges == ItemCharges.UNLIMITED_CHARGES ? label + ": " + infinity() : richText.labeled(label, String.valueOf(charges));
+	}
+
+	private Integer charges(Arguments arguments)
+	{
+		return arguments.only.isEmpty() ? itemCharges.charges(arguments.item) : itemCharges.charges(arguments.item, arguments.only);
+	}
+
+	// The item's icon and charges (icon), then each stored item's icon and how many (icons); null if none apply.
+	private String iconsOf(Arguments arguments)
+	{
+		List<String> parts = new ArrayList<>();
+		if (arguments.icon)
+		{
+			Integer charges = charges(arguments);
+			if (charges != null)
+			{
+				// No icon if no item has its name (e.g. "Quetzal whistle").
+				String item = iconNames.itemNamed(arguments.item);
+				String icon = item == null ? "" : iconNames.expand("<item=" + item + ">");
+				parts.add(icon + "x" + (charges == ItemCharges.UNLIMITED_CHARGES ? infinity() : ItemCharges.shortened(charges)));
+			}
+		}
+		if (arguments.icons)
+		{
+			Map<Integer, Integer> stored = itemCharges.storedItems(arguments.item, arguments.only);
+			if (stored != null)
+			{
+				stored.forEach((id, quantity) -> parts.add("<item=" + id + ">x" + ItemCharges.shortened(quantity)));
+			}
+		}
+		return parts.isEmpty() ? null : String.join(" ", parts);
+	}
+
+	// Highlighted only while values are.
+	private String infinity()
+	{
+		return emojis.expand(config.highlightValue() ? INFINITY_HIGHLIGHTED : INFINITY);
+	}
+}

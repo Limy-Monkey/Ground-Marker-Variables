@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.variables.label.BoostedSkillLevelLabelVariable;
+import com.groundmarkervariables.variables.label.ChargesLabelVariable;
 import com.groundmarkervariables.variables.label.CombatAchievementsLabelVariable;
 import com.groundmarkervariables.variables.label.InvSpaceLabelVariable;
 import com.groundmarkervariables.variables.label.KcLabelVariable;
@@ -33,7 +34,7 @@ public class NumericVariableRegistry
 	// LabelCompleter's autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
 		"kc", "loot", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
-		"combatAchievement", "numItem", "numDoses", "partyNum", "party", "invSpace", "xp_"
+		"combatAchievement", "numItem", "numDoses", "charges", "partyNum", "party", "invSpace", "xp_"
 	);
 
 	private final List<LabelVariable> variables;
@@ -56,13 +57,14 @@ public class NumericVariableRegistry
 		CombatAchievementsLabelVariable combatAchievements,
 		NumItemLabelVariable numItem,
 		NumDosesLabelVariable numDoses,
+		ChargesLabelVariable charges,
 		PartyNumLabelVariable partyNum,
 		PartyLabelVariable party,
 		InvSpaceLabelVariable invSpace,
 		XpLabelVariable xp)
 	{
 		this.variables = List.of(kc, loot, log, skillLevel, boostedSkillLevel, xpRate, runEnergy, spec,
-			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements, numItem, numDoses, partyNum, party, invSpace, xp);
+			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements, numItem, numDoses, charges, partyNum, party, invSpace, xp);
 	}
 
 	public List<LabelVariable> all()

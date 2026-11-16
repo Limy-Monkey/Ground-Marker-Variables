@@ -10,6 +10,7 @@ import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
+import com.groundmarkervariables.variables.support.ItemCharges;
 import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import java.time.Instant;
@@ -17,12 +18,14 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -73,6 +76,11 @@ public class LabelCompleter
 	// Trackable activities with no hiscores entry or BossAliases short form.
 	private static final List<String> EXTRA_BOSS_NAMES = List.of(
 		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
+
+	// {charges <item>}: items Item Charges Improved / Item Charges have saved charges for, while they're on.
+	private static final String CHARGES_PREFIX = "charges ";
+	private static final String CHARGES_ICON = "icon";
+	private static final String CHARGES_ICONS = "icons";
 
 	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
 	// <N>s isn't completed.
@@ -226,15 +234,19 @@ public class LabelCompleter
 	private final WeaponStyleTracker weaponStyleTracker;
 	private final IconNames iconNames;
 	private final CollectionLog collectionLog;
+	private final ItemCharges itemCharges;
 	private final LabelResolver labelResolver;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
 	// Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime).
 	private final Map<String, Optional<Completion.Icon>> icons = new HashMap<>();
+	// {charges <item>,}: the names of what each container holds, by lowercase item (see completeChargesOption()).
+	private final Map<String, List<String>> storedItemNames = new ConcurrentHashMap<>();
 
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
-		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, LabelResolver labelResolver)
+		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
+		LabelResolver labelResolver)
 	{
 		this.config = config;
 		this.configManager = configManager;
@@ -243,6 +255,7 @@ public class LabelCompleter
 		this.weaponStyleTracker = weaponStyleTracker;
 		this.iconNames = iconNames;
 		this.collectionLog = collectionLog;
+		this.itemCharges = itemCharges;
 		this.labelResolver = labelResolver;
 		this.rules = rules();
 	}
@@ -474,6 +487,7 @@ public class LabelCompleter
 		list.add(prefix(EQUIP_PREFIX, false, rest -> described(withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
 			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
 		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
+		list.add(prefix(CHARGES_PREFIX, true, this::completeCharges));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));
 		list.add(prefix(DPS_PREFIX, false, rest -> completeTemplateKeyword(rest, DPS_KEYWORDS, DPS_PREFIX)));
@@ -698,6 +712,90 @@ public class LabelCompleter
 			names.addAll(EXTRA_BOSS_NAMES);
 		}
 		return withIcons(match(partial, names, "{" + prefix, "", "}", false), LabelCompleter::bossIcon);
+	}
+
+	// The items with saved charges, by their in-game names where one matches (see IconNames#itemNamed).
+	private Completion completeCharges(String partial)
+	{
+		int comma = partial.indexOf(',');
+		if (comma >= 0)
+		{
+			return completeChargesOption(partial.substring(0, comma).trim(), partial.substring(comma + 1));
+		}
+		Set<String> names = new LinkedHashSet<>();
+		for (String name : itemCharges.names())
+		{
+			String item = iconNames.itemNamed(name);
+			names.add(item != null ? item : name);
+		}
+		Completion name = withIcons(match(partial, names, "{" + CHARGES_PREFIX, "", "}", true), item -> "<item=" + item + ">");
+
+		// A full name (any case and apostrophes) also offers its options first, after ", "; Tab still does what it did.
+		String typed = partial.trim().toLowerCase(Locale.ROOT).replace("'", "");
+		if (names.stream().noneMatch(item -> item.toLowerCase(Locale.ROOT).replace("'", "").equals(typed)))
+		{
+			return name;
+		}
+		List<String> words = chargesOptions(partial.trim());
+		List<Completion.Option> options = new ArrayList<>();
+		for (String word : words)
+		{
+			options.add(new Completion.Option(", " + word, ", " + word, 0, chargesOptionIcon(word),
+				VariableCatalog.completionDescription("charges", word)));
+		}
+		if (name == null)
+		{
+			return new Completion(options, -1);
+		}
+		options.addAll(name.options);
+		return new Completion(options, name.preferred < 0 ? -1 : name.preferred + words.size());
+	}
+
+	// After "<item>,": its options not yet given (see chargesOptions()).
+	@Nullable
+	private Completion completeChargesOption(String item, String options)
+	{
+		int last = options.lastIndexOf(',');
+		String word = options.substring(last + 1).replaceFirst("^\\s+", "");
+		Set<String> used = new HashSet<>();
+		for (String option : options.substring(0, Math.max(0, last)).split(","))
+		{
+			used.add(option.trim().toLowerCase(Locale.ROOT));
+		}
+		List<String> fitting = chargesOptions(item);
+		fitting.removeIf(option -> used.contains(option.toLowerCase(Locale.ROOT)));
+		return withIcons(match(word, fitting, "{" + CHARGES_PREFIX, "", "}", false), LabelCompleter::chargesOptionIcon);
+	}
+
+	// item's options: "icon", then for Improved's containers "icons" and the names of what they hold. The names are
+	// saved where they can be looked up (client thread) for Tab to use elsewhere.
+	private List<String> chargesOptions(String item)
+	{
+		String key = item.toLowerCase(Locale.ROOT);
+		List<String> stored = itemCharges.storedNames(item);
+		if (stored != null)
+		{
+			storedItemNames.put(key, stored);
+		}
+		else
+		{
+			stored = storedItemNames.getOrDefault(key, List.of());
+		}
+		List<String> options = new ArrayList<>();
+		options.add(CHARGES_ICON);
+		if (!stored.isEmpty())
+		{
+			options.add(CHARGES_ICONS);
+			options.addAll(stored);
+		}
+		return options;
+	}
+
+	// A stored item's icon; none for "icon" / "icons".
+	@Nullable
+	private static String chargesOptionIcon(String option)
+	{
+		return option.equals(CHARGES_ICON) || option.equals(CHARGES_ICONS) ? null : "<item=" + option + ">";
 	}
 
 	// Loot Tracker's monsters (and their BossAliases short names, combined monsters, and players if any were

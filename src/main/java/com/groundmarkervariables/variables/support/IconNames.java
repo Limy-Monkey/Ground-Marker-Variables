@@ -138,6 +138,8 @@ public class IconNames
 	// Lowercase names of nearby NPCs / held items, ranked first by complete().
 	private volatile Set<String> nearbyNpcs = Set.of();
 	private volatile Set<String> heldItems = Set.of();
+	// See itemNamed(). Built on first use once the item names have loaded.
+	private volatile Map<String, String> looseItemNames;
 	// See bossSprite(). Client thread only.
 	private Map<String, Integer> bossSprites;
 	// Sprite ID -> name, for collapse(). Client thread only.
@@ -215,6 +217,34 @@ public class IconNames
 			}
 		}
 		return nearby != null ? nearby : shortest;
+	}
+
+	// The item named name, ignoring case and apostrophes ("Alchemists amulet" -> "Alchemist's amulet"); the shortest
+	// if several. Null if none, or while the names are still loading.
+	@Nullable
+	public String itemNamed(String name)
+	{
+		Map<String, String> byLoose = looseItemNames;
+		if (byLoose == null)
+		{
+			Index index = index(Kind.ITEM);
+			if (index == null)
+			{
+				return null;
+			}
+			byLoose = new HashMap<>();
+			for (String item : index.names)
+			{
+				byLoose.putIfAbsent(loose(item), item);
+			}
+			looseItemNames = byLoose;
+		}
+		return byLoose.get(loose(name));
+	}
+
+	private static String loose(String name)
+	{
+		return name.trim().toLowerCase(Locale.ROOT).replace("'", "");
 	}
 
 	// Whether the NPC named name (any case) has a chathead; false while the names are still loading.
