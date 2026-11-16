@@ -748,7 +748,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private void openAdvancedLabelEditor(WorldPoint worldPoint)
 	{
 		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
-		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
+		// Icon IDs shown by name, as typed; saving turns them back into IDs.
+		String currentLabel = iconNames.collapse(existing != null && existing.getLabel() != null ? existing.getLabel() : "");
 		Color tileColor = existing != null && existing.getColor() != null ? existing.getColor() : config.markerColor();
 
 		advancedLabelEditorProvider.get()
@@ -764,7 +765,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private void openPlainLabelEditor(WorldPoint worldPoint)
 	{
 		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
-		String currentLabel = existing != null && existing.getLabel() != null ? existing.getLabel() : "";
+		String currentLabel = iconNames.collapse(existing != null && existing.getLabel() != null ? existing.getLabel() : "");
 
 		chatboxPanelManager.openTextInput("Tile label")
 			.value(currentLabel)

@@ -51,12 +51,15 @@ public class IconNames
 
 		public final String tag;
 		private final Pattern pattern;
+		// The tag with an ID, for collapse().
+		private final Pattern idPattern;
 
 		Kind(String tag, String suffix)
 		{
 			this.tag = tag;
 			this.pattern = Pattern.compile("<" + tag + "=(" + NAME_CHARS + "*[^<>{}=,@\\d\\s]" + NAME_CHARS + "*)" + suffix + ">",
 				Pattern.CASE_INSENSITIVE);
+			this.idPattern = Pattern.compile("<" + tag + "=(\\d{1,9})" + suffix + ">", Pattern.CASE_INSENSITIVE);
 		}
 	}
 
@@ -114,13 +117,16 @@ public class IconNames
 		final List<String> names;
 		// Lowercase name -> ID.
 		final Map<String, Integer> ids;
+		// NPCs: lowercase names whose ID has a chathead model, for <npc=Name,head>.
+		final Set<String> heads;
 
-		Index(Map<String, String> names, Map<String, Integer> ids)
+		Index(Map<String, String> names, Map<String, Integer> ids, Set<String> heads)
 		{
 			List<String> sorted = new ArrayList<>(names.values());
 			sorted.sort(Comparator.comparingInt(String::length).thenComparing(String.CASE_INSENSITIVE_ORDER));
 			this.names = Collections.unmodifiableList(sorted);
 			this.ids = Collections.unmodifiableMap(ids);
+			this.heads = Collections.unmodifiableSet(heads);
 		}
 	}
 
@@ -134,6 +140,8 @@ public class IconNames
 	private volatile Set<String> heldItems = Set.of();
 	// See bossSprite(). Client thread only.
 	private Map<String, Integer> bossSprites;
+	// Sprite ID -> name, for collapse(). Client thread only.
+	private Map<Integer, String> spriteNames;
 
 	@Inject
 	private IconNames(Client client, ClientThread clientThread)
@@ -207,6 +215,13 @@ public class IconNames
 			}
 		}
 		return nearby != null ? nearby : shortest;
+	}
+
+	// Whether the NPC named name (any case) has a chathead; false while the names are still loading.
+	public boolean hasHead(String name)
+	{
+		Index index = indexes.get(Kind.NPC);
+		return index != null && index.heads.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
 
 	// Client thread. A boss's hiscores icon by the names {kc} uses, which differ from the hiscores table's ("Gauntlet"
@@ -309,6 +324,60 @@ public class IconNames
 		ranked.addAll(rest);
 		ranked.addAll(contained);
 		return ranked;
+	}
+
+	// Client thread. expand() reversed, for showing a label in the editor: "<item=4151@50%>" -> "<item=Abyssal whip@50%>".
+	// IDs without a name are left as-is.
+	public String collapse(String label)
+	{
+		if (label == null || label.indexOf('<') < 0)
+		{
+			return label;
+		}
+
+		for (Kind kind : Kind.values())
+		{
+			Matcher matcher = kind.idPattern.matcher(label);
+			StringBuilder sb = new StringBuilder();
+			while (matcher.find())
+			{
+				String name = name(kind, Integer.parseInt(matcher.group(1)));
+				String tag = name == null ? matcher.group() : "<" + kind.tag + "=" + name + (matcher.group(2) == null ? "" : matcher.group(2)) + ">";
+				matcher.appendReplacement(sb, Matcher.quoteReplacement(tag));
+			}
+			matcher.appendTail(sb);
+			label = sb.toString();
+		}
+		return label;
+	}
+
+	// Client thread. An NPC's, item's or sprite's name by ID, or null.
+	@Nullable
+	private String name(Kind kind, int id)
+	{
+		if (kind == Kind.NPC)
+		{
+			return npcName(id);
+		}
+		if (kind == Kind.ITEM)
+		{
+			return itemName(id);
+		}
+		if (spriteNames == null)
+		{
+			Index index = index(Kind.SPRITE);
+			if (index == null)
+			{
+				return null;
+			}
+			// Shortest name first, so it's the one kept.
+			spriteNames = new HashMap<>();
+			for (String name : index.names)
+			{
+				spriteNames.putIfAbsent(index.ids.get(name.toLowerCase(Locale.ROOT)), name);
+			}
+		}
+		return spriteNames.get(id);
 	}
 
 	// Client thread. "<npc=Verzik Vitur>" -> "<npc=8369>", "<item=Abyssal whip@50%>" -> "<item=4151@50%>",
@@ -416,7 +485,19 @@ public class IconNames
 		{
 			buildDefinitions(kind == Kind.NPC, names, ids);
 		}
-		index = new Index(names, ids);
+		Set<String> heads = new HashSet<>();
+		if (kind == Kind.NPC)
+		{
+			ids.forEach((key, id) ->
+			{
+				NPCComposition npc = client.getNpcDefinition(id);
+				if (npc != null && npc.getChatheadModels() != null && npc.getChatheadModels().length > 0)
+				{
+					heads.add(key);
+				}
+			});
+		}
+		index = new Index(names, ids, heads);
 		indexes.put(kind, index);
 		return index;
 	}

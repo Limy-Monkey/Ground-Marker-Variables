@@ -42,7 +42,7 @@ public final class Completion
 	{
 		public enum Kind
 		{
-			SPRITE, ITEM, NPC, EMOJI, COLOR
+			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR
 		}
 
 		public final Kind kind;

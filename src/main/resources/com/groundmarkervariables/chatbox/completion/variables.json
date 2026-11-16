@@ -63,10 +63,10 @@
   "invSpace": {"syntax": "{invSpace}", "description": "Number of empty inventory slots", "returns": "Number", "party": true, "category": "Gear & items"},
 
   "attackStyle": {"syntax": "{attackStyle}", "description": "Attack style<br>E.g. Accurate, Aggressive, Accurate, Rapid, Wind Surge", "returns": "Text", "category": "Combat",
-    "parameters": [{"name": "weapon=<name>", "description": "The style last used with that weapon this session"}],
+    "parameters": [{"name": "weapon=<name>", "description": "The style last used with that weapon this session", "requiresValue": true}],
     "examples": ["{attackStyle weapon=Twisted bow}"]},
   "attackType": {"syntax": "{attackType}", "description": "Damage type<br>E.g. Stab, Slash, Crush, Ranging, Magic", "returns": "Text", "category": "Combat",
-    "parameters": [{"name": "weapon=<name>", "description": "The damage type last used with that weapon this session"}],
+    "parameters": [{"name": "weapon=<name>", "description": "The damage type last used with that weapon this session", "requiresValue": true}],
     "examples": ["{attackType weapon=Twisted bow}"]},
   "autocast": {"syntax": "{autocast}", "description": "Last remembered autocast spell", "returns": "Text", "icon": "yes", "category": "Combat",
     "parameters": [{"name": "icon", "description": "The spell's icon instead of its name, nothing if none"}]},
@@ -198,7 +198,7 @@
   "loot": {"requiresArgument": true, "syntax": "{loot <monster>}", "description": "Loot from a monster, uses the Loot Tracker plugin", "returns": "Number", "icon": "items", "category": "Bosses & loot",
     "parameters": [
       {"name": "<monster>", "description": "The Loot Tracker's name for it, e.g. Tombs of Amascut; options follow after commas"},
-      {"name": "items=N", "description": "How many items to list", "complete": ["items="]},
+      {"name": "items=N", "description": "How many items to list", "complete": ["items="], "requiresValue": true},
       {"name": "lines=N", "description": "Over how many lines", "complete": ["lines=2"]},
       {"name": "itemsOnly", "description": "Only the items and how many of each, without the name, kill count or gp value", "complete": ["itemsOnly"]}],
     "examples": ["{loot Tombs of Amascut}", "{loot <monster>, items=6, lines=2}", "{loot <monster>, itemsOnly}"]},
@@ -208,8 +208,8 @@
       {"name": "missing", "description": "Icons of the items not yet obtained, instead of those obtained", "complete": ["missing"]},
       {"name": "noicons", "description": "Only the page name and count, no icons", "complete": ["noicons"]},
       {"name": "iconsOnly", "description": "Only the icons, without the page name or count", "complete": ["iconsOnly"]},
-      {"name": "itemsPerLine=N", "description": "Items per line, default 10", "complete": ["itemsPerLine="]},
-      {"name": "maxItems=N", "description": "List at most N items", "complete": ["maxItems="]}]},
+      {"name": "itemsPerLine=N", "description": "Items per line, default 10", "complete": ["itemsPerLine="], "requiresValue": true},
+      {"name": "maxItems=N", "description": "List at most N items", "complete": ["maxItems="], "requiresValue": true}]},
 
   "slayerTask": {"syntax": "{slayerTask}", "description": "Current slayer task, uses the Slayer plugin", "returns": "Text", "category": "Slayer"},
   "slayerStreak": {"syntax": "{slayerStreak}", "description": "Current slayer task streak", "returns": "Number", "category": "Slayer"},
@@ -281,7 +281,7 @@
   "ground": {"syntax": "{ground}...{/ground}", "description": "Icons and text drawn flat on the tile<br>Cannot be used in conditions", "category": "Tile",
     "parameters": [
       {"name": "...", "description": "Icons in a row with text below them. A lone <item=> or <npc=> is drawn as its 3D model. No conditionals inside, except ones on {group} alone"},
-      {"name": "@<dir>", "description": "Which way the top faces: n, ne, e, se, s, sw, w, nw; default north"},
+      {"name": "@<dir>", "description": "Optional: which way the top faces: default north", "complete": ["@"], "requiresValue": true},
       {"name": "{/ground}", "description": "Ends it; without one, it runs to the end of the label"}],
     "examples": ["{ground@n}{col=green}1{/col}{/ground}"]},
 

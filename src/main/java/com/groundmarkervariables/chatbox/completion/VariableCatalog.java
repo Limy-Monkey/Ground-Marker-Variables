@@ -82,7 +82,8 @@ final class VariableCatalog
 		return words == null ? null : words.get(word.replaceFirst("^[\\s,]+", "").toLowerCase(Locale.ROOT));
 	}
 
-	// A variable's line ("{rsn}: Display name") and its freely typed parameters' ("name: description").
+	// A variable's line ("{rsn}: Display name"), its freely typed parameters' ("name: description"), and its
+	// "requiresValue" parameters' by the word the value follows ("@" -> "@<dir>: ...").
 	private static final class Hint
 	{
 		// Its parameters follow its name directly (no space in its syntax), e.g. {highlightSW=<col>}, {lvl_<skill>}.
@@ -90,12 +91,14 @@ final class VariableCatalog
 		@Nullable
 		private final String summary;
 		private final List<String> parameters;
+		private final Map<String, String> valueWords;
 
-		private Hint(boolean joined, @Nullable String summary, List<String> parameters)
+		private Hint(boolean joined, @Nullable String summary, List<String> parameters, Map<String, String> valueWords)
 		{
 			this.joined = joined;
 			this.summary = summary;
 			this.parameters = parameters;
+			this.valueWords = valueWords;
 		}
 	}
 
@@ -112,6 +115,39 @@ final class VariableCatalog
 	static List<String> hints(String partial)
 	{
 		String lower = partial.toLowerCase(Locale.ROOT);
+		String best = typedName(lower);
+		return best == null || lower.equals(best) ? Collections.emptyList() : HINTS.get(best).parameters;
+	}
+
+	// The line of the "requiresValue" parameter whose value is being typed at the end of partial ("ground@",
+	// "loot vorkath, items=6", "attackStyle weapon=Twisted"): after its word, with no "," or "}" since. Else null.
+	@Nullable
+	static String valueHint(String partial)
+	{
+		String lower = partial.toLowerCase(Locale.ROOT);
+		String best = typedName(lower);
+		if (best == null)
+		{
+			return null;
+		}
+		String line = null;
+		int at = -1;
+		for (Map.Entry<String, String> value : HINTS.get(best).valueWords.entrySet())
+		{
+			int index = lower.lastIndexOf(value.getKey());
+			if (index > at && lower.indexOf(',', index) < 0 && lower.indexOf('}', index) < 0)
+			{
+				at = index;
+				line = value.getValue();
+			}
+		}
+		return line;
+	}
+
+	// The longest variable name lower (lowercase, what follows "{") is giving arguments to, or null.
+	@Nullable
+	private static String typedName(String lower)
+	{
 		String best = null;
 		for (Map.Entry<String, Hint> entry : HINTS.entrySet())
 		{
@@ -123,7 +159,7 @@ final class VariableCatalog
 				best = name;
 			}
 		}
-		return best == null || lower.equals(best) ? Collections.emptyList() : HINTS.get(best).parameters;
+		return best;
 	}
 
 	private static void add(String key, JsonObject entry)
@@ -131,6 +167,7 @@ final class VariableCatalog
 		putDescription(key, entry);
 		List<String> completions = new ArrayList<>();
 		List<String> hints = new ArrayList<>();
+		Map<String, String> valueWords = new HashMap<>();
 		if (entry.has("parameters"))
 		{
 			for (JsonElement element : entry.getAsJsonArray("parameters"))
@@ -142,6 +179,21 @@ final class VariableCatalog
 				String description = parameter.has("description") ? parameter.get("description").getAsString() : null;
 				Map<String, String> byWord = COMPLETION_DESCRIPTIONS.computeIfAbsent(key.toLowerCase(Locale.ROOT), k -> new HashMap<>());
 				Matcher word = WORD_OPTION.matcher(name);
+				// Its line shows while its value is typed after its word (its "complete" words, or its lone word).
+				if (parameter.has("requiresValue") && parameter.get("requiresValue").getAsBoolean() && description != null)
+				{
+					List<String> valueWordsOf = new ArrayList<>();
+					if (parameter.has("complete"))
+					{
+						parameter.getAsJsonArray("complete").forEach(option -> valueWordsOf.add(option.isJsonObject()
+							? option.getAsJsonObject().get("word").getAsString() : option.getAsString()));
+					}
+					else if (word.matches())
+					{
+						valueWordsOf.add(word.group(1));
+					}
+					valueWordsOf.forEach(w -> valueWords.put(w.toLowerCase(Locale.ROOT), name + ": " + description));
+				}
 				if (parameter.has("complete"))
 				{
 					for (JsonElement option : parameter.getAsJsonArray("complete"))
@@ -206,7 +258,7 @@ final class VariableCatalog
 			String description = DESCRIPTIONS.get(name);
 			String line = entry.has("variants") ? "{" + name + "}" : syntax;
 			HINTS.put(name.toLowerCase(Locale.ROOT), new Hint(joined,
-				description == null ? null : line + ": " + description.replace("<br>", "; "), hints));
+				description == null ? null : line + ": " + description.replace("<br>", "; "), hints, valueWords));
 			if (requiresArgument)
 			{
 				REQUIRING_ARGUMENT.add(name);

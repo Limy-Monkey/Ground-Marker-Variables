@@ -936,17 +936,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return rows;
 	}
 
-	// A variable's exact name first gets its own line. Then every listed completion of the token at the cursor,
-	// SUGGESTION_COLUMNS to a row, the one Tab would insert marked; with none, what the variable takes there.
+	// A variable's exact name first gets its own line, or a required value being typed its parameter's. Then every
+	// listed completion of the token at the cursor, SUGGESTION_COLUMNS to a row, the one Tab would insert marked; with
+	// none, what the variable takes there.
 	private void addSuggestions(List<Row> rows)
 	{
 		boolean caret = getCursorStart() == getCursorEnd();
 		if (caret)
 		{
 			String summary = completer.variableSummary(getValue(), getCursorStart());
-			if (summary != null)
+			String top = summary != null ? summary : completer.valueHint(getValue(), getCursorStart());
+			if (top != null)
 			{
-				addHint(rows, summary);
+				addHint(rows, top);
 			}
 		}
 

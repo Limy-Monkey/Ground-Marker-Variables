@@ -52,7 +52,7 @@ public class LabelCompleter
 	// Icon syntax of a color swatch: "color:RRGGBB".
 	private static final String COLOR_ICON = "color:";
 	// The first icon tag in a resolved icon.
-	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)|(emoji)=([0-9a-f]+))");
+	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)(,head)?|(emoji)=([0-9a-f]+))");
 
 	// Names that need more typed before the token is complete, so an exact one isn't closed with "}".
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = VariableCatalog.REQUIRING_ARGUMENT;
@@ -136,6 +136,37 @@ public class LabelCompleter
 	private static final Pattern ICON_TAG_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_])<([a-z]+)$", Pattern.CASE_INSENSITIVE);
 	private static final List<String> ICON_TAGS = List.of("item=", "npc=", "sprite=");
 
+	// Searches listed first after a bare "<sprite=": each sprite name ends in its "(Category)", so inserting it lists
+	// that category. With the sprite shown for it.
+	private static final class SpriteCategory
+	{
+		private final String search;
+		private final int spriteId;
+
+		private SpriteCategory(String search, int spriteId)
+		{
+			this.search = search;
+			this.spriteId = spriteId;
+		}
+	}
+
+	private static final List<SpriteCategory> SPRITE_CATEGORIES = List.of(
+		new SpriteCategory("(Prayer)", 946),
+		new SpriteCategory("(Spell)", 328),
+		new SpriteCategory("(Skill)", 222),
+		new SpriteCategory("(Hiscore)", 4281),
+		new SpriteCategory("(Map Icon)", 1453),
+		new SpriteCategory("(Emote)", 707),
+		new SpriteCategory("(Combat)", 238),
+		new SpriteCategory("(Equipment)", 159),
+		new SpriteCategory("(Tab)", 900),
+		new SpriteCategory("(Minimap)", 1067),
+		new SpriteCategory("(Hitsplat)", 1358),
+		new SpriteCategory("(Friends)", 2828),
+		new SpriteCategory("(Ge)", 1108),
+		new SpriteCategory("(Bank)", 1041),
+		new SpriteCategory("(Texture)", 476));
+
 	// {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage.
 	private static final String METRONOME_NAME = "metronome";
 	private static final String METRONOME_ALIAS = "m";
@@ -158,7 +189,8 @@ public class LabelCompleter
 	// {/col}, {/align}, ...: diverge from their opening token at the "/".
 	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}", "/hoverOnly}", "/hoverHide}", "/tip}", "/ground}");
 
-	// {ground@<dir>}: where the top of the {ground} content faces.
+	// {ground@<dir>}: where the top of the {ground} content faces; "{ground" offers the optional "@".
+	private static final Pattern GROUND_NAME = Pattern.compile("(?i)^ground$");
 	private static final Pattern GROUND_FACING = Pattern.compile("(?i)^ground@(\\w*)$");
 	private static final List<String> GROUND_DIRECTIONS = List.of("n", "ne", "e", "se", "s", "sw", "w", "nw");
 
@@ -256,8 +288,9 @@ public class LabelCompleter
 		Completion.Icon icon = null;
 		if (tag.find())
 		{
-			String kind = tag.group(1) != null ? tag.group(1) : tag.group(3);
-			icon = new Completion.Icon(Completion.Icon.Kind.valueOf(kind.toUpperCase(Locale.ROOT)), tag.group(1) != null ? tag.group(2) : tag.group(4));
+			// <npc=ID,head> is its chathead.
+			String kind = tag.group(1) != null ? tag.group(1) + (tag.group(3) != null ? "_head" : "") : tag.group(4);
+			icon = new Completion.Icon(Completion.Icon.Kind.valueOf(kind.toUpperCase(Locale.ROOT)), tag.group(1) != null ? tag.group(2) : tag.group(5));
 		}
 		if (icon != null || !expanded.equals(syntax) || !syntax.startsWith("<"))
 		{
@@ -294,6 +327,14 @@ public class LabelCompleter
 	{
 		String token = token(text, cursor);
 		return token == null ? null : VariableCatalog.summary(token);
+	}
+
+	// The line of the parameter whose required value is being typed at cursor, e.g. "{ground@" -> "@<dir>: ...".
+	@Nullable
+	public String valueHint(String text, int cursor)
+	{
+		String token = token(text, cursor);
+		return token == null ? null : VariableCatalog.valueHint(token);
 	}
 
 	// What's typed at cursor after the open "{" (and any ^&* prefix or operator), or null outside one.
@@ -459,6 +500,9 @@ public class LabelCompleter
 		list.add(prefix(TILECOL_PREFIX, false, this::completeTileColValue));
 		list.add(prefix(HIGHLIGHT_NAME, false, this::completeHighlight));
 		list.add(prefix(ALIGN_PREFIX, false, rest -> match(rest, ALIGN_VALUES, "{" + ALIGN_PREFIX, "}", null, true)));
+		// "@" listed; Tab still closes with "}".
+		list.add(pattern(GROUND_NAME, m -> described(new Completion(List.of(new Completion.Option("@", "@", 0, null),
+			new Completion.Option(null, "}", 0, null)), 1), "ground")));
 		list.add(pattern(GROUND_FACING, m -> completeGroundFacing(m.group(1))));
 		return list;
 	}
@@ -703,7 +747,7 @@ public class LabelCompleter
 				}
 			}
 		}
-		return name;
+		return withOptions(name, partial, names, LOOT_OPTIONS, LOOT_PREFIX);
 	}
 
 	// Every monster Loot Tracker has recorded loot for, most recent first.
@@ -759,7 +803,27 @@ public class LabelCompleter
 			return names.stream().anyMatch(head::equalsIgnoreCase)
 				? described(completeOption(word, LOG_OPTIONS, !word.isEmpty() && LOG_OPTION.matcher(", " + word).matches()), LOG_PREFIX) : null;
 		}
-		return withIcons(match(partial, names, "{" + LOG_PREFIX, "", "}", false), LabelCompleter::bossIcon);
+		return withOptions(withIcons(match(partial, names, "{" + LOG_PREFIX, "", "}", false), LabelCompleter::bossIcon), partial, names,
+			LOG_OPTIONS, LOG_PREFIX);
+	}
+
+	// A full name typed (any case) also offers each of variable's options first, after ", " (", items="); Tab still
+	// does what it did.
+	@Nullable
+	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, List<String> optionWords,
+		String variable)
+	{
+		if (completion == null || names.stream().noneMatch(partial.trim()::equalsIgnoreCase))
+		{
+			return completion;
+		}
+		List<Completion.Option> options = new ArrayList<>();
+		for (String word : optionWords)
+		{
+			options.add(new Completion.Option(", " + word, ", " + word, 0, null, VariableCatalog.completionDescription(variable, word)));
+		}
+		options.addAll(completion.options);
+		return new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + optionWords.size());
 	}
 
 	// A boss, monster or log page's hiscores icon, by its full name (see icon()).
@@ -810,9 +874,41 @@ public class LabelCompleter
 			(name.regionMatches(true, 0, partial, 0, partial.length()) ? starting : contained).add(name);
 		}
 		String closer = closed ? "" : ">";
-		return Completion.of(starting, partial.length(), closer, starting.isEmpty() || partial.isEmpty() ? null : starting.get(0))
+		Completion completion = Completion.of(starting, partial.length(), closer, starting.isEmpty() || partial.isEmpty() ? null : starting.get(0))
 			.withContained(contained, partial.length(), closer)
 			.withIcons(name -> "<" + kind.tag + "=" + name + ">");
+		// An NPC with a chathead completes without ">", so ",head" can be offered next.
+		if (kind == IconNames.Kind.NPC && !closer.isEmpty())
+		{
+			List<Completion.Option> options = new ArrayList<>();
+			for (Completion.Option option : completion.options)
+			{
+				boolean open = option.label != null && !option.label.equalsIgnoreCase(partial.trim()) && iconNames.hasHead(option.label);
+				options.add(open ? new Completion.Option(option.label, option.insert.substring(0, option.insert.length() - closer.length()),
+					option.replace, option.icon, option.description) : option);
+			}
+			completion = new Completion(options, completion.preferred);
+		}
+		// A bare "<sprite=" lists the category searches first.
+		if (kind == IconNames.Kind.SPRITE && partial.isEmpty())
+		{
+			List<Completion.Option> options = new ArrayList<>();
+			for (SpriteCategory category : SPRITE_CATEGORIES)
+			{
+				options.add(new Completion.Option(category.search, category.search, 0, "<sprite=" + category.spriteId + ">",
+					"Search " + category.search + " sprites"));
+			}
+			options.addAll(completion.options);
+			completion = new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + options.size() - completion.options.size());
+		}
+		// A typed NPC with a chathead also offers ",head" first.
+		if (kind == IconNames.Kind.NPC && iconNames.hasHead(partial))
+		{
+			List<Completion.Option> options = new ArrayList<>(completion.options);
+			options.add(0, new Completion.Option(",head", ",head" + closer, 0, "<npc=" + partial.trim() + ",head>"));
+			completion = new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + 1);
+		}
+		return completion;
 	}
 
 	// Shortest name first unless recent/nearby labels use one; ":" closes it.
