@@ -117,6 +117,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private static final int NEARBY_LABEL_DISTANCE = 150;
 	private static final int REFRESH_DISTANCE = 40;
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
+	private static final String MANAGE_COMMAND_SHORT = "manageGMV";
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
 	// section — see migrateConfigFromCore().
@@ -878,7 +879,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted event)
 	{
-		if (MANAGE_COMMAND.equalsIgnoreCase(event.getCommand()))
+		if (MANAGE_COMMAND.equalsIgnoreCase(event.getCommand()) || MANAGE_COMMAND_SHORT.equalsIgnoreCase(event.getCommand()))
 		{
 			MarkerManager manager = markerManagerProvider.get();
 			manager.load();

@@ -45,6 +45,13 @@ public class MarkerMinifier
 		return gson.toJson(array);
 	}
 
+	// Core's JSON, every label as readable text: "=", "<", ">", "&" and "'" as themselves rather than Gson's unicode
+	// escapes, which JSON doesn't need. A label's backslash-n still has to be written with its backslash doubled.
+	public String exportPlain(List<GroundMarkerPointData> points)
+	{
+		return gson.newBuilder().disableHtmlEscaping().create().toJson(points);
+	}
+
 	// Throws JsonSyntaxException if text isn't an array of markers, IllegalArgumentException if a gmv
 	// label is damaged.
 	public List<GroundMarkerPointData> parse(String text) throws NewerFormatException

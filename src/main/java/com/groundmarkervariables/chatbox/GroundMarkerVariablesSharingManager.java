@@ -102,10 +102,10 @@ public class GroundMarkerVariablesSharingManager
 			.collect(Collectors.toList());
 	}
 
-	// Also MarkerManager's "Copy".
-	public String exportText(List<GroundMarkerPointData> points)
+	// Also MarkerManager's "Copy"; plain ("Copy as plaintext") leaves labels uncompressed.
+	public String exportText(List<GroundMarkerPointData> points, boolean plain)
 	{
-		return markerMinifier.export(points);
+		return plain ? markerMinifier.exportPlain(points) : markerMinifier.export(points);
 	}
 
 	private void exportGroundMarkers(MenuEntry menuEntry)

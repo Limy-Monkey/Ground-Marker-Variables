@@ -243,7 +243,13 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 			rightX = nextX(addButton(container, font, "Undo", "Restore deleted", deletedTarget, true, rightX, this::undoDelete));
 		}
 		rightX = nextX(addButton(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
-		rightX = nextX(addButton(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, this::exportSelected));
+		Widget copy = addButton(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> exportSelected(false));
+		if (anySelected)
+		{
+			copy.setAction(1, "Copy as plaintext");
+			copy.setOnOpListener((JavaScriptCallback) ev -> exportSelected(ev.getOp() == 2));
+		}
+		rightX = nextX(copy);
 		Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
 			!entries.isEmpty(), rightX, this::toggleVariablesFilter);
 		if (variablesOnly)
@@ -558,10 +564,11 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		return visible;
 	}
 
-	private void exportSelected()
+	// plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).
+	private void exportSelected(boolean plain)
 	{
 		List<GroundMarkerPointData> points = selectedPoints();
-		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sharingManager.exportText(points)), null);
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sharingManager.exportText(points, plain)), null);
 		sendChatMessage(points.size() + " ground markers were copied to your clipboard.");
 	}
 
