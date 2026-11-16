@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
-import javax.inject.Named;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.FontID;
@@ -70,20 +69,20 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
 	private int scrollOffset;
-	// { } toggle: only rows whose label has a variable (and the areas containing them). The
-	// toggle is developer mode only.
+	// { } toggle: only rows whose label has a variable (and the areas containing them).
 	private boolean variablesOnly = true;
-	private final boolean developerMode;
 
-	// Every region sharing one RegionNames name, or a single unnamed region.
+	// Every marker sharing one RegionNames name, or the unnamed ones of a single region.
 	private static final class Group
 	{
+		private final String key;
 		private final String name;
 		private final Set<Integer> regionIds = new TreeSet<>();
 		private final Map<String, Entry> byLabel = new LinkedHashMap<>();
 
-		private Group(String name)
+		private Group(String key, String name)
 		{
+			this.key = key;
 			this.name = name;
 		}
 	}
@@ -117,8 +116,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager,
-		@Named("developerMode") boolean developerMode)
+		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager)
 	{
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.markerStorage = markerStorage;
@@ -126,7 +124,6 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		this.client = client;
 		this.deletedMarkers = deletedMarkers;
 		this.sharingManager = sharingManager;
-		this.developerMode = developerMode;
 	}
 
 	// Rebuilds the list from storage, clearing the selection.
@@ -139,20 +136,21 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		Map<String, Group> groups = new LinkedHashMap<>();
 		for (int regionId : markerStorage.storedRegionIds())
 		{
-			String name = RegionNames.name(regionId);
-			Group group = groups.computeIfAbsent(name != null ? name : "#" + regionId, k -> new Group(name));
-			group.regionIds.add(regionId);
+			// Each marker's own area: one region can hold several.
 			for (GroundMarkerPointData point : markerStorage.getStoredPoints(regionId))
 			{
+				String name = RegionNames.name(WorldPoint.fromRegion(regionId, point.getRegionX(), point.getRegionY(), point.getZ()));
+				Group group = groups.computeIfAbsent(groupKey(name, regionId), k -> new Group(k, name));
+				group.regionIds.add(regionId);
 				String label = point.getLabel() == null ? "" : point.getLabel();
 				group.byLabel.computeIfAbsent(label, l -> new Entry(group, l)).points.add(point);
 			}
 		}
 
 		// Current area first, then named areas alphabetically, then unnamed regions by id.
-		int currentRegion = currentRegionId();
+		String currentGroup = currentGroupKey();
 		List<Group> sorted = new ArrayList<>(groups.values());
-		sorted.sort(Comparator.comparing((Group g) -> !g.regionIds.contains(currentRegion))
+		sorted.sort(Comparator.comparing((Group g) -> !g.key.equals(currentGroup))
 			.thenComparing(g -> g.name == null)
 			.thenComparing(g -> g.name == null ? "" : g.name, String.CASE_INSENSITIVE_ORDER)
 			.thenComparing(g -> g.regionIds.iterator().next()));
@@ -246,17 +244,14 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		}
 		rightX = nextX(addButton(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
 		rightX = nextX(addButton(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, this::exportSelected));
-		if (developerMode)
+		Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
+			!entries.isEmpty(), rightX, this::toggleVariablesFilter);
+		if (variablesOnly)
 		{
-			Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
-				!entries.isEmpty(), rightX, this::toggleVariablesFilter);
-			if (variablesOnly)
-			{
-				filter.setTextColor(ACTIVE_COLOR);
-				filter.setOnMouseLeaveListener((JavaScriptCallback) ev -> filter.setTextColor(ACTIVE_COLOR));
-			}
-			rightX = nextX(filter);
+			filter.setTextColor(ACTIVE_COLOR);
+			filter.setOnMouseLeaveListener((JavaScriptCallback) ev -> filter.setTextColor(ACTIVE_COLOR));
 		}
+		rightX = nextX(filter);
 
 		Widget all = addButton(container, font, "All", allSelected ? "Deselect all" : "Select all", "", !visible.isEmpty(), rightX,
 			allSelected ? this::deselectAll : this::selectAll);
@@ -639,10 +634,21 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		return entry.points.size() > 1 ? " (x" + entry.points.size() + ")" : "";
 	}
 
-	private int currentRegionId()
+	private static String groupKey(String name, int regionId)
+	{
+		return name != null ? name : "#" + regionId;
+	}
+
+	// The group of the player's tile, or null when not logged in.
+	private String currentGroupKey()
 	{
 		Player player = client.getLocalPlayer();
-		return player == null ? -1 : WorldPoint.fromLocalInstance(client, player.getLocalLocation()).getRegionID();
+		if (player == null)
+		{
+			return null;
+		}
+		WorldPoint location = WorldPoint.fromLocalInstance(client, player.getLocalLocation());
+		return groupKey(RegionNames.name(location), location.getRegionID());
 	}
 
 	private void sendChatMessage(String message)
