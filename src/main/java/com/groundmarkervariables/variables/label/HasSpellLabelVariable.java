@@ -51,6 +51,8 @@ public class HasSpellLabelVariable implements LabelVariable, PartyMemberVariable
 			sprite(SpriteID.MagicNecroOn.UNDEAD_GRASP)),
 		hasSpell("hasMarkOfDarkness", "Mark of Darkness", ARCEUUS, Map.of(ItemID.COSMICRUNE, 1, ItemID.SOULRUNE, 1),
 			sprite(SpriteID.MagicNecroOn.MARK_OF_DARKNESS)),
+		hasSpell("hasDeathCharge", "Death Charge", ARCEUUS, Map.of(ItemID.BLOODRUNE, 1, ItemID.DEATHRUNE, 1, ItemID.SOULRUNE, 1),
+			sprite(SpriteID.MagicNecroOn.DEATH_CHARGE)),
 		hasSpell("hasVengeance", "Vengeance", LUNAR, Map.of(ItemID.ASTRALRUNE, 4, ItemID.DEATHRUNE, 2, ItemID.EARTHRUNE, 10),
 			sprite(SpriteID.LunarMagicOn.VENGEANCE)),
 		hasSpell("hasSpellbookSwap", "Spellbook Swap", LUNAR, Spellbooks.SPELLBOOK_SWAP_RUNES, sprite(SpriteID.LunarMagicOn.SPELLBOOK_SWAP)));
