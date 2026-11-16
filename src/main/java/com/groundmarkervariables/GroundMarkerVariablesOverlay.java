@@ -4,6 +4,7 @@ import com.groundmarkervariables.graphics.GroundImageRenderer;
 import com.groundmarkervariables.graphics.GroundModelRenderer;
 import com.groundmarkervariables.graphics.ItemModels;
 import com.groundmarkervariables.graphics.NpcImages;
+import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.MarkerCulling;
 import com.groundmarkervariables.markers.RenderedTile;
@@ -91,7 +92,6 @@ public class GroundMarkerVariablesOverlay
 	private static final Color BADGE_GREEN = new Color(0, 185, 0);
 	private static final Color BADGE_YELLOW = new Color(255, 210, 0);
 	private static final Color BADGE_RED = new Color(230, 0, 0);
-	private static final int MAX_SPLIT_ICONS = 4;
 	// {ground} icon rows are built at this multiple of the tallest icon.
 	private static final int GROUND_ROW_SCALE = 4;
 	// {ground} text: local units per text pixel at most, the tile share it may take below icons, the gap to them
@@ -107,8 +107,6 @@ public class GroundMarkerVariablesOverlay
 	private static final double MIN_GROUND_TEXT_RESOLUTION = 0.25;
 	private static final double MAX_GROUND_TEXT_RESOLUTION = 16;
 	private static final Pattern GROUND_NPC_PATTERN = Pattern.compile("<npc=(\\d+)(,head)?>", Pattern.CASE_INSENSITIVE);
-	// A 3-icon {split}'s wedge start angles: 12 to 8 o'clock, 4 to 12, 8 to 4.
-	private static final float[] WEDGE_STARTS = {90, 330, 210};
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
 	private static final int HOVER_MARGIN = 3;
@@ -1547,7 +1545,7 @@ public class GroundMarkerVariablesOverlay
 	{
 		List<BufferedImage> parts = new ArrayList<>();
 		boolean sprite = false;
-		for (Object icon : icons.subList(0, Math.min(icons.size(), MAX_SPLIT_ICONS)))
+		for (Object icon : icons.subList(0, Math.min(icons.size(), SplitIcons.MAX_PARTS)))
 		{
 			if (icon instanceof ItemIcon)
 			{
@@ -1576,8 +1574,7 @@ public class GroundMarkerVariablesOverlay
 		}
 	}
 
-	// Each part centered on a shared square, cropped to its half (2 parts), 120 degree wedge (3) or quadrant. Null if all
-	// parts are.
+	// See SplitIcons, cached. Null if all parts are.
 	@Nullable
 	private BufferedImage splitIcon(List<BufferedImage> parts)
 	{
@@ -1586,52 +1583,19 @@ public class GroundMarkerVariablesOverlay
 		{
 			return split;
 		}
-
-		int size = 0;
-		for (BufferedImage part : parts)
-		{
-			if (part != null)
-			{
-				size = Math.max(size, Math.max(part.getWidth(), part.getHeight()));
-			}
-		}
-		if (size == 0)
+		split = SplitIcons.compose(parts);
+		if (split == null)
 		{
 			return null;
 		}
-
-		split = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D graphics = split.createGraphics();
-		int half = size / 2;
-		for (int i = 0; i < parts.size(); i++)
+		// An item image still loading is drawn into later.
+		for (BufferedImage part : parts)
 		{
-			BufferedImage part = parts.get(i);
-			if (part == null)
-			{
-				continue;
-			}
-
-			if (parts.size() == 3)
-			{
-				// 120 degree wedges from the center: top-left, top-right, then bottom. Arc angles run counterclockwise from 3 o'clock.
-				graphics.setClip(new Arc2D.Float(-size / 2f, -size / 2f, size * 2f, size * 2f, WEDGE_STARTS[i], 120, Arc2D.PIE));
-			}
-			else
-			{
-				boolean right = parts.size() == 2 ? i == 1 : i % 2 == 1;
-				boolean bottom = parts.size() != 2 && i >= 2;
-				int height = parts.size() == 2 ? size : bottom ? size - half : half;
-				graphics.setClip(right ? half : 0, bottom ? half : 0, right ? size - half : half, height);
-			}
-			graphics.drawImage(part, (size - part.getWidth()) / 2, (size - part.getHeight()) / 2, null);
-
-			// An item image still loading is drawn into later.
 			if (part instanceof AsyncBufferedImage)
 			{
 				((AsyncBufferedImage) part).onLoaded(() -> splitIcons.remove(parts));
 			}
 		}
-		graphics.dispose();
 		splitIcons.put(parts, split);
 		return split;
 	}

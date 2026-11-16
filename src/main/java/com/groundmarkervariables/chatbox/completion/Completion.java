@@ -36,22 +36,34 @@ public final class Completion
 		}
 	}
 
-	// A resolved icon: a sprite, an item's image, an NPC's, an emoji or a color swatch. id is the number, for an emoji
-	// its hex codepoint, or for a color its RRGGBB.
+	// A resolved icon: a sprite, an item's image, an NPC's, an emoji, a color swatch, or a {split} of parts. id is the
+	// number, for an emoji its hex codepoint, or for a color its RRGGBB.
 	public static final class Icon
 	{
 		public enum Kind
 		{
-			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR
+			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR, SPLIT
 		}
 
 		public final Kind kind;
 		public final String id;
+		public final List<Icon> parts;
 
 		Icon(Kind kind, String id)
 		{
+			this(kind, id, List.of());
+		}
+
+		private Icon(Kind kind, String id, List<Icon> parts)
+		{
 			this.kind = kind;
 			this.id = id;
+			this.parts = parts;
+		}
+
+		static Icon split(List<Icon> parts)
+		{
+			return new Icon(Kind.SPLIT, "", List.copyOf(parts));
 		}
 	}
 

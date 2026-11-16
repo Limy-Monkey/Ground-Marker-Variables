@@ -2,6 +2,7 @@ package com.groundmarkervariables.chatbox.completion;
 
 import com.google.gson.Gson;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.label.LootLabelVariable;
@@ -56,6 +57,8 @@ public class LabelCompleter
 	private static final String COLOR_ICON = "color:";
 	// The first icon tag in a resolved icon.
 	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)(,head)?|(emoji)=([0-9a-f]+))");
+	private static final String SPLIT_OPEN = "{split}";
+	private static final String SPLIT_CLOSE = "{/split}";
 
 	// Names that need more typed before the token is complete, so an exact one isn't closed with "}".
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = VariableCatalog.REQUIRING_ARGUMENT;
@@ -79,7 +82,6 @@ public class LabelCompleter
 
 	// {charges <item>}: items Item Charges Improved / Item Charges have saved charges for, while they're on.
 	private static final String CHARGES_PREFIX = "charges ";
-	private static final String CHARGES_ICON = "icon";
 	private static final String CHARGES_ICONS = "icons";
 
 	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
@@ -297,19 +299,41 @@ public class LabelCompleter
 		}
 
 		String expanded = iconNames.expand(emojis.expand(syntax));
-		Matcher tag = ICON_TAG.matcher(labelResolver.resolve(expanded));
+		String resolved = labelResolver.resolve(expanded);
+		Matcher tag = ICON_TAG.matcher(resolved);
 		Completion.Icon icon = null;
 		if (tag.find())
 		{
-			// <npc=ID,head> is its chathead.
-			String kind = tag.group(1) != null ? tag.group(1) + (tag.group(3) != null ? "_head" : "") : tag.group(4);
-			icon = new Completion.Icon(Completion.Icon.Kind.valueOf(kind.toUpperCase(Locale.ROOT)), tag.group(1) != null ? tag.group(2) : tag.group(5));
+			// Inside {split}...{/split}: its icons as one.
+			int splitOpen = resolved.lastIndexOf(SPLIT_OPEN, tag.start());
+			int splitClose = splitOpen < 0 ? -1 : resolved.indexOf(SPLIT_CLOSE, splitOpen);
+			if (splitClose > tag.start())
+			{
+				List<Completion.Icon> parts = new ArrayList<>();
+				do
+				{
+					parts.add(tagIcon(tag));
+				}
+				while (parts.size() < SplitIcons.MAX_PARTS && tag.find() && tag.start() < splitClose);
+				icon = parts.size() == 1 ? parts.get(0) : Completion.Icon.split(parts);
+			}
+			else
+			{
+				icon = tagIcon(tag);
+			}
 		}
 		if (icon != null || !expanded.equals(syntax) || !syntax.startsWith("<"))
 		{
 			icons.put(syntax, Optional.ofNullable(icon));
 		}
 		return icon;
+	}
+
+	// The icon an ICON_TAG match draws. <npc=ID,head> is its chathead.
+	private static Completion.Icon tagIcon(Matcher tag)
+	{
+		String kind = tag.group(1) != null ? tag.group(1) + (tag.group(3) != null ? "_head" : "") : tag.group(4);
+		return new Completion.Icon(Completion.Icon.Kind.valueOf(kind.toUpperCase(Locale.ROOT)), tag.group(1) != null ? tag.group(2) : tag.group(5));
 	}
 
 	// completion with icon(label) as each option's icon syntax.
@@ -369,10 +393,75 @@ public class LabelCompleter
 		return boundaryEnd >= 0 ? partial.substring(boundaryEnd).stripLeading() : partial;
 	}
 
-	// What completes the token ending at cursor in text, or null. Not mid-word: completing there would run into what
-	// follows.
+	// What completes the token ending at cursor in text, or null. A ghosted "}" is listed first, its tooltip the
+	// variable it closes.
 	@Nullable
 	public Completion complete(String text, int cursor)
+	{
+		Completion completion = withVariableIcons(completeToken(text, cursor), text, cursor);
+		if (completion == null || completion.preferred < 0)
+		{
+			return completion;
+		}
+		Completion.Option ghost = completion.options.get(completion.preferred);
+		int open = unclosedOpen(text.substring(0, cursor));
+		if (ghost.label != null || !ghost.insert.equals("}") || open < 0)
+		{
+			return completion;
+		}
+		List<Completion.Option> options = new ArrayList<>();
+		options.add(new Completion.Option("}", "}", ghost.replace, null, text.substring(open, cursor) + "}"));
+		completion.options.stream().filter(option -> option != ghost).forEach(options::add);
+		return new Completion(options, 0);
+	}
+
+	// Each "icon" option without an icon given the icon its variable would show once completed, e.g. "{hasSurge icon}"
+	// or "{charges toxic blowpipe, icon}" (resolved once, see icon()).
+	@Nullable
+	private static Completion withVariableIcons(@Nullable Completion completion, String text, int cursor)
+	{
+		int open = completion == null ? -1 : unclosedOpen(text.substring(0, cursor));
+		if (open < 0)
+		{
+			return completion;
+		}
+		List<Completion.Option> options = new ArrayList<>(completion.options.size());
+		for (Completion.Option option : completion.options)
+		{
+			if (option.label == null || option.icon != null || !option.label.replaceFirst("^[\\s,]+", "").equalsIgnoreCase(ICON))
+			{
+				options.add(option);
+				continue;
+			}
+			String variable = text.substring(open, cursor - option.replace) + option.insert;
+			options.add(new Completion.Option(option.label, option.insert, option.replace,
+				variable.endsWith("}") ? variable : variable + "}", option.description));
+		}
+		return new Completion(options, completion.preferred);
+	}
+
+	// The innermost "{" in before still open (nested pairs skipped), or -1.
+	private static int unclosedOpen(String before)
+	{
+		int depth = 0;
+		for (int i = before.length() - 1; i >= 0; i--)
+		{
+			char c = before.charAt(i);
+			if (c == '}')
+			{
+				depth++;
+			}
+			else if (c == '{' && depth-- == 0)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	// complete() before its "}" row. Not mid-word: completing there would run into what follows.
+	@Nullable
+	private Completion completeToken(String text, int cursor)
 	{
 		if (!config.autocomplete() || (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor))))
 		{
@@ -406,7 +495,8 @@ public class LabelCompleter
 		int open = before.lastIndexOf('{');
 		if (open < 0 || before.indexOf('}', open) >= 0)
 		{
-			return null;
+			// Right after a nested variable inside one still open, e.g. "{party {rsn}": close the outer one.
+			return before.endsWith("}") && unclosedOpen(before) >= 0 && !text.startsWith("}", cursor) ? Completion.closer("}") : null;
 		}
 
 		String partial = before.substring(open + 1);
@@ -782,7 +872,7 @@ public class LabelCompleter
 			stored = storedItemNames.getOrDefault(key, List.of());
 		}
 		List<String> options = new ArrayList<>();
-		options.add(CHARGES_ICON);
+		options.add(ICON);
 		if (!stored.isEmpty())
 		{
 			options.add(CHARGES_ICONS);
@@ -795,7 +885,7 @@ public class LabelCompleter
 	@Nullable
 	private static String chargesOptionIcon(String option)
 	{
-		return option.equals(CHARGES_ICON) || option.equals(CHARGES_ICONS) ? null : "<item=" + option + ">";
+		return option.equals(ICON) || option.equals(CHARGES_ICONS) ? null : "<item=" + option + ">";
 	}
 
 	// Loot Tracker's monsters (and their BossAliases short names, combined monsters, and players if any were

@@ -2,6 +2,7 @@ package com.groundmarkervariables.chatbox;
 
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.graphics.NpcImages;
+import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.support.Emojis;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -9,6 +10,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -81,6 +83,8 @@ public class SuggestionIconOverlay extends Overlay
 	// Keyed by the source image, then shrunk to the placeholder's size. Client thread only.
 	private final Map<BufferedImage, BufferedImage> scaled = new IdentityHashMap<>();
 	private final Set<BufferedImage> watched = Collections.newSetFromMap(new IdentityHashMap<>());
+	// Split icons, by the (per-editor cached) icon. Client thread only.
+	private final Map<Completion.Icon, BufferedImage> composed = new IdentityHashMap<>();
 
 	@Inject
 	private SuggestionIconOverlay(Client client, TooltipManager tooltipManager, ItemManager itemManager, SpriteManager spriteManager,
@@ -111,6 +115,7 @@ public class SuggestionIconOverlay extends Overlay
 		tips = List.of();
 		scaled.clear();
 		watched.clear();
+		composed.clear();
 	}
 
 	@Override
@@ -162,8 +167,35 @@ public class SuggestionIconOverlay extends Overlay
 		}
 	}
 
+	// A {split}'s parts drawn as one, cached once every part has loaded.
 	@Nullable
 	private BufferedImage image(Completion.Icon icon)
+	{
+		if (icon.kind != Completion.Icon.Kind.SPLIT)
+		{
+			return baseImage(icon);
+		}
+		BufferedImage cached = composed.get(icon);
+		if (cached != null)
+		{
+			return cached;
+		}
+
+		List<BufferedImage> parts = new ArrayList<>();
+		icon.parts.forEach(part -> parts.add(baseImage(part)));
+		BufferedImage image = SplitIcons.compose(parts);
+		if (image != null && !parts.contains(null))
+		{
+			composed.put(icon, image);
+			// An item image still loading is drawn into later.
+			parts.stream().filter(AsyncBufferedImage.class::isInstance)
+				.forEach(part -> ((AsyncBufferedImage) part).onLoaded(() -> composed.remove(icon)));
+		}
+		return image;
+	}
+
+	@Nullable
+	private BufferedImage baseImage(Completion.Icon icon)
 	{
 		switch (icon.kind)
 		{
