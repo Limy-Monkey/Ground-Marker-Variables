@@ -47,8 +47,3 @@ Most variables have a short **Plain Text** value (`385`) and a descriptive **Ric
 - **Days until a date**: `{oct 20 - date}` → `8 days`. Dates can be `Oct 20`, `October 20 2026`, `10/20` or `10-20-2026` (day/month order follows your system locale). With no year, the current year is used.
 - **Time until / since a time of day**: `{6am - time}` → `1:23`, wrapping past midnight (at 7am it's `23:00`). `{time - 2am}` is time since 2am. Times can be `6am`, `8 pm`, `6:30 a.m.`, `7:00` or `15:00`, and two times work too: `{6am - 2am}` → `4:00`. Write `7:00` or `7am`, not `7`.
 - **Countdown to a date and time**: `{nov 4 7am - now}`. Rich Text shows `9 days 21:06`, Plain Text shows total hours `237:06`, and it goes negative once the time has passed. `now` also works in place of `date` or `time` above.
-
-## Other parameters
-- `{attackStyle weapon=Twisted bow}` / `{attackType weapon=...}`: the style or type you last used with that weapon this session.
-- `{loot <monster>, items=6, lines=2}`: how many items to list, and over how many lines.
-- `{loot <monster>, itemsOnly}`: only the items and how many of each, without the name, kill count or gp value.

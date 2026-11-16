@@ -59,6 +59,21 @@ public class RuneProfileCollectionLog
 			this.obtained = obtained;
 			this.items = items;
 		}
+
+		// This page with each item's quantity at least atLeast's (item ID -> quantity), e.g. drops RuneProfile
+		// hasn't synced yet.
+		public Page withAtLeast(Map<Integer, Integer> atLeast)
+		{
+			List<Item> merged = new ArrayList<>(items.size());
+			int count = 0;
+			for (Item item : items)
+			{
+				int quantity = Math.max(item.quantity, atLeast.getOrDefault(item.id, 0));
+				merged.add(new Item(item.id, quantity));
+				count += quantity > 0 ? 1 : 0;
+			}
+			return new Page(name, count, Collections.unmodifiableList(merged));
+		}
 	}
 
 	public static final class Item

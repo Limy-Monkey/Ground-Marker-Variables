@@ -33,6 +33,7 @@ import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
 import com.groundmarkervariables.variables.support.DpsTracker;
+import com.groundmarkervariables.variables.support.LootSessions;
 import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -118,6 +121,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private static final int REFRESH_DISTANCE = 40;
 	private static final String MANAGE_COMMAND = "manageGroundMarkerVariables";
 	private static final String MANAGE_COMMAND_SHORT = "manageGMV";
+	// {lootSession <monster>...}: its monster, for Tile Variables' Reset Session.
+	private static final Pattern LOOT_SESSION_TOKEN = Pattern.compile("\\{lootSession\\s+([^{}?:<>=!,]+)", Pattern.CASE_INSENSITIVE);
 
 	// Config keys shared verbatim between core's config group and our own "Ground Markers"
 	// section — see migrateConfigFromCore().
@@ -254,6 +259,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 
 	@Inject
 	private DpsTracker dpsTracker;
+
+	@Inject
+	private LootSessions lootSessions;
 
 	@Inject
 	private RuneProfileCollectionLog runeProfileCollectionLog;
@@ -502,6 +510,22 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 			submenu = addVariableOption(submenu, "Export to Chat", "DPS", () -> dpsTracker.exportToChat(tile));
 			submenu = addVariableOption(submenu, "Export Report", "DPS", () -> dpsTracker.exportReport(tile));
 			submenu = addVariableOption(submenu, "Export Raw Data", "DPS", () -> dpsTracker.exportRawData(tile));
+		}
+
+		// "Reset Session" for each {lootSession <monster>} in the label, once per monster.
+		Set<String> sessions = new HashSet<>();
+		Matcher session = LOOT_SESSION_TOKEN.matcher(label);
+		while (session.find())
+		{
+			String monster = session.group(1).trim();
+			if (!monster.isEmpty() && sessions.add(monster.toLowerCase(Locale.ROOT)))
+			{
+				submenu = addVariableOption(submenu, "Reset Session", monster, () ->
+				{
+					lootSessions.reset(monster);
+					refreshNearbyMarkers();
+				});
+			}
 		}
 
 		CachedMarker marker = markerAt(tile);

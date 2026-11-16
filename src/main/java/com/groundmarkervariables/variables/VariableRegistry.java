@@ -46,6 +46,7 @@ public class VariableRegistry
 		SlayerStreakLabelVariable slayerStreak,
 		SlayerPointsLabelVariable slayerPoints,
 		LootLabelVariable loot,
+		LootSessionLabelVariable lootSession,
 		LogLabelVariable log,
 		CombatAchievementsLabelVariable combatAchievements,
 		NumItemLabelVariable numItem,
@@ -70,7 +71,7 @@ public class VariableRegistry
 		this.variables = List.of(
 			rsn, spellbook, hasSpell, weapon, skillLevel, boostedSkillLevel,
 			attackStyle, attackType, autocast, dps, hasItem, showItems, runePouch, miscellania, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
-			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, log, combatAchievements, numItem, numDoses, charges, xp, rank,
+			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, lootSession, log, combatAchievements, numItem, numDoses, charges, xp, rank,
 			party, partyNum, readyCheck, divine, world, hasSurge, hasBarrage, active, invSpace, group, quickPrayers);
 	}
 

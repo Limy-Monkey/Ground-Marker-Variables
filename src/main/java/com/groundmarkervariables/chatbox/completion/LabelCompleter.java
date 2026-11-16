@@ -5,13 +5,13 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
-import com.groundmarkervariables.variables.label.LootLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.ItemCharges;
+import com.groundmarkervariables.variables.support.LootTrackerRecords;
 import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.WeaponStyleTracker;
 import java.time.Instant;
@@ -124,13 +124,17 @@ public class LabelCompleter
 		.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
-	// {loot <monster>[, items=N][, lines=N][, itemsOnly]}: monsters Loot Tracker has recorded, most recent first.
+	// {loot <monster>[, items=N][, itemsPerLine=N][, oneline][, hideVal][, showItem=<name>]...[, itemsOnly]}: monsters Loot Tracker has recorded, most
+	// recent first. The old lines=N still counts as an option, so it isn't taken as part of a name.
 	private static final String LOOT_PREFIX = "loot ";
+	private static final String LOOT_SESSION_PREFIX = "lootSession ";
 	private static final String LOOT_TRACKER_GROUP = "loottracker";
 	private static final String LOOT_KEY_PREFIX = "drops_";
-	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|(?:items|lines)=\\d+)", Pattern.CASE_INSENSITIVE);
-	// "lines" completes straight to lines=2, since 1 is the default.
+	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|oneline|hideVal|showItem=[^,{}?:<>=!]*|(?:items|itemsPerLine|lines)=\\d+)",
+		Pattern.CASE_INSENSITIVE);
 	private static final List<String> LOOT_OPTIONS = VariableCatalog.completions("loot");
+	// "<monster and options>, showItem=<value being typed>".
+	private static final Pattern SHOW_ITEM_VALUE = Pattern.compile("(?i)^(.*?),\\s*showItem=([^,{}?:<>=!]*)$");
 
 	// {log <page>[, missing][, noicons][, iconsOnly][, itemsPerLine=N][, maxItems=N]}: the collection log's pages.
 	private static final String LOG_PREFIX = "log ";
@@ -237,6 +241,7 @@ public class LabelCompleter
 	private final IconNames iconNames;
 	private final CollectionLog collectionLog;
 	private final ItemCharges itemCharges;
+	private final LootTrackerRecords lootTrackerRecords;
 	private final LabelResolver labelResolver;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
@@ -244,11 +249,13 @@ public class LabelCompleter
 	private final Map<String, Optional<Completion.Icon>> icons = new HashMap<>();
 	// {charges <item>,}: the names of what each container holds, by lowercase item (see completeChargesOption()).
 	private final Map<String, List<String>> storedItemNames = new ConcurrentHashMap<>();
+	// {loot <monster>, showItem=}: the names of what each monster dropped, by lowercase monster (see completeLootedItem()).
+	private final Map<String, List<String>> lootedItemNames = new ConcurrentHashMap<>();
 
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
 		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
-		LabelResolver labelResolver)
+		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver)
 	{
 		this.config = config;
 		this.configManager = configManager;
@@ -258,6 +265,7 @@ public class LabelCompleter
 		this.iconNames = iconNames;
 		this.collectionLog = collectionLog;
 		this.itemCharges = itemCharges;
+		this.lootTrackerRecords = lootTrackerRecords;
 		this.labelResolver = labelResolver;
 		this.rules = rules();
 	}
@@ -593,7 +601,8 @@ public class LabelCompleter
 		list.add(pattern(WEAPON_OPTION, m -> described(completeWord(m.group(2), WEAPON_OPTION_NAME, false),
 			m.group(1).replaceAll("[\\s,]+$", ""))));
 		list.add(prefix(PB_PREFIX, false, rest -> completeBoss(rest, PB_PREFIX, false)));
-		list.add(prefix(LOOT_PREFIX, true, this::completeLootMonster));
+		list.add(prefix(LOOT_PREFIX, true, rest -> completeLootMonster(rest, LOOT_PREFIX)));
+		list.add(prefix(LOOT_SESSION_PREFIX, true, rest -> completeLootMonster(rest, LOOT_SESSION_PREFIX)));
 		list.add(prefix(LOG_PREFIX, true, this::completeLogPage));
 		list.add(prefix(METRONOME_NAME, false, this::completeMetronomeParams));
 		// "m" alias: only once a digit or +/- follows, so "{mis..." still completes to miscellania.
@@ -889,9 +898,16 @@ public class LabelCompleter
 	}
 
 	// Loot Tracker's monsters (and their BossAliases short names, combined monsters, and players if any were
-	// killed); after a full name, an option.
-	private Completion completeLootMonster(String partial)
+	// killed); after a full name, an option. prefix is "loot " or "lootSession "; both take {loot}'s options.
+	private Completion completeLootMonster(String partial, String prefix)
 	{
+		Matcher showItem = SHOW_ITEM_VALUE.matcher(partial);
+		if (showItem.matches())
+		{
+			String monster = LOOT_OPTION.matcher(showItem.group(1)).replaceAll("").replaceAll("[\\s,]+$", "");
+			return completeLootedItem(monster, showItem.group(2), prefix);
+		}
+
 		List<String> monsters = lootMonsters();
 		Set<String> names = new LinkedHashSet<>();
 		for (String monster : monsters)
@@ -905,20 +921,20 @@ public class LabelCompleter
 				}
 			}
 		}
-		for (Map.Entry<String, List<String>> combined : LootLabelVariable.COMBINED_MONSTERS.entrySet())
+		for (Map.Entry<String, List<String>> combined : LootTrackerRecords.COMBINED_MONSTERS.entrySet())
 		{
 			if (monsters.stream().anyMatch(monster -> combined.getValue().stream().anyMatch(monster::equalsIgnoreCase)))
 			{
 				names.add(combined.getKey());
 			}
 		}
-		String playerKeyPrefix = LOOT_KEY_PREFIX + LootLabelVariable.PLAYER_TYPE + "_";
+		String playerKeyPrefix = LOOT_KEY_PREFIX + LootTrackerRecords.PLAYER_TYPE + "_";
 		if (!configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, configManager.getRSProfileKey(), playerKeyPrefix).isEmpty())
 		{
-			names.addAll(LootLabelVariable.PLAYER_NAMES);
+			names.addAll(LootTrackerRecords.PLAYER_NAMES);
 		}
 
-		Completion name = withIcons(match(partial, names, "{" + LOOT_PREFIX, "", "}", false), LabelCompleter::bossIcon);
+		Completion name = withIcons(match(partial, names, "{" + prefix, "", "}", false), LabelCompleter::bossIcon);
 		int split = Math.max(partial.lastIndexOf(' '), partial.lastIndexOf(','));
 		if (split >= 0)
 		{
@@ -936,6 +952,24 @@ public class LabelCompleter
 			}
 		}
 		return withOptions(name, partial, names, LOOT_OPTIONS, LOOT_PREFIX);
+	}
+
+	// showItem=<value>: the names of the items monster has dropped. Looked up where they can be (client thread) and
+	// saved for Tab to use elsewhere.
+	@Nullable
+	private Completion completeLootedItem(String monster, String value, String prefix)
+	{
+		String key = monster.toLowerCase(Locale.ROOT);
+		List<String> looted = lootTrackerRecords.itemNames(monster);
+		if (looted != null)
+		{
+			lootedItemNames.put(key, looted);
+		}
+		else
+		{
+			looted = lootedItemNames.getOrDefault(key, List.of());
+		}
+		return withIcons(match(value.replaceFirst("^\\s+", ""), looted, "{" + prefix, "", null, false), item -> "<item=" + item + ">");
 	}
 
 	// Every monster Loot Tracker has recorded loot for, most recent first.
