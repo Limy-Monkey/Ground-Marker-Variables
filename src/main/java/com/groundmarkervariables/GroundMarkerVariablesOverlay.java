@@ -1,8 +1,10 @@
 package com.groundmarkervariables;
 
+import com.google.common.cache.CacheBuilder;
 import com.groundmarkervariables.graphics.GroundImageRenderer;
 import com.groundmarkervariables.graphics.GroundModelRenderer;
 import com.groundmarkervariables.graphics.ItemModels;
+import com.groundmarkervariables.graphics.LoadingImages;
 import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.markers.CachedMarker;
@@ -62,7 +64,6 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
-import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 
@@ -157,17 +158,16 @@ public class GroundMarkerVariablesOverlay
 	@Nullable
 	private String openTip;
 
-	// Keyed by the (already cached) flag, emoji, sprite or item image.
-	private final Map<BufferedImage, BufferedImage> scaledIcons = new IdentityHashMap<>();
-	// Keyed by the original image, then brightness.
-	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons = new IdentityHashMap<>();
+	// Keyed by the (already cached) flag, emoji, sprite or item image. Weak keys, by identity.
+	private final Map<BufferedImage, BufferedImage> scaledIcons = CacheBuilder.newBuilder().weakKeys().<BufferedImage, BufferedImage>build().asMap();
+	// Keyed by the original image, then brightness. Weak keys, by identity.
+	private final Map<BufferedImage, Map<Integer, BufferedImage>> dimmedIcons =
+		CacheBuilder.newBuilder().weakKeys().<BufferedImage, Map<Integer, BufferedImage>>build().asMap();
 	// {split} icons, keyed by their parts (BufferedImage equality is identity).
 	private final Map<List<BufferedImage>, BufferedImage> splitIcons = new HashMap<>();
 	// {ground} icon rows, keyed the same way.
 	private final Map<List<BufferedImage>, BufferedImage> groundRows = new HashMap<>();
 	// {ground} text images, keyed by font, color and the {ground} label; least recently used dropped.
-	// Each {ground} text image's shadow; weak, so it goes with its text image.
-	private final Map<BufferedImage, BufferedImage> groundShadows = new WeakHashMap<>();
 	private final Map<BufferedImage, BufferedImage> silhouettes = new WeakHashMap<>();
 	private final Map<String, BufferedImage> groundTexts = new LinkedHashMap<String, BufferedImage>(16, 0.75f, true)
 	{
@@ -443,37 +443,28 @@ public class GroundMarkerVariablesOverlay
 		{
 			// A row already holds each icon at its own sampling, so it's drawn smooth.
 			BufferedImage image = icons.size() == 1 ? icons.get(0) : groundRow(icons);
-			drawLifted(graphics, localPoint, plane, image, config.parallaxIcons() ? image : null,
+			drawLifted(graphics, localPoint, plane, image, config.parallaxIcons(), 0,
 				icons.size() > 1 || smoothImages.contains(image), opacity, facing, iconNorth, size, iconSize);
 		}
 		drawText.run();
 	}
 
-	// image flat on the tile over its shadow (shadow drawn black), or with Parallax icons, the shadow just under the
-	// ground, seen through the tile only (clipped to it), and the image just over it, so they part with the camera angle.
-	private void drawLifted(Graphics2D graphics, LocalPoint localPoint, int plane, BufferedImage image, @Nullable BufferedImage shadow,
+	// image flat on the tile, with shadow over a black copy of it moved shift image px right and down. With Parallax
+	// icons the shadow is just under the ground, seen through the tile only (clipped to it), and the image just over it,
+	// so they part with the camera angle. The image is rendered once and the shadow made from it.
+	private void drawLifted(Graphics2D graphics, LocalPoint localPoint, int plane, BufferedImage image, boolean shadow, int shift,
 		boolean smooth, float opacity, int facing, double offsetNorth, double width, double height)
 	{
-		if (!config.parallaxIcons())
+		boolean parallax = config.parallaxIcons();
+		int lift = parallax ? GROUND_LIFT : 0;
+		Polygon tile = shadow && parallax ? Perspective.getCanvasTilePoly(client, localPoint) : null;
+		if (shadow && (!parallax || tile != null))
 		{
-			if (shadow != null)
-			{
-				groundImageRenderer.draw(graphics, localPoint, plane, shadow, smooth, opacity, facing, offsetNorth, width, height, 0, true);
-			}
-			groundImageRenderer.draw(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height);
+			groundImageRenderer.drawWithShadow(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height, lift,
+				parallax ? -GROUND_SHADOW_DROP : 0, shift, tile);
 			return;
 		}
-
-		Polygon tile = shadow == null ? null : Perspective.getCanvasTilePoly(client, localPoint);
-		if (tile != null)
-		{
-			Graphics2D clipped = (Graphics2D) graphics.create();
-			clipped.clip(tile);
-			groundImageRenderer.draw(clipped, localPoint, plane, shadow, smooth, opacity, facing, offsetNorth, width, height, -GROUND_SHADOW_DROP,
-				true);
-			clipped.dispose();
-		}
-		groundImageRenderer.draw(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height, GROUND_LIFT);
+		groundImageRenderer.draw(graphics, localPoint, plane, image, smooth, opacity, facing, offsetNorth, width, height, lift);
 	}
 
 	// The text in a width x height box offsetNorth north of the tile's center, textScale local units per text px. Drawn
@@ -487,16 +478,23 @@ public class GroundMarkerVariablesOverlay
 		resolution = Math.pow(2, Math.round(Math.log(resolution) / Math.log(2) * 4) / 4.0);
 		resolution = Math.max(MIN_GROUND_TEXT_RESOLUTION, Math.min(MAX_GROUND_TEXT_RESOLUTION, resolution));
 		BufferedImage image = groundText(graphics, lines, color, label, resolution);
-		BufferedImage shadow = image == null ? null : groundShadows.get(image);
-		if (image != null && shadow != null)
+		if (image != null)
 		{
-			drawLifted(graphics, localPoint, plane, image, shadow, true, opacity, facing, offsetNorth, width, height);
+			// The shadow one text px right and down, as label text's is.
+			drawLifted(graphics, localPoint, plane, image, true, groundTextShadowOffset(resolution), true, opacity, facing, offsetNorth,
+				width, height);
 		}
 	}
 
+	// One text px, in a ground text image's px.
+	private static int groundTextShadowOffset(double resolution)
+	{
+		return Math.max(1, (int) Math.round(resolution));
+	}
+
 	// The text lines as labels draw them (colors, {b}/{i}, tables) but without a shadow, centered on a transparent image,
-	// resolution image px per text px; its shadow, the same size, goes in groundShadows. Cached by font, color and label
-	// (which the lines come from), and resolution.
+	// resolution image px per text px, with room right and below for the shadow drawn from it. Cached by font, color and
+	// label (which the lines come from), and resolution.
 	@Nullable
 	private BufferedImage groundText(Graphics2D graphics, List<List<Object>> lines, Color color, String label, double resolution)
 	{
@@ -553,25 +551,13 @@ public class GroundMarkerVariablesOverlay
 			return null;
 		}
 
-		// Both images grown by the shadow's offset (1 text px), the shadow a black copy of the text moved by it.
-		int offset = Math.max(1, (int) Math.round(resolution));
+		// Grown by the shadow's offset (1 text px), so the text keeps its place and size as before.
+		int offset = groundTextShadowOffset(resolution);
 		image = new BufferedImage(glyphs.getWidth() + offset, glyphs.getHeight() + offset, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D textGraphics = image.createGraphics();
 		textGraphics.drawImage(glyphs, 0, 0, null);
 		textGraphics.dispose();
-		BufferedImage shadow = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
-		int[] row = new int[glyphs.getWidth()];
-		for (int y = 0; y < glyphs.getHeight(); y++)
-		{
-			glyphs.getRGB(0, y, row.length, 1, row, 0, row.length);
-			for (int x = 0; x < row.length; x++)
-			{
-				row[x] &= 0xFF000000;
-			}
-			shadow.setRGB(offset, y + offset, row.length, 1, row, 0, row.length);
-		}
 		groundTexts.put(key, image);
-		groundShadows.put(image, shadow);
 		return image;
 	}
 
@@ -669,10 +655,7 @@ public class GroundMarkerVariablesOverlay
 			graphics.drawImage(source, x, 0, iconWidth, height, null);
 			x += iconWidth + gap;
 			// An item image still loading is drawn into later.
-			if (icon instanceof AsyncBufferedImage)
-			{
-				((AsyncBufferedImage) icon).onLoaded(() -> groundRows.remove(icons));
-			}
+			LoadingImages.whenLoaded(icon, () -> groundRows.remove(icons));
 		}
 		graphics.dispose();
 		groundRows.put(icons, row);
@@ -1167,10 +1150,7 @@ public class GroundMarkerVariablesOverlay
 		if (dimmed == null)
 		{
 			dimmed = ImageUtil.luminanceScale(image, brightness / 100f);
-			if (image instanceof AsyncBufferedImage)
-			{
-				((AsyncBufferedImage) image).onLoaded(() -> dimmedIcons.remove(image));
-			}
+			LoadingImages.whenLoaded(image, () -> dimmedIcons.remove(image));
 			dimmedIcons.computeIfAbsent(image, i -> new HashMap<>()).put(brightness, dimmed);
 		}
 		return dimmed;
@@ -1206,10 +1186,7 @@ public class GroundMarkerVariablesOverlay
 			int width = Math.round(icon.getWidth() * textHeight / (float) icon.getHeight());
 			scaled = ImageUtil.resizeImage(icon, width, textHeight);
 			// An item image still loading is drawn into later.
-			if (icon instanceof AsyncBufferedImage)
-			{
-				((AsyncBufferedImage) icon).onLoaded(() -> scaledIcons.remove(icon));
-			}
+			LoadingImages.whenLoaded(icon, () -> scaledIcons.remove(icon));
 			scaledIcons.put(icon, scaled);
 		}
 		return scaled;
@@ -1591,10 +1568,7 @@ public class GroundMarkerVariablesOverlay
 		// An item image still loading is drawn into later.
 		for (BufferedImage part : parts)
 		{
-			if (part instanceof AsyncBufferedImage)
-			{
-				((AsyncBufferedImage) part).onLoaded(() -> splitIcons.remove(parts));
-			}
+			LoadingImages.whenLoaded(part, () -> splitIcons.remove(parts));
 		}
 		splitIcons.put(parts, split);
 		return split;

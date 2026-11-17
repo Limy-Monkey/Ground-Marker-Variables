@@ -1,6 +1,7 @@
 package com.groundmarkervariables.chatbox;
 
 import com.groundmarkervariables.chatbox.completion.Completion;
+import com.groundmarkervariables.graphics.LoadingImages;
 import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.support.Emojis;
@@ -11,12 +12,10 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -30,7 +29,6 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
-import net.runelite.client.util.AsyncBufferedImage;
 
 // The Advanced Label Editor's suggestion icons, drawn over their (empty) placeholder widgets: widgets can only scale
 // an icon blockily, Java2D smoothly. Empty unless the editor has shown some.
@@ -82,7 +80,6 @@ public class SuggestionIconOverlay extends Overlay
 	private final Map<String, BufferedImage> swatches = new HashMap<>();
 	// Keyed by the source image, then shrunk to the placeholder's size. Client thread only.
 	private final Map<BufferedImage, BufferedImage> scaled = new IdentityHashMap<>();
-	private final Set<BufferedImage> watched = Collections.newSetFromMap(new IdentityHashMap<>());
 	// Split icons, by the (per-editor cached) icon. Client thread only.
 	private final Map<Completion.Icon, BufferedImage> composed = new IdentityHashMap<>();
 
@@ -114,7 +111,6 @@ public class SuggestionIconOverlay extends Overlay
 		placements = List.of();
 		tips = List.of();
 		scaled.clear();
-		watched.clear();
 		composed.clear();
 	}
 
@@ -131,10 +127,12 @@ public class SuggestionIconOverlay extends Overlay
 			}
 			Rectangle bounds = new Rectangle(placement.area);
 			bounds.translate(container.x, container.y);
-			BufferedImage image = scaled.computeIfAbsent(source, s -> shrink(s, bounds.width, bounds.height));
-			if (source instanceof AsyncBufferedImage && watched.add(source))
+			BufferedImage image = scaled.get(source);
+			if (image == null)
 			{
-				((AsyncBufferedImage) source).onLoaded(() -> scaled.remove(source));
+				image = shrink(source, bounds.width, bounds.height);
+				scaled.put(source, image);
+				LoadingImages.whenLoaded(source, () -> scaled.remove(source));
 			}
 			// Cut off where the chatbox cuts off its widgets.
 			Graphics2D clipped = (Graphics2D) graphics.create();
@@ -188,8 +186,7 @@ public class SuggestionIconOverlay extends Overlay
 		{
 			composed.put(icon, image);
 			// An item image still loading is drawn into later.
-			parts.stream().filter(AsyncBufferedImage.class::isInstance)
-				.forEach(part -> ((AsyncBufferedImage) part).onLoaded(() -> composed.remove(icon)));
+			parts.forEach(part -> LoadingImages.whenLoaded(part, () -> composed.remove(icon)));
 		}
 		return image;
 	}

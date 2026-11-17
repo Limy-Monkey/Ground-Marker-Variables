@@ -1,28 +1,28 @@
 package com.groundmarkervariables.graphics;
 
+import com.google.common.cache.CacheBuilder;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.client.util.AsyncBufferedImage;
 
 // {ground}: an image drawn flat on a tile, top to the north. The tile is cut into cells whose corners are
-// projected separately (so it follows slopes and perspective), each cell drawn as two affine-mapped triangles.
+// projected separately (so it follows slopes and perspective), each cell drawn with one affine transform.
 @Singleton
 public class GroundImageRenderer
 {
@@ -30,17 +30,20 @@ public class GroundImageRenderer
 	private static final int MARGIN = 8;
 	public static final int SIZE = Perspective.LOCAL_TILE_SIZE - MARGIN * 2;
 	private static final int CELLS = 4;
-	// Each triangle's clip is grown this many px, hiding hairline gaps between neighbours.
-	private static final double GROW = 0.7;
 	private static final int MAX_UPSCALE = 8;
-	// Keyed by the (already cached) source image, then factor.
-	private static final Map<BufferedImage, Map<Integer, BufferedImage>> UPSCALED = new IdentityHashMap<>();
+	// Pixels per local unit along a shadow's shift is measured across this many local units.
+	private static final int SHIFT_PROBE = 64;
+	// Keyed by the (already cached) source image, then factor. Weak keys, by identity.
+	private static final Map<BufferedImage, Map<Integer, BufferedImage>> UPSCALED =
+		CacheBuilder.newBuilder().weakKeys().<BufferedImage, Map<Integer, BufferedImage>>build().asMap();
 	// Keyed by the (already cached) emoji image, icon row or text image; weak, as text images come and go.
 	private static final Map<BufferedImage, BufferedImage> PADDED = new WeakHashMap<>();
 
 	private final Client client;
-	// Triangles are drawn here with Src, so overlaps overwrite rather than double up, then blended once.
+	// Cells are drawn here with Src, so overlaps overwrite rather than double up, then blended once.
 	private BufferedImage buffer;
+	// A black copy of buffer, for a shadow.
+	private BufferedImage shadowBuffer;
 
 	@Inject
 	private GroundImageRenderer(Client client)
@@ -96,12 +99,80 @@ public class GroundImageRenderer
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
 		int facing, double offsetNorth, double width, double height, int lift)
 	{
-		draw(graphics, center, plane, image, smooth, opacity, facing, offsetNorth, width, height, lift, false);
+		Rectangle bounds = render(center, plane, image, smooth, facing, offsetNorth, width, height, lift);
+		if (bounds != null)
+		{
+			blit(graphics, buffer, bounds.x, bounds.y, bounds, opacity);
+		}
 	}
 
-	// As above, black (only the image's alpha kept) if silhouette.
-	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
-		int facing, double offsetNorth, double width, double height, int lift, boolean silhouette)
+	// As above, over a black copy of it: at shadowLift instead, moved shift image px right and down (turned with the
+	// image), and drawn only inside shadowClip (null: anywhere). Rendered once, the shadow made from it.
+	public void drawWithShadow(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
+		int facing, double offsetNorth, double width, double height, int lift, int shadowLift, int shift, @Nullable Shape shadowClip)
+	{
+		Rectangle bounds = render(center, plane, image, smooth, facing, offsetNorth, width, height, lift);
+		if (bounds == null)
+		{
+			return;
+		}
+
+		// The image's center at each height; the shift (local units) as screen px, measured across SHIFT_PROBE units.
+		double shiftUnits = shift * Math.min(width / image.getWidth(), height / image.getHeight());
+		LocalPoint at = turned(center, 0, offsetNorth, facing);
+		Point from = Perspective.localToCanvas(client, at, plane, lift);
+		Point to = Perspective.localToCanvas(client, at, plane, shadowLift);
+		Point probe = Perspective.localToCanvas(client, turned(center, SHIFT_PROBE, offsetNorth - SHIFT_PROBE, facing), plane, shadowLift);
+		if (from != null && to != null && probe != null)
+		{
+			double perUnit = shiftUnits / SHIFT_PROBE;
+			int dx = to.getX() - from.getX() + (int) Math.round((probe.getX() - to.getX()) * perUnit);
+			int dy = to.getY() - from.getY() + (int) Math.round((probe.getY() - to.getY()) * perUnit);
+			Graphics2D shadowGraphics = (Graphics2D) graphics.create();
+			if (shadowClip != null)
+			{
+				shadowGraphics.clip(shadowClip);
+			}
+			blit(shadowGraphics, blackened(bounds), bounds.x + dx, bounds.y + dy, bounds, opacity);
+			shadowGraphics.dispose();
+		}
+		blit(graphics, buffer, bounds.x, bounds.y, bounds, opacity);
+	}
+
+	// source's top-left bounds-sized area drawn at x, y.
+	private static void blit(Graphics2D graphics, BufferedImage source, int x, int y, Rectangle bounds, float opacity)
+	{
+		Composite original = graphics.getComposite();
+		if (opacity < 1f)
+		{
+			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+		}
+		graphics.drawImage(source, x, y, x + bounds.width, y + bounds.height, 0, 0, bounds.width, bounds.height, null);
+		graphics.setComposite(original);
+	}
+
+	// A black copy (alpha kept) of buffer's bounds-sized area, in shadowBuffer.
+	private BufferedImage blackened(Rectangle bounds)
+	{
+		if (shadowBuffer == null || shadowBuffer.getWidth() < bounds.width || shadowBuffer.getHeight() < bounds.height)
+		{
+			shadowBuffer = new BufferedImage(Math.max(bounds.width, buffer.getWidth()), Math.max(bounds.height, buffer.getHeight()),
+				BufferedImage.TYPE_INT_ARGB);
+		}
+		Graphics2D g = shadowBuffer.createGraphics();
+		g.setComposite(AlphaComposite.Src);
+		g.drawImage(buffer, 0, 0, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height, null);
+		g.setComposite(AlphaComposite.SrcIn);
+		g.setColor(Color.BLACK);
+		g.fillRect(0, 0, bounds.width, bounds.height);
+		g.dispose();
+		return shadowBuffer;
+	}
+
+	// image projected into buffer (its top-left at the returned screen bounds); null if off screen.
+	@Nullable
+	private Rectangle render(LocalPoint center, int plane, BufferedImage image, boolean smooth, int facing, double offsetNorth,
+		double width, double height, int lift)
 	{
 		double scale = Math.min(width / image.getWidth(), height / image.getHeight());
 		// Smooth sampling stops hard at the image's edge, so pixels touching it would end in a straight cut; a
@@ -136,7 +207,7 @@ public class GroundImageRenderer
 			.intersection(new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight()));
 		if (minX > maxX || bounds.isEmpty())
 		{
-			return;
+			return null;
 		}
 
 		// Blown up so each source pixel spans a few screen pixels, then sampled smoothly: crisp, even pixels.
@@ -160,27 +231,11 @@ public class GroundImageRenderer
 				{
 					continue;
 				}
-				double u0 = col * cellW, u1 = u0 + cellW, v0 = row * cellH, v1 = v0 + cellH;
-				drawTriangle(bg, image, u0, v0, u1, v0, u0, v1, nw, ne, sw);
-				drawTriangle(bg, image, u1, v0, u1, v1, u0, v1, ne, se, sw);
+				drawCell(bg, image, col * cellW, row * cellH, cellW, cellH, nw, ne, sw);
 			}
 		}
-		if (silhouette)
-		{
-			bg.setComposite(AlphaComposite.SrcIn);
-			bg.setColor(Color.BLACK);
-			bg.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-		}
 		bg.dispose();
-
-		Composite original = graphics.getComposite();
-		if (opacity < 1f)
-		{
-			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
-		}
-		graphics.drawImage(buffer, bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height,
-			0, 0, bounds.width, bounds.height, null);
-		graphics.setComposite(original);
+		return bounds;
 	}
 
 	// The shared buffer, grown if needed and cleared over the area used.
@@ -230,59 +285,27 @@ public class GroundImageRenderer
 			g.drawImage(image, 0, 0, scaled.getWidth(), scaled.getHeight(), null);
 			g.dispose();
 			// An item image still loading is drawn into later.
-			if (image instanceof AsyncBufferedImage)
-			{
-				((AsyncBufferedImage) image).onLoaded(() -> UPSCALED.remove(image));
-			}
+			LoadingImages.whenLoaded(image, () -> UPSCALED.remove(image));
 			UPSCALED.computeIfAbsent(image, i -> new HashMap<>()).put(factor, scaled);
 		}
 		return scaled;
 	}
 
-	// Maps image triangle (u, v) onto canvas triangle (A, B, C).
-	private static void drawTriangle(Graphics2D graphics, BufferedImage image, double ua, double va, double ub, double vb, double uc, double vc,
-		Point a, Point b, Point c)
+	// The image's u, v, w x h cell onto the parallelogram nw, ne, sw (its fourth corner where those three put it), no clip:
+	// with a source px of margin, so neighbouring cells overlap rather than leave hairline gaps.
+	private static void drawCell(Graphics2D graphics, BufferedImage image, double u, double v, double w, double h, Point nw, Point ne, Point sw)
 	{
-		double ux = ub - ua, uy = vb - va, vx = uc - ua, vy = vc - va;
-		double det = ux * vy - uy * vx;
-		if (det == 0)
+		int x0 = Math.max(0, (int) Math.floor(u) - 1), y0 = Math.max(0, (int) Math.floor(v) - 1);
+		int x1 = Math.min(image.getWidth(), (int) Math.ceil(u + w) + 1), y1 = Math.min(image.getHeight(), (int) Math.ceil(v + h) + 1);
+		if (x1 <= x0 || y1 <= y0)
 		{
 			return;
 		}
-		double i00 = vy / det, i01 = -vx / det, i10 = -uy / det, i11 = ux / det;
-		double bx = b.getX() - a.getX(), by = b.getY() - a.getY();
-		double cx = c.getX() - a.getX(), cy = c.getY() - a.getY();
-		AffineTransform transform = new AffineTransform(bx * i00 + cx * i10, by * i00 + cy * i10, bx * i01 + cx * i11, by * i01 + cy * i11,
-			a.getX(), a.getY());
-		transform.translate(-ua, -va);
-
-		Graphics2D g = (Graphics2D) graphics.create();
-		g.clip(grown(a, b, c));
-		g.drawImage(image, transform, null);
-		g.dispose();
-	}
-
-	// The triangle grown GROW px out from its centroid.
-	private static Path2D grown(Point a, Point b, Point c)
-	{
-		double mx = (a.getX() + b.getX() + c.getX()) / 3.0, my = (a.getY() + b.getY() + c.getY()) / 3.0;
-		Path2D.Double path = new Path2D.Double();
-		Point[] points = {a, b, c};
-		for (int i = 0; i < points.length; i++)
-		{
-			double dx = points[i].getX() - mx, dy = points[i].getY() - my;
-			double length = Math.max(1e-6, Math.hypot(dx, dy));
-			double x = points[i].getX() + dx / length * GROW, y = points[i].getY() + dy / length * GROW;
-			if (i == 0)
-			{
-				path.moveTo(x, y);
-			}
-			else
-			{
-				path.lineTo(x, y);
-			}
-		}
-		path.closePath();
-		return path;
+		// Image (u, v) to nw, (u + w, v) to ne, (u, v + h) to sw.
+		double ax = (ne.getX() - nw.getX()) / w, ay = (ne.getY() - nw.getY()) / w;
+		double bx = (sw.getX() - nw.getX()) / h, by = (sw.getY() - nw.getY()) / h;
+		AffineTransform transform = new AffineTransform(ax, ay, bx, by, nw.getX() - ax * u - bx * v, nw.getY() - ay * u - by * v);
+		transform.translate(x0, y0);
+		graphics.drawImage(image.getSubimage(x0, y0, x1 - x0, y1 - y0), transform, null);
 	}
 }
