@@ -75,6 +75,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
 	private static final int UNDO_BUTTON_WIDTH = 12;
 	private static final int SHRINK_BUTTON_WIDTH = 12;
+	// Labels this long get a ⚠️ (U+26A0) in the prompt row's left, showing the count on hover.
+	private static final int LONG_LABEL = 10_000;
+	private static final String WARNING_EMOJI = "26a0";
 
 	// For underlining only — matches <col=HEX|NAME>, {col=HEX|NAME}, </col> and {/col} (no groups means </col> or
 	// {/col}, both reverting to the tile's own color).
@@ -880,6 +883,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		followCaret(wrappedLines);
 
 		buildTopBar(container);
+		buildLengthWarning(container);
 
 		fontID(editorFontId());
 		int before = container.getDynamicChildren().length;
@@ -966,6 +970,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			addHoverHighlight(shrink, 0x000000);
 			shrink.revalidate();
 		}
+	}
+
+	// ⚠️ at the prompt row's left once the label reaches LONG_LABEL characters, its tooltip the count used.
+	private void buildLengthWarning(Widget container)
+	{
+		int length = getValue().length();
+		if (length < LONG_LABEL)
+		{
+			return;
+		}
+		Rectangle area = new Rectangle(TOP_BAR_GAP, 5 + (LINE_HEIGHT - ICON_HEIGHT) / 2, ICON_HEIGHT, ICON_HEIGHT);
+		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(WARNING_EMOJI)));
+		tips.add(new SuggestionIconOverlay.Tip(container, area, String.format("%,d characters used", length)));
 	}
 
 	private void addHoverHighlight(Widget widget, int normalColor)

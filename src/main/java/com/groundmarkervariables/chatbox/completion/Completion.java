@@ -65,6 +65,12 @@ public final class Completion
 		{
 			return new Icon(Kind.SPLIT, "", List.copyOf(parts));
 		}
+
+		// An emoji by its hex codepoint, e.g. "26a0".
+		public static Icon emoji(String codepoint)
+		{
+			return new Icon(Kind.EMOJI, codepoint);
+		}
 	}
 
 	public final List<Option> options;
