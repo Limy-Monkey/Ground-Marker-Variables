@@ -4,14 +4,16 @@ Ground Markers with variables in their labels. [Join our Discord](https://discor
 
 Advanced usage details can be found in API format [here](https://limy-monkey.github.io/Ground-Marker-Variables/).
 
-<img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check
+<img width="450" height="440" alt="java_bE4E5Vp6Hu" src="https://github.com/user-attachments/assets/a80ad5c5-4c38-4194-81bb-a833a89f621b" /> <img width="294" height="142" alt="java_sUtnLw5YMI" src="https://github.com/user-attachments/assets/fa534035-80d0-4463-8d51-c77fdd729b5d" />
 
-```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align=left}{spellbook} {spellbook == Ancient ? -- {hasFreeze} : }{spellbook == Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo != Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
+https://github.com/user-attachments/assets/e49f5d67-f53d-44a5-882d-1d1f329d3044
 
-<br clear="left"/><br />
+
 
 <details>
 <summary>Variables</summary>
+
+### Full Docs: [link](https://limy-monkey.github.io/Ground-Marker-Variables/)
 
 **Formatting**
 
@@ -27,7 +29,11 @@ Advanced usage details can be found in API format [here](https://limy-monkey.git
 | `{hover}`, `{hoverOnly}…`, `{hoverHide}…`, `{tip=<text>}…{/tip}` | Hover background, hover-only / hidden text, tooltip |
 | `{setGroup <name>, <a>, <b>}` | Pick an option from the tile's Shift right-click menu |
 
-**Tile settings**: not allowed in conditionals, except conditionals that only use `{group}`.
+------------------------
+
+**Tile settings**: These variables modify the tile itself, not the label text.
+
+Not allowed in conditionals, except conditionals that only use `{group}`.
 
 | Token | Description |
 |---|---|
@@ -36,7 +42,13 @@ Advanced usage details can be found in API format [here](https://limy-monkey.git
 | `{borderWidth=2.5}` | Outline width, up to 10 |
 | `{ground}…{/ground}` | Icons inside drawn flat on the tile (not around a conditional either) |
 
-**Returns** is the Plain Text value used by conditions and math: Number works in math, Number\* only in comparisons. **Party** ✓ works for other members in `{party}`. **Icon** ✓ takes `icon` for an icon instead of text, e.g. `{weapon icon}`.
+------------------------
+
+**Variable List**
+
+- Returns: Type of `{^...}` - what gets used in conditions, math, etc
+- Party: Can be used inside `{party {var} }`
+- Icon: Has an icon option to display as icon `{... icon}`
 
 | Variable                                             | Returns         | Party | Icon | Description                                                                                                                                             |
 |------------------------------------------------------|-----------------|-------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -87,13 +99,19 @@ Advanced usage details can be found in API format [here](https://limy-monkey.git
 <summary>Managing markers</summary>
 
 - **Smart Save** (on by default) keeps `{variable}` labels separately, so core's Ground Markers shows those tiles without a label.
-- `::manageGroundMarkerVariables` opens the Manager to copy, delete and re-import markers.
+- `::manageGMV` opens the Manager to copy, delete and re-import markers.
 - Other plugins can resolve labels and draw tiles through us: see [PluginMessageHandler.java](https://github.com/Limy-Monkey/Ground-Marker-Variables/blob/master/src/main/java/com/groundmarkervariables/PluginMessageHandler.java).
 
 </details>
 
 <details>
 <summary>Gallery</summary>
+
+<img align="left" height="580" alt="image" src="https://github.com/user-attachments/assets/eb26eef6-03ae-4957-aa23-21602eab8ca7" /> ToB Entry Check
+
+```[{"regionId":14642,"regionX":13,"regionY":19,"z":0,"color":"#00FFFFFF","label":"{align=left}{spellbook} {spellbook == Ancient ? -- {hasFreeze} : }{spellbook == Arceuus ? -- {hasThralls} : } \\n {hasItem Salve} \\n {equip_ammo != Empty} \\n {hasItem Rune Pouch} \\n {autoRetaliate}"}]```
+
+<br clear="left"/><br />
 
 <img align="left" height="521" alt="image" src="https://github.com/user-attachments/assets/8ee3ee10-3ec6-473c-8b04-520e7a70dd53" /> Tombs of Amascut Loot
 
