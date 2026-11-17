@@ -3,6 +3,7 @@ package com.groundmarkervariables.chatbox;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.chatbox.completion.LabelCompleter;
+import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -89,9 +90,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
 	private static final Pattern BREAK_MATCHER = Pattern.compile("[^a-zA-Z0-9']");
-
-	// Every complete {...} token, up to one level of nesting — used by selectTokenAt().
-	private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{(?:[^{}]|\\{[^{}]*\\})*\\}");
 
 	// One row in the list: a section title (not selectable), a label (click fills the input; only Recent ones are
 	// removable, since Current/Nearby aren't backed by the saved recent-labels list), up to SUGGESTION_COLUMNS
@@ -447,18 +445,32 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return mouseEvent;
 	}
 
-	// Falls back to selecting the entire label if pos isn't inside a {...} token.
+	// The outermost complete {...} token around pos, at any nesting depth (an unclosed "{" is skipped); the entire
+	// label if none. A brace scan, not a regex: any token length works.
 	private void selectTokenAt(int pos)
 	{
-		Matcher matcher = TOKEN_PATTERN.matcher(getValue());
-		while (matcher.find())
+		String text = getValue();
+		int i = 0;
+		while (i < text.length())
 		{
-			if (pos >= matcher.start() && pos <= matcher.end())
+			if (text.charAt(i) != '{')
+			{
+				i++;
+				continue;
+			}
+			int close = ConditionalVariable.matchingBrace(text, i);
+			if (close < 0)
+			{
+				i++;
+				continue;
+			}
+			if (pos >= i && pos <= close + 1)
 			{
 				shiftSelectionAnchor = -1;
-				cursorAt(matcher.start(), matcher.end());
+				cursorAt(i, close + 1);
 				return;
 			}
+			i = close + 1;
 		}
 
 		selectAll();
