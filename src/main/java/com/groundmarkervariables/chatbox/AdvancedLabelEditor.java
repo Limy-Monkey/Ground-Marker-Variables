@@ -9,8 +9,10 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -70,7 +72,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int ICON_HEIGHT = 16;
 	private static final int ICON_GAP = 2;
 
-	// Shrink/Undo/"_"/"x", right-aligned in the prompt row.
+	// Shrink/Undo/Redo/"_"/"x", right-aligned in the prompt row.
 	private static final int TOP_BAR_GAP = 4;
 	private static final int CLOSE_BUTTON_WIDTH = 12;
 	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
@@ -194,6 +196,47 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// selection (where shift was first held down) — see keyPressed() for why this is needed.
 	private int shiftSelectionAnchor = -1;
 
+	// One edit: at position, removed became inserted; and the selection before and after.
+	private static final class Change
+	{
+		private final int position;
+		private final String removed;
+		private final String inserted;
+		private final int startBefore;
+		private final int endBefore;
+		private final int caretAfter;
+
+		private Change(int position, String removed, String inserted, int startBefore, int endBefore, int caretAfter)
+		{
+			this.position = position;
+			this.removed = removed;
+			this.inserted = inserted;
+			this.startBefore = startBefore;
+			this.endBefore = endBefore;
+			this.caretAfter = caretAfter;
+		}
+	}
+
+	// One Ctrl+Z step: the edits made without a STEP_PAUSE_MS gap, in order.
+	private static final class Step
+	{
+		private final List<Change> changes = new ArrayList<>();
+	}
+
+	private static final int MAX_UNDO_STEPS = 100;
+	// Edits closer together than this undo together.
+	private static final long STEP_PAUSE_MS = 3000;
+	private final Deque<Step> undoSteps = new ArrayDeque<>();
+	private final Deque<Step> redoSteps = new ArrayDeque<>();
+	// The text and selection as last recorded (see recordHistory()), when it last changed, and whether the newest
+	// undo step may still take edits.
+	@Nullable
+	private String recordedValue;
+	private int recordedStart;
+	private int recordedEnd;
+	private long lastEditAt;
+	private boolean stepOpen;
+
 	// Lazily cached — only ever touched from update() (key-typing/click/scroll triggered,
 	// all confirmed client-thread), never from mousePressed/mouseDragged. Cleared by
 	// toggleFontSize() to force a re-probe against the new font.
@@ -316,6 +359,20 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		}
 
 		int code = ev.getKeyCode();
+
+		if (ev.isControlDown() && (code == KeyEvent.VK_Z || code == KeyEvent.VK_Y))
+		{
+			ev.consume();
+			if (code == KeyEvent.VK_Z && !ev.isShiftDown())
+			{
+				undoStep();
+			}
+			else
+			{
+				redoStep();
+			}
+			return;
+		}
 
 		if (code == KeyEvent.VK_TAB || isCtrlSpace(ev))
 		{
@@ -854,6 +911,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	@Override
 	protected void update()
 	{
+		recordHistory();
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
 		iconPlacements.clear();
@@ -936,7 +994,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		iconOverlay.show(iconPlacements, tips);
 	}
 
-	// Undo (grayed out/unclickable once the value matches originalLabel), "_" (font size
+	// "<" undo (grayed out with nothing to undo), ">" redo (only while there's something to redo), "_" (font size
 	// toggle) and "x" (close without saving), right-aligned in the prompt row.
 	private void buildTopBar(Widget container)
 	{
@@ -958,7 +1016,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		fontToggle.revalidate();
 		rightX += FONT_TOGGLE_BUTTON_WIDTH + TOP_BAR_GAP;
 
-		boolean canUndo = !getValue().equals(originalLabel);
+		// ">" only while there's something to redo: a new edit clears it.
+		if (!redoSteps.isEmpty())
+		{
+			Widget redo = createTopBarButton(container, Text.escapeJagex(">"), rightX, UNDO_BUTTON_WIDTH);
+			redo.setHasListener(true);
+			redo.setAction(0, "Redo");
+			redo.setOnOpListener((JavaScriptCallback) ev -> redoStep());
+			addHoverHighlight(redo, 0x000000);
+			redo.revalidate();
+			rightX += UNDO_BUTTON_WIDTH + TOP_BAR_GAP;
+		}
+
+		boolean canUndo = !undoSteps.isEmpty();
 		// Escaped — a lone "<" is parsed as the start of an inline tag and never drawn otherwise.
 		Widget undo = createTopBarButton(container, Text.escapeJagex("<"), rightX, UNDO_BUTTON_WIDTH);
 		undo.setTextColor(canUndo ? 0x000000 : 0x888888);
@@ -966,7 +1036,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		{
 			undo.setHasListener(true);
 			undo.setAction(0, "Undo");
-			undo.setOnOpListener((JavaScriptCallback) ev -> undo());
+			undo.setOnOpListener((JavaScriptCallback) ev -> undoStep());
 			addHoverHighlight(undo, 0x000000);
 		}
 		undo.revalidate();
@@ -1020,10 +1090,99 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return button;
 	}
 
-	private void undo()
+	// Every edit ends in update(), so it's recorded here as just what changed: added to the newest undo step if it's
+	// within STEP_PAUSE_MS of the last edit, else starting a new one.
+	private void recordHistory()
 	{
-		value(originalLabel);
-		update();
+		String value = getValue();
+		int start = getCursorStart();
+		int end = getCursorEnd();
+		String before = recordedValue;
+		int startBefore = recordedStart;
+		int endBefore = recordedEnd;
+		recordedValue = value;
+		recordedStart = start;
+		recordedEnd = end;
+		if (before == null || before.equals(value))
+		{
+			return;
+		}
+
+		// The changed middle: what's left after the shared start and end.
+		int prefix = 0;
+		int max = Math.min(before.length(), value.length());
+		while (prefix < max && before.charAt(prefix) == value.charAt(prefix))
+		{
+			prefix++;
+		}
+		int suffix = 0;
+		while (suffix < max - prefix && before.charAt(before.length() - 1 - suffix) == value.charAt(value.length() - 1 - suffix))
+		{
+			suffix++;
+		}
+		Change change = new Change(prefix, before.substring(prefix, before.length() - suffix),
+			value.substring(prefix, value.length() - suffix), startBefore, endBefore, end);
+
+		long time = System.currentTimeMillis();
+		if (!stepOpen || undoSteps.isEmpty() || time - lastEditAt >= STEP_PAUSE_MS)
+		{
+			undoSteps.push(new Step());
+			if (undoSteps.size() > MAX_UNDO_STEPS)
+			{
+				undoSteps.removeLast();
+			}
+		}
+		undoSteps.peek().changes.add(change);
+		redoSteps.clear();
+		stepOpen = true;
+		lastEditAt = time;
+	}
+
+	// Each of the step's edits reversed, last first; the selection back to before its first.
+	private void undoStep()
+	{
+		Step step = undoSteps.poll();
+		if (step != null)
+		{
+			String value = getValue();
+			for (int i = step.changes.size() - 1; i >= 0; i--)
+			{
+				Change change = step.changes.get(i);
+				value = value.substring(0, change.position) + change.removed + value.substring(change.position + change.inserted.length());
+			}
+			Change first = step.changes.get(0);
+			apply(value, first.startBefore, first.endBefore);
+			redoSteps.push(step);
+		}
+	}
+
+	// The step's edits again, in order; the caret where its last left it.
+	private void redoStep()
+	{
+		Step step = redoSteps.poll();
+		if (step != null)
+		{
+			String value = getValue();
+			for (Change change : step.changes)
+			{
+				value = value.substring(0, change.position) + change.inserted + value.substring(change.position + change.removed.length());
+			}
+			int caret = step.changes.get(step.changes.size() - 1).caretAfter;
+			apply(value, caret, caret);
+			undoSteps.push(step);
+		}
+	}
+
+	// Recorded first, so undoing or redoing isn't itself recorded as an edit. The next edit starts a new step.
+	private void apply(String value, int start, int end)
+	{
+		recordedValue = value;
+		recordedStart = start;
+		recordedEnd = end;
+		stepOpen = false;
+		shiftSelectionAnchor = -1;
+		value(value);
+		cursorAt(start, end);
 	}
 
 	private void toggleFontSize()
