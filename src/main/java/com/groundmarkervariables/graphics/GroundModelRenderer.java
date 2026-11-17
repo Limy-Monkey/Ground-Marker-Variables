@@ -42,10 +42,12 @@ public class GroundModelRenderer
 	static final double PRIORITY_STEP = 0.01;
 	// Textured faces are grown this many px, closing hairline gaps between neighbours.
 	private static final double GROW = 0.7;
-	// Faces are shaded at this multiple of the screen size, then scaled down, for smooth edges.
-	private static final int SUPERSAMPLE = 2;
 	// How far outside a triangle a pixel center may sit and still count, so shared edges leave no gaps.
 	private static final double EDGE = 1e-9;
+	// Models over SUPERSAMPLE_MIN_SIZE px across on screen are shaded at SUPERSAMPLE times the size, then scaled down, for
+	// smooth edges; smaller ones at screen size.
+	private static final int SUPERSAMPLE = 2;
+	private static final int SUPERSAMPLE_MIN_SIZE = 80;
 
 	private final Client client;
 	private final ModelColors modelColors;
@@ -152,9 +154,10 @@ public class GroundModelRenderer
 			onGround.run();
 			return;
 		}
-		drawPass(graphics, flat, sx, sy, visible, bounds, true, tile, opacity);
+		int samples = Math.max(bounds.width, bounds.height) > SUPERSAMPLE_MIN_SIZE ? SUPERSAMPLE : 1;
+		drawPass(graphics, flat, sx, sy, visible, bounds, samples, true, tile, opacity);
 		onGround.run();
-		drawPass(graphics, flat, sx, sy, visible, bounds, false, null, opacity);
+		drawPass(graphics, flat, sx, sy, visible, bounds, samples, false, null, opacity);
 	}
 
 	// The visible vertices' screen area, on the canvas; null if none.
@@ -177,12 +180,12 @@ public class GroundModelRenderer
 		return minX > maxX || bounds.isEmpty() ? null : bounds;
 	}
 
-	// The faces with a corner under the ground, or the rest, shaded into the buffer at SUPERSAMPLE times the size, then
-	// drawn once (clipped to clip if any), scaled down so edges come out smooth.
-	private void drawPass(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, Rectangle bounds, boolean underground,
-		@Nullable Shape clip, float opacity)
+	// The faces with a corner under the ground, or the rest, shaded into the buffer at samples times the size, then drawn
+	// once (clipped to clip if any), scaled down so edges come out smooth.
+	private void drawPass(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, Rectangle bounds, int samples,
+		boolean underground, @Nullable Shape clip, float opacity)
 	{
-		int width = bounds.width * SUPERSAMPLE, height = bounds.height * SUPERSAMPLE;
+		int width = bounds.width * samples, height = bounds.height * samples;
 		int[] pixels = buffer(width, height);
 		int stride = buffer.getWidth();
 		int cycle = client.getGameCycle();
@@ -211,7 +214,7 @@ public class GroundModelRenderer
 				if (textured == null)
 				{
 					textured = buffer.createGraphics();
-					textured.scale(SUPERSAMPLE, SUPERSAMPLE);
+					textured.scale(samples, samples);
 					textured.translate(-bounds.x, -bounds.y);
 				}
 				triangle.xpoints[0] = sx[a];
@@ -230,9 +233,9 @@ public class GroundModelRenderer
 				continue;
 			}
 			fillGouraud(pixels, stride, width, height,
-				(sx[a] - bounds.x) * SUPERSAMPLE, (sy[a] - bounds.y) * SUPERSAMPLE,
-				(sx[b] - bounds.x) * SUPERSAMPLE, (sy[b] - bounds.y) * SUPERSAMPLE,
-				(sx[c] - bounds.x) * SUPERSAMPLE, (sy[c] - bounds.y) * SUPERSAMPLE,
+				(sx[a] - bounds.x) * samples, (sy[a] - bounds.y) * samples,
+				(sx[b] - bounds.x) * samples, (sy[b] - bounds.y) * samples,
+				(sx[c] - bounds.x) * samples, (sy[c] - bounds.y) * samples,
 				flat.corners[i * 3], flat.corners[i * 3 + 1], flat.corners[i * 3 + 2], flat.colors[i].getAlpha());
 		}
 		if (textured != null)
@@ -253,7 +256,10 @@ public class GroundModelRenderer
 		{
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
 		}
-		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		if (samples > 1)
+		{
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		}
 		g.drawImage(buffer, bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height, 0, 0, width, height, null);
 		g.dispose();
 	}
