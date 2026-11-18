@@ -136,15 +136,35 @@ public class ChargesLabelVariable implements LabelVariable
 				parts.add(icon + "x" + (charges == ItemCharges.UNLIMITED_CHARGES ? infinity() : ItemCharges.shortened(charges)));
 			}
 		}
+		String header = null;
 		if (arguments.icons)
 		{
 			Map<Integer, Integer> stored = itemCharges.storedItems(arguments.item, arguments.only);
 			if (stored != null)
 			{
 				stored.forEach((id, quantity) -> parts.add("<item=" + id + ">x" + ItemCharges.shortened(quantity)));
+				// With icon, its own "<icon>x<charges>" says it.
+				header = arguments.icon ? null : containerLine(arguments);
 			}
 		}
-		return parts.isEmpty() ? null : String.join(" ", parts);
+		if (parts.isEmpty())
+		{
+			return null;
+		}
+		String icons = String.join(" ", parts);
+		return header == null ? icons : header + "\\n" + icons;
+	}
+
+	// "<Container>: <combined charges>", above its stored items; null if it has none.
+	private String containerLine(Arguments arguments)
+	{
+		Integer charges = charges(arguments);
+		if (charges == null)
+		{
+			return null;
+		}
+		String name = ItemCharges.readable(arguments.item);
+		return charges == ItemCharges.UNLIMITED_CHARGES ? name + ": " + infinity() : richText.labeled(name, String.valueOf(charges));
 	}
 
 	// Highlighted only while values are.

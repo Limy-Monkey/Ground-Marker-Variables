@@ -53,7 +53,7 @@
     "parameters": [{"name": "<name>", "description": "Part of an item's name, any case, e.g. {numItem brew}"}]},
   "numDoses": {"requiresArgument": true,"syntax": "{numDoses <name>}", "description": "Total doses of matching potions", "returns": "Number", "party": true, "category": "Gear & items",
     "parameters": [{"name": "<name>", "description": "Part of a potion's name, any case; each counts its (N) doses"}]},
-  "charges": {"requiresArgument": true,"syntax": "{charges <item>}", "description": "An item's charges, uses the Item Charges Improved or Item Charges plugin. WARNING: item names subject to change by Jagex or others, breaking saved markers", "returns": "Number", "category": "Gear & items",
+  "charges": {"requiresArgument": true,"syntax": "{charges <item>}", "description": "An item's charges, uses the Item Charges Improved or Item Charges plugin<br>WARNING: item names subject to change by Jagex or others, breaking saved markers", "returns": "Number", "category": "Gear & items",
     "parameters": [{"name": "<item>", "description": "An item the plugin has saved charges for."},
       {"name": "icon", "description": "The item's icon and its charges", "complete": ["icon"]},
       {"name": "icons", "description": "Item Charges Improved containers: each stored item's icon and how many", "complete": ["icons"]},
@@ -291,7 +291,7 @@
       {"name": "=<col>", "description": "Optional: a named color, or invis, translucent, opaque, solid"}]},
   "borderWidth=": {"requiresArgument": true,"syntax": "{borderWidth=2.5}", "description": "Tile outline width, up to 10<br>Cannot be used in conditions", "category": "Tile",
     "parameters": [{"name": "<width>", "description": "A number, decimals allowed, up to 10"}]},
-  "ground": {"syntax": "{ground}...{/ground}", "description": "Icons and text drawn flat on the tile<br>Cannot be used in conditions", "category": "Tile",
+  "ground": {"syntax": "{ground}...{/ground}", "description": "Icons and text drawn flat on the tile<br>Cannot be used in conditions.<br>Recommended partner plugin: Tile Layers", "category": "Tile",
     "parameters": [
       {"name": "...", "description": "Icons in a row with text below them. A lone <item=> or <npc=> is drawn as its 3D model. No conditionals inside, except ones on {group} alone"},
       {"name": "@<dir>", "description": "Optional: which way the top faces: default north", "complete": ["@"], "requiresValue": true},
