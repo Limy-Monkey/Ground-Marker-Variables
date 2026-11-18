@@ -32,7 +32,9 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.game.chatbox.ChatboxTextInput;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
+import okhttp3.HttpUrl;
 
 // Our own version of Ground Markers' "Tile label" editor (see GroundMarkerVariablesConfig's
 // "Advanced Label Editor" option) — a ChatboxTextInput subclass overriding update() to lay
@@ -50,6 +52,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 {
 	private static final int LINE_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 16;
+	// As core's Wiki plugin opens an item or NPC by id.
+	private static final HttpUrl WIKI_LOOKUP = HttpUrl.get("https://oldschool.runescape.wiki/w/Special:Lookup");
 	private static final int VISIBLE_ROWS = 5;
 	// Edit rows shown; longer text wraps on and scrolls (see update()). Shrunk to COMPACT_EDIT_LINES by its button.
 	private static final int MAX_EDIT_LINES = 5;
@@ -1420,7 +1424,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				placeholder.setOriginalY(y);
 				placeholder.setOriginalWidth(ICON_WIDTH);
 				placeholder.setOriginalHeight(ICON_HEIGHT);
-				addInsertAction(placeholder, option);
+				addInsertAction(placeholder, option, icon);
 				placeholder.revalidate();
 				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT), icon));
 			}
@@ -1444,19 +1448,40 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			text.setOriginalHeight(ROW_HEIGHT);
 			text.setXTextAlignment(WidgetTextAlignment.LEFT);
 			text.setYTextAlignment(WidgetTextAlignment.CENTER);
-			addInsertAction(text, option);
+			addInsertAction(text, option, icon);
 			addHoverHighlight(text, color);
 			text.revalidate();
 		}
 	}
 
-	// "Insert": completes the token at the cursor with option. Its full name shows on hover.
-	private void addInsertAction(Widget widget, Completion.Option option)
+	// "Insert": completes the token at the cursor with option. Its full name shows on hover. A named item or NPC
+	// also gets "Wiki".
+	private void addInsertAction(Widget widget, Completion.Option option, @Nullable Completion.Icon icon)
 	{
 		widget.setHasListener(true);
 		widget.setName(NamedColors.expandColorAliases(option.label));
 		widget.setAction(0, "Insert");
-		widget.setOnOpListener((JavaScriptCallback) ev -> insertAtCursor(option.insert, option.replace));
+		boolean named = option.icon != null && (option.icon.startsWith("<item=") || option.icon.startsWith("<npc="));
+		String wikiType = icon == null || !named ? null : icon.kind == Completion.Icon.Kind.ITEM ? "item"
+			: icon.kind == Completion.Icon.Kind.NPC || icon.kind == Completion.Icon.Kind.NPC_HEAD ? "npc" : null;
+		if (wikiType != null)
+		{
+			widget.setAction(1, "Wiki");
+		}
+		widget.setOnOpListener((JavaScriptCallback) ev ->
+		{
+			if (wikiType != null && ev.getOp() == 2)
+			{
+				LinkBrowser.browse(WIKI_LOOKUP.newBuilder()
+					.addQueryParameter("type", wikiType)
+					.addQueryParameter("id", icon.id)
+					.build().toString());
+			}
+			else
+			{
+				insertAtCursor(option.insert, option.replace);
+			}
+		});
 	}
 
 	// hint as rows, wrapped to the list's width.
