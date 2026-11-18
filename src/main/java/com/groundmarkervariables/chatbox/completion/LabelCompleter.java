@@ -144,6 +144,8 @@ public class LabelCompleter
 
 	// ":<partial emoji name>" at the cursor. Not after a name character, so ":name:", "9:30" and " : " never start one.
 	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
+	// ":name@<color>" being typed.
+	private static final Pattern EMOJI_COLOR_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)@([a-zA-Z]*)$");
 	// "<npc=<partial name>" / "<item=..." / "<sprite=..." at the cursor (see IconNames), and "<it" -> "<item=" (not
 	// right after a name character, so "{hp<sp...}" stays a comparison).
 	private static final Pattern ICON_NAME_PARTIAL = Pattern.compile("<(npc|item|sprite)=([^<>{}=,@]*)$", Pattern.CASE_INSENSITIVE);
@@ -492,6 +494,14 @@ public class LabelCompleter
 			{
 				return tag;
 			}
+		}
+
+		Matcher emojiColor = EMOJI_COLOR_PARTIAL.matcher(before);
+		if (emojiColor.find() && emojis.names().contains(emojiColor.group(1)))
+		{
+			String name = emojiColor.group(1);
+			return withIcons(match(emojiColor.group(2), NamedColors.SUGGESTED, ":" + name + "@", ":", ":", true),
+				LabelCompleter::colorIcon);
 		}
 
 		Matcher emoji = EMOJI_PARTIAL.matcher(before);
@@ -1133,14 +1143,21 @@ public class LabelCompleter
 		return completion;
 	}
 
-	// Shortest name first unless recent/nearby labels use one; ":" closes it.
+	// Shortest name first unless recent/nearby labels use one; ":" closes it. A full name also lists "@" for a color.
 	@Nullable
 	private Completion completeEmoji(String partial)
 	{
 		Matches matches = matches(partial, emojis.names());
 		matches.names.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
 		matches.contained.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
-		return withIcons(complete(matches, partial, ":", ":", ":", true), name -> ":" + name + ":");
+		Completion completion = withIcons(complete(matches, partial, ":", ":", ":", true), name -> ":" + name + ":");
+		if (completion == null || !emojis.names().contains(partial))
+		{
+			return completion;
+		}
+		List<Completion.Option> options = new ArrayList<>(completion.options);
+		options.add(new Completion.Option("@", "@", 0, null));
+		return new Completion(options, completion.preferred);
 	}
 
 	// The parameter after "metronome" or "m": digits, an optional "_" and leading +/-. From recent/nearby usage, else
