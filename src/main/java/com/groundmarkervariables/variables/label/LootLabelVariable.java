@@ -84,7 +84,7 @@ public class LootLabelVariable implements LabelVariable
 		{
 			return null;
 		}
-		return itemsOnly(matcher) ? itemsOnlyText(loot.notableItems, matcher) : String.valueOf(loot.gp);
+		return String.valueOf(itemsOnly(matcher) ? loot.notableItems.size() : loot.gp);
 	}
 
 	@Override

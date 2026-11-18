@@ -59,7 +59,7 @@ Advanced usage details can be found in API format [here](https://limy-monkey.git
 [{"title": "lobby", "regionId":16470,"regionX":44,"regionY":55,"z":0,"color":"#42FFFFFF","label":"
 {party == 0 ?
   {kc tfa}\n
-  {loot tfa > 2m ? {loot tfa itemsOnly}} {
+  {loot tfa, itemsOnly > 1 ? {loot tfa, itemsOnly, items=5}} {
     {spellbook == Arceuus || spellbook == Lunar ? {hasThralls ? : \s{tip=Missing thralls}:triangular_flag_on_post: <item=25818@0%>{/tip}}} ||
     {spellbook == Lunar ? {hasVengeance ? : \s{tip=Missing venge}:triangular_flag_on_post: <sprite=564@0%>{/tip}}} ||
     {spellbook == Standard ? {hasSurge || hasItem Blood rune ? : \s{tip=Missing Elemental Spells}:triangular_flag_on_post: {hasSurge icon}{/tip}}} ||
