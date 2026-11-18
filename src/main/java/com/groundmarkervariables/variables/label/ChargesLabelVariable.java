@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.ItemCharges;
@@ -13,11 +14,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 
-// {charges <item>[, icon][, icons][, <stored item>]...}: an item's saved charges (see ItemCharges).
+// {charges <item>[, icon][, icons][, <stored item>]...}: an item's saved charges (see ItemCharges). Bare {charges}: whether
+// Item Charges Improved is on.
 public class ChargesLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! so a trailing comparator (e.g. "{charges toxic blowpipe < 100}") isn't part of the name.
-	private static final Pattern PATTERN = Pattern.compile("\\{charges\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
+	private static final Pattern PATTERN = Pattern.compile("\\{charges(?:\\s+([^{}?:<>=!]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
+	private static final String IMPROVED_NAME = "Item Charges Improved";
 	private static final String ICON = "icon";
 	private static final String ICONS = "icons";
 	private static final String UNLIMITED_PLAIN = "999999";
@@ -85,6 +88,10 @@ public class ChargesLabelVariable implements LabelVariable
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
+		if (matcher.group(1) == null)
+		{
+			return String.valueOf(itemCharges.improvedActive());
+		}
 		Arguments arguments = new Arguments(matcher.group(1));
 		if (arguments.icon || arguments.icons)
 		{
@@ -93,7 +100,7 @@ public class ChargesLabelVariable implements LabelVariable
 		Integer charges = charges(arguments);
 		if (charges == null)
 		{
-			return null;
+			return ConditionEvaluator.NULL;
 		}
 		return charges == ItemCharges.UNLIMITED_CHARGES ? UNLIMITED_PLAIN : String.valueOf(charges);
 	}
@@ -101,6 +108,10 @@ public class ChargesLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
+		if (matcher.group(1) == null)
+		{
+			return richText.booleanColored(itemCharges.improvedActive(), IMPROVED_NAME);
+		}
 		Arguments arguments = new Arguments(matcher.group(1));
 		if (arguments.icon || arguments.icons)
 		{

@@ -58,7 +58,7 @@
       {"name": "icon", "description": "The item's icon and its charges", "complete": ["icon"]},
       {"name": "icons", "description": "Item Charges Improved containers: each stored item's icon and how many", "complete": ["icons"]},
       {"name": "<stored item>", "description": "Item Charges Improved containers: only these stored items, comma-separated"}],
-    "examples": ["{charges toxic blowpipe < 500 ? Recharge}", "{charges blazing blowpipe, icons}", "{charges blazing blowpipe, Dragon dart}"]},
+    "examples": ["{charges && charges toxic blowpipe < 500 ? :warning:}"]},
   "showItems": {"requiresArgument": true,"syntax": "{showItems <a>, <b>}", "description": "Icons of the listed items you hold", "returns": "Boolean", "party": true, "icon": "items", "category": "Gear & items",
     "parameters": [{"name": "<a>, <b>, ...", "description": "Parts of item names, comma-separated; each shows its first match, in this order"}],
     "aliases": ["{showItem <a>, <b>}"]},

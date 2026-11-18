@@ -34,6 +34,8 @@ public class ConditionEvaluator
 		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("H[:mm]").toFormatter(Locale.ENGLISH);
 
 	// See parseHoursThreshold().
+	// A variable's Plain Text when it has no value (see PartyMemberContext); false, and never ordered.
+	public static final String NULL = "null";
 	private static final Pattern HOURS_PATTERN = Pattern.compile("(-?\\d+(?:\\.\\d+)?)\\s*(?:hours?|hrs?)?", Pattern.CASE_INSENSITIVE);
 	private static final Pattern HOURS_MINUTES_PATTERN = Pattern.compile("(-?\\d+):(\\d{1,2})");
 
@@ -179,6 +181,11 @@ public class ConditionEvaluator
 			return !actual.equalsIgnoreCase(expected);
 		}
 
+		if (NULL.equalsIgnoreCase(actual) || NULL.equalsIgnoreCase(expected))
+		{
+			return Boolean.FALSE;
+		}
+
 		Double actualNum = tryParseNumber(actual);
 		Double expectedNum = tryParseNumber(expected);
 		if (actualNum != null && expectedNum != null)
@@ -282,7 +289,7 @@ public class ConditionEvaluator
 	}
 
 	// Strict on purpose: a non-boolean variable used bare (e.g. {spellbook ? A : B}) should
-	// be unresolvable, not silently treated as false.
+	// be unresolvable, not silently treated as false. A number (even 0) is true; "null" is false.
 	private static Boolean tryParseBoolean(String value)
 	{
 		if ("true".equalsIgnoreCase(value))
@@ -290,11 +297,11 @@ public class ConditionEvaluator
 			return Boolean.TRUE;
 		}
 
-		if ("false".equalsIgnoreCase(value))
+		if ("false".equalsIgnoreCase(value) || NULL.equalsIgnoreCase(value))
 		{
 			return Boolean.FALSE;
 		}
 
-		return null;
+		return tryParseNumber(value) != null ? Boolean.TRUE : null;
 	}
 }

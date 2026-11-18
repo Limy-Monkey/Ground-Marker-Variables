@@ -364,6 +364,11 @@ public class ItemCharges
 		return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
 	}
 
+	public boolean improvedActive()
+	{
+		return active(IMPROVED_PLUGIN);
+	}
+
 	private boolean active(String pluginClass)
 	{
 		return pluginManager.getPlugins().stream()
