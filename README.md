@@ -218,7 +218,7 @@ Not allowed in conditionals, except conditionals that only use `{group}`.
 | `{tileCol=<col>}` | Tile color: named color, hex, 8-digit hex with leading alpha, `N%`, or a named opacity |
 | `{highlightSW=<col>}` | Corner bracket: SW, NW, NE, SE, or Corners / All |
 | `{borderWidth=2.5}` | Outline width, up to 10 |
-| `{ground}…{/ground}` | Icons inside drawn flat on the tile (not around a conditional either) |
+| `{ground}…{/ground}` | Icons inside drawn flat in perspective on the tile, can be rotated `@s` |
 
 ------------------------
 
