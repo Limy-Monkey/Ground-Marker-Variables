@@ -5,6 +5,7 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
+import com.groundmarkervariables.variables.label.PriceLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.CollectionLog;
@@ -82,6 +83,7 @@ public class LabelCompleter
 
 	// {charges <item>}: items Item Charges Improved / Item Charges have saved charges for, while they're on.
 	private static final String CHARGES_PREFIX = "charges ";
+	private static final String PRICE_PREFIX = "price ";
 	private static final String CHARGES_ICONS = "icons";
 
 	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
@@ -245,6 +247,7 @@ public class LabelCompleter
 	private final ItemCharges itemCharges;
 	private final LootTrackerRecords lootTrackerRecords;
 	private final LabelResolver labelResolver;
+	private final PriceLabelVariable price;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
 	// Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime).
@@ -257,8 +260,9 @@ public class LabelCompleter
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
 		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
-		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver)
+		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, PriceLabelVariable price)
 	{
+		this.price = price;
 		this.config = config;
 		this.configManager = configManager;
 		this.gson = gson;
@@ -596,6 +600,8 @@ public class LabelCompleter
 			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
 		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
 		list.add(prefix(CHARGES_PREFIX, true, this::completeCharges));
+		list.add(prefix(PRICE_PREFIX, true, rest -> described(withIcons(match(rest, price.tradeableNames(), "{" + PRICE_PREFIX, "", "}", true),
+			item -> "<item=" + item + ">"), PRICE_PREFIX)));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));
 		list.add(prefix(DPS_PREFIX, false, rest -> completeTemplateKeyword(rest, DPS_KEYWORDS, DPS_PREFIX)));
