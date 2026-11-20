@@ -10,6 +10,7 @@ import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -19,6 +20,7 @@ import net.runelite.api.Client;
 import net.runelite.client.util.QuantityFormatter;
 
 // {dps <template>} -> template keywords replaced by values, like {party}. {dps} is {dps avgDps (acc)}.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DpsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{dps(?:\\s+([^{}?<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
@@ -45,14 +47,6 @@ public class DpsLabelVariable implements LabelVariable
 	private final Client client;
 	private final RichText richText;
 	private final DpsTracker tracker;
-
-	@Inject
-	private DpsLabelVariable(Client client, RichText richText, DpsTracker tracker)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.tracker = tracker;
-	}
 
 	@Override
 	public Pattern pattern()

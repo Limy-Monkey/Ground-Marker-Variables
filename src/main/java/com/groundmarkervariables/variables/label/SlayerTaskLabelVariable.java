@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -17,6 +18,7 @@ import net.runelite.client.plugins.slayer.SlayerPluginService;
 // Mortimer modifier (SlayerPlugin adds it before exposing the value), so we don't add it again
 // -- but other modifier kinds (e.g. points) share the same value/negative varbits, so the
 // displayed Modifier text shows any nonzero value, not just count-type ones.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SlayerTaskLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{slayerTask\\}", Pattern.CASE_INSENSITIVE);
@@ -29,16 +31,6 @@ public class SlayerTaskLabelVariable implements LabelVariable
 	private final SlayerPluginService slayerPluginService;
 	private final PluginManager pluginManager;
 	private final RichText richText;
-
-	@Inject
-	private SlayerTaskLabelVariable(Client client, SlayerPluginService slayerPluginService,
-		PluginManager pluginManager, RichText richText)
-	{
-		this.client = client;
-		this.slayerPluginService = slayerPluginService;
-		this.pluginManager = pluginManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

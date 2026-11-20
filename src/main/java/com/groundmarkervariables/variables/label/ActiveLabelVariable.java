@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -20,6 +21,7 @@ import net.runelite.client.party.PartyMember;
 // {active <effect> [icon]} -> true if Vengeance, a thrall, Death Charge, Shadow Veil or Mark of Darkness is up. The
 // icon is the spell's sprite with a <badge>, a pie of the time left if known, or dimmed when not active. In
 // {party} rows, other members only have vengeance.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile(
@@ -39,14 +41,6 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final ActiveEffectTracker tracker;
 	private final RichText richText;
-
-	@Inject
-	private ActiveLabelVariable(Client client, ActiveEffectTracker tracker, RichText richText)
-	{
-		this.client = client;
-		this.tracker = tracker;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

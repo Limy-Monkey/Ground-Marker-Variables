@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -41,6 +42,7 @@ import net.runelite.client.util.Text;
 // lowest ID. Sprites: "Name (Category)", from the game's prayers, skills, spells and bosses, then sprite-names.json.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class IconNames
 {
 	public enum Kind
@@ -144,13 +146,6 @@ public class IconNames
 	private Map<String, Integer> bossSprites;
 	// Sprite ID -> name, for collapse(). Client thread only.
 	private Map<Integer, String> spriteNames;
-
-	@Inject
-	private IconNames(Client client, ClientThread clientThread)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-	}
 
 	// Client thread. Takes note of nearby NPCs and held items for complete().
 	public void refreshNearby()

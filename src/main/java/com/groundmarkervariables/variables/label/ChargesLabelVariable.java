@@ -13,9 +13,11 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 // {charges <item>[, icon][, icons][, <stored item>]...}: an item's saved charges (see ItemCharges). Bare {charges}: whether
 // Item Charges Improved is on.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ChargesLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! so a trailing comparator (e.g. "{charges toxic blowpipe < 100}") isn't part of the name.
@@ -32,17 +34,6 @@ public class ChargesLabelVariable implements LabelVariable
 	private final GroundMarkerVariablesConfig config;
 	private final Emojis emojis;
 	private final RichText richText;
-
-	@Inject
-	private ChargesLabelVariable(ItemCharges itemCharges, IconNames iconNames, GroundMarkerVariablesConfig config, Emojis emojis,
-		RichText richText)
-	{
-		this.itemCharges = itemCharges;
-		this.iconNames = iconNames;
-		this.config = config;
-		this.emojis = emojis;
-		this.richText = richText;
-	}
 
 	// "<item>, icon, icons, <stored item>, ..." split up.
 	private static final class Arguments

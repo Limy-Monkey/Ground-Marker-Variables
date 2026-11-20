@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -12,6 +13,7 @@ import net.runelite.api.Client;
 
 // {attackType} -> current style's damage type (Stab/Slash/Crush/Ranged/Magic), or "None".
 // {attackType, weapon=<name>} -> the last type seen on that weapon this session.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AttackTypeLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile(
@@ -20,14 +22,6 @@ public class AttackTypeLabelVariable implements LabelVariable
 	private final Client client;
 	private final RichText richText;
 	private final WeaponStyleTracker tracker;
-
-	@Inject
-	private AttackTypeLabelVariable(Client client, RichText richText, WeaponStyleTracker tracker)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.tracker = tracker;
-	}
 
 	@Override
 	public Pattern pattern()

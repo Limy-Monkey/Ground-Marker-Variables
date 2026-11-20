@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -19,19 +20,13 @@ import net.runelite.client.party.PartyMember;
 //
 // {lvl_combat} / {lvl_total} are special-cased here only -- not real Skill entries, and not
 // supported by {boost_}/{xpRate_}.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{lvl_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private SkillLevelLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

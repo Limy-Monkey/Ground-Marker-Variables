@@ -6,22 +6,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.config.ConfigManager;
 
 // {lootSession}: each monster's Loot Tracker record when first asked for (per account, until reset or the client
 // closes), and what's been added since.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LootSessions
 {
 	private final ConfigManager configManager;
 	// Account + monster (BossAliases-resolved, lower case) -> its record at the session's start.
 	private final Map<String, LootTrackerRecords.Record> starts = new ConcurrentHashMap<>();
-
-	@Inject
-	private LootSessions(ConfigManager configManager)
-	{
-		this.configManager = configManager;
-	}
 
 	// current minus monster's session start, saved now if it has none. A cleared Loot Tracker starts it again.
 	public LootTrackerRecords.Record since(String monster, LootTrackerRecords.Record current)

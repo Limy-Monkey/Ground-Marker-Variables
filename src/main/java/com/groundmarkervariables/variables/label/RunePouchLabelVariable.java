@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -19,6 +20,7 @@ import net.runelite.client.party.PartyMember;
 
 // {runePouch} -> the icon of every rune held, in the inventory or rune pouch: items named "... rune", so not
 // rune pouches or Rune gear. Plain: "true" if any.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{runePouch\\}", Pattern.CASE_INSENSITIVE);
@@ -26,13 +28,6 @@ public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariabl
 
 	private final Client client;
 	private final ItemManager itemManager;
-
-	@Inject
-	private RunePouchLabelVariable(Client client, ItemManager itemManager)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-	}
 
 	@Override
 	public Pattern pattern()

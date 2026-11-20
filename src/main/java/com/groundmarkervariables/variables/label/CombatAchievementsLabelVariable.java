@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -10,6 +11,7 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.VarbitID;
 
 // {combatAchievement} (or its {combatAchievements} alias) -> current CA reward tier, 0-6.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class CombatAchievementsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{combatAchievements?\\}", Pattern.CASE_INSENSITIVE);
@@ -22,13 +24,6 @@ public class CombatAchievementsLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private CombatAchievementsLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

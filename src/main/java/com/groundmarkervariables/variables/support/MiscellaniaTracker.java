@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
@@ -20,6 +21,7 @@ import net.runelite.client.eventbus.Subscribe;
 // Kingdom of Miscellania approval, the same way core's Kingdom plugin estimates it: the varbit is
 // only current inside the kingdom, so elsewhere it's the last snapshot minus a fixed daily decay.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MiscellaniaTracker
 {
 	public static final int MAX_APPROVAL = 127;
@@ -37,14 +39,6 @@ public class MiscellaniaTracker
 	private final Client client;
 	private final ConfigManager configManager;
 	private final EventBus eventBus;
-
-	@Inject
-	private MiscellaniaTracker(Client client, ConfigManager configManager, EventBus eventBus)
-	{
-		this.client = client;
-		this.configManager = configManager;
-		this.eventBus = eventBus;
-	}
 
 	public void startUp()
 	{

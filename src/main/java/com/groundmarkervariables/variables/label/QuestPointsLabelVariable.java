@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -10,19 +11,13 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.VarPlayerID;
 
 // {questPoints} -> the player's current quest points.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class QuestPointsLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{questPoints\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private QuestPointsLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

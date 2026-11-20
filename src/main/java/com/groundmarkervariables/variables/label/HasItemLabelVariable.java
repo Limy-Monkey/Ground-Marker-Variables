@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -23,6 +24,7 @@ import net.runelite.client.party.PartyMember;
 //
 // [^{}?:<>=!]+? deliberately excludes ?:<>=! from <name> — otherwise this pattern could swallow a
 // trailing "? A : B" or "> 5" as part of the item name. No real item name uses those characters.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{hasItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
@@ -30,14 +32,6 @@ public class HasItemLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final ItemManager itemManager;
 	private final RichText richText;
-
-	@Inject
-	private HasItemLabelVariable(Client client, ItemManager itemManager, RichText richText)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

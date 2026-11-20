@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.util.ImageUtil;
 
@@ -36,6 +37,7 @@ import net.runelite.client.util.ImageUtil;
 // drawn): see LICENSE-FONTS inside unicode/images.zip.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class Emojis
 {
 	// ":name:" or ":name@color:", color a named color or 6-digit hex.
@@ -75,12 +77,6 @@ public class Emojis
 	@Nullable
 	private Map<String, String> names;
 	private final Map<String, Optional<BufferedImage>> images = new HashMap<>();
-
-	@Inject
-	private Emojis(Gson gson)
-	{
-		this.gson = gson;
-	}
 
 	// ":balloon:" -> "<emoji=1f388>", ":balloon@red:" -> "<emoji=1f388@ff0000>": the overlay's own inline
 	// image tag. Unknown names or colors are left as-is.

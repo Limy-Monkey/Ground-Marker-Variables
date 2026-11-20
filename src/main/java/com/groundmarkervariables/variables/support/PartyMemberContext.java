@@ -7,11 +7,13 @@ import java.util.regex.Matcher;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.client.party.PartyMember;
 
 // The party member a {party} row is resolving for, or null for the local player.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PartyMemberContext
 {
 	private final Client client;
@@ -21,13 +23,6 @@ public class PartyMemberContext
 	private PartyMember member;
 	private boolean inRow;
 	private int rowNumber;
-
-	@Inject
-	private PartyMemberContext(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	// member is null for our own row; rowNumber counts from 1.
 	public void enterRow(@Nullable PartyMember member, int rowNumber)

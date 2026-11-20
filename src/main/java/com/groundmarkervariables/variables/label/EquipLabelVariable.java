@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -24,6 +25,7 @@ import net.runelite.client.party.PartyMember;
 // gloves, boots, ring, ammo), or "Empty" if nothing's there. {equip_quiver} is special: Dizana's
 // Quiver isn't a real equipment slot, so its live ammo type comes from a varp instead.
 // {equip_<slot> icon} is the item's icon, or nothing if empty.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{equip_(\\w+?)(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
@@ -53,14 +55,6 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final ItemManager itemManager;
 	private final RichText richText;
-
-	@Inject
-	private EquipLabelVariable(Client client, ItemManager itemManager, RichText richText)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

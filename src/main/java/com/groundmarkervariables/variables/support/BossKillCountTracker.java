@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.config.ConfigManager;
 
 // Tracks per-boss kill counts for {kc <boss>}, learned from the same game-message text and
@@ -18,6 +19,7 @@ import net.runelite.client.config.ConfigManager;
 // LabelVariable, via VariableRegistry) and in GroundMarkerVariablesPlugin#onChatMessage, which
 // must share the one tracker instance. Public for the same cross-package-access reason.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class BossKillCountTracker
 {
 	private static final String GROUP = "groundMarkerVariablesKc";
@@ -34,12 +36,6 @@ public class BossKillCountTracker
 	private static final Map<String, String> KILLCOUNT_RENAMES = Map.of("Barrows chest", "Barrows Chests");
 
 	private final ConfigManager configManager;
-
-	@Inject
-	private BossKillCountTracker(ConfigManager configManager)
-	{
-		this.configManager = configManager;
-	}
 
 	public void onChatMessage(String message)
 	{

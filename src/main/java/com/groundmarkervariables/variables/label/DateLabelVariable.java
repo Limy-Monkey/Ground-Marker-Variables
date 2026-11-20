@@ -9,21 +9,17 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 // {date} -- today's date (midnight, no time component), e.g. "October 12th 2026". Usable in
 // MathVariable for a countdown, e.g. {Oct 20 - date}.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DateLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{date\\}", Pattern.CASE_INSENSITIVE);
 	private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("MMMM d", Locale.ENGLISH);
 
 	private final RichText richText;
-
-	@Inject
-	private DateLabelVariable(RichText richText)
-	{
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

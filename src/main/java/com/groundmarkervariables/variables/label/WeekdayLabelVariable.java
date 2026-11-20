@@ -9,20 +9,16 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 // {weekday} -- today as a number, 1 (Monday) through 7 (Sunday) -- matches DayOfWeek's own
 // ISO-8601 numbering, so no custom mapping needed.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class WeekdayLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{weekday\\}", Pattern.CASE_INSENSITIVE);
 
 	private final RichText richText;
-
-	@Inject
-	private WeekdayLabelVariable(RichText richText)
-	{
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

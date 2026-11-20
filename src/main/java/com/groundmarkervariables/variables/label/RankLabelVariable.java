@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -16,6 +17,7 @@ import net.runelite.client.hiscore.HiscoreSkill;
 // {rank <boss>} -> the player's hiscores rank for <boss> (case-insensitive, aliases allowed
 // same as {kc}). Kc comes from the existing BossKillCountTracker; rank from HiscoreRankLookup,
 // shown as animated dots while unavailable (still loading, or genuinely unranked).
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RankLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{rank\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
@@ -24,15 +26,6 @@ public class RankLabelVariable implements LabelVariable
 	private final BossKillCountTracker tracker;
 	private final HiscoreRankLookup rankLookup;
 	private final RichText richText;
-
-	@Inject
-	private RankLabelVariable(Client client, BossKillCountTracker tracker, HiscoreRankLookup rankLookup, RichText richText)
-	{
-		this.client = client;
-		this.tracker = tracker;
-		this.rankLookup = rankLookup;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

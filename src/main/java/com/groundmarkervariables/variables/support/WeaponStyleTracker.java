@@ -13,6 +13,7 @@ import java.util.TreeMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.EnumID;
@@ -32,6 +33,7 @@ import net.runelite.client.events.RuneScapeProfileChanged;
 // Current attack style, plus each weapon's category and each category's last style seen this session.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class WeaponStyleTracker
 {
 	private static final String NO_STYLE = "None";
@@ -66,13 +68,6 @@ public class WeaponStyleTracker
 	@Nullable
 	private String lastAutocast;
 	private int lastAutocastSprite = -1;
-
-	@Inject
-	private WeaponStyleTracker(Client client, EventBus eventBus)
-	{
-		this.client = client;
-		this.eventBus = eventBus;
-	}
 
 	public void startUp()
 	{

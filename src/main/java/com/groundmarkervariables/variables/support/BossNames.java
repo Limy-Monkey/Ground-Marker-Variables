@@ -9,6 +9,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -22,6 +23,7 @@ import okhttp3.ResponseBody;
 // Downloaded once from this plugin's GitHub repo; data/bosses.json is made by scripts/build-bosses.py.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class BossNames
 {
 	private static final HttpUrl URL = HttpUrl.get("https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/data/bosses.json");
@@ -39,13 +41,6 @@ public class BossNames
 
 	private volatile Map<Integer, Boss> bosses = Map.of();
 	private volatile boolean requested;
-
-	@Inject
-	private BossNames(OkHttpClient okHttpClient, Gson gson)
-	{
-		this.okHttpClient = okHttpClient;
-		this.gson = gson;
-	}
 
 	// Once, unless it failed: then again on the next call.
 	public void load()

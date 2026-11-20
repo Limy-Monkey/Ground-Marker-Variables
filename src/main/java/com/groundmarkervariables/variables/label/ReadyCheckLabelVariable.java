@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -23,6 +24,7 @@ import net.runelite.client.party.PartyMember;
 // "pot" / "potting" a green P, "not r" / "no r" / "un r" a red R, "brb" / "<N> mins" :zzz:, a new
 // boost a super combat potion. Plain: ready / potting / potted / not ready / away / none. Over 99 tiles from this tile,
 // or on another plane, it's :telescope: instead, plain "far".
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
@@ -33,15 +35,6 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 	private final ResolvingTile resolvingTile;
 	private final ReadyCheckTracker tracker;
 	private final Emojis emojis;
-
-	@Inject
-	private ReadyCheckLabelVariable(Client client, ResolvingTile resolvingTile, ReadyCheckTracker tracker, Emojis emojis)
-	{
-		this.client = client;
-		this.resolvingTile = resolvingTile;
-		this.tracker = tracker;
-		this.emojis = emojis;
-	}
 
 	@Override
 	public Pattern pattern()

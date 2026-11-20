@@ -13,6 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Provider;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.util.Text;
 
 // {<expr> <cmp> <value>} — colors <expr>'s own Plain Text value true/false, no ?/: branches.
@@ -30,6 +31,7 @@ import net.runelite.client.util.Text;
 // above (which would misread "1:45" as a clock time). Rich: false is the normal Rich Text, true
 // swaps in Boolean False Color as a warning. Plain: false is "", true is the bare value. Any
 // other comparator with this variable resolves to a call-to-action instead.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class BooleanVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{(?=[^{}?]*(?:==|!=|<|>|\\|\\||&&))([^{}?]+)\\}");
@@ -41,18 +43,6 @@ public class BooleanVariable implements LabelVariable
 	private final SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
 	private final GroundMarkerVariablesConfig config;
 	private final Provider<LabelResolver> labelResolver;
-
-	@Inject
-	private BooleanVariable(ConditionEvaluator evaluator, RichText richText,
-                            SixHourTimeRemainingLabelVariable sixHourTimeRemaining, GroundMarkerVariablesConfig config,
-                            Provider<LabelResolver> labelResolver)
-	{
-		this.labelResolver = labelResolver;
-		this.evaluator = evaluator;
-		this.richText = richText;
-		this.sixHourTimeRemaining = sixHourTimeRemaining;
-		this.config = config;
-	}
 
 	@Override
 	public Pattern pattern()

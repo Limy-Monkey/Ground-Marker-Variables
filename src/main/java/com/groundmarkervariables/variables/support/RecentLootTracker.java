@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.NPCComposition;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -18,19 +19,13 @@ import net.runelite.client.util.Text;
 // Fills the gap between an NPC kill and Loot Tracker writing it to config, which only happens
 // on ConfigSync (up to every 5 min) -- see LootLabelVariable, which merges this in each tick.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RecentLootTracker
 {
 	private final Map<String, PendingNpcLoot> pending = new ConcurrentHashMap<>();
 
 	private final EventBus eventBus;
 	private final ItemManager itemManager;
-
-	@Inject
-	private RecentLootTracker(EventBus eventBus, ItemManager itemManager)
-	{
-		this.eventBus = eventBus;
-		this.itemManager = itemManager;
-	}
 
 	public void startUp()
 	{

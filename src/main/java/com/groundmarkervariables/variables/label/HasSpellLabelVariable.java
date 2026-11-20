@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.party.PartyValue;
@@ -36,6 +37,7 @@ import static com.groundmarkervariables.variables.support.Spellbooks.STANDARD;
 // its runes (RuneCounter: inventory, rune pouch, infinite sources, combo runes). Doesn't check Magic level, quests or
 // cooldowns. For a party member it uses their core inventory/gear and shared {spellbook}: with no spellbook yet it's
 // true if the rest checks out, and the icon is drawn at 75%. Their Wilderness status isn't known, so sacks don't count.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HasSpellLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final List<Spell> SPELLS = List.of(
@@ -129,14 +131,6 @@ public class HasSpellLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final RichText richText;
 	private final PartyDataSharing partyDataSharing;
-
-	@Inject
-	private HasSpellLabelVariable(Client client, RichText richText, PartyDataSharing partyDataSharing)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.partyDataSharing = partyDataSharing;
-	}
 
 	@Override
 	public Pattern pattern()

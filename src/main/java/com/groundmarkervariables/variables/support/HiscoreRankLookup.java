@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.support;
 
 import java.util.EnumSet;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import net.runelite.api.Client;
 import net.runelite.api.WorldType;
@@ -13,17 +14,11 @@ import net.runelite.client.hiscore.HiscoreSkill;
 
 // The local player's own hiscore rank for a skill/boss, via HiscoreManager's own async cache --
 // null means unavailable (still loading, or genuinely unranked; its API can't tell those apart).
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HiscoreRankLookup
 {
 	private final Client client;
 	private final HiscoreManager hiscoreManager;
-
-	@Inject
-	private HiscoreRankLookup(Client client, HiscoreManager hiscoreManager)
-	{
-		this.client = client;
-		this.hiscoreManager = hiscoreManager;
-	}
 
 	public Long rank(HiscoreSkill skill)
 	{

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -15,6 +16,7 @@ import net.runelite.api.WorldType;
 
 // {world} / {worldInfo} -> current world number. Rich: "World N (type)"; {worldInfo} adds a
 // leading region flag and ": <players> Players | <ping>ms". hideWorld leaves out the number.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class WorldLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{world(Info(?:\\s*,?\\s*(hideWorld))?)?\\}", Pattern.CASE_INSENSITIVE);
@@ -38,14 +40,6 @@ public class WorldLabelVariable implements LabelVariable
 	private final Client client;
 	private final WorldInfo worldInfo;
 	private final RichText richText;
-
-	@Inject
-	private WorldLabelVariable(Client client, WorldInfo worldInfo, RichText richText)
-	{
-		this.client = client;
-		this.worldInfo = worldInfo;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

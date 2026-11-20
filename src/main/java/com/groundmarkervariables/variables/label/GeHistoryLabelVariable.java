@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.callback.ClientThread;
@@ -33,6 +34,7 @@ import net.runelite.client.util.QuantityFormatter;
 // the profit or investment line. Plain Text: with item=, gp sold - gp bought (bought/sold: that side alone), quantity bought - sold (qty), or the
 // % RuneLite's price is above the average bought price (investment); profit, realised profit. Otherwise empty.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GeHistoryLabelVariable implements LabelVariable
 {
 	private static final String OPTION = "(?:bought|sold|qty|profit|investment|limitTransactions=\\d+|(?:item|startDate)=[^,{}?:<>=!]+?)";
@@ -50,16 +52,6 @@ public class GeHistoryLabelVariable implements LabelVariable
 	private final Map<Integer, String> names = new HashMap<>();
 	// The traded items' names, newest first (see itemNames()).
 	private volatile List<String> itemNames = List.of();
-
-	@Inject
-	private GeHistoryLabelVariable(Client client, ClientThread clientThread, GeHistory geHistory, ItemManager itemManager, RichText richText)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-		this.geHistory = geHistory;
-		this.itemManager = itemManager;
-		this.richText = richText;
-	}
 
 	// The traded items' names, newest first, for item= suggestions. Worked out on the client thread; elsewhere, the last
 	// ones, with an update queued.

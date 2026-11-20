@@ -12,12 +12,14 @@ import java.util.TreeSet;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 
 // Shared by {loot} (LootTracker) and {log} (RuneProfile).
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LootTrackerRecords
 {
 	private static final String GROUP = "loottracker";
@@ -35,17 +37,6 @@ public class LootTrackerRecords
 	private final ItemManager itemManager;
 	private final Gson gson;
 	private final RecentLootTracker recentLootTracker;
-
-	@Inject
-	private LootTrackerRecords(Client client, ConfigManager configManager, ItemManager itemManager, Gson gson,
-		RecentLootTracker recentLootTracker)
-	{
-		this.client = client;
-		this.configManager = configManager;
-		this.itemManager = itemManager;
-		this.gson = gson;
-		this.recentLootTracker = recentLootTracker;
-	}
 
 	// The names of the items monster has dropped (unnoted), alphabetically; null off the client thread, where items
 	// can't be named.

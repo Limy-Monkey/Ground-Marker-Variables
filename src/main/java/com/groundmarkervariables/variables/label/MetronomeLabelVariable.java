@@ -5,6 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import net.runelite.api.Client;
@@ -25,6 +26,7 @@ import net.runelite.client.util.ColorUtil;
 // every other LabelVariable) for the same reason: the hotkey listener outside this package
 // needs to call offset().
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MetronomeLabelVariable implements LabelVariable
 {
 	// Optional +/- before N forces counting up/down, over both config and party sync.
@@ -46,14 +48,6 @@ public class MetronomeLabelVariable implements LabelVariable
 	private volatile int lastSyncTick = -SYNC_TIMEOUT_TICKS - 1;
 	private volatile int pendingOffset;
 	private volatile int pendingCount;
-
-	@Inject
-	private MetronomeLabelVariable(Client client, GroundMarkerVariablesConfig config, PartyService partyService)
-	{
-		this.client = client;
-		this.config = config;
-		this.partyService = partyService;
-	}
 
 	public void offset()
 	{

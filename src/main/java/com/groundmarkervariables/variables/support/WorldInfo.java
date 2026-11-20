@@ -7,6 +7,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.EnumID;
 import net.runelite.client.game.WorldService;
@@ -17,6 +18,7 @@ import net.runelite.http.api.worlds.WorldResult;
 
 // Current world's region, player count and ping, only looked up while resolving. Client thread only.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class WorldInfo
 {
 	private static final int PING_TICKS = 10;
@@ -34,14 +36,6 @@ public class WorldInfo
 	// {tick, round-trip time in µs}
 	private final Deque<long[]> pings = new ArrayDeque<>();
 	private int pingWorld;
-
-	@Inject
-	private WorldInfo(Client client, WorldService worldService, ScheduledExecutorService executor)
-	{
-		this.client = client;
-		this.worldService = worldService;
-		this.executor = executor;
-	}
 
 	@Nullable
 	public Integer players(int worldId)

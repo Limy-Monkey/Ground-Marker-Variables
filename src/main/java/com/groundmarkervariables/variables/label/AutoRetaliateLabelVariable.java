@@ -4,6 +4,7 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -13,6 +14,7 @@ import net.runelite.api.Client;
 // on, nonzero = off — RuneLite hasn't named this one in VarPlayerID; confirmed against the
 // Auto Retaliate Warning plugin (https://github.com/ste-h/auto-retaliate-warning), which
 // reads it the same way.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AutoRetaliateLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{autoRetal(?:iate)?\\}", Pattern.CASE_INSENSITIVE);
@@ -21,14 +23,6 @@ public class AutoRetaliateLabelVariable implements LabelVariable
 	private final Client client;
 	private final RichText richText;
 	private final GroundMarkerVariablesConfig config;
-
-	@Inject
-	private AutoRetaliateLabelVariable(Client client, RichText richText, GroundMarkerVariablesConfig config)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.config = config;
-	}
 
 	@Override
 	public Pattern pattern()

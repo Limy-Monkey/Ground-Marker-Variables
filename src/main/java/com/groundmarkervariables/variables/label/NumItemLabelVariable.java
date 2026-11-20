@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -18,6 +19,7 @@ import net.runelite.client.util.QuantityFormatter;
 
 // {numItem <name>} -> total quantity of every item whose name contains <name> (same scope as
 // {hasItem}), e.g. {numItem brew} counts a Saradomin brew(3) and an Armadyl brew(1) as 2.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class NumItemLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{numItem\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
@@ -25,14 +27,6 @@ public class NumItemLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final ItemManager itemManager;
 	private final RichText richText;
-
-	@Inject
-	private NumItemLabelVariable(Client client, ItemManager itemManager, RichText richText)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

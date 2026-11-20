@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -12,19 +13,13 @@ import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.party.PartyMember;
 
 // {spec} -> current special attack energy, 0-100. VarPlayerID.SA_ENERGY maxes at 1000.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SpecLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{spec\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private SpecLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

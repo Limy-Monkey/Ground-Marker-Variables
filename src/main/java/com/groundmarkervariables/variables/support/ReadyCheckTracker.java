@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
@@ -22,6 +23,7 @@ import net.runelite.client.util.Text;
 // {readyCheck}: each party member's latest ready status, from chat or a new boost. Only recorded
 // while a {readyCheck} tile is nearby, and reset once none is, e.g. on leaving a raid lobby.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ReadyCheckTracker
 {
 	// A status and when it was set.
@@ -67,14 +69,6 @@ public class ReadyCheckTracker
 	private final Map<String, Status> statuses = new HashMap<>();
 	// Last tick's boosted levels in POT_SKILLS order, -1 if not known yet.
 	private final Map<String, int[]> lastBoosts = new HashMap<>();
-
-	@Inject
-	private ReadyCheckTracker(Client client, EventBus eventBus, PartyService partyService)
-	{
-		this.client = client;
-		this.eventBus = eventBus;
-		this.partyService = partyService;
-	}
 
 	public void startUp()
 	{

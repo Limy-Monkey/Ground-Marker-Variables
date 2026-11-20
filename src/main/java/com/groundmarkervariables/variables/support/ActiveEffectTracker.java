@@ -5,6 +5,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.label.CombatAchievementsLabelVariable;
 import net.runelite.api.ChatMessageType;
@@ -28,6 +29,7 @@ import net.runelite.client.util.Text;
 // Whether {active} effects are up, and for timed ones how much is left, from the same messages, varbits and
 // durations as RuneLite's Timers & Buffs and Spell Reminder. A timer needs its start to have been seen.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ActiveEffectTracker
 {
 	public enum Effect
@@ -63,14 +65,6 @@ public class ActiveEffectTracker
 	private final CombatAchievementsLabelVariable combatAchievements;
 	private final Map<Effect, Timer> timers = new EnumMap<>(Effect.class);
 	private int lastDeathCharge;
-
-	@Inject
-	private ActiveEffectTracker(Client client, EventBus eventBus, CombatAchievementsLabelVariable combatAchievements)
-	{
-		this.client = client;
-		this.eventBus = eventBus;
-		this.combatAchievements = combatAchievements;
-	}
 
 	public void startUp()
 	{

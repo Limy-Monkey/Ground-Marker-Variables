@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -17,6 +18,7 @@ import net.runelite.client.hiscore.HiscoreSkill;
 // HiscoreRankLookup -- while it's unavailable (still loading, or genuinely unranked), shown as
 // animated dots, since the two cases can't be told apart from its API. {xp_<level>} is the
 // experience needed for <level>, 1-126, e.g. {xp_99}.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class XpLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{xp_([a-z]+|\\d+)\\}", Pattern.CASE_INSENSITIVE);
@@ -41,14 +43,6 @@ public class XpLabelVariable implements LabelVariable
 	private final Client client;
 	private final RichText richText;
 	private final HiscoreRankLookup rankLookup;
-
-	@Inject
-	private XpLabelVariable(Client client, RichText richText, HiscoreRankLookup rankLookup)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.rankLookup = rankLookup;
-	}
 
 	@Override
 	public Pattern pattern()

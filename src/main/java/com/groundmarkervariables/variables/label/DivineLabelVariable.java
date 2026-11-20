@@ -7,6 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -16,6 +17,7 @@ import net.runelite.api.gameval.VarbitID;
 // {divine <potion>} -> ticks remaining on <potion>'s buff. Rich is the potion's name colored
 // green (>25 ticks), yellow (1-25), or red (0, not active).
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DivineLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{divine\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
@@ -80,12 +82,6 @@ public class DivineLabelVariable implements LabelVariable
 	}
 
 	private final Client client;
-
-	@Inject
-	private DivineLabelVariable(Client client)
-	{
-		this.client = client;
-	}
 
 	@Override
 	public Pattern pattern()

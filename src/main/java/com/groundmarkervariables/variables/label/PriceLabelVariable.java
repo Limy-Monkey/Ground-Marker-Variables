@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.ItemManager;
@@ -18,6 +19,7 @@ import net.runelite.client.util.QuantityFormatter;
 
 // {price <item>}: RuneLite's price for the item (ItemManager#getItemPrice), a held one first.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PriceLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! so a trailing comparator (e.g. "{price abyssal whip > 1m}") isn't part of the name.
@@ -30,16 +32,6 @@ public class PriceLabelVariable implements LabelVariable
 	private final RichText richText;
 	// Every tradeable item's name, for suggestions; built once (see tradeableNames()).
 	private volatile List<String> tradeableNames;
-
-	@Inject
-	private PriceLabelVariable(Client client, ClientThread clientThread, ItemManager itemManager, IconNames iconNames, RichText richText)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-		this.itemManager = itemManager;
-		this.iconNames = iconNames;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

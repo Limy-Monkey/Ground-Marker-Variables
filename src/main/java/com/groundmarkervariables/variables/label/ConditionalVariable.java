@@ -8,12 +8,14 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 // {<chain> ? <whenTrue> [: <whenFalse>]} — <chain> is any number of "<expr> [<cmp> <value>]"
 // leaves combined with && / ||, with parens overriding the usual && before || precedence.
 // Branches may contain {...} tokens nested to any depth, including conditionals, e.g.
 // {a ? {b ? X : Y} : Z}. Base variables in the winning branch resolve in LabelResolver's later
 // passes; metronome is neutralized here, a metavariable left for MetaVariableResolver.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ConditionalVariable implements LabelVariable
 {
 	private static final String METRONOME_TOKEN =
@@ -26,12 +28,6 @@ public class ConditionalVariable implements LabelVariable
 		"\\{([^{}?]+\\?(?:[^{}]|" + NESTED_TOKEN + ")+)\\}");
 
 	private final ConditionEvaluator evaluator;
-
-	@Inject
-	private ConditionalVariable(ConditionEvaluator evaluator)
-	{
-		this.evaluator = evaluator;
-	}
 
 	@Override
 	public Pattern pattern()

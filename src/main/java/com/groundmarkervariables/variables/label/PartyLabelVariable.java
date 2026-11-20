@@ -10,6 +10,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -27,6 +28,7 @@ import net.runelite.client.util.Text;
 
 // {party} -> the party size. LabelResolver renders {party <template>} itself via render(), since
 // the template may contain nested tokens.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PartyLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{party(?:\\s+([^{}?:<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
@@ -71,15 +73,6 @@ public class PartyLabelVariable implements LabelVariable
 	private final PartyService partyService;
 	private final RichText richText;
 	private final PartyMemberContext memberContext;
-
-	@Inject
-	private PartyLabelVariable(Client client, PartyService partyService, RichText richText, PartyMemberContext memberContext)
-	{
-		this.client = client;
-		this.partyService = partyService;
-		this.richText = richText;
-		this.memberContext = memberContext;
-	}
 
 	@Override
 	public Pattern pattern()

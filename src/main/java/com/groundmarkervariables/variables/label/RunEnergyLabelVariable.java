@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -11,19 +12,13 @@ import net.runelite.api.Client;
 import net.runelite.client.party.PartyMember;
 
 // {runEnergy} -> current run energy, 0-100. Client.getEnergy() is in units of 1/100th percent.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RunEnergyLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{runEnergy\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private RunEnergyLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

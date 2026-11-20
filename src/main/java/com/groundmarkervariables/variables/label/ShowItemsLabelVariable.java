@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -21,19 +22,13 @@ import net.runelite.client.party.PartyMember;
 // {showItems <name>, <name>, ...} (or {showItem}) -> Plain: "true" if any listed name matches an
 // item you hold (same scope as {hasItem}), else "false". Rich: the icon of each listed name's first
 // matching item, in the listed order, or empty if none match. {showOneItem(s)} shows only the first.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{show(One)?Items?\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	private final Client client;
 	private final ItemManager itemManager;
-
-	@Inject
-	private ShowItemsLabelVariable(Client client, ItemManager itemManager)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-	}
 
 	@Override
 	public Pattern pattern()

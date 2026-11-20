@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
 
@@ -17,6 +18,7 @@ import net.runelite.client.config.ConfigManager;
 // again only when its saved history changes.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GeHistory
 {
 	private static final String GROUP = "grandexchange";
@@ -44,12 +46,6 @@ public class GeHistory
 	private final ConfigManager configManager;
 	private String parsedJson;
 	private List<Trade> trades = List.of();
-
-	@Inject
-	private GeHistory(ConfigManager configManager)
-	{
-		this.configManager = configManager;
-	}
 
 	public synchronized List<Trade> trades()
 	{

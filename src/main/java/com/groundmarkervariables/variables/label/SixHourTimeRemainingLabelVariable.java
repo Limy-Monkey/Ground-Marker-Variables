@@ -7,6 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -17,6 +18,7 @@ import net.runelite.api.GameState;
 // LOGGED_IN also fires on ordinary loading-line crossings (see IdleNotifierPlugin), so only
 // reset when it was preceded by LOGGING_IN/HOPPING/CONNECTION_LOST.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SixHourTimeRemainingLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{6Hour(?:Time(?:Remaining)?)?\\}", Pattern.CASE_INSENSITIVE);
@@ -26,12 +28,6 @@ public class SixHourTimeRemainingLabelVariable implements LabelVariable
 	private final RichText richText;
 	private volatile Instant loginInstant = Instant.now();
 	private volatile boolean ready;
-
-	@Inject
-	private SixHourTimeRemainingLabelVariable(RichText richText)
-	{
-		this.richText = richText;
-	}
 
 	public void onGameStateChanged(GameState state)
 	{

@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.client.game.ItemManager;
 
@@ -18,6 +19,7 @@ import net.runelite.client.game.ItemManager;
 // log page the player has, from the RuneProfile plugin (see RuneProfileCollectionLog). Rich Text: "<page>:
 // obtained/total" (not with iconsOnly), then the obtained items' icons (or with missing, the rest), itemsPerLine to a
 // line, at most maxItems.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LogLabelVariable implements LabelVariable
 {
 	// Excludes ?:<>=! as {kc} does, and "," which starts the options (group 2).
@@ -38,18 +40,6 @@ public class LogLabelVariable implements LabelVariable
 	private final ItemManager itemManager;
 	private final BossKillCountTracker killCounts;
 	private final RichText richText;
-
-	@Inject
-	private LogLabelVariable(Client client, RuneProfileCollectionLog collectionLog, LootTrackerRecords lootTrackerRecords,
-		ItemManager itemManager, BossKillCountTracker killCounts, RichText richText)
-	{
-		this.client = client;
-		this.collectionLog = collectionLog;
-		this.lootTrackerRecords = lootTrackerRecords;
-		this.itemManager = itemManager;
-		this.killCounts = killCounts;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

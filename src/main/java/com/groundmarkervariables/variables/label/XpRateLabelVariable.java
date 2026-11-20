@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -17,6 +18,7 @@ import net.runelite.client.plugins.xptracker.XpTrackerService;
 // {xpRate_agility}, {xpRate_fishing}. <skill> matches any Skill.getName() case-insensitively,
 // same as {lvl_<skill>}/{boost_<skill>}. Resolves to "N/A" if XP Tracker isn't running, since
 // its numbers are otherwise meaninglessly 0.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class XpRateLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{xpRate_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
@@ -28,16 +30,6 @@ public class XpRateLabelVariable implements LabelVariable
 	private final XpTrackerService xpTrackerService;
 	private final PluginManager pluginManager;
 	private final RichText richText;
-
-	@Inject
-	private XpRateLabelVariable(Client client, XpTrackerService xpTrackerService, PluginManager pluginManager,
-		RichText richText)
-	{
-		this.client = client;
-		this.xpTrackerService = xpTrackerService;
-		this.pluginManager = pluginManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

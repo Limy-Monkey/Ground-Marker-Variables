@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -14,6 +15,7 @@ import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.party.PartyMember;
 
 // {invSpace} -> empty inventory slots, 0-28.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class InvSpaceLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{invSpace\\}", Pattern.CASE_INSENSITIVE);
@@ -21,13 +23,6 @@ public class InvSpaceLabelVariable implements LabelVariable, PartyMemberVariable
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private InvSpaceLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

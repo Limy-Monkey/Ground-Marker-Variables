@@ -11,6 +11,7 @@ import com.groundmarkervariables.variables.support.HiscoreRankLookup;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.client.hiscore.HiscoreSkill;
 import net.runelite.client.party.PartyMember;
@@ -19,6 +20,7 @@ import net.runelite.client.party.PartyMember;
 // has been recorded yet. <boss> may be a short alias (e.g. "cg") — see BossAliases — as well
 // as the canonical name. See BossKillCountTracker for how kill counts are learned/stored.
 // For another party member, their kill count from the hiscores; only bosses on the hiscores.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class KcLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	// Excludes ?:<>=! so a trailing BooleanVariable/ConditionalVariable comparator (e.g. "{kc
@@ -29,15 +31,6 @@ public class KcLabelVariable implements LabelVariable, PartyMemberVariable
 	private final BossKillCountTracker tracker;
 	private final HiscoreRankLookup hiscores;
 	private final RichText richText;
-
-	@Inject
-	private KcLabelVariable(Client client, BossKillCountTracker tracker, HiscoreRankLookup hiscores, RichText richText)
-	{
-		this.client = client;
-		this.tracker = tracker;
-		this.hiscores = hiscores;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

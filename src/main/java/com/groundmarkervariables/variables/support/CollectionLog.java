@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.StructComposition;
 import net.runelite.client.callback.ClientThread;
 
 // Every collection log page and item, from the client's own cache. Built on first use (client thread only).
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class CollectionLog
 {
 	private static final int TABS_ENUM = 2102;
@@ -28,13 +30,6 @@ public class CollectionLog
 	private volatile Set<Integer> items;
 	private Set<Integer> pets;
 	private List<String> pageNames;
-
-	@Inject
-	private CollectionLog(Client client, ClientThread clientThread)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-	}
 
 	// Every page's name, in the log's order. Off the client thread before the first build: empty, the build queued.
 	public List<String> pageNames()

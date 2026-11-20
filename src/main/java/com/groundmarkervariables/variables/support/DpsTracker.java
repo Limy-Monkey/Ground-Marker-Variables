@@ -26,6 +26,7 @@ import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.label.DpsLabelVariable;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
@@ -59,6 +60,7 @@ import net.runelite.client.util.Text;
 // you're near it). A tile resets once it hasn't resolved for a couple of ticks.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DpsTracker
 {
 	public enum Source
@@ -933,22 +935,6 @@ public class DpsTracker
 	// Oldest first.
 	private final Deque<WeaponTick> weaponHistory = new ArrayDeque<>();
 	private int lastAnimationTick = -1;
-
-	@Inject
-	private DpsTracker(Client client, EventBus eventBus, WeaponStyleTracker weaponStyleTracker, ItemManager itemManager,
-		MarkerStorage markerStorage, Provider<LabelResolver> labelResolver, Provider<DpsLabelVariable> dpsLabelVariable, BossNames bossNames,
-		ResolvingTile resolvingTile)
-	{
-		this.resolvingTile = resolvingTile;
-		this.dpsLabelVariable = dpsLabelVariable;
-		this.client = client;
-		this.eventBus = eventBus;
-		this.weaponStyleTracker = weaponStyleTracker;
-		this.itemManager = itemManager;
-		this.markerStorage = markerStorage;
-		this.labelResolver = labelResolver;
-		this.bossNames = bossNames;
-	}
 
 	public void startUp()
 	{

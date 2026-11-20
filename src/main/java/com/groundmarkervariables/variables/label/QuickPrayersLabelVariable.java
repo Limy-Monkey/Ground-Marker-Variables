@@ -7,6 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -18,6 +19,7 @@ import net.runelite.api.gameval.VarbitID;
 // {quickPrayers} -> the sprites of the quick prayers set, in prayer book order. {quickPrayers <name>}
 // -> true if a set quick prayer's name contains <name>; Rich Text is its sprite, dimmed if not set.
 // Standard prayer book only.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class QuickPrayersLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{quickPrayers(?:\\s+([^{}?:<>=!,|&]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
@@ -72,13 +74,6 @@ public class QuickPrayersLabelVariable implements LabelVariable
 
 	private final Client client;
 	private final RichText richText;
-
-	@Inject
-	private QuickPrayersLabelVariable(Client client, RichText richText)
-	{
-		this.client = client;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -12,6 +13,7 @@ import net.runelite.api.Client;
 
 // {autocast} -> the last autocast spell seen on a weapon that can autocast, or "None".
 // {autocast icon} -> its spellbook icon, or nothing.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AutocastLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{autocast(?:\\s+(icon))?\\}", Pattern.CASE_INSENSITIVE);
@@ -20,14 +22,6 @@ public class AutocastLabelVariable implements LabelVariable
 	private final Client client;
 	private final RichText richText;
 	private final WeaponStyleTracker tracker;
-
-	@Inject
-	private AutocastLabelVariable(Client client, RichText richText, WeaponStyleTracker tracker)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.tracker = tracker;
-	}
 
 	@Override
 	public Pattern pattern()

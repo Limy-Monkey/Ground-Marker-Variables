@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.party.PartyValue;
@@ -17,6 +18,7 @@ import net.runelite.client.party.PartyMember;
 
 // {spellbook} -> Standard, Ancient, Lunar or Arceuus. {spellbook icon} is its tab icon. A party
 // member's comes from our shared PartyValue, unavailable until they've sent it.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SpellbookLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{spellbook(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
@@ -29,14 +31,6 @@ public class SpellbookLabelVariable implements LabelVariable, PartyMemberVariabl
 	private final Client client;
 	private final RichText richText;
 	private final PartyDataSharing partyDataSharing;
-
-	@Inject
-	private SpellbookLabelVariable(Client client, RichText richText, PartyDataSharing partyDataSharing)
-	{
-		this.client = client;
-		this.richText = richText;
-		this.partyDataSharing = partyDataSharing;
-	}
 
 	@Override
 	public Pattern pattern()

@@ -14,6 +14,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.ItemComposition;
 import net.runelite.client.config.ConfigManager;
@@ -22,6 +23,7 @@ import net.runelite.client.plugins.PluginManager;
 // Item charges saved by Item Charges Improved (hub) and core Item Charges, each only while that plugin is on.
 // Names are their config keys made readable: "toxic_blowpipe" / "dodgyNecklace" -> "Toxic blowpipe" / "Dodgy necklace".
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ItemCharges
 {
 	public static final int UNLIMITED_CHARGES = -2;
@@ -54,14 +56,6 @@ public class ItemCharges
 	private final Client client;
 	private final ConfigManager configManager;
 	private final PluginManager pluginManager;
-
-	@Inject
-	private ItemCharges(Client client, ConfigManager configManager, PluginManager pluginManager)
-	{
-		this.client = client;
-		this.configManager = configManager;
-		this.pluginManager = pluginManager;
-	}
 
 	// Every item either plugin has known charges saved for (not -1), alphabetically; core's where both have one.
 	public List<String> names()

@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.callback.ClientThread;
@@ -21,6 +22,7 @@ import net.runelite.client.events.PluginMessage;
 // says the log changed. Nothing answers if RuneProfile isn't running, so a page unanswered for TIMEOUT_MS counts
 // as RuneProfile missing.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RuneProfileCollectionLog
 {
 	private static final String NAMESPACE = "runeprofile";
@@ -38,13 +40,6 @@ public class RuneProfileCollectionLog
 	private final ClientThread clientThread;
 	// Keyed by the page as written, lower case.
 	private final Map<String, Entry> pages = new ConcurrentHashMap<>();
-
-	@Inject
-	private RuneProfileCollectionLog(EventBus eventBus, ClientThread clientThread)
-	{
-		this.eventBus = eventBus;
-		this.clientThread = clientThread;
-	}
 
 	// A loaded page; its total is items.size().
 	public static final class Page

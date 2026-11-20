@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.label;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
@@ -18,6 +19,7 @@ import net.runelite.client.party.PartyMember;
 
 // {weapon} -> the equipped weapon's item name (e.g. "Abyssal whip"), or "Unarmed" if the
 // weapon slot is empty. {weapon icon} is its item icon, or nothing if unarmed.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class WeaponLabelVariable implements LabelVariable, PartyMemberVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{weapon(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
@@ -26,14 +28,6 @@ public class WeaponLabelVariable implements LabelVariable, PartyMemberVariable
 	private final Client client;
 	private final ItemManager itemManager;
 	private final RichText richText;
-
-	@Inject
-	private WeaponLabelVariable(Client client, ItemManager itemManager, RichText richText)
-	{
-		this.client = client;
-		this.itemManager = itemManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()

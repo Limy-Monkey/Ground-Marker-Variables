@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -12,6 +13,7 @@ import net.runelite.client.config.ConfigManager;
 
 // {pb <boss>} -> personal best time for <boss> (same alias resolution as {kc}), formatted like
 // !pb, or "None" if none recorded. Reads Chat Commands' own "personalbest" data, read-only.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PbLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{pb\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
@@ -20,13 +22,6 @@ public class PbLabelVariable implements LabelVariable
 
 	private final ConfigManager configManager;
 	private final RichText richText;
-
-	@Inject
-	private PbLabelVariable(ConfigManager configManager, RichText richText)
-	{
-		this.configManager = configManager;
-		this.richText = richText;
-	}
 
 	@Override
 	public Pattern pattern()
