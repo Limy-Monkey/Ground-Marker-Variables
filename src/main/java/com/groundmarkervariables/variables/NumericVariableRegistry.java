@@ -13,6 +13,7 @@ import com.groundmarkervariables.variables.label.NumDosesLabelVariable;
 import com.groundmarkervariables.variables.label.NumItemLabelVariable;
 import com.groundmarkervariables.variables.label.PartyLabelVariable;
 import com.groundmarkervariables.variables.label.PartyNumLabelVariable;
+import com.groundmarkervariables.variables.label.GeHistoryLabelVariable;
 import com.groundmarkervariables.variables.label.PriceLabelVariable;
 import com.groundmarkervariables.variables.label.QuestPointsLabelVariable;
 import com.groundmarkervariables.variables.label.RunEnergyLabelVariable;
@@ -36,7 +37,7 @@ public class NumericVariableRegistry
 	// LabelCompleter's autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
 		"kc", "loot", "lootSession", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
-		"combatAchievement", "numItem", "numDoses", "charges", "partyNum", "party", "invSpace", "xp_", "price"
+		"combatAchievement", "numItem", "numDoses", "charges", "partyNum", "party", "invSpace", "xp_", "price", "geHistory"
 	);
 
 	private final List<LabelVariable> variables;
@@ -65,10 +66,12 @@ public class NumericVariableRegistry
 		PartyLabelVariable party,
 		InvSpaceLabelVariable invSpace,
 		XpLabelVariable xp,
-		PriceLabelVariable price)
+		PriceLabelVariable price,
+		GeHistoryLabelVariable geHistory)
 	{
 		this.variables = List.of(kc, loot, lootSession, log, skillLevel, boostedSkillLevel, xpRate, runEnergy, spec,
-			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements, numItem, numDoses, charges, partyNum, party, invSpace, xp, price);
+			questPoints, slayerPoints, slayerStreak, miscellania, weekday, combatAchievements, numItem, numDoses, charges, partyNum, party, invSpace, xp,
+			price, geHistory);
 	}
 
 	public List<LabelVariable> all()

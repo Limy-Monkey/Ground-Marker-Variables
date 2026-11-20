@@ -5,6 +5,7 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
+import com.groundmarkervariables.variables.label.GeHistoryLabelVariable;
 import com.groundmarkervariables.variables.label.PriceLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
@@ -84,6 +85,14 @@ public class LabelCompleter
 	// {charges <item>}: items Item Charges Improved / Item Charges have saved charges for, while they're on.
 	private static final String CHARGES_PREFIX = "charges ";
 	private static final String PRICE_PREFIX = "price ";
+	// {geHistory ...}: comma-separated options, the first after a space.
+	private static final String GE_HISTORY = "geHistory";
+	private static final Pattern GE_HISTORY_OPTIONS = Pattern.compile("(?i)^geHistory(\\s.*)$");
+	private static final Pattern GE_HISTORY_WORD = Pattern.compile("(?i)bought|sold|qty|profit|investment|limitTransactions=\\d+");
+	// At most one of each.
+	private static final List<List<String>> GE_HISTORY_EXCLUSIVE = List.of(List.of("bought", "sold"), List.of("qty", "profit", "investment"));
+	private static final List<String> GE_HISTORY_WORDS = VariableCatalog.completions(GE_HISTORY);
+	private static final List<String> GE_HISTORY_START_DATES = List.of("today", "-7 days", "-30 days");
 	private static final String CHARGES_ICONS = "icons";
 
 	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
@@ -248,6 +257,7 @@ public class LabelCompleter
 	private final LootTrackerRecords lootTrackerRecords;
 	private final LabelResolver labelResolver;
 	private final PriceLabelVariable price;
+	private final GeHistoryLabelVariable geHistory;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
 	// Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime).
@@ -260,9 +270,10 @@ public class LabelCompleter
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
 		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
-		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, PriceLabelVariable price)
+		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, PriceLabelVariable price, GeHistoryLabelVariable geHistory)
 	{
 		this.price = price;
+		this.geHistory = geHistory;
 		this.config = config;
 		this.configManager = configManager;
 		this.gson = gson;
@@ -600,6 +611,7 @@ public class LabelCompleter
 			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
 		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
 		list.add(prefix(CHARGES_PREFIX, true, this::completeCharges));
+		list.add(pattern(GE_HISTORY_OPTIONS, m -> completeGeHistory(m.group(1))));
 		list.add(prefix(PRICE_PREFIX, true, rest -> described(withIcons(match(rest, price.tradeableNames(), "{" + PRICE_PREFIX, "", "}", true),
 			item -> "<item=" + item + ">"), PRICE_PREFIX)));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
@@ -777,6 +789,32 @@ public class LabelCompleter
 		}
 		return described(withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill, "Skill")),
 			prefix);
+	}
+
+	// The option being typed after "geHistory" (those not already typed; one per GE_HISTORY_EXCLUSIVE group), or the
+	// value after item= (traded items) or startDate=; "}" once one is complete.
+	@Nullable
+	private Completion completeGeHistory(String rest)
+	{
+		int comma = rest.lastIndexOf(',');
+		String typed = comma < 0 ? "" : rest.substring(0, comma).toLowerCase(Locale.ROOT);
+		String word = rest.substring(comma + 1).replaceFirst("^\\s+", "");
+		String lower = word.toLowerCase(Locale.ROOT);
+		if (lower.startsWith("item="))
+		{
+			return described(withIcons(match(word.substring("item=".length()), geHistory.itemNames(), "{" + GE_HISTORY + " item=", "", "}", true),
+				item -> "<item=" + item + ">"), GE_HISTORY);
+		}
+		if (lower.startsWith("startdate="))
+		{
+			return described(match(word.substring("startDate=".length()), GE_HISTORY_START_DATES, "{" + GE_HISTORY + " startDate=", "", "}", true),
+				GE_HISTORY);
+		}
+		List<String> unused = GE_HISTORY_WORDS.stream()
+			.filter(option -> !typed.contains(option.toLowerCase(Locale.ROOT)))
+			.filter(option -> GE_HISTORY_EXCLUSIVE.stream().noneMatch(group -> group.contains(option) && group.stream().anyMatch(typed::contains)))
+			.collect(Collectors.toList());
+		return described(completeOption(word, unused, GE_HISTORY_WORD.matcher(word).matches()), GE_HISTORY);
 	}
 
 	// Each spell word once ("air"/"wind" counting as one).
