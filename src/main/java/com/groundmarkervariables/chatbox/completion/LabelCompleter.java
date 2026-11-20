@@ -95,12 +95,8 @@ public class LabelCompleter
 	private static final List<String> GE_HISTORY_START_DATES = List.of("today", "-7 days", "-30 days");
 	private static final String CHARGES_ICONS = "icons";
 
-	// {party <template>}: nothing completed, so its parameter hint shows. {dps <template>}: the keyword being typed;
-	// <N>s isn't completed.
+	// {party <template>}: nothing completed, so its parameter hint shows.
 	private static final String PARTY_PREFIX = "party ";
-	private static final String DPS_PREFIX = "dps ";
-	private static final List<String> DPS_KEYWORDS = VariableCatalog.completions("dps");
-	private static final Pattern TEMPLATE_WORD = Pattern.compile("[a-zA-Z]*$");
 
 	// {divine <potion>} / {active <effect>}.
 	private static final String DIVINE_PREFIX = "divine ";
@@ -622,7 +618,6 @@ public class LabelCompleter
 			item -> "<item=" + item + ">"), PRICE_PREFIX)));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));
-		list.add(prefix(DPS_PREFIX, false, rest -> completeTemplateKeyword(rest, DPS_KEYWORDS, DPS_PREFIX)));
 		list.add(prefix(DIVINE_PREFIX, false, rest -> described(match(rest, DIVINE_POTIONS, "{" + DIVINE_PREFIX, "", "}", true), DIVINE_PREFIX)));
 		list.add(prefix(QUICK_PRAYERS_PREFIX, false, rest -> described(withIcons(match(rest, PRAYERS, "{" + QUICK_PRAYERS_PREFIX, "", "}", true),
 			prayer -> spriteNamed(prayer, "Prayer")), QUICK_PRAYERS_PREFIX)));
@@ -1112,20 +1107,6 @@ public class LabelCompleter
 	private static String bossIcon(String name)
 	{
 		return BOSS_ICON + BossAliases.resolve(name);
-	}
-
-	// {party}/{dps} template: only the trailing word, with no closer since more may follow.
-	@Nullable
-	private Completion completeTemplateKeyword(String template, List<String> keywords, String prefix)
-	{
-		Matcher word = TEMPLATE_WORD.matcher(template);
-		word.find();
-		// Empty only right after a separator (e.g. "num."): nothing new typed yet, unlike "{party ".
-		if (word.group().isEmpty() && !template.isEmpty())
-		{
-			return null;
-		}
-		return described(match(word.group(), keywords, "{" + prefix, "", null, true), prefix);
 	}
 
 	// Each option given the description of the parameter it completes for variable (variables.json), if any.

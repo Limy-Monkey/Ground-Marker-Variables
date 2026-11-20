@@ -32,7 +32,6 @@ import com.groundmarkervariables.variables.support.NamedColors;
 import com.groundmarkervariables.variables.support.ReadyCheckTracker;
 import com.groundmarkervariables.variables.support.ActiveEffectTracker;
 import com.groundmarkervariables.variables.support.ResolvingTile;
-import com.groundmarkervariables.variables.support.DpsTracker;
 import com.groundmarkervariables.variables.support.LootSessions;
 import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
 import com.groundmarkervariables.variables.support.IconNames;
@@ -258,9 +257,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private IconNames iconNames;
 
 	@Inject
-	private DpsTracker dpsTracker;
-
-	@Inject
 	private LootSessions lootSessions;
 
 	@Inject
@@ -324,7 +320,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		readyCheckTracker.startUp();
 		activeEffectTracker.startUp();
 		weaponStyleTracker.startUp();
-		dpsTracker.startUp();
 		runeProfileCollectionLog.startUp();
 		renderedTiles.setSources(List.of(this, externalMarkerManager, pingedTileManager, importPreviewManager));
 		pluginMessageHandler.startUp();
@@ -395,7 +390,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		ItemQuantityFinder.clearCache();
 		RuneCounter.clearCache();
 		weaponStyleTracker.shutDown();
-		dpsTracker.shutDown();
 		runeProfileCollectionLog.shutDown();
 		pluginMessageHandler.shutDown();
 		externalMarkerManager.shutDown();
@@ -504,13 +498,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		}
 
 		String label = existing.getLabel() == null ? "" : existing.getLabel();
-		if (DpsTracker.DPS_TOKEN.matcher(label).find())
-		{
-			submenu = addVariableOption(submenu, "Reset", "DPS", () -> dpsTracker.reset(tile));
-			submenu = addVariableOption(submenu, "Export to Chat", "DPS", () -> dpsTracker.exportToChat(tile));
-			submenu = addVariableOption(submenu, "Export Report", "DPS", () -> dpsTracker.exportReport(tile));
-			submenu = addVariableOption(submenu, "Export Raw Data", "DPS", () -> dpsTracker.exportRawData(tile));
-		}
 
 		// "Reset Session" for each {lootSession <monster>} in the label, once per monster.
 		Set<String> sessions = new HashSet<>();
@@ -591,7 +578,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		return saved;
 	}
 
-	// e.g. "Reset DPS" with an orange "DPS". Creates the "Variables" submenu on first use.
+	// e.g. "Reset Session" with an orange monster name. Creates the "Variables" submenu on first use.
 	private Menu addVariableOption(Menu submenu, String option, String variable, Runnable action)
 	{
 		if (submenu == null)
@@ -1167,7 +1154,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	}
 
 	// Replaces (not mutates) the cached list, so a concurrent render() never sees a partially-built list. Resolved
-	// without a tile; the tick refresh then resolves each drawn one at its own tile ({dps} keeps stats by tile).
+	// without a tile; the tick refresh then resolves each drawn one at its own tile.
 	private void rebuildRegion(int regionId)
 	{
 		List<SourceMarker> markers = markerStorage.getStoredPoints(regionId).stream()

@@ -66,13 +66,12 @@ public class VariableRegistry
 		GroupLabelVariable group,
 		QuickPrayersLabelVariable quickPrayers,
 		AutocastLabelVariable autocast,
-		DpsLabelVariable dps,
 		PriceLabelVariable price,
 		GeHistoryLabelVariable geHistory)
 	{
 		this.variables = List.of(
 			rsn, spellbook, hasSpell, weapon, skillLevel, boostedSkillLevel,
-			attackStyle, attackType, autocast, dps, hasItem, showItems, runePouch, miscellania, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
+			attackStyle, attackType, autocast, hasItem, showItems, runePouch, miscellania, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
 			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, lootSession, log, combatAchievements, numItem, numDoses, charges, xp, rank,
 			party, partyNum, readyCheck, divine, world, hasSurge, hasBarrage, active, invSpace, group, quickPrayers, price, geHistory);
 	}
