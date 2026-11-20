@@ -192,7 +192,13 @@ public class LabelCompleter
 		new SpriteCategory("(Friends)", 2828),
 		new SpriteCategory("(Ge)", 1108),
 		new SpriteCategory("(Bank)", 1041),
-		new SpriteCategory("(Texture)", 476));
+		new SpriteCategory("(Sailing)", 7201),
+		new SpriteCategory("(Texture)", 476),
+		new SpriteCategory("(TFA)", 8360),
+		new SpriteCategory("(Mortimer)", 8551),
+		new SpriteCategory("(Minigame Teleport)", 7479),
+		new SpriteCategory("(Arrow)", 6858),
+		new SpriteCategory("(Options)", 1084));
 
 	// {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage.
 	private static final String METRONOME_NAME = "metronome";
