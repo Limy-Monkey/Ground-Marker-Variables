@@ -1,7 +1,9 @@
 package com.groundmarkervariables.variables;
 
+import com.google.inject.Injector;
 import com.groundmarkervariables.variables.label.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -12,68 +14,54 @@ import javax.inject.Inject;
 //
 // MetronomeLabelVariable is deliberately NOT here — see LabelResolver's comment for why it's
 // excluded from conditional support entirely (both as <expr> and inside A/B branches).
+//
+// A new variable: a line in SimpleVariables if it takes no arguments, else its class here.
 public class VariableRegistry
 {
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private VariableRegistry(
-		RsnLabelVariable rsn,
-		SpellbookLabelVariable spellbook,
-		HasSpellLabelVariable hasSpell,
-		WeaponLabelVariable weapon,
-		SkillLevelLabelVariable skillLevel,
-		BoostedSkillLevelLabelVariable boostedSkillLevel,
-		AttackStyleLabelVariable attackStyle,
-		AttackTypeLabelVariable attackType,
-		HasItemLabelVariable hasItem,
-		ShowItemsLabelVariable showItems,
-		RunePouchLabelVariable runePouch,
-		MiscellaniaLabelVariable miscellania,
-		TimeLabelVariable time,
-		DateLabelVariable date,
-		WeekdayLabelVariable weekday,
-		QuestPointsLabelVariable questPoints,
-		EquipLabelVariable equip,
-		KcLabelVariable kc,
-		PbLabelVariable pb,
-		AutoRetaliateLabelVariable autoRetaliate,
-		XpRateLabelVariable xpRate,
-		RunEnergyLabelVariable runEnergy,
-		SpecLabelVariable spec,
-		SixHourTimeRemainingLabelVariable sixHourTimeRemaining,
-		SlayerTaskLabelVariable slayerTask,
-		SlayerStreakLabelVariable slayerStreak,
-		SlayerPointsLabelVariable slayerPoints,
-		LootLabelVariable loot,
-		LootSessionLabelVariable lootSession,
-		LogLabelVariable log,
-		CombatAchievementsLabelVariable combatAchievements,
-		NumItemLabelVariable numItem,
-		NumDosesLabelVariable numDoses,
-		ChargesLabelVariable charges,
-		XpLabelVariable xp,
-		RankLabelVariable rank,
-		PartyLabelVariable party,
-		PartyNumLabelVariable partyNum,
-		ReadyCheckLabelVariable readyCheck,
-		DivineLabelVariable divine,
-		WorldLabelVariable world,
-		HasSurgeLabelVariable hasSurge,
-		HasBarrageLabelVariable hasBarrage,
-		ActiveLabelVariable active,
-		InvSpaceLabelVariable invSpace,
-		GroupLabelVariable group,
-		QuickPrayersLabelVariable quickPrayers,
-		AutocastLabelVariable autocast,
-		PriceLabelVariable price,
-		GeHistoryLabelVariable geHistory)
+	private VariableRegistry(Injector injector, SimpleVariables simple)
 	{
-		this.variables = List.of(
-			rsn, spellbook, hasSpell, weapon, skillLevel, boostedSkillLevel,
-			attackStyle, attackType, autocast, hasItem, showItems, runePouch, miscellania, time, date, weekday, questPoints, equip, kc, pb, autoRetaliate, xpRate,
-			runEnergy, spec, sixHourTimeRemaining, slayerTask, slayerStreak, slayerPoints, loot, lootSession, log, combatAchievements, numItem, numDoses, charges, xp, rank,
-			party, partyNum, readyCheck, divine, world, hasSurge, hasBarrage, active, invSpace, group, quickPrayers, price, geHistory);
+		// The no-argument variables, defined inline in SimpleVariables.
+		List<LabelVariable> variables = new ArrayList<>(simple.all());
+		for (Class<? extends LabelVariable> type : List.of(
+			HasSpellLabelVariable.class,
+			SkillLevelLabelVariable.class,
+			BoostedSkillLevelLabelVariable.class,
+			AttackStyleLabelVariable.class,
+			AttackTypeLabelVariable.class,
+			HasItemLabelVariable.class,
+			ShowItemsLabelVariable.class,
+			RunePouchLabelVariable.class,
+			EquipLabelVariable.class,
+			KcLabelVariable.class,
+			PbLabelVariable.class,
+			XpRateLabelVariable.class,
+			SixHourTimeRemainingLabelVariable.class,
+			LootLabelVariable.class,
+			LootSessionLabelVariable.class,
+			LogLabelVariable.class,
+			NumItemLabelVariable.class,
+			NumDosesLabelVariable.class,
+			ChargesLabelVariable.class,
+			XpLabelVariable.class,
+			RankLabelVariable.class,
+			PartyLabelVariable.class,
+			ReadyCheckLabelVariable.class,
+			DivineLabelVariable.class,
+			WorldLabelVariable.class,
+			HasSurgeLabelVariable.class,
+			HasBarrageLabelVariable.class,
+			ActiveLabelVariable.class,
+			GroupLabelVariable.class,
+			QuickPrayersLabelVariable.class,
+			PriceLabelVariable.class,
+			GeHistoryLabelVariable.class))
+		{
+			variables.add(injector.getInstance(type));
+		}
+		this.variables = List.copyOf(variables);
 	}
 
 	public List<LabelVariable> all()

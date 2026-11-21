@@ -7,7 +7,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 
-import com.groundmarkervariables.variables.label.CombatAchievementsLabelVariable;
+import com.groundmarkervariables.variables.label.SimpleVariables;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.EquipmentInventorySlot;
@@ -62,7 +62,7 @@ public class ActiveEffectTracker
 
 	private final Client client;
 	private final EventBus eventBus;
-	private final CombatAchievementsLabelVariable combatAchievements;
+	private final SimpleVariables simpleVariables;
 	private final Map<Effect, Timer> timers = new EnumMap<>(Effect.class);
 	private int lastDeathCharge;
 
@@ -169,7 +169,7 @@ public class ActiveEffectTracker
 				if (value == 1)
 				{
 					int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
-					start(Effect.THRALL, (combatAchievements.tier() >= MASTER_TIER ? ticks * 2 : ticks) + THRALL_SUMMON_TICKS);
+					start(Effect.THRALL, (simpleVariables.combatAchievementTier() >= MASTER_TIER ? ticks * 2 : ticks) + THRALL_SUMMON_TICKS);
 				}
 				break;
 			case VarbitID.ARCEUUS_RESURRECTION_ACTIVE:
