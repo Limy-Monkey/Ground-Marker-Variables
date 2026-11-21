@@ -26,9 +26,6 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetPositionMode;
-import net.runelite.api.widgets.WidgetSizeMode;
-import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -49,13 +46,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 	private static final int RESULTS_Y = 30;
 	// Fixed, like AdvancedLabelEditor -- fills the chatbox down to where its own list ends.
 	private static final int VISIBLE_ROWS = 6;
-	private static final int SCROLLBAR_WIDTH = 14;
-	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
-	private static final int SCROLLBAR_TRACK_WIDTH = 4;
-	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
 	private static final int TOP_BAR_GAP = 8;
-	private static final int HOVER_COLOR = 0x444444;
-	private static final int DISABLED_COLOR = 0x888888;
 	private static final int ACTIVE_COLOR = 0x800000;
 	private static final Pattern HAS_VARIABLE = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
@@ -194,39 +185,17 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
 
-		Widget title = container.createChild(-1, WidgetType.TEXT);
-		title.setText("Ground Markers (" + markerCount(visibleEntries()) + ")");
-		title.setTextColor(0x800000);
-		title.setFontId(FontID.QUILL_8);
-		title.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		title.setOriginalX(6);
-		title.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		title.setOriginalY(5);
-		title.setOriginalWidth(200);
-		title.setOriginalHeight(LINE_HEIGHT);
-		title.setYTextAlignment(WidgetTextAlignment.CENTER);
-		title.revalidate();
-
+		ChatboxWidgets.text(container, "Ground Markers (" + markerCount(visibleEntries()) + ")", FontID.QUILL_8, 0x800000, 6, 5, 200,
+			LINE_HEIGHT);
 		buildTopBar(container);
-
-		Widget separator = container.createChild(-1, WidgetType.LINE);
-		separator.setXPositionMode(WidgetPositionMode.ABSOLUTE_CENTER);
-		separator.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		separator.setOriginalY(RESULTS_Y - 4);
-		separator.setOriginalHeight(0);
-		separator.setOriginalWidth(16);
-		separator.setWidthMode(WidgetSizeMode.MINUS);
-		separator.revalidate();
-
+		ChatboxWidgets.separator(container, RESULTS_Y - 4);
 		buildRows(container);
 	}
 
 	// Right to left: x, Del, Copy, { }, All, (selected count). The full name shows as the hover/menu text.
 	private void buildTopBar(Widget container)
 	{
-		Widget probe = container.createChild(-1, WidgetType.TEXT);
-		probe.setFontId(BUTTON_FONT);
-		FontTypeFace font = probe.getFont();
+		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
 
 		List<Entry> visible = visibleEntries();
 		boolean anySelected = !selected.isEmpty();
@@ -291,29 +260,12 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 	private Widget addButton(Widget container, FontTypeFace font, String text, String action, String target, boolean enabled, int rightX,
 		Runnable onClick)
 	{
-		int width = font.getTextWidth(text) + 4;
-		Widget button = container.createChild(-1, WidgetType.TEXT);
-		button.setText(text);
-		button.setFontId(BUTTON_FONT);
-		button.setTextColor(enabled ? 0x000000 : DISABLED_COLOR);
-		button.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		button.setOriginalX(rightX);
-		button.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		button.setOriginalY(5);
-		button.setOriginalWidth(width);
-		button.setOriginalHeight(LINE_HEIGHT);
-		button.setXTextAlignment(WidgetTextAlignment.CENTER);
-		button.setYTextAlignment(WidgetTextAlignment.CENTER);
+		Widget button = ChatboxWidgets.button(container, text, BUTTON_FONT, rightX, 5, font.getTextWidth(text) + 4, LINE_HEIGHT, action,
+			enabled ? onClick : null);
 		if (enabled)
 		{
-			button.setHasListener(true);
-			button.setAction(0, action);
 			button.setName(target);
-			button.setOnOpListener((JavaScriptCallback) ev -> onClick.run());
-			button.setOnMouseRepeatListener((JavaScriptCallback) ev -> button.setTextColor(HOVER_COLOR));
-			button.setOnMouseLeaveListener((JavaScriptCallback) ev -> button.setTextColor(0x000000));
 		}
-		button.revalidate();
 		return button;
 	}
 
@@ -347,17 +299,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		int maxOffset = Math.max(0, rows.size() - visibleRows);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
 
-		// Invisible -- captures mouse wheel input over the list.
-		Widget scrollCapture = container.createChild(-1, WidgetType.TEXT);
-		scrollCapture.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		scrollCapture.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		scrollCapture.setOriginalY(RESULTS_Y);
-		scrollCapture.setOriginalWidth(container.getWidth());
-		scrollCapture.setOriginalHeight(visibleRows * ROW_HEIGHT);
-		scrollCapture.setHasListener(true);
-		scrollCapture.setNoScrollThrough(true);
-		scrollCapture.setOnScrollWheelListener((JavaScriptCallback) ev -> scroll(ev.getMouseY()));
-		scrollCapture.revalidate();
+		ChatboxWidgets.scrollCapture(container, RESULTS_Y, visibleRows * ROW_HEIGHT, this::scroll);
 
 		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
 		for (int i = 0; i < visibleCount; i++)
@@ -370,15 +312,9 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 			int checkboxX = header ? 6 : 22;
 			int checkboxSize = header ? ROW_HEIGHT : ENTRY_CHECKBOX_SIZE;
 
-			Widget checkbox = container.createChild(-1, WidgetType.GRAPHIC);
+			Widget checkbox = ChatboxWidgets.child(container, WidgetType.GRAPHIC, checkboxX, y + (ROW_HEIGHT - checkboxSize) / 2, checkboxSize,
+				checkboxSize);
 			checkbox.setSpriteId(checked ? SpriteID.Checkbox._2 : SpriteID.Checkbox._0);
-			checkbox.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-			checkbox.setOriginalX(checkboxX);
-			checkbox.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			checkbox.setOriginalY(y + (ROW_HEIGHT - checkboxSize) / 2);
-			checkbox.setOriginalWidth(checkboxSize);
-			checkbox.setOriginalHeight(checkboxSize);
-			checkbox.revalidate();
 
 			String text;
 			int color;
@@ -410,92 +346,16 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 				clickable.setAction(0, checked ? "Deselect" : "Select");
 				clickable.setOnOpListener((JavaScriptCallback) ev -> toggle(rowEntries, !checked));
 			}
-			label.setOnMouseRepeatListener((JavaScriptCallback) ev -> label.setTextColor(HOVER_COLOR));
-			label.setOnMouseLeaveListener((JavaScriptCallback) ev -> label.setTextColor(color));
+			ChatboxWidgets.hover(label, color);
 		}
 
-		buildScrollbar(container, rows.size(), maxOffset);
+		ChatboxWidgets.scrollbar(container, RESULTS_Y, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(),
+			this::scroll);
 	}
 
 	private Widget addText(Widget container, String text, int fontId, int color, int x, int y)
 	{
-		Widget widget = container.createChild(-1, WidgetType.TEXT);
-		widget.setText(text);
-		widget.setFontId(fontId);
-		widget.setTextColor(color);
-		widget.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		widget.setOriginalX(x);
-		widget.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		widget.setOriginalY(y);
-		widget.setOriginalHeight(ROW_HEIGHT);
-		widget.setOriginalWidth(x + SCROLLBAR_WIDTH + 6);
-		widget.setWidthMode(WidgetSizeMode.MINUS);
-		widget.setXTextAlignment(WidgetTextAlignment.LEFT);
-		widget.setYTextAlignment(WidgetTextAlignment.CENTER);
-		widget.revalidate();
-		return widget;
-	}
-
-	// Same arrows/track/thumb as AdvancedLabelEditor's own scrollbar.
-	private void buildScrollbar(Widget container, int rowCount, int maxOffset)
-	{
-		if (maxOffset <= 0)
-		{
-			return;
-		}
-
-		int listHeight = VISIBLE_ROWS * ROW_HEIGHT;
-		addScrollArrow(container, "^", "Scroll up", RESULTS_Y, scrollOffset > 0, -1);
-		addScrollArrow(container, "v", "Scroll down", RESULTS_Y + listHeight - SCROLLBAR_ARROW_HEIGHT, scrollOffset < maxOffset, 1);
-
-		int trackY = RESULTS_Y + SCROLLBAR_ARROW_HEIGHT;
-		int trackHeight = listHeight - SCROLLBAR_ARROW_HEIGHT * 2;
-		int trackX = (SCROLLBAR_WIDTH - SCROLLBAR_TRACK_WIDTH) / 2;
-
-		Widget track = container.createChild(-1, WidgetType.RECTANGLE);
-		track.setFilled(true);
-		track.setOpacity(120);
-		track.setTextColor(0x000000);
-		track.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		track.setOriginalX(trackX);
-		track.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		track.setOriginalY(trackY);
-		track.setOriginalWidth(SCROLLBAR_TRACK_WIDTH);
-		track.setOriginalHeight(trackHeight);
-		track.revalidate();
-
-		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * VISIBLE_ROWS / rowCount);
-		int thumbY = trackY + (trackHeight - thumbHeight) * scrollOffset / maxOffset;
-
-		Widget thumb = container.createChild(-1, WidgetType.RECTANGLE);
-		thumb.setFilled(true);
-		thumb.setTextColor(0x800000);
-		thumb.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		thumb.setOriginalX(trackX);
-		thumb.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		thumb.setOriginalY(thumbY);
-		thumb.setOriginalWidth(SCROLLBAR_TRACK_WIDTH);
-		thumb.setOriginalHeight(thumbHeight);
-		thumb.revalidate();
-	}
-
-	private void addScrollArrow(Widget container, String text, String action, int y, boolean enabled, int direction)
-	{
-		Widget arrow = container.createChild(-1, WidgetType.TEXT);
-		arrow.setText(text);
-		arrow.setFontId(FontID.BOLD_12);
-		arrow.setTextColor(enabled ? 0x000000 : DISABLED_COLOR);
-		arrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		arrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		arrow.setOriginalY(y);
-		arrow.setOriginalWidth(SCROLLBAR_WIDTH);
-		arrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
-		arrow.setXTextAlignment(WidgetTextAlignment.CENTER);
-		arrow.setYTextAlignment(WidgetTextAlignment.CENTER);
-		arrow.setHasListener(true);
-		arrow.setAction(0, action);
-		arrow.setOnOpListener((JavaScriptCallback) ev -> scroll(direction));
-		arrow.revalidate();
+		return ChatboxWidgets.rowText(container, text, fontId, color, x, y, ROW_HEIGHT, x + ChatboxWidgets.SCROLLBAR_WIDTH + 6);
 	}
 
 	private void scroll(int direction)

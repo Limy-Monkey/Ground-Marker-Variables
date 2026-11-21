@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -24,9 +23,6 @@ import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetPositionMode;
-import net.runelite.api.widgets.WidgetSizeMode;
-import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -58,11 +54,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Edit rows shown; longer text wraps on and scrolls (see update()). Shrunk to COMPACT_EDIT_LINES by its button.
 	private static final int MAX_EDIT_LINES = 5;
 	private static final int COMPACT_EDIT_LINES = 2;
-	private static final int SCROLLBAR_WIDTH = 14;
-	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
-	private static final int SCROLLBAR_TRACK_WIDTH = 4;
-	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
-	private static final int HOVER_COLOR = 0x444444;
+	private static final int SCROLLBAR_WIDTH = ChatboxWidgets.SCROLLBAR_WIDTH;
 	private static final int AUTOCOMPLETE_COLOR = 0x444444;
 	private static final int GHOST_BACKGROUND_COLOR = 0xFFFFFF;
 	private static final int ROW_COLOR = 0x000000;
@@ -677,19 +669,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		Widget scrollCapture = container.createChild(-1, WidgetType.TEXT);
-		scrollCapture.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		scrollCapture.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		scrollCapture.setOriginalX(0);
-		scrollCapture.setOriginalY(editRowY(0));
-		scrollCapture.setOriginalWidth(container.getWidth());
-		scrollCapture.setOriginalHeight(editWindow * LINE_HEIGHT);
-		scrollCapture.setHasListener(true);
-		scrollCapture.setNoScrollThrough(true);
-		scrollCapture.setOnScrollWheelListener((JavaScriptCallback) ev -> scrollEdit(ev.getMouseY()));
-		scrollCapture.revalidate();
-
-		buildScrollbar(container, editRowY(0), editWindow * LINE_HEIGHT, editScroll, maxScroll, editWindow, editLines, this::scrollEdit);
+		ChatboxWidgets.scrollCapture(container, editRowY(0), editWindow * LINE_HEIGHT, this::scrollEdit);
+		ChatboxWidgets.scrollbar(container, editRowY(0), editWindow * LINE_HEIGHT, editScroll, maxScroll, editWindow, editLines,
+			this::scrollEdit);
 	}
 
 	private void scrollEdit(int direction)
@@ -750,31 +732,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		// needed when there's real text after the cursor on this row to stay legible over.
 		if (localCursor < line.text.length())
 		{
-			Widget ghostBackground = container.createChild(-1, WidgetType.RECTANGLE);
-			ghostBackground.setFilled(true);
-			ghostBackground.setTextColor(GHOST_BACKGROUND_COLOR);
-			ghostBackground.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-			ghostBackground.setOriginalX(ghostX - 1);
-			ghostBackground.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			ghostBackground.setOriginalY(ghostY);
-			ghostBackground.setOriginalWidth(ghostWidth + 2);
-			ghostBackground.setOriginalHeight(LINE_HEIGHT);
-			ghostBackground.revalidate();
+			ChatboxWidgets.rect(container, GHOST_BACKGROUND_COLOR, ghostX - 1, ghostY, ghostWidth + 2, LINE_HEIGHT);
 		}
 
-		Widget ghost = container.createChild(-1, WidgetType.TEXT);
-		ghost.setText(escapedCompletion);
-		ghost.setFontId(editorFontId());
-		ghost.setTextColor(AUTOCOMPLETE_COLOR);
-		ghost.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		ghost.setOriginalX(ghostX);
-		ghost.setOriginalWidth(ghostWidth);
-		ghost.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		ghost.setOriginalY(ghostY);
-		ghost.setOriginalHeight(LINE_HEIGHT);
-		ghost.setXTextAlignment(WidgetTextAlignment.LEFT);
-		ghost.setYTextAlignment(WidgetTextAlignment.CENTER);
-		ghost.revalidate();
+		ChatboxWidgets.text(container, escapedCompletion, editorFontId(), AUTOCOMPLETE_COLOR, ghostX, ghostY, ghostWidth, LINE_HEIGHT);
 	}
 
 	// Empirically tuned — PLAIN_11 needs 2px more than PLAIN_12.
@@ -832,16 +793,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			int startX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localStart)));
 			int endX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localEnd)));
 
-			Widget underline = container.createChild(-1, WidgetType.RECTANGLE);
-			underline.setFilled(true);
-			underline.setTextColor(color);
-			underline.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-			underline.setOriginalX(startX);
-			underline.setOriginalWidth(Math.max(1, endX - startX));
-			underline.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			underline.setOriginalY(editRowY(lineIndex - editScroll) + LINE_HEIGHT - 3);
-			underline.setOriginalHeight(1);
-			underline.revalidate();
+			ChatboxWidgets.rect(container, color, startX, editRowY(lineIndex - editScroll) + LINE_HEIGHT - 3, Math.max(1, endX - startX), 1);
 		}
 	}
 
@@ -921,25 +873,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		iconPlacements.clear();
 		tips.clear();
 
-		Widget promptWidget = container.createChild(-1, WidgetType.TEXT);
-		promptWidget.setText(getPrompt());
-		promptWidget.setTextColor(0x800000);
-		promptWidget.setFontId(FontID.QUILL_8);
-		promptWidget.setXPositionMode(WidgetPositionMode.ABSOLUTE_CENTER);
-		promptWidget.setOriginalX(0);
-		promptWidget.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		promptWidget.setOriginalY(5);
-		promptWidget.setOriginalHeight(LINE_HEIGHT);
-		promptWidget.setXTextAlignment(WidgetTextAlignment.CENTER);
-		promptWidget.setYTextAlignment(WidgetTextAlignment.CENTER);
-		promptWidget.setWidthMode(WidgetSizeMode.MINUS);
-		promptWidget.revalidate();
+		ChatboxWidgets.centeredText(container, getPrompt(), FontID.QUILL_8, 0x800000, 5, LINE_HEIGHT);
 
 		if (font == null)
 		{
-			Widget probe = container.createChild(-1, WidgetType.TEXT);
-			probe.setFontId(editorFontId());
-			font = probe.getFont();
+			font = ChatboxWidgets.font(container, editorFontId());
 		}
 
 		// Every line wraps; a window of them shows. When it can scroll, a scrollbar takes the right margin, and the
@@ -982,15 +920,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		Widget separator = container.createChild(-1, WidgetType.LINE);
-		separator.setXPositionMode(WidgetPositionMode.ABSOLUTE_CENTER);
-		separator.setOriginalX(0);
-		separator.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		separator.setOriginalY(separatorY);
-		separator.setOriginalHeight(0);
-		separator.setOriginalWidth(16);
-		separator.setWidthMode(WidgetSizeMode.MINUS);
-		separator.revalidate();
+		ChatboxWidgets.separator(container, separatorY);
 
 		// As a label row's text: from x 13 to the scrollbar.
 		rowTextWidth = container.getWidth() - 13 - SCROLLBAR_WIDTH - 6;
@@ -1003,58 +933,23 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private void buildTopBar(Widget container)
 	{
 		int rightX = TOP_BAR_GAP;
-
-		Widget close = createTopBarButton(container, "x", rightX, CLOSE_BUTTON_WIDTH);
-		close.setHasListener(true);
-		close.setAction(0, "Close");
-		close.setOnOpListener((JavaScriptCallback) ev -> chatboxPanelManager.close());
-		addHoverHighlight(close, 0x000000);
-		close.revalidate();
-		rightX += CLOSE_BUTTON_WIDTH + TOP_BAR_GAP;
-
-		Widget fontToggle = createTopBarButton(container, "_", rightX, FONT_TOGGLE_BUTTON_WIDTH);
-		fontToggle.setHasListener(true);
-		fontToggle.setAction(0, "Toggle font size");
-		fontToggle.setOnOpListener((JavaScriptCallback) ev -> toggleFontSize());
-		addHoverHighlight(fontToggle, 0x000000);
-		fontToggle.revalidate();
-		rightX += FONT_TOGGLE_BUTTON_WIDTH + TOP_BAR_GAP;
+		rightX = addTopBarButton(container, "x", rightX, CLOSE_BUTTON_WIDTH, "Close", chatboxPanelManager::close);
+		rightX = addTopBarButton(container, "_", rightX, FONT_TOGGLE_BUTTON_WIDTH, "Toggle font size", this::toggleFontSize);
 
 		// ">" only while there's something to redo: a new edit clears it.
 		if (!redoSteps.isEmpty())
 		{
-			Widget redo = createTopBarButton(container, Text.escapeJagex(">"), rightX, UNDO_BUTTON_WIDTH);
-			redo.setHasListener(true);
-			redo.setAction(0, "Redo");
-			redo.setOnOpListener((JavaScriptCallback) ev -> redoStep());
-			addHoverHighlight(redo, 0x000000);
-			redo.revalidate();
-			rightX += UNDO_BUTTON_WIDTH + TOP_BAR_GAP;
+			rightX = addTopBarButton(container, Text.escapeJagex(">"), rightX, UNDO_BUTTON_WIDTH, "Redo", this::redoStep);
 		}
 
-		boolean canUndo = !undoSteps.isEmpty();
 		// Escaped — a lone "<" is parsed as the start of an inline tag and never drawn otherwise.
-		Widget undo = createTopBarButton(container, Text.escapeJagex("<"), rightX, UNDO_BUTTON_WIDTH);
-		undo.setTextColor(canUndo ? 0x000000 : 0x888888);
-		if (canUndo)
-		{
-			undo.setHasListener(true);
-			undo.setAction(0, "Undo");
-			undo.setOnOpListener((JavaScriptCallback) ev -> undoStep());
-			addHoverHighlight(undo, 0x000000);
-		}
-		undo.revalidate();
-		rightX += UNDO_BUTTON_WIDTH + TOP_BAR_GAP;
+		rightX = addTopBarButton(container, Text.escapeJagex("<"), rightX, UNDO_BUTTON_WIDTH, "Undo",
+			undoSteps.isEmpty() ? null : this::undoStep);
 
 		// From 3 wrapped lines: "-" shrinks the text to COMPACT_EDIT_LINES rows, "+" brings back MAX_EDIT_LINES.
 		if (editLines >= 3)
 		{
-			Widget shrink = createTopBarButton(container, compact ? "+" : "-", rightX, SHRINK_BUTTON_WIDTH);
-			shrink.setHasListener(true);
-			shrink.setAction(0, compact ? "Expand" : "Shrink");
-			shrink.setOnOpListener((JavaScriptCallback) ev -> toggleCompact());
-			addHoverHighlight(shrink, 0x000000);
-			shrink.revalidate();
+			addTopBarButton(container, compact ? "+" : "-", rightX, SHRINK_BUTTON_WIDTH, compact ? "Expand" : "Shrink", this::toggleCompact);
 		}
 	}
 
@@ -1071,27 +966,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		tips.add(new SuggestionIconOverlay.Tip(container, area, String.format("%,d characters used", length)));
 	}
 
-	private void addHoverHighlight(Widget widget, int normalColor)
+	// Returns the next button's rightX.
+	private int addTopBarButton(Widget container, String text, int rightX, int width, String action, @Nullable Runnable onClick)
 	{
-		widget.setOnMouseRepeatListener((JavaScriptCallback) ev -> widget.setTextColor(HOVER_COLOR));
-		widget.setOnMouseLeaveListener((JavaScriptCallback) ev -> widget.setTextColor(normalColor));
-	}
-
-	private Widget createTopBarButton(Widget container, String text, int rightX, int width)
-	{
-		Widget button = container.createChild(-1, WidgetType.TEXT);
-		button.setText(text);
-		button.setFontId(FontID.BOLD_12);
-		button.setTextColor(0x000000);
-		button.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		button.setOriginalX(rightX);
-		button.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		button.setOriginalY(5);
-		button.setOriginalWidth(width);
-		button.setOriginalHeight(LINE_HEIGHT);
-		button.setXTextAlignment(WidgetTextAlignment.CENTER);
-		button.setYTextAlignment(WidgetTextAlignment.CENTER);
-		return button;
+		ChatboxWidgets.button(container, text, FontID.BOLD_12, rightX, 5, width, LINE_HEIGHT, action, onClick);
+		return rightX + width + TOP_BAR_GAP;
 	}
 
 	// Every edit ends in update(), so it's recorded here as just what changed: added to the newest undo step if it's
@@ -1325,18 +1204,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		int maxOffset = Math.max(0, rows.size() - visibleRows + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
 
-		// Invisible — purely captures mouse wheel input over the recommendations area.
-		Widget scrollCapture = container.createChild(-1, WidgetType.TEXT);
-		scrollCapture.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-		scrollCapture.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		scrollCapture.setOriginalX(0);
-		scrollCapture.setOriginalY(resultsStartY);
-		scrollCapture.setOriginalWidth(container.getWidth());
-		scrollCapture.setOriginalHeight(visibleRows * ROW_HEIGHT);
-		scrollCapture.setHasListener(true);
-		scrollCapture.setNoScrollThrough(true);
-		scrollCapture.setOnScrollWheelListener((JavaScriptCallback) ev -> scroll(ev.getMouseY()));
-		scrollCapture.revalidate();
+		ChatboxWidgets.scrollCapture(container, resultsStartY, visibleRows * ROW_HEIGHT, this::scroll);
 
 		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
 		for (int i = 0; i < visibleCount; i++)
@@ -1350,22 +1218,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			}
 			int color = row.title ? 0x800000 : row.hint ? HINT_COLOR : ROW_COLOR;
 
-			Widget text = container.createChild(-1, WidgetType.TEXT);
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
 			// Jagex markup) shows as literal text instead of actually being applied.
-			text.setText(row.title ? row.text : Text.escapeJagex(row.text));
-			text.setFontId(row.title ? FontID.QUILL_8 : editorFontId());
-			text.setTextColor(color);
-			text.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-			text.setOriginalX(row.title ? 6 : 13);
-			text.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			text.setOriginalY(y);
-			text.setOriginalHeight(ROW_HEIGHT);
-			text.setOriginalWidth(SCROLLBAR_WIDTH + 6);
-			text.setWidthMode(WidgetSizeMode.MINUS);
-			text.setXTextAlignment(WidgetTextAlignment.LEFT);
-			text.setYTextAlignment(WidgetTextAlignment.CENTER);
-			text.revalidate();
+			Widget text = ChatboxWidgets.rowText(container, row.title ? row.text : Text.escapeJagex(row.text),
+				row.title ? FontID.QUILL_8 : editorFontId(), color, row.title ? 6 : 13, y, ROW_HEIGHT, SCROLLBAR_WIDTH + 6);
 
 			if (!row.title && !row.hint)
 			{
@@ -1373,7 +1229,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			}
 		}
 
-		buildScrollbar(container, resultsStartY, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(), this::scroll);
+		ChatboxWidgets.scrollbar(container, resultsStartY, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(),
+			this::scroll);
 	}
 
 	// A label fills the input; a Recent one can be removed.
@@ -1399,7 +1256,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				value(selected);
 			}
 		});
-		addHoverHighlight(text, color);
+		ChatboxWidgets.hover(text, color);
 	}
 
 	// Each suggestion in its column: its icon if it has one, then its name cut to fit. Clicking either inserts it.
@@ -1417,15 +1274,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			if (icon != null)
 			{
 				// Empty: SuggestionIconOverlay draws the icon over it, smoothly scaled.
-				Widget placeholder = container.createChild(-1, WidgetType.GRAPHIC);
-				placeholder.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-				placeholder.setOriginalX(x);
-				placeholder.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-				placeholder.setOriginalY(y);
-				placeholder.setOriginalWidth(ICON_WIDTH);
-				placeholder.setOriginalHeight(ICON_HEIGHT);
-				addInsertAction(placeholder, option, icon);
-				placeholder.revalidate();
+				addInsertAction(ChatboxWidgets.child(container, WidgetType.GRAPHIC, x, y, ICON_WIDTH, ICON_HEIGHT), option, icon);
 				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT), icon));
 			}
 
@@ -1436,21 +1285,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 			int color = option == row.preferred ? PREFERRED_SUGGESTION_COLOR : ROW_COLOR;
 			int textWidth = x + columnWidth - textX - 2;
-			Widget text = container.createChild(-1, WidgetType.TEXT);
-			text.setText(Text.escapeJagex(fit(option.label, textWidth)));
-			text.setFontId(editorFontId());
-			text.setTextColor(color);
-			text.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
-			text.setOriginalX(textX);
-			text.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-			text.setOriginalY(y);
-			text.setOriginalWidth(textWidth);
-			text.setOriginalHeight(ROW_HEIGHT);
-			text.setXTextAlignment(WidgetTextAlignment.LEFT);
-			text.setYTextAlignment(WidgetTextAlignment.CENTER);
+			Widget text = ChatboxWidgets.text(container, Text.escapeJagex(fit(option.label, textWidth)), editorFontId(), color, textX, y,
+				textWidth, ROW_HEIGHT);
 			addInsertAction(text, option, icon);
-			addHoverHighlight(text, color);
-			text.revalidate();
+			ChatboxWidgets.hover(text, color);
 		}
 	}
 
@@ -1539,81 +1377,5 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		int maxOffset = Math.max(0, buildRows().size() - visibleRows + 1);
 		scrollOffset = Math.max(0, Math.min(scrollOffset + direction, maxOffset));
 		update();
-	}
-
-	// A scrollbar at the right of the area top..top+height showing visible of count rows from offset (up to
-	// maxOffset); its arrows call scroll(-1) / scroll(1).
-	private void buildScrollbar(Widget container, int top, int height, int offset, int maxOffset, int visible, int count,
-		IntConsumer scroll)
-	{
-		// Needs room for both arrows and a thumb; the wheel still scrolls without it.
-		if (maxOffset <= 0 || height < SCROLLBAR_ARROW_HEIGHT * 2 + SCROLLBAR_THUMB_MIN_HEIGHT)
-		{
-			return;
-		}
-
-		Widget upArrow = container.createChild(-1, WidgetType.TEXT);
-		upArrow.setText("^");
-		upArrow.setFontId(FontID.BOLD_12);
-		upArrow.setTextColor(offset == 0 ? 0x888888 : 0x000000);
-		upArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		upArrow.setOriginalX(0);
-		upArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		upArrow.setOriginalY(top);
-		upArrow.setOriginalWidth(SCROLLBAR_WIDTH);
-		upArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
-		upArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
-		upArrow.setYTextAlignment(WidgetTextAlignment.CENTER);
-		upArrow.setHasListener(true);
-		upArrow.setAction(0, "Scroll up");
-		upArrow.setOnOpListener((JavaScriptCallback) ev -> scroll.accept(-1));
-		upArrow.revalidate();
-
-		Widget downArrow = container.createChild(-1, WidgetType.TEXT);
-		downArrow.setText("v");
-		downArrow.setFontId(FontID.BOLD_12);
-		downArrow.setTextColor(offset >= maxOffset ? 0x888888 : 0x000000);
-		downArrow.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		downArrow.setOriginalX(0);
-		downArrow.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		downArrow.setOriginalY(top + height - SCROLLBAR_ARROW_HEIGHT);
-		downArrow.setOriginalWidth(SCROLLBAR_WIDTH);
-		downArrow.setOriginalHeight(SCROLLBAR_ARROW_HEIGHT);
-		downArrow.setXTextAlignment(WidgetTextAlignment.CENTER);
-		downArrow.setYTextAlignment(WidgetTextAlignment.CENTER);
-		downArrow.setHasListener(true);
-		downArrow.setAction(0, "Scroll down");
-		downArrow.setOnOpListener((JavaScriptCallback) ev -> scroll.accept(1));
-		downArrow.revalidate();
-
-		int trackY = top + SCROLLBAR_ARROW_HEIGHT;
-		int trackHeight = height - (SCROLLBAR_ARROW_HEIGHT * 2);
-		int trackX = (SCROLLBAR_WIDTH - SCROLLBAR_TRACK_WIDTH) / 2;
-
-		Widget track = container.createChild(-1, WidgetType.RECTANGLE);
-		track.setFilled(true);
-		track.setOpacity(120);
-		track.setTextColor(0x000000);
-		track.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		track.setOriginalX(trackX);
-		track.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		track.setOriginalY(trackY);
-		track.setOriginalWidth(SCROLLBAR_TRACK_WIDTH);
-		track.setOriginalHeight(trackHeight);
-		track.revalidate();
-
-		int thumbHeight = Math.max(SCROLLBAR_THUMB_MIN_HEIGHT, trackHeight * visible / count);
-		int thumbY = trackY + (trackHeight - thumbHeight) * offset / maxOffset;
-
-		Widget thumb = container.createChild(-1, WidgetType.RECTANGLE);
-		thumb.setFilled(true);
-		thumb.setTextColor(0x800000);
-		thumb.setXPositionMode(WidgetPositionMode.ABSOLUTE_RIGHT);
-		thumb.setOriginalX(trackX);
-		thumb.setYPositionMode(WidgetPositionMode.ABSOLUTE_TOP);
-		thumb.setOriginalY(thumbY);
-		thumb.setOriginalWidth(SCROLLBAR_TRACK_WIDTH);
-		thumb.setOriginalHeight(thumbHeight);
-		thumb.revalidate();
 	}
 }
