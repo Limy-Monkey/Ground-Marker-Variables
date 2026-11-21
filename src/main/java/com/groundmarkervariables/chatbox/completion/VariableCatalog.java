@@ -38,8 +38,8 @@ final class VariableCatalog
 	private static final Map<String, List<String>> COMPLETIONS = new HashMap<>();
 	// Lowercase name of each variable typed after "{" -> what to show while typing it, see hints().
 	private static final Map<String, Hint> HINTS = new HashMap<>();
-	// A parameter that's one word, optionally "=<value>" after it: the word (with its "=").
-	private static final Pattern WORD_OPTION = Pattern.compile("([A-Za-z]+=?)(?:<[^>]*>)?");
+	// A parameter that's one word, optionally "=<value>" or "=N" after it: the word (with its "=").
+	private static final Pattern WORD_OPTION = Pattern.compile("([A-Za-z]+=?)(?:<[^>]*>|N)?");
 	// Lowercase entry name -> lowercase completed word -> its parameter's description.
 	private static final Map<String, Map<String, String>> COMPLETION_DESCRIPTIONS = new HashMap<>();
 
@@ -209,9 +209,14 @@ final class VariableCatalog
 					}
 					continue;
 				}
-				if (word.matches() && description != null)
+				// Each of "a / b" too.
+				for (String part : name.split(" / "))
 				{
-					byWord.put(word.group(1).toLowerCase(Locale.ROOT), description);
+					Matcher partWord = WORD_OPTION.matcher(part);
+					if (partWord.matches() && description != null)
+					{
+						byWord.put(partWord.group(1).toLowerCase(Locale.ROOT), description);
+					}
 				}
 				if (description != null && !name.equals("icon") && !name.equals("...") && !name.startsWith("{/"))
 				{

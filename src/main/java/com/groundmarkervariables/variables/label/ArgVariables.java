@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.variables.ArgVariable;
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
@@ -10,8 +11,12 @@ import com.groundmarkervariables.variables.support.GroupState;
 import com.groundmarkervariables.variables.support.HiscoreRankLookup;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -38,6 +43,8 @@ public class ArgVariables
 	// Chat Commands' own personal best data, read-only.
 	private static final String PERSONAL_BEST_GROUP = "personalbest";
 	private static final Pattern DOSE_COUNT = Pattern.compile("\\((\\d+)\\)");
+	// Suggested for {numDoses}, without it: a name ending in "(N)".
+	private static final Pattern DOSE_NAME = Pattern.compile("\\((\\d)\\)$");
 
 	private final Client client;
 	private final RichText richText;
@@ -47,6 +54,8 @@ public class ArgVariables
 	private final BossKillCountTracker killCounts;
 	private final HiscoreRankLookup hiscores;
 	private final GroupState groupState;
+	// {numDoses} suggestion -> its highest dose's name, e.g. "Prayer potion" -> "Prayer potion(4)" (see doseNames()).
+	private volatile Map<String, String> highestDose = Map.of();
 
 	private final List<ArgVariable> all = define();
 
@@ -58,24 +67,31 @@ public class ArgVariables
 				(boss, v) -> richText.labeled(BossAliases.resolve(boss) + " kc", v))
 				.party(this::memberKc,
 					(boss, member) -> memberKc(boss, member) == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(memberKc(boss, member).toString()),
-					(boss, v) -> richText.highlightValue(v)),
-			text("pb", this::pb, (boss, v) -> richText.labeled(BossAliases.resolve(boss) + " pb", v)),
+					(boss, v) -> richText.highlightValue(v))
+				.suggest(() -> BossAliases.suggestions(false), Args.BOSS_ICON),
+			text("pb", this::pb, (boss, v) -> richText.labeled(BossAliases.resolve(boss) + " pb", v))
+				.suggest(() -> BossAliases.suggestions(false), Args.BOSS_ICON),
 			text("group", name -> Objects.requireNonNullElse(groupState.value(name), ""),
-				(name, v) -> v.isEmpty() ? "" : richText.labeled(groupState.group(name) != null ? groupState.group(name).name : name, v)),
+				(name, v) -> v.isEmpty() ? "" : richText.labeled(groupState.group(name) != null ? groupState.group(name).name : name, v))
+				.suggest(() -> groupState.names(), null),
 			number("price", item -> Objects.requireNonNullElse(itemPrice(item), ConditionEvaluator.NULL),
-				(item, v) -> itemPrice(item) == null ? null : richText.labeled(iconNames.itemNamed(item), QuantityFormatter.quantityToStackSize(itemPrice(item)))),
+				(item, v) -> itemPrice(item) == null ? null : richText.labeled(iconNames.itemNamed(item), QuantityFormatter.quantityToStackSize(itemPrice(item))))
+				.suggest(() -> itemManager.search("").stream().map(price -> price.getName()).distinct().collect(Collectors.toList()), Args.ITEM_ICON),
 			text("hasItem", typed -> loggedIn() ? !items(typed, null).isEmpty() : null, (typed, v) -> heldItem(typed, null))
-				.party((typed, member) -> !items(typed, member).isEmpty(), this::heldItem, (typed, v) -> heldItem(typed, null)),
+				.party((typed, member) -> !items(typed, member).isEmpty(), this::heldItem, (typed, v) -> heldItem(typed, null))
+				.suggest(this::itemNames, Args.ITEM_ICON),
 			number("numItem", typed -> loggedIn() ? quantity(items(typed, null), false) : null,
 				(typed, v) -> richText.labeled(typed + " count", stack(v)))
 				.party((typed, member) -> quantity(items(typed, member), false),
 					(typed, member) -> richText.highlightValue(stack(String.valueOf(quantity(items(typed, member), false)))),
-					(typed, v) -> richText.highlightValue(stack(v))),
+					(typed, v) -> richText.highlightValue(stack(v)))
+				.suggest(this::itemNames, Args.ITEM_ICON),
 			number("numDoses", typed -> loggedIn() ? quantity(items(typed, null), true) : null,
 				(typed, v) -> richText.labeled(typed + " doses", stack(v)))
 				.party((typed, member) -> quantity(items(typed, member), true),
 					(typed, member) -> richText.highlightValue(stack(String.valueOf(quantity(items(typed, member), true)))),
 					(typed, v) -> richText.highlightValue(stack(v)))
+				.suggest(this::doseNames, name -> Args.ITEM_ICON.apply(highestDose.getOrDefault(name, name)))
 		);
 	}
 
@@ -89,19 +105,50 @@ public class ArgVariables
 		return all.stream().filter(ArgVariable::numeric).collect(Collectors.toList());
 	}
 
-	private static ArgVariable number(String names, Function<String, Object> value, BiFunction<String, String, String> rich)
+	private static ArgVariable number(String name, Function<String, Object> value, BiFunction<String, String, String> rich)
 	{
-		return new ArgVariable(names, true, value, rich);
+		return new ArgVariable(name, true, value, rich);
 	}
 
-	private static ArgVariable text(String names, Function<String, Object> value, BiFunction<String, String, String> rich)
+	private static ArgVariable text(String name, Function<String, Object> value, BiFunction<String, String, String> rich)
 	{
-		return new ArgVariable(names, false, value, rich);
+		return new ArgVariable(name, false, value, rich);
 	}
 
 	private boolean loggedIn()
 	{
 		return client.getLocalPlayer() != null;
+	}
+
+	// Every item's name, carried ones first (see IconNames#matches).
+	private List<String> itemNames()
+	{
+		return iconNames.matches(IconNames.Kind.ITEM, "");
+	}
+
+	// Each dosed item once, without its "(N)" (e.g. "Prayer potion"), carried ones first; noting its highest dose's name
+	// for its icon.
+	private List<String> doseNames()
+	{
+		Map<String, String> highest = new LinkedHashMap<>();
+		Map<String, Integer> doses = new HashMap<>();
+		for (String name : itemNames())
+		{
+			Matcher dose = DOSE_NAME.matcher(name);
+			if (!dose.find())
+			{
+				continue;
+			}
+			String base = name.substring(0, dose.start()).trim();
+			int count = Integer.parseInt(dose.group(1));
+			if (count > doses.getOrDefault(base, 0))
+			{
+				doses.put(base, count);
+				highest.put(base, name);
+			}
+		}
+		highestDose = highest;
+		return new ArrayList<>(highest.keySet());
 	}
 
 	// From the hiscores: null while loading, and for bosses not on them.

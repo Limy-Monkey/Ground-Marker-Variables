@@ -8,10 +8,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.hiscore.HiscoreSkill;
+import net.runelite.client.hiscore.HiscoreSkillType;
 
 // Ported from RuneLite's ChatCommandsPlugin#longBossName (BSD 2-Clause License):
 // Copyright (c) 2017, Adam <Adam@sigterm.info>. All rights reserved.
@@ -22,6 +25,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class BossAliases
 {
+	// Trackable activities with no hiscores entry or short form here.
+	private static final List<String> EXTRA_NAMES = List.of(
+		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
+
 	// Loaded on first use; lowercase alias -> canonical name, in the file's order.
 	private static final class Aliases
 	{
@@ -47,6 +54,40 @@ public final class BossAliases
 	public static Set<String> canonicalNames()
 	{
 		return new LinkedHashSet<>(Aliases.BY_ALIAS.values());
+	}
+
+	// Bosses to suggest: the hiscores' (no "The ", no colon, as BossKillCountTracker keys them), the short forms and
+	// names here, and EXTRA_NAMES. hiscoresOnly ({rank}): only bosses on the hiscores.
+	public static Set<String> suggestions(boolean hiscoresOnly)
+	{
+		Set<String> names = new LinkedHashSet<>();
+		for (HiscoreSkill skill : HiscoreSkill.values())
+		{
+			if (skill.getType() == HiscoreSkillType.BOSS)
+			{
+				String name = skill.getName();
+				names.add((name.regionMatches(true, 0, "The ", 0, 4) ? name.substring(4) : name).replace(":", ""));
+			}
+		}
+		for (String alias : aliases())
+		{
+			if (!alias.contains(" - ") && (!hiscoresOnly || BossHiscoreSkill.find(resolve(alias)) != null))
+			{
+				names.add(alias);
+			}
+		}
+		for (String name : canonicalNames())
+		{
+			if (!hiscoresOnly || BossHiscoreSkill.find(name) != null)
+			{
+				names.add(name);
+			}
+		}
+		if (!hiscoresOnly)
+		{
+			names.addAll(EXTRA_NAMES);
+		}
+		return names;
 	}
 
 	private static Map<String, String> load()

@@ -1,14 +1,17 @@
 package com.groundmarkervariables.variables.label;
 
 import java.awt.Color;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import net.runelite.api.Client;
@@ -20,7 +23,6 @@ import net.runelite.api.gameval.VarbitID;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class DivineLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{divine\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
 	private static final int YELLOW_THRESHOLD = 25;
 	private static final int REFRESH_TICKS = 25;
 
@@ -36,17 +38,17 @@ public class DivineLabelVariable implements LabelVariable
 
 	private enum Potion
 	{
-		ATTACK("attack", "Divine Super Attack Potion", VarbitID.DIVINEATTACK_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
-		STRENGTH("strength", "Divine Super Strength Potion", VarbitID.DIVINESTRENGTH_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
-		DEFENCE("defence", "Divine Super Defence Potion", VarbitID.DIVINEDEFENCE_POTION_TIME,
+		ATTACK("Attack", "Divine Super Attack Potion", VarbitID.DIVINEATTACK_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
+		STRENGTH("Strength", "Divine Super Strength Potion", VarbitID.DIVINESTRENGTH_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
+		DEFENCE("Defence", "Divine Super Defence Potion", VarbitID.DIVINEDEFENCE_POTION_TIME,
 			VarbitID.DIVINECOMBAT_POTION_TIME, VarbitID.DIVINEBASTION_POTION_TIME, VarbitID.DIVINEBATTLEMAGE_POTION_TIME),
-		RANGE("range", "Divine Ranging Potion", VarbitID.DIVINERANGE_POTION_TIME, VarbitID.DIVINEBASTION_POTION_TIME),
-		MAGIC("magic", "Divine Magic Potion", VarbitID.DIVINEMAGIC_POTION_TIME, VarbitID.DIVINEBATTLEMAGE_POTION_TIME),
-		COMBAT("combat", "Divine Super Combat Potion", VarbitID.DIVINECOMBAT_POTION_TIME),
-		BASTION("bastion", "Divine Bastion Potion", VarbitID.DIVINEBASTION_POTION_TIME),
-		BATTLEMAGE("battlemage", "Divine Battlemage Potion", VarbitID.DIVINEBATTLEMAGE_POTION_TIME),
-		SALTS("salts", "Smelling Salts", true, VarbitID.TOA_MIDRAIDLOOT_STATS_TIMER),
-		OVERLOAD("overload", "Overload", true, VarbitID.RAIDS_OVERLOAD_TIMER,
+		RANGE("Range", "Divine Ranging Potion", VarbitID.DIVINERANGE_POTION_TIME, VarbitID.DIVINEBASTION_POTION_TIME),
+		MAGIC("Magic", "Divine Magic Potion", VarbitID.DIVINEMAGIC_POTION_TIME, VarbitID.DIVINEBATTLEMAGE_POTION_TIME),
+		COMBAT("Combat", "Divine Super Combat Potion", VarbitID.DIVINECOMBAT_POTION_TIME),
+		BASTION("Bastion", "Divine Bastion Potion", VarbitID.DIVINEBASTION_POTION_TIME),
+		BATTLEMAGE("Battlemage", "Divine Battlemage Potion", VarbitID.DIVINEBATTLEMAGE_POTION_TIME),
+		SALTS("Salts", "Smelling Salts", true, VarbitID.TOA_MIDRAIDLOOT_STATS_TIMER),
+		OVERLOAD("Overload", "Overload", true, VarbitID.RAIDS_OVERLOAD_TIMER,
 			VarbitID.NZONE_OVERLOAD_POTION_EFFECTS, VarbitID.DEADMAN_OVERLOAD_POTION_EFFECTS);
 
 		private final String keyword;
@@ -81,18 +83,28 @@ public class DivineLabelVariable implements LabelVariable
 		}
 	}
 
+	// Suggesting each potion's keyword.
+	private static final Args ARGS = Args.of("divine")
+		.main(() -> Arrays.stream(Potion.values()).map(potion -> potion.keyword).collect(Collectors.toList()), potion -> null);
+
 	private final Client client;
 
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		Potion potion = Potion.find(matcher.group(1).trim());
+		Potion potion = Potion.find(ARGS.main(matcher));
 		if (potion == null || client.getLocalPlayer() == null)
 		{
 			return null;
@@ -104,7 +116,7 @@ public class DivineLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		Potion potion = Potion.find(matcher.group(1).trim());
+		Potion potion = Potion.find(ARGS.main(matcher));
 		if (potion == null || client.getLocalPlayer() == null)
 		{
 			return null;

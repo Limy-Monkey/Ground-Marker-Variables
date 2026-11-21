@@ -1,33 +1,23 @@
 package com.groundmarkervariables.chatbox.completion;
 
-import com.google.gson.Gson;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.graphics.SplitIcons;
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
-import com.groundmarkervariables.variables.label.GeHistoryLabelVariable;
-import com.groundmarkervariables.variables.support.BossAliases;
-import com.groundmarkervariables.variables.support.BossHiscoreSkill;
-import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
-import com.groundmarkervariables.variables.support.ItemCharges;
-import com.groundmarkervariables.variables.support.LootTrackerRecords;
 import com.groundmarkervariables.variables.support.NamedColors;
-import com.groundmarkervariables.variables.support.WeaponStyleTracker;
-import java.time.Instant;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,10 +27,6 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.SpriteID;
-import net.runelite.client.config.ConfigManager;
-import net.runelite.client.game.ItemManager;
-import net.runelite.client.hiscore.HiscoreSkill;
-import net.runelite.client.hiscore.HiscoreSkillType;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
 // editor; labels() gives it that editor's recent/nearby labels.
@@ -54,7 +40,7 @@ public class LabelCompleter
 	// Variables with an icon option: listed with what "{<name> icon}" shows.
 	private static final Set<String> ICON_VARIABLES = VariableCatalog.WITH_ICON;
 	// Icon syntax of a boss by name: its hiscores icon, else a sprite of that name.
-	private static final String BOSS_ICON = "boss:";
+	private static final String BOSS_ICON = Args.BOSS_ICON_PREFIX;
 	// Icon syntax of a color swatch: "color:RRGGBB".
 	private static final String COLOR_ICON = "color:";
 	// The first icon tag in a resolved icon.
@@ -74,38 +60,9 @@ public class LabelCompleter
 	private static final String EQUIP_PREFIX = "equip_";
 	private static final List<String> EQUIP_SLOTS = VariableCatalog.completions(EQUIP_PREFIX);
 
-	// {kc <boss>} / {pb <boss>} / {rank <boss>}.
-	private static final String KC_PREFIX = "kc ";
-	private static final String PB_PREFIX = "pb ";
-	private static final String RANK_PREFIX = "rank ";
-	// Trackable activities with no hiscores entry or BossAliases short form.
-	private static final List<String> EXTRA_BOSS_NAMES = List.of(
-		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
-
-	// {charges <item>}: items Item Charges Improved / Item Charges have saved charges for, while they're on.
-	private static final String CHARGES_PREFIX = "charges ";
-	private static final String PRICE_PREFIX = "price ";
-	// {geHistory ...}: comma-separated options, the first after a space.
-	private static final String GE_HISTORY = "geHistory";
-	private static final Pattern GE_HISTORY_OPTIONS = Pattern.compile("(?i)^geHistory(\\s.*)$");
-	private static final Pattern GE_HISTORY_WORD = Pattern.compile("(?i)bought|sold|qty|profit|investment|limitTransactions=\\d+");
-	// At most one of each.
-	private static final List<List<String>> GE_HISTORY_EXCLUSIVE = List.of(List.of("bought", "sold"), List.of("qty", "profit", "investment"));
-	private static final List<String> GE_HISTORY_WORDS = VariableCatalog.completions(GE_HISTORY);
-	private static final List<String> GE_HISTORY_START_DATES = List.of("today", "-7 days", "-30 days");
-	private static final String CHARGES_ICONS = "icons";
 
 	// {party <template>}: nothing completed, so its parameter hint shows.
 	private static final String PARTY_PREFIX = "party ";
-
-	// {divine <potion>} / {active <effect>}.
-	private static final String DIVINE_PREFIX = "divine ";
-	// {quickPrayers <name>}: the standard prayer book's prayers.
-	private static final String QUICK_PRAYERS_PREFIX = "quickPrayers ";
-	private static final List<String> PRAYERS = VariableCatalog.completions("quickPrayers");
-	private static final List<String> DIVINE_POTIONS = VariableCatalog.completions("divine");
-	private static final String ACTIVE_PREFIX = "active ";
-	private static final List<String> ACTIVE_EFFECTS = VariableCatalog.completions("active");
 
 	// {hasBarrage <element> ... [icon]} / {hasSurge ...}: each word once. "air" is {hasSurge}'s alias for "wind".
 	private static final Pattern SPELL_SET_WORDS = Pattern.compile("(?i)^(hasBarrage|hasSurge)((?:\\s+\\w+)*?)\\s+(\\w*)$");
@@ -113,11 +70,6 @@ public class LabelCompleter
 		"hasbarrage", VariableCatalog.completions("hasBarrage"),
 		"hassurge", VariableCatalog.completions("hasSurge"));
 	private static final Map<String, String> SPELL_SET_ALIASES = Map.of("air", "wind", "wind", "air");
-
-	// {attackStyle, weapon=<name>} / {attackType, weapon=<name>}: names from WeaponStyleTracker.
-	private static final Pattern WEAPON_OPTION = Pattern.compile("(?i)^(attack(?:Style|Type)(?:\\s*,\\s*|\\s+))(\\w*)$");
-	private static final Pattern WEAPON_VALUE = Pattern.compile("(?i)^attack(?:Style|Type)\\s*,?\\s*weapon\\s*=\\s*(.*)$");
-	private static final String WEAPON_OPTION_NAME = "weapon=";
 
 	// {worldInfo hideWorld}.
 	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
@@ -130,24 +82,6 @@ public class LabelCompleter
 		.flatMap(name -> Stream.concat(Stream.of(name), VariableCatalog.ALIASES.getOrDefault(name, List.of()).stream()))
 		.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
-
-	// {loot <monster>[, items=N][, itemsPerLine=N][, oneline][, hideVal][, showItem=<name>]...[, itemsOnly]}: monsters Loot Tracker has recorded, most
-	// recent first. The old lines=N still counts as an option, so it isn't taken as part of a name.
-	private static final String LOOT_PREFIX = "loot ";
-	private static final String LOOT_SESSION_PREFIX = "lootSession ";
-	private static final String LOOT_TRACKER_GROUP = "loottracker";
-	private static final String LOOT_KEY_PREFIX = "drops_";
-	private static final Pattern LOOT_OPTION = Pattern.compile("\\s*,?\\s*(?:itemsOnly|oneline|hideVal|showItem=[^,{}?:<>=!]*|(?:items|itemsPerLine|lines)=\\d+)",
-		Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOOT_OPTIONS = VariableCatalog.completions("loot");
-	// "<monster and options>, showItem=<value being typed>".
-	private static final Pattern SHOW_ITEM_VALUE = Pattern.compile("(?i)^(.*?),\\s*showItem=([^,{}?:<>=!]*)$");
-
-	// {log <page>[, missing][, noicons][, iconsOnly][, itemsPerLine=N][, maxItems=N]}: the collection log's pages.
-	private static final String LOG_PREFIX = "log ";
-	private static final Pattern LOG_OPTION = Pattern.compile("\\s*,\\s*(?:missing|noicons|iconsOnly|(?:itemsPerLine|maxItems)=\\d+)",
-		Pattern.CASE_INSENSITIVE);
-	private static final List<String> LOG_OPTIONS = VariableCatalog.completions("log");
 
 	// ":<partial emoji name>" at the cursor. Not after a name character, so ":name:", "9:30" and " : " never start one.
 	private static final Pattern EMOJI_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_!().\\-ñ:]):([a-z0-9_!().\\-ñ]+)$");
@@ -249,42 +183,20 @@ public class LabelCompleter
 	}
 
 	private final GroundMarkerVariablesConfig config;
-	private final ConfigManager configManager;
-	private final Gson gson;
 	private final Emojis emojis;
-	private final WeaponStyleTracker weaponStyleTracker;
 	private final IconNames iconNames;
-	private final CollectionLog collectionLog;
-	private final ItemCharges itemCharges;
-	private final LootTrackerRecords lootTrackerRecords;
 	private final LabelResolver labelResolver;
-	private final ItemManager itemManager;
-	private final GeHistoryLabelVariable geHistory;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
 	// Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime).
 	private final Map<String, Optional<Completion.Icon>> icons = new HashMap<>();
-	// {charges <item>,}: the names of what each container holds, by lowercase item (see completeChargesOption()).
-	private final Map<String, List<String>> storedItemNames = new ConcurrentHashMap<>();
-	// {loot <monster>, showItem=}: the names of what each monster dropped, by lowercase monster (see completeLootedItem()).
-	private final Map<String, List<String>> lootedItemNames = new ConcurrentHashMap<>();
 
 	@Inject
-	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
-		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
-		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, ItemManager itemManager, GeHistoryLabelVariable geHistory)
+	private LabelCompleter(GroundMarkerVariablesConfig config, Emojis emojis, IconNames iconNames, LabelResolver labelResolver)
 	{
-		this.itemManager = itemManager;
-		this.geHistory = geHistory;
 		this.config = config;
-		this.configManager = configManager;
-		this.gson = gson;
 		this.emojis = emojis;
-		this.weaponStyleTracker = weaponStyleTracker;
 		this.iconNames = iconNames;
-		this.collectionLog = collectionLog;
-		this.itemCharges = itemCharges;
-		this.lootTrackerRecords = lootTrackerRecords;
 		this.labelResolver = labelResolver;
 		this.rules = rules();
 	}
@@ -382,7 +294,16 @@ public class LabelCompleter
 	public List<String> parameterHints(String text, int cursor)
 	{
 		String token = token(text, cursor);
-		return token == null ? List.of() : VariableCatalog.hints(token);
+		if (token == null)
+		{
+			return List.of();
+		}
+		// Not a variable with args()'s option words: those are suggested instead.
+		Args args = labelResolver.variables().stream().map(LabelVariable::args)
+			.filter(a -> a != null && token.length() > a.name().length() && token.regionMatches(true, 0, a.name(), 0, a.name().length())
+				&& " ,".indexOf(token.charAt(a.name().length())) >= 0).findFirst().orElse(null);
+		return VariableCatalog.hints(token).stream().filter(line -> args == null || !args.hasOption(line.split(":", 2)[0]))
+			.collect(Collectors.toList());
 	}
 
 	// The variable's own line when the token at cursor is exactly its name, e.g. "{rsn" -> "{rsn}: Display name".
@@ -611,30 +532,16 @@ public class LabelCompleter
 			m.group().startsWith(EQUIP_PREFIX) ? EQUIP_PREFIX : m.group().split("\\s+")[0])));
 		list.add(prefix(EQUIP_PREFIX, false, rest -> described(withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
 			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
-		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
-		list.add(prefix(CHARGES_PREFIX, true, this::completeCharges));
-		list.add(pattern(GE_HISTORY_OPTIONS, m -> completeGeHistory(m.group(1))));
-		// RuneLite's price list: every tradeable item.
-		list.add(prefix(PRICE_PREFIX, true, rest -> described(withIcons(match(rest,
-			itemManager.search("").stream().map(item -> item.getName()).distinct().collect(Collectors.toList()), "{" + PRICE_PREFIX, "", "}", true),
-			item -> "<item=" + item + ">"), PRICE_PREFIX)));
-		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));
-		list.add(prefix(DIVINE_PREFIX, false, rest -> described(match(rest, DIVINE_POTIONS, "{" + DIVINE_PREFIX, "", "}", true), DIVINE_PREFIX)));
-		list.add(prefix(QUICK_PRAYERS_PREFIX, false, rest -> described(withIcons(match(rest, PRAYERS, "{" + QUICK_PRAYERS_PREFIX, "", "}", true),
-			prayer -> spriteNamed(prayer, "Prayer")), QUICK_PRAYERS_PREFIX)));
-		list.add(prefix(ACTIVE_PREFIX, false, rest -> described(withIcons(match(rest, ACTIVE_EFFECTS, "{" + ACTIVE_PREFIX, "", "}", true),
-			effect -> "{" + ACTIVE_PREFIX + effect + " icon}"), ACTIVE_PREFIX)));
-		list.add(pattern(WEAPON_VALUE, m -> withIcons(
-			match(m.group(1), weaponStyleTracker.weaponNames(), "{" + m.group().substring(0, m.start(1)), "", "}", true),
-			name -> "<item=" + name + ">")));
 		list.add(pattern(WORLD_INFO_OPTION, m -> described(completeWord(m.group(1), HIDE_WORLD, true), "worldInfo")));
-		list.add(pattern(WEAPON_OPTION, m -> described(completeWord(m.group(2), WEAPON_OPTION_NAME, false),
-			m.group(1).replaceAll("[\\s,]+$", ""))));
-		list.add(prefix(PB_PREFIX, false, rest -> completeBoss(rest, PB_PREFIX, false)));
-		list.add(prefix(LOOT_PREFIX, true, rest -> completeLootMonster(rest, LOOT_PREFIX)));
-		list.add(prefix(LOOT_SESSION_PREFIX, true, rest -> completeLootMonster(rest, LOOT_SESSION_PREFIX)));
-		list.add(prefix(LOG_PREFIX, true, this::completeLogPage));
+		for (LabelVariable variable : labelResolver.variables())
+		{
+			Args args = variable.args();
+			if (args != null)
+			{
+				list.add(argsRule(args));
+			}
+		}
 		list.add(prefix(METRONOME_NAME, false, this::completeMetronomeParams));
 		// "m" alias: only once a digit or +/- follows, so "{mis..." still completes to miscellania.
 		list.add((partial, numeric) -> numeric || partial.length() < 2 || !partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1)
@@ -656,6 +563,23 @@ public class LabelCompleter
 	{
 		return (partial, numeric) -> (numeric && !inMath) || !partial.regionMatches(true, 0, prefix, 0, prefix.length())
 			? null : orNone(complete.apply(partial.substring(prefix.length())));
+	}
+
+	// A variable with args(): applies once its name is followed by a space or comma; after a math operator only if numeric.
+	private Rule argsRule(Args args)
+	{
+		String name = args.name();
+		boolean inMath = NumericVariableRegistry.NAMES.contains(name);
+		return (partial, numeric) ->
+		{
+			if ((numeric && !inMath) || partial.length() <= name.length() || !partial.regionMatches(true, 0, name, 0, name.length()))
+			{
+				return null;
+			}
+			char next = partial.charAt(name.length());
+			return next == ' ' ? orNone(completeArgs(args, partial.substring(name.length() + 1)))
+				: next == ',' ? orNone(completeArgs(args, partial.substring(name.length()))) : null;
+		};
 	}
 
 	// Applies to text pattern matches entirely, never after a math operator.
@@ -794,32 +718,6 @@ public class LabelCompleter
 			prefix);
 	}
 
-	// The option being typed after "geHistory" (those not already typed; one per GE_HISTORY_EXCLUSIVE group), or the
-	// value after item= (traded items) or startDate=; "}" once one is complete.
-	@Nullable
-	private Completion completeGeHistory(String rest)
-	{
-		int comma = rest.lastIndexOf(',');
-		String typed = comma < 0 ? "" : rest.substring(0, comma).toLowerCase(Locale.ROOT);
-		String word = rest.substring(comma + 1).replaceFirst("^\\s+", "");
-		String lower = word.toLowerCase(Locale.ROOT);
-		if (lower.startsWith("item="))
-		{
-			return described(withIcons(match(word.substring("item=".length()), geHistory.itemNames(), "{" + GE_HISTORY + " item=", "", "}", true),
-				item -> "<item=" + item + ">"), GE_HISTORY);
-		}
-		if (lower.startsWith("startdate="))
-		{
-			return described(match(word.substring("startDate=".length()), GE_HISTORY_START_DATES, "{" + GE_HISTORY + " startDate=", "", "}", true),
-				GE_HISTORY);
-		}
-		List<String> unused = GE_HISTORY_WORDS.stream()
-			.filter(option -> !typed.contains(option.toLowerCase(Locale.ROOT)))
-			.filter(option -> GE_HISTORY_EXCLUSIVE.stream().noneMatch(group -> group.contains(option) && group.stream().anyMatch(typed::contains)))
-			.collect(Collectors.toList());
-		return described(completeOption(word, unused, GE_HISTORY_WORD.matcher(word).matches()), GE_HISTORY);
-	}
-
 	// Each spell word once ("air"/"wind" counting as one).
 	private Completion completeSpellSet(Matcher spellSet)
 	{
@@ -836,279 +734,67 @@ public class LabelCompleter
 			word -> ICON.equals(word) ? null : "{" + spellSet.group(1) + " " + word + " icon}"), spellSet.group(1));
 	}
 
-	// Hiscores bosses (no "The ", no colon, as BossKillCountTracker keys them), BossAliases' short forms and names, and
-	// EXTRA_BOSS_NAMES. hiscoresOnly ({rank}): only bosses on the hiscores.
-	private Completion completeBoss(String partial, String prefix, boolean hiscoresOnly)
-	{
-		Set<String> names = new LinkedHashSet<>();
-		for (HiscoreSkill skill : HiscoreSkill.values())
-		{
-			if (skill.getType() == HiscoreSkillType.BOSS)
-			{
-				String name = skill.getName();
-				names.add((name.regionMatches(true, 0, "The ", 0, 4) ? name.substring(4) : name).replace(":", ""));
-			}
-		}
-		for (String alias : BossAliases.aliases())
-		{
-			if (!alias.contains(" - ") && (!hiscoresOnly || BossHiscoreSkill.find(BossAliases.resolve(alias)) != null))
-			{
-				names.add(alias);
-			}
-		}
-		for (String name : BossAliases.canonicalNames())
-		{
-			if (!hiscoresOnly || BossHiscoreSkill.find(name) != null)
-			{
-				names.add(name);
-			}
-		}
-		if (!hiscoresOnly)
-		{
-			names.addAll(EXTRA_BOSS_NAMES);
-		}
-		return withIcons(match(partial, names, "{" + prefix, "", "}", false), LabelCompleter::bossIcon);
-	}
-
-	// The items with saved charges, by their in-game names where one matches (see IconNames#itemNamed).
-	private Completion completeCharges(String partial)
-	{
-		int comma = partial.indexOf(',');
-		if (comma >= 0)
-		{
-			return completeChargesOption(partial.substring(0, comma).trim(), partial.substring(comma + 1));
-		}
-		Set<String> names = new LinkedHashSet<>();
-		for (String name : itemCharges.names())
-		{
-			String item = iconNames.itemNamed(name);
-			names.add(item != null ? item : name);
-		}
-		Completion name = withIcons(match(partial, names, "{" + CHARGES_PREFIX, "", "}", true), item -> "<item=" + item + ">");
-
-		// A full name (any case and apostrophes) also offers its options first, after ", "; Tab still does what it did.
-		String typed = partial.trim().toLowerCase(Locale.ROOT).replace("'", "");
-		if (names.stream().noneMatch(item -> item.toLowerCase(Locale.ROOT).replace("'", "").equals(typed)))
-		{
-			return name;
-		}
-		List<String> words = chargesOptions(partial.trim());
-		List<Completion.Option> options = new ArrayList<>();
-		for (String word : words)
-		{
-			options.add(new Completion.Option(", " + word, ", " + word, 0, chargesOptionIcon(word),
-				VariableCatalog.completionDescription("charges", word)));
-		}
-		if (name == null)
-		{
-			return new Completion(options, -1);
-		}
-		options.addAll(name.options);
-		return new Completion(options, name.preferred < 0 ? -1 : name.preferred + words.size());
-	}
-
-	// After "<item>,": its options not yet given (see chargesOptions()).
+	// A variable with args(): a value being typed after its word (e.g. "item="), else its main argument's names, then
+	// once one is given and a comma or option follows, the options (and after a comma, extras) not given yet; "}" once
+	// one is complete. A full main argument alone also lists them (see withOptions).
 	@Nullable
-	private Completion completeChargesOption(String item, String options)
+	private Completion completeArgs(Args args, String partial)
 	{
-		int last = options.lastIndexOf(',');
-		String word = options.substring(last + 1).replaceFirst("^\\s+", "");
-		Set<String> used = new HashSet<>();
-		for (String option : options.substring(0, Math.max(0, last)).split(","))
+		String prefix = args.name() + " ";
+		String catalog = args.catalogName();
+		Matcher value = args.valueTyped(partial);
+		if (value != null)
 		{
-			used.add(option.trim().toLowerCase(Locale.ROOT));
+			String word = value.group(2);
+			String main = args.hasMain() ? args.withoutTrailingOptions(value.group(1)).trim() : null;
+			return withIcons(match(value.group(3).replaceFirst("^\\s+", ""), args.values(word, main), "{" + prefix + word, "", "}", true),
+				name -> args.valueIcon(word, name));
 		}
-		List<String> fitting = chargesOptions(item);
-		fitting.removeIf(option -> used.contains(option.toLowerCase(Locale.ROOT)));
-		return withIcons(match(word, fitting, "{" + CHARGES_PREFIX, "", "}", false), LabelCompleter::chargesOptionIcon);
+
+		Set<String> names = new LinkedHashSet<>(args.mainNames());
+		int split = Math.max(partial.lastIndexOf(','), partial.lastIndexOf(' '));
+		String before = partial.substring(0, split + 1);
+		String head = args.withoutTrailingOptions(before);
+		String given = before.substring(head.length());
+		String word = partial.substring(split + 1);
+		String main = args.hasMain() ? head.trim() : null;
+		boolean mainGiven = main == null || names.stream().anyMatch(main::equalsIgnoreCase);
+		if (mainGiven && (main == null || !word.isEmpty() || !given.isBlank()))
+		{
+			List<String> unused = args.unusedWords(given, main);
+			// An extra may have spaces: all of what follows the comma.
+			int comma = partial.lastIndexOf(',');
+			Completion option = args.hasExtras() && comma >= head.length()
+				? match(partial.substring(comma + 1).replaceFirst("^\\s+", ""), unused, "{" + prefix, "", "}", false)
+				: completeOption(word, unused, args.isComplete(word));
+			option = described(withIcons(option, args::wordIcon), catalog);
+			if (option != null || main == null)
+			{
+				return option;
+			}
+		}
+		return withOptions(described(withIcons(match(partial, names, "{" + prefix, "", "}", false), args::mainIcon), catalog), partial, names, args);
 	}
 
-	// item's options: "icon", then for Improved's containers "icons" and the names of what they hold. The names are
-	// saved where they can be looked up (client thread) for Tab to use elsewhere.
-	private List<String> chargesOptions(String item)
-	{
-		String key = item.toLowerCase(Locale.ROOT);
-		List<String> stored = itemCharges.storedNames(item);
-		if (stored != null)
-		{
-			storedItemNames.put(key, stored);
-		}
-		else
-		{
-			stored = storedItemNames.getOrDefault(key, List.of());
-		}
-		List<String> options = new ArrayList<>();
-		options.add(ICON);
-		if (!stored.isEmpty())
-		{
-			options.add(CHARGES_ICONS);
-			options.addAll(stored);
-		}
-		return options;
-	}
-
-	// A stored item's icon; none for "icon" / "icons".
+	// A full main argument typed (any case) also offers each of its options and extras first, after ", " (", items=");
+	// Tab still does what it did.
 	@Nullable
-	private static String chargesOptionIcon(String option)
+	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, Args args)
 	{
-		return option.equals(ICON) || option.equals(CHARGES_ICONS) ? null : "<item=" + option + ">";
-	}
-
-	// Loot Tracker's monsters (and their BossAliases short names, combined monsters, and players if any were
-	// killed); after a full name, an option. prefix is "loot " or "lootSession "; both take {loot}'s options.
-	private Completion completeLootMonster(String partial, String prefix)
-	{
-		Matcher showItem = SHOW_ITEM_VALUE.matcher(partial);
-		if (showItem.matches())
-		{
-			String monster = LOOT_OPTION.matcher(showItem.group(1)).replaceAll("").replaceAll("[\\s,]+$", "");
-			return completeLootedItem(monster, showItem.group(2), prefix);
-		}
-
-		List<String> monsters = lootMonsters();
-		Set<String> names = new LinkedHashSet<>();
-		for (String monster : monsters)
-		{
-			names.add(monster);
-			for (String alias : BossAliases.aliases())
-			{
-				if (!alias.contains(" - ") && !alias.equalsIgnoreCase(monster) && BossAliases.resolve(alias).equalsIgnoreCase(monster))
-				{
-					names.add(alias);
-				}
-			}
-		}
-		for (Map.Entry<String, List<String>> combined : LootTrackerRecords.COMBINED_MONSTERS.entrySet())
-		{
-			if (monsters.stream().anyMatch(monster -> combined.getValue().stream().anyMatch(monster::equalsIgnoreCase)))
-			{
-				names.add(combined.getKey());
-			}
-		}
-		String playerKeyPrefix = LOOT_KEY_PREFIX + LootTrackerRecords.PLAYER_TYPE + "_";
-		if (!configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, configManager.getRSProfileKey(), playerKeyPrefix).isEmpty())
-		{
-			names.addAll(LootTrackerRecords.PLAYER_NAMES);
-		}
-
-		Completion name = withIcons(match(partial, names, "{" + prefix, "", "}", false), LabelCompleter::bossIcon);
-		int split = Math.max(partial.lastIndexOf(' '), partial.lastIndexOf(','));
-		if (split >= 0)
-		{
-			String head = LOOT_OPTION.matcher(partial.substring(0, split)).replaceAll("").replaceAll("[\\s,]+$", "");
-			String word = partial.substring(split + 1);
-			// With nothing typed yet, a longer name (e.g. "tob" -> "tob hm") still comes first.
-			if (names.stream().anyMatch(head::equalsIgnoreCase) && !(word.isEmpty() && name != null && name.preferred >= 0))
-			{
-				Completion option = described(completeOption(word, LOOT_OPTIONS, !word.isEmpty() && LOOT_OPTION.matcher(word).matches()),
-					LOOT_PREFIX);
-				if (option != null)
-				{
-					return option;
-				}
-			}
-		}
-		return withOptions(name, partial, names, LOOT_OPTIONS, LOOT_PREFIX);
-	}
-
-	// showItem=<value>: the names of the items monster has dropped. Looked up where they can be (client thread) and
-	// saved for Tab to use elsewhere.
-	@Nullable
-	private Completion completeLootedItem(String monster, String value, String prefix)
-	{
-		String key = monster.toLowerCase(Locale.ROOT);
-		List<String> looted = lootTrackerRecords.itemNames(monster);
-		if (looted != null)
-		{
-			lootedItemNames.put(key, looted);
-		}
-		else
-		{
-			looted = lootedItemNames.getOrDefault(key, List.of());
-		}
-		return withIcons(match(value.replaceFirst("^\\s+", ""), looted, "{" + prefix, "", null, false), item -> "<item=" + item + ">");
-	}
-
-	// Every monster Loot Tracker has recorded loot for, most recent first.
-	private List<String> lootMonsters()
-	{
-		String profile = configManager.getRSProfileKey();
-		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
-		for (String key : configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, profile, LOOT_KEY_PREFIX))
-		{
-			// After the "<TYPE>_" (NPC/EVENT/PLAYER/...).
-			String rest = key.substring(LOOT_KEY_PREFIX.length());
-			int typeEnd = rest.indexOf('_');
-			if (typeEnd < 0)
-			{
-				continue;
-			}
-			Instant last = gson.fromJson(configManager.getConfiguration(LOOT_TRACKER_GROUP, profile, key), LootLast.class).last;
-			if (last != null)
-			{
-				byLast.add(new SimpleEntry<>(rest.substring(typeEnd + 1), last));
-			}
-		}
-		byLast.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-		return byLast.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-	}
-
-	// The "last" field of Loot Tracker's (package-private) ConfigLoot, for Gson.
-	private static final class LootLast
-	{
-		Instant last;
-	}
-
-	// The collection log's page names (and BossAliases short names for one); after a full name and a ",", an option.
-	@Nullable
-	private Completion completeLogPage(String partial)
-	{
-		List<String> pages = collectionLog.pageNames();
-		Set<String> names = new LinkedHashSet<>(pages);
-		for (String alias : BossAliases.aliases())
-		{
-			String boss = BossAliases.resolve(alias);
-			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && pages.stream().anyMatch(boss::equalsIgnoreCase))
-			{
-				names.add(alias);
-			}
-		}
-
-		int comma = partial.lastIndexOf(',');
-		if (comma >= 0)
-		{
-			String head = LOG_OPTION.matcher(partial.substring(0, comma)).replaceAll("").trim();
-			String word = partial.substring(comma + 1).trim();
-			return names.stream().anyMatch(head::equalsIgnoreCase)
-				? described(completeOption(word, LOG_OPTIONS, !word.isEmpty() && LOG_OPTION.matcher(", " + word).matches()), LOG_PREFIX) : null;
-		}
-		return withOptions(withIcons(match(partial, names, "{" + LOG_PREFIX, "", "}", false), LabelCompleter::bossIcon), partial, names,
-			LOG_OPTIONS, LOG_PREFIX);
-	}
-
-	// A full name typed (any case) also offers each of variable's options first, after ", " (", items="); Tab still
-	// does what it did.
-	@Nullable
-	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, List<String> optionWords,
-		String variable)
-	{
-		if (completion == null || names.stream().noneMatch(partial.trim()::equalsIgnoreCase))
+		String main = partial.trim();
+		if (completion == null || names.stream().noneMatch(main::equalsIgnoreCase))
 		{
 			return completion;
 		}
+		List<String> words = args.unusedWords("", main);
 		List<Completion.Option> options = new ArrayList<>();
-		for (String word : optionWords)
+		for (String word : words)
 		{
-			options.add(new Completion.Option(", " + word, ", " + word, 0, null, VariableCatalog.completionDescription(variable, word)));
+			options.add(new Completion.Option(", " + word, ", " + word, 0, args.wordIcon(word),
+				VariableCatalog.completionDescription(args.catalogName(), word)));
 		}
 		options.addAll(completion.options);
-		return new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + optionWords.size());
-	}
-
-	// A boss, monster or log page's hiscores icon, by its full name (see icon()).
-	private static String bossIcon(String name)
-	{
-		return BOSS_ICON + BossAliases.resolve(name);
+		return new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + words.size());
 	}
 
 	// Each option given the description of the parameter it completes for variable (variables.json), if any.

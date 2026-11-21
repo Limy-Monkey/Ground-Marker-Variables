@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
@@ -8,10 +9,16 @@ import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.ItemCharges;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
@@ -20,11 +27,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ChargesLabelVariable implements LabelVariable
 {
-	// Excludes ?:<>=! so a trailing comparator (e.g. "{charges toxic blowpipe < 100}") isn't part of the name.
-	private static final Pattern PATTERN = Pattern.compile("\\{charges(?:\\s+([^{}?:<>=!]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
 	private static final String IMPROVED_NAME = "Item Charges Improved";
-	private static final String ICON = "icon";
-	private static final String ICONS = "icons";
 	private static final String UNLIMITED_PLAIN = "999999";
 	private static final String INFINITY = ":math_infinity:";
 	private static final String INFINITY_HIGHLIGHTED = ":math_infinity@highlight:";
@@ -34,61 +37,42 @@ public class ChargesLabelVariable implements LabelVariable
 	private final GroundMarkerVariablesConfig config;
 	private final Emojis emojis;
 	private final RichText richText;
+	// The names of what each container holds, by lowercase item (see storedNames()).
+	private final Map<String, List<String>> storedByItem = new ConcurrentHashMap<>();
 
-	// "<item>, icon, icons, <stored item>, ..." split up.
-	private static final class Arguments
-	{
-		private final String item;
-		private final boolean icon;
-		private final boolean icons;
-		private final List<String> only = new ArrayList<>();
-
-		private Arguments(String text)
-		{
-			String[] parts = text.split(",");
-			item = parts[0];
-			boolean wantsIcon = false;
-			boolean wantsIcons = false;
-			for (int i = 1; i < parts.length; i++)
-			{
-				String part = parts[i].trim();
-				if (part.equalsIgnoreCase(ICON))
-				{
-					wantsIcon = true;
-				}
-				else if (part.equalsIgnoreCase(ICONS))
-				{
-					wantsIcons = true;
-				}
-				else if (!part.isEmpty())
-				{
-					only.add(part);
-				}
-			}
-			icon = wantsIcon;
-			icons = wantsIcons;
-		}
-	}
+	private final Args args = Args.of("charges")
+		.main(this::itemNames, Args.ITEM_ICON)
+		.optional()
+		.flag("icon")
+		.flag("icons", item -> !storedNames(item).isEmpty())
+		.extras(this::storedNames, Args.ITEM_ICON);
 
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return args.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		if (matcher.group(1) == null)
+		String item = args.main(matcher);
+		if (item == null)
 		{
 			return String.valueOf(itemCharges.improvedActive());
 		}
-		Arguments arguments = new Arguments(matcher.group(1));
-		if (arguments.icon || arguments.icons)
+		Args.Options options = args.options(matcher);
+		if (options.flag("icon") || options.flag("icons"))
 		{
-			return iconsOf(arguments);
+			return iconsOf(item, options);
 		}
-		Integer charges = charges(arguments);
+		Integer charges = charges(item, options);
 		if (charges == null)
 		{
 			return ConditionEvaluator.NULL;
@@ -99,54 +83,86 @@ public class ChargesLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		if (matcher.group(1) == null)
+		String item = args.main(matcher);
+		if (item == null)
 		{
 			return richText.booleanColored(itemCharges.improvedActive(), IMPROVED_NAME);
 		}
-		Arguments arguments = new Arguments(matcher.group(1));
-		if (arguments.icon || arguments.icons)
+		Args.Options options = args.options(matcher);
+		if (options.flag("icon") || options.flag("icons"))
 		{
-			return iconsOf(arguments);
+			return iconsOf(item, options);
 		}
-		Integer charges = charges(arguments);
+		Integer charges = charges(item, options);
 		if (charges == null)
 		{
 			return null;
 		}
-		String label = ItemCharges.readable(arguments.item) + " charges";
+		String label = ItemCharges.readable(item) + " charges";
 		// The symbol carries its own highlight.
 		return charges == ItemCharges.UNLIMITED_CHARGES ? label + ": " + infinity() : richText.labeled(label, String.valueOf(charges));
 	}
 
-	private Integer charges(Arguments arguments)
+	// The items with saved charges, by their in-game names where one matches (see IconNames#itemNamed).
+	private Collection<String> itemNames()
 	{
-		return arguments.only.isEmpty() ? itemCharges.charges(arguments.item) : itemCharges.charges(arguments.item, arguments.only);
+		Set<String> names = new LinkedHashSet<>();
+		for (String name : itemCharges.names())
+		{
+			String item = iconNames.itemNamed(name);
+			names.add(item != null ? item : name);
+		}
+		return names;
+	}
+
+	// What item's container holds, for icons and the stored-item extras. Looked up where it can be (client thread),
+	// else the last names seen.
+	private List<String> storedNames(@Nullable String item)
+	{
+		if (item == null)
+		{
+			return List.of();
+		}
+		String key = item.toLowerCase(Locale.ROOT);
+		List<String> stored = itemCharges.storedNames(item);
+		if (stored != null)
+		{
+			storedByItem.put(key, stored);
+			return stored;
+		}
+		return storedByItem.getOrDefault(key, List.of());
+	}
+
+	// Just the stored items given, if any.
+	private Integer charges(String item, Args.Options options)
+	{
+		return options.extras().isEmpty() ? itemCharges.charges(item) : itemCharges.charges(item, options.extras());
 	}
 
 	// The item's icon and charges (icon), then each stored item's icon and how many (icons); null if none apply.
-	private String iconsOf(Arguments arguments)
+	private String iconsOf(String item, Args.Options options)
 	{
 		List<String> parts = new ArrayList<>();
-		if (arguments.icon)
+		if (options.flag("icon"))
 		{
-			Integer charges = charges(arguments);
+			Integer charges = charges(item, options);
 			if (charges != null)
 			{
 				// No icon if no item has its name (e.g. "Quetzal whistle").
-				String item = iconNames.itemNamed(arguments.item);
-				String icon = item == null ? "" : iconNames.expand("<item=" + item + ">");
+				String named = iconNames.itemNamed(item);
+				String icon = named == null ? "" : iconNames.expand("<item=" + named + ">");
 				parts.add(icon + "x" + (charges == ItemCharges.UNLIMITED_CHARGES ? infinity() : ItemCharges.shortened(charges)));
 			}
 		}
 		String header = null;
-		if (arguments.icons)
+		if (options.flag("icons"))
 		{
-			Map<Integer, Integer> stored = itemCharges.storedItems(arguments.item, arguments.only);
+			Map<Integer, Integer> stored = itemCharges.storedItems(item, options.extras());
 			if (stored != null)
 			{
 				stored.forEach((id, quantity) -> parts.add("<item=" + id + ">x" + ItemCharges.shortened(quantity)));
 				// With icon, its own "<icon>x<charges>" says it.
-				header = arguments.icon ? null : containerLine(arguments);
+				header = options.flag("icon") ? null : containerLine(item, options);
 			}
 		}
 		if (parts.isEmpty())
@@ -158,14 +174,14 @@ public class ChargesLabelVariable implements LabelVariable
 	}
 
 	// "<Container>: <combined charges>", above its stored items; null if it has none.
-	private String containerLine(Arguments arguments)
+	private String containerLine(String item, Args.Options options)
 	{
-		Integer charges = charges(arguments);
+		Integer charges = charges(item, options);
 		if (charges == null)
 		{
 			return null;
 		}
-		String name = ItemCharges.readable(arguments.item);
+		String name = ItemCharges.readable(item);
 		return charges == ItemCharges.UNLIMITED_CHARGES ? name + ": " + infinity() : richText.labeled(name, String.valueOf(charges));
 	}
 

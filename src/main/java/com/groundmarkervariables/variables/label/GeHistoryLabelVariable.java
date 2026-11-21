@@ -1,15 +1,13 @@
 package com.groundmarkervariables.variables.label;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
-import com.groundmarkervariables.variables.support.DateLiteralParser;
 import com.groundmarkervariables.variables.support.GeHistory;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -37,9 +35,7 @@ import net.runelite.client.util.QuantityFormatter;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GeHistoryLabelVariable implements LabelVariable
 {
-	private static final String OPTION = "(?:bought|sold|qty|profit|investment|limitTransactions=\\d+|(?:item|startDate)=[^,{}?:<>=!]+?)";
-	private static final Pattern PATTERN = Pattern.compile("\\{geHistory((?:[\\s,]+" + OPTION + ")*)\\s*\\}", Pattern.CASE_INSENSITIVE);
-	private static final Pattern DAYS = Pattern.compile("-?\\s*(\\d+)\\s*days?", Pattern.CASE_INSENSITIVE);
+	private static final List<String> START_DATES = List.of("today", "-7 days", "-30 days");
 	private static final int DEFAULT_LIMIT = 5;
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MMM d h:mm a", Locale.ENGLISH).withZone(ZoneId.systemDefault());
 
@@ -52,6 +48,15 @@ public class GeHistoryLabelVariable implements LabelVariable
 	private final Map<Integer, String> names = new HashMap<>();
 	// The traded items' names, newest first (see itemNames()).
 	private volatile List<String> itemNames = List.of();
+
+	private final Args args = Args.of("geHistory")
+		.flag("bought", "sold")
+		.value("item", this::itemNames, Args.ITEM_ICON)
+		.flag("qty", "profit", "investment")
+		.value("startDate", () -> START_DATES, null)
+		.number("limitTransactions")
+		.exclusive("bought", "sold")
+		.exclusive("qty", "profit", "investment");
 
 	// The traded items' names, newest first, for item= suggestions. Worked out on the client thread; elsewhere, the last
 	// ones, with an update queued.
@@ -72,63 +77,26 @@ public class GeHistoryLabelVariable implements LabelVariable
 		return itemNames;
 	}
 
-	// The options: comma-separated, the first after a space.
+	// What the given options ask for.
 	private static final class Options
 	{
-		@Nullable Boolean bought;
-		@Nullable String item;
-		boolean qty;
-		boolean profit;
-		boolean investment;
-		@Nullable Instant start;
-		int limit = DEFAULT_LIMIT;
+		@Nullable final Boolean bought;
+		@Nullable final String item;
+		final boolean qty;
+		final boolean profit;
+		final boolean investment;
+		@Nullable final Instant start;
+		final int limit;
 
-		Options(String text)
+		Options(Args.Options given)
 		{
-			for (String token : text.split(","))
-			{
-				String option = token.trim();
-				String lower = option.toLowerCase(Locale.ROOT);
-				if (lower.startsWith("item="))
-				{
-					item = option.substring("item=".length()).trim();
-				}
-				else if (lower.startsWith("startdate="))
-				{
-					start = start(option.substring("startDate=".length()).trim());
-				}
-				else if (lower.startsWith("limittransactions="))
-				{
-					limit = Integer.parseInt(lower.substring("limitTransactions=".length()));
-				}
-				else
-				{
-					for (String word : lower.split("\\s+"))
-					{
-						bought = word.equals("bought") ? Boolean.TRUE : word.equals("sold") ? Boolean.FALSE : bought;
-						qty |= word.equals("qty");
-						profit |= word.equals("profit");
-						investment |= word.equals("investment");
-					}
-				}
-			}
-		}
-
-		// "today", "-N days" / "N days" (back from now), or a date {date} math accepts; null if none of those.
-		@Nullable
-		private static Instant start(String value)
-		{
-			if (value.equalsIgnoreCase("today"))
-			{
-				return LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
-			}
-			Matcher days = DAYS.matcher(value);
-			if (days.matches())
-			{
-				return Instant.now().minus(Long.parseLong(days.group(1)), ChronoUnit.DAYS);
-			}
-			LocalDate date = DateLiteralParser.parse(value);
-			return date == null ? null : date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+			bought = given.flag("bought") ? Boolean.TRUE : given.flag("sold") ? Boolean.FALSE : null;
+			item = given.value("item");
+			qty = given.flag("qty");
+			profit = given.flag("profit");
+			investment = given.flag("investment");
+			start = given.date("startDate");
+			limit = given.number("limitTransactions", DEFAULT_LIMIT);
 		}
 	}
 
@@ -157,13 +125,19 @@ public class GeHistoryLabelVariable implements LabelVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return args.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		Options options = new Options(matcher.group(1));
+		Options options = new Options(args.options(matcher));
 		if (options.profit)
 		{
 			return String.valueOf(totals(options).values().stream().mapToLong(Totals::realisedProfit).sum());
@@ -188,7 +162,7 @@ public class GeHistoryLabelVariable implements LabelVariable
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		Options options = new Options(matcher.group(1));
+		Options options = new Options(args.options(matcher));
 		if (options.profit)
 		{
 			Map<Integer, Totals> totals = totals(options);

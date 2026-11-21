@@ -1,10 +1,14 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.Collection;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.WeaponAttackType;
@@ -16,17 +20,22 @@ import net.runelite.api.Client;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AttackStyleLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{attackStyle(?:\\s*,?\\s*weapon\\s*=\\s*([^{}]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
-
 	private final Client client;
 	private final RichText richText;
 	private final WeaponStyleTracker tracker;
 
+	private final Args args = weaponArgs("attackStyle", this::weaponNames);
+
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return args.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	@Override
@@ -37,8 +46,9 @@ public class AttackStyleLabelVariable implements LabelVariable
 			return null;
 		}
 
-		WeaponStyleTracker.Style style = style(tracker, matcher);
-		return style == null ? notSeenText(matcher) : style.name;
+		String weapon = weapon(args, matcher);
+		WeaponStyleTracker.Style style = style(tracker, weapon);
+		return style == null ? notSeenText(weapon) : style.name;
 	}
 
 	// Appends the damage type, e.g. "Aggressive (Slash)".
@@ -50,28 +60,47 @@ public class AttackStyleLabelVariable implements LabelVariable
 			return null;
 		}
 
-		WeaponStyleTracker.Style style = style(tracker, matcher);
+		String weapon = weapon(args, matcher);
+		WeaponStyleTracker.Style style = style(tracker, weapon);
 		if (style == null)
 		{
-			return notSeenText(matcher);
+			return notSeenText(weapon);
 		}
 
 		String value = (style.type == null || style.type == WeaponAttackType.NONE) ? style.name : style.name + " (" + style.type.displayName() + ")";
-		return richText.labeled(label(tracker, matcher, "Style", "Attack Style"), value);
+		return richText.labeled(label(tracker, weapon, "Style", "Attack Style"), value);
 	}
 
-	static String label(WeaponStyleTracker tracker, Matcher matcher, String suffix, String defaultLabel)
+	private Collection<String> weaponNames()
 	{
-		return matcher.group(1) == null ? defaultLabel : tracker.weaponName(matcher.group(1)) + " " + suffix;
+		return tracker.weaponNames();
 	}
 
-	static WeaponStyleTracker.Style style(WeaponStyleTracker tracker, Matcher matcher)
+	// {<name>[, weapon=<name>]}, suggesting the weapons seen this session.
+	static Args weaponArgs(String name, Supplier<Collection<String>> weapons)
 	{
-		return matcher.group(1) == null ? tracker.current() : tracker.forWeapon(matcher.group(1));
+		return Args.of(name).value("weapon", weapons, Args.ITEM_ICON);
 	}
 
-	static String notSeenText(Matcher matcher)
+	@Nullable
+	static String weapon(Args args, Matcher matcher)
 	{
-		return "Equip " + matcher.group(1).trim() + " first";
+		return args.options(matcher).value("weapon");
+	}
+
+	static String label(WeaponStyleTracker tracker, @Nullable String weapon, String suffix, String defaultLabel)
+	{
+		return weapon == null ? defaultLabel : tracker.weaponName(weapon) + " " + suffix;
+	}
+
+	@Nullable
+	static WeaponStyleTracker.Style style(WeaponStyleTracker tracker, @Nullable String weapon)
+	{
+		return weapon == null ? tracker.current() : tracker.forWeapon(weapon);
+	}
+
+	static String notSeenText(String weapon)
+	{
+		return "Equip " + weapon + " first";
 	}
 }

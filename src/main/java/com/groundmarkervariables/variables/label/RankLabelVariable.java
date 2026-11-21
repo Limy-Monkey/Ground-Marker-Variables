@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.BossAliases;
@@ -21,6 +22,8 @@ import net.runelite.client.hiscore.HiscoreSkill;
 public class RankLabelVariable implements LabelVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{rank\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
+	// Suggesting only the bosses on the hiscores.
+	private static final Args ARGS = Args.of("rank").main(() -> BossAliases.suggestions(true), Args.BOSS_ICON);
 
 	private final Client client;
 	private final BossKillCountTracker tracker;
@@ -31,6 +34,12 @@ public class RankLabelVariable implements LabelVariable
 	public Pattern pattern()
 	{
 		return PATTERN;
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override

@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.label;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -9,6 +10,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.Icons;
@@ -22,7 +24,6 @@ import net.runelite.api.gameval.VarbitID;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class QuickPrayersLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{quickPrayers(?:\\s+([^{}?:<>=!,|&]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
 
 	// Prayer book order. Bits of QUICKPRAYER_SELECTED from Quick Prayer Preview (Hydrox6, BSD-2-Clause).
 	private enum Prayer
@@ -72,13 +73,26 @@ public class QuickPrayersLabelVariable implements LabelVariable
 		}
 	}
 
+	// Suggesting every prayer by name, with its sprite.
+	private static final Args ARGS = Args.of("quickPrayers")
+		.main(() -> Arrays.stream(Prayer.values()).map(prayer -> prayer.name).collect(Collectors.toList()),
+			name -> Arrays.stream(Prayer.values()).filter(prayer -> prayer.name.equalsIgnoreCase(name)).findFirst()
+				.map(prayer -> Icons.sprite(prayer.spriteId)).orElse(null))
+		.optional();
+
 	private final Client client;
 	private final RichText richText;
 
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -89,12 +103,13 @@ public class QuickPrayersLabelVariable implements LabelVariable
 			return null;
 		}
 
-		if (matcher.group(1) == null)
+		String name = ARGS.main(matcher);
+		if (name == null)
 		{
 			return sprites(selected());
 		}
 
-		Prayer prayer = find(matcher.group(1));
+		Prayer prayer = find(name);
 		return prayer == null ? null : String.valueOf(selected().contains(asked(prayer)));
 	}
 
@@ -106,13 +121,14 @@ public class QuickPrayersLabelVariable implements LabelVariable
 			return null;
 		}
 
-		if (matcher.group(1) == null)
+		String name = ARGS.main(matcher);
+		if (name == null)
 		{
 			List<Prayer> selected = selected();
 			return "Quick Prayers: " + (selected.isEmpty() ? richText.highlightValue("None") : sprites(selected));
 		}
 
-		Prayer prayer = find(matcher.group(1));
+		Prayer prayer = find(name);
 		if (prayer == null)
 		{
 			return null;

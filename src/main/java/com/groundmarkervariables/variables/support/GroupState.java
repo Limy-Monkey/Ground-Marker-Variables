@@ -90,6 +90,17 @@ public class GroupState
 		return groups.get(key(name));
 	}
 
+	// Every declared group's name, as first declared.
+	public List<String> names()
+	{
+		List<String> names = new ArrayList<>();
+		for (Group group : groups.values())
+		{
+			names.add(group.name);
+		}
+		return names;
+	}
+
 	// The picked option, or if none was picked or it's no longer an option, the default, or the first.
 	@Nullable
 	public String value(String name)

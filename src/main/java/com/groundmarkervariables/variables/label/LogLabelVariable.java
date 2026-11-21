@@ -1,13 +1,19 @@
 package com.groundmarkervariables.variables.label;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossKillCountTracker;
+import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.LootTrackerRecords;
 import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -22,15 +28,6 @@ import net.runelite.client.game.ItemManager;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LogLabelVariable implements LabelVariable
 {
-	// Excludes ?:<>=! as {kc} does, and "," which starts the options (group 2).
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{log\\s+([^{}?:<>=!,]+?)((?:\\s*,\\s*(?:missing|noicons|iconsOnly|(?:itemsPerLine|maxItems)=\\d+))*)\\s*\\}",
-		Pattern.CASE_INSENSITIVE);
-	private static final Pattern MISSING = Pattern.compile("\\bmissing\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern NO_ICONS = Pattern.compile("\\bnoicons\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern ICONS_ONLY = Pattern.compile("\\biconsOnly\\b", Pattern.CASE_INSENSITIVE);
-	private static final Pattern ITEMS_PER_LINE = Pattern.compile("itemsPerLine=(\\d+)", Pattern.CASE_INSENSITIVE);
-	private static final Pattern MAX_ITEMS = Pattern.compile("maxItems=(\\d+)", Pattern.CASE_INSENSITIVE);
 	private static final int DEFAULT_ITEMS_PER_LINE = 10;
 	private static final String NOT_FOUND = "RuneProfile plugin not found";
 
@@ -40,11 +37,23 @@ public class LogLabelVariable implements LabelVariable
 	private final ItemManager itemManager;
 	private final BossKillCountTracker killCounts;
 	private final RichText richText;
+	private final CollectionLog pages;
+
+	private final Args args = Args.of("log")
+		.main(this::pageNames, Args.BOSS_ICON)
+		.flag("missing", "noicons", "iconsOnly")
+		.number("itemsPerLine", "maxItems");
 
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return args.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	// Just the obtained count, for math and comparisons.
@@ -71,17 +80,17 @@ public class LogLabelVariable implements LabelVariable
 		}
 		page = withLoot(page, matcher);
 
-		String options = matcher.group(2);
-		boolean iconsOnly = ICONS_ONLY.matcher(options).find();
+		Args.Options options = args.options(matcher);
+		boolean iconsOnly = options.flag("iconsOnly");
 		String text = iconsOnly ? "" : richText.labeled(page.name, page.obtained + "/" + page.items.size()) + kcText(page, matcher);
-		if (NO_ICONS.matcher(options).find())
+		if (options.flag("noicons"))
 		{
 			return text;
 		}
 
-		boolean missing = MISSING.matcher(options).find();
-		int perLine = Math.max(1, option(options, ITEMS_PER_LINE, DEFAULT_ITEMS_PER_LINE));
-		int max = option(options, MAX_ITEMS, Integer.MAX_VALUE);
+		boolean missing = options.flag("missing");
+		int perLine = Math.max(1, options.number("itemsPerLine", DEFAULT_ITEMS_PER_LINE));
+		int max = options.number("maxItems", Integer.MAX_VALUE);
 		StringBuilder sb = new StringBuilder(text);
 		int shown = 0;
 		for (RuneProfileCollectionLog.Item item : page.items)
@@ -148,20 +157,19 @@ public class LogLabelVariable implements LabelVariable
 		return page.isEmpty() ? null : collectionLog.page(page);
 	}
 
-	private static int option(String options, Pattern pattern, int fallback)
+	// The collection log's page names, and BossAliases short names for one.
+	private Collection<String> pageNames()
 	{
-		Matcher option = pattern.matcher(options);
-		if (!option.find())
+		List<String> names = pages.pageNames();
+		Set<String> all = new LinkedHashSet<>(names);
+		for (String alias : BossAliases.aliases())
 		{
-			return fallback;
+			String boss = BossAliases.resolve(alias);
+			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && names.stream().anyMatch(boss::equalsIgnoreCase))
+			{
+				all.add(alias);
+			}
 		}
-		try
-		{
-			return Integer.parseInt(option.group(1));
-		}
-		catch (NumberFormatException e)
-		{
-			return fallback;
-		}
+		return all;
 	}
 }

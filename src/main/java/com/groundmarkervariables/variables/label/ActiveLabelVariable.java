@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -8,6 +9,7 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -24,8 +26,10 @@ import net.runelite.client.party.PartyMember;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{active\\s+(vengeance|venge|thrall|deathCharge|shadowVeil|markOfDarkness|mark)(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
+	// Suggested, each with its icon; "venge" and "mark" are also accepted.
+	private static final Args ARGS = Args.of("active")
+		.main(() -> List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness"), effect -> "{active " + effect + " icon}")
+		.flag("icon");
 
 	private static final Map<String, Effect> EFFECTS = Map.of(
 		"vengeance", Effect.VENGEANCE, "venge", Effect.VENGEANCE, "thrall", Effect.THRALL, "deathcharge", Effect.DEATH_CHARGE,
@@ -45,24 +49,31 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
 	public String resolvePlain(Matcher matcher)
 	{
-		return client.getLocalPlayer() == null ? null : String.valueOf(tracker.active(effect(matcher)));
+		Effect effect = effect(matcher);
+		return client.getLocalPlayer() == null || effect == null ? null : String.valueOf(tracker.active(effect));
 	}
 
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		if (client.getLocalPlayer() == null)
+		Effect effect = effect(matcher);
+		if (client.getLocalPlayer() == null || effect == null)
 		{
 			return null;
 		}
 
-		Effect effect = effect(matcher);
 		boolean active = tracker.active(effect);
 		return rich(matcher, effect, active, active ? tracker.percentLeft(effect) : null);
 	}
@@ -89,7 +100,7 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 	// The name colored by active, or with icon its sprite: dimmed, or with a <badge> of percent left.
 	private String rich(Matcher matcher, Effect effect, boolean active, @Nullable Integer percent)
 	{
-		if (matcher.group(2) == null)
+		if (!ARGS.options(matcher).flag("icon"))
 		{
 			return richText.booleanColored(active, NAMES.get(effect));
 		}
@@ -100,8 +111,11 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 		return Icons.sprite(SPRITES.get(effect)) + (percent == null ? "<badge>" : "<badge=" + percent + ">");
 	}
 
+	// Null if not one of EFFECTS.
+	@Nullable
 	private static Effect effect(Matcher matcher)
 	{
-		return EFFECTS.get(matcher.group(1).toLowerCase(Locale.ROOT));
+		String effect = ARGS.main(matcher);
+		return effect == null ? null : EFFECTS.get(effect.toLowerCase(Locale.ROOT));
 	}
 }

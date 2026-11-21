@@ -1,10 +1,12 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.WeaponAttackType;
@@ -16,17 +18,22 @@ import net.runelite.api.Client;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AttackTypeLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{attackType(?:\\s*,?\\s*weapon\\s*=\\s*([^{}]+?))?\\s*\\}", Pattern.CASE_INSENSITIVE);
-
 	private final Client client;
 	private final RichText richText;
 	private final WeaponStyleTracker tracker;
 
+	private final Args args = AttackStyleLabelVariable.weaponArgs("attackType", this::weaponNames);
+
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return args.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	@Override
@@ -37,10 +44,11 @@ public class AttackTypeLabelVariable implements LabelVariable
 			return null;
 		}
 
-		WeaponStyleTracker.Style style = AttackStyleLabelVariable.style(tracker, matcher);
+		String weapon = AttackStyleLabelVariable.weapon(args, matcher);
+		WeaponStyleTracker.Style style = AttackStyleLabelVariable.style(tracker, weapon);
 		if (style == null)
 		{
-			return AttackStyleLabelVariable.notSeenText(matcher);
+			return AttackStyleLabelVariable.notSeenText(weapon);
 		}
 
 		return style.type == null ? WeaponAttackType.NONE.displayName() : style.type.displayName();
@@ -54,12 +62,17 @@ public class AttackTypeLabelVariable implements LabelVariable
 			return null;
 		}
 
-		WeaponStyleTracker.Style style = AttackStyleLabelVariable.style(tracker, matcher);
-		if (style == null)
+		String weapon = AttackStyleLabelVariable.weapon(args, matcher);
+		if (AttackStyleLabelVariable.style(tracker, weapon) == null)
 		{
-			return AttackStyleLabelVariable.notSeenText(matcher);
+			return AttackStyleLabelVariable.notSeenText(weapon);
 		}
 
-		return richText.labeled(AttackStyleLabelVariable.label(tracker, matcher, "Type", "Attack Type"), resolvePlain(matcher));
+		return richText.labeled(AttackStyleLabelVariable.label(tracker, weapon, "Type", "Attack Type"), resolvePlain(matcher));
+	}
+
+	private Collection<String> weaponNames()
+	{
+		return tracker.weaponNames();
 	}
 }

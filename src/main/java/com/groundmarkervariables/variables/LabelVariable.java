@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 
 // A {token} substitution ground marker labels can use, e.g. {rsn} or {metronome5}. A regex
 // rather than a literal string because some variables carry their own parameters (the "5"
@@ -23,5 +24,12 @@ public interface LabelVariable
 	default String resolve(Matcher matcher, TextMode mode)
 	{
 		return mode == TextMode.RICH ? resolveRich(matcher) : resolvePlain(matcher);
+	}
+
+	// Its declared arguments, which autocomplete then follows; null if its pattern is its own.
+	@Nullable
+	default Args args()
+	{
+		return null;
 	}
 }

@@ -68,6 +68,12 @@ public class LabelResolver
 		this.emojis = emojis;
 	}
 
+	// The VariableRegistry variables, e.g. for their args().
+	public List<LabelVariable> variables()
+	{
+		return baseVariables;
+	}
+
 	// A marker's own raw label: {col=} and :emoji: aliases expand first, so neither is mistaken
 	// for {variable} / {cond ? a : b} syntax.
 	public String resolveMarker(String label)
