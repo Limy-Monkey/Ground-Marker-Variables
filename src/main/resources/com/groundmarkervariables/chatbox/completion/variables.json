@@ -139,7 +139,7 @@
         {"word": "water", "description": "Water Surge"},
         {"word": "earth", "description": "Earth Surge"},
         {"word": "fire", "description": "Fire Surge"}]},
-      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable", "complete": ["icon"]}]},
+      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"}]},
   "hasBarrage": {"syntax": "{hasBarrage [elements]}", "description": "Any barrage spell castable, or specific {hasBarrage blood ice icon}", "returns": "Boolean", "party": true, "icon": "yes", "category": "Spells",
     "parameters": [
       {"name": "[elements]", "complete": [
@@ -147,7 +147,7 @@
         {"word": "shadow", "description": "Shadow Barrage"},
         {"word": "blood", "description": "Blood Barrage"},
         {"word": "ice", "description": "Ice Barrage"}]},
-      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable", "complete": ["icon"]}]},
+      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"}]},
 
   "kc": {"requiresArgument": true,"syntax": "{kc <boss>}", "description": "Kill count, uses the Chat Commands plugin", "returns": "Number", "party": true, "category": "Bosses & loot",
     "parameters": [{"name": "<boss>", "description": "A boss name or alias, any case, e.g. toa, cox cm, cg"}],

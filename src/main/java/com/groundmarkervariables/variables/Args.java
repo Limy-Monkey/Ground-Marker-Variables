@@ -40,6 +40,8 @@ public final class Args
 	private static final Pattern DAYS = Pattern.compile("-?\\s*(\\d+)\\s*days?", Pattern.CASE_INSENSITIVE);
 
 	private final String name;
+	// Other names it's written as, accepted but not suggested.
+	private final List<String> aliases = new ArrayList<>();
 	private String catalogName;
 	@Nullable
 	private Supplier<Collection<String>> mainNames;
@@ -97,6 +99,13 @@ public final class Args
 		return new Args(name);
 	}
 
+	// Also written as names, e.g. {hasFreezes} for {hasFreeze}.
+	public Args alias(String... names)
+	{
+		aliases.addAll(List.of(names));
+		return build();
+	}
+
 	// Its options described as variable's in variables.json, e.g. {lootSession} as {loot}.
 	public Args describedAs(String variable)
 	{
@@ -132,6 +141,13 @@ public final class Args
 	public Args flag(String word, Predicate<String> when)
 	{
 		add(new Option(word, word, main -> List.of(), NO_ICON, when));
+		return build();
+	}
+
+	// A flag suggested with icon's syntax.
+	public Args iconFlag(String word, Function<String, String> icon)
+	{
+		add(new Option(word, word, main -> List.of(), icon, main -> true));
 		return build();
 	}
 
@@ -186,6 +202,14 @@ public final class Args
 	public String name()
 	{
 		return name;
+	}
+
+	// Its name, then its aliases.
+	public List<String> names()
+	{
+		List<String> names = new ArrayList<>(List.of(name));
+		names.addAll(aliases);
+		return names;
 	}
 
 	public String catalogName()
@@ -250,11 +274,12 @@ public final class Args
 		return unused;
 	}
 
-	// A suggested word's icon syntax: an extra's, none for an option.
+	// A suggested word's icon syntax: an iconFlag's or an extra's, none for other options.
 	@Nullable
 	public String wordIcon(String word)
 	{
-		return hasOption(word) ? null : extrasIcon.apply(word);
+		Option option = option(word);
+		return option == null ? extrasIcon.apply(word) : option.isValue() ? null : option.icon.apply(word);
 	}
 
 	// Whether name (e.g. "itemsPerLine", "itemsPerLine=N" or "bought / sold") names one of the options.
@@ -338,7 +363,8 @@ public final class Args
 		String item = "(?:\\s*,\\s*" + afterComma + "|\\s+" + option + ")";
 		String rest = "((?:" + item + ")*)";
 		String main = mainNames == null ? rest : "\\s+(" + TEXT + ")" + rest;
-		pattern = Pattern.compile("\\{" + name + (mainOptional ? "(?:" + main + ")?" : main) + "[\\s,]*\\}", Pattern.CASE_INSENSITIVE);
+		String names = names().stream().map(Pattern::quote).collect(Collectors.joining("|"));
+		pattern = Pattern.compile("\\{(?:" + names + ")" + (mainOptional ? "(?:" + main + ")?" : main) + "[\\s,]*\\}", Pattern.CASE_INSENSITIVE);
 		trailingOptions = Pattern.compile("(?:" + item + ")*[\\s,]*$", Pattern.CASE_INSENSITIVE);
 		// Then only more options to the end, so a value or extra takes everything up to the next option.
 		token = Pattern.compile("(?:\\s*,\\s*(" + afterComma + ")|\\s+(" + option + "))(?=(?:" + item + ")*[\\s,]*$)", Pattern.CASE_INSENSITIVE);
@@ -375,6 +401,12 @@ public final class Args
 		public boolean flag(String word)
 		{
 			return given.containsKey(word.toLowerCase(Locale.ROOT));
+		}
+
+		// The words given, lowercase, in the order given.
+		public List<String> words()
+		{
+			return new ArrayList<>(given.keySet());
 		}
 
 		// The last one given.

@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -64,23 +65,10 @@ public class LabelCompleter
 	// {party <template>}: nothing completed, so its parameter hint shows.
 	private static final String PARTY_PREFIX = "party ";
 
-	// {hasBarrage <element> ... [icon]} / {hasSurge ...}: each word once. "air" is {hasSurge}'s alias for "wind".
-	private static final Pattern SPELL_SET_WORDS = Pattern.compile("(?i)^(hasBarrage|hasSurge)((?:\\s+\\w+)*?)\\s+(\\w*)$");
-	private static final Map<String, List<String>> SPELL_SET_OPTIONS = Map.of(
-		"hasbarrage", VariableCatalog.completions("hasBarrage"),
-		"hassurge", VariableCatalog.completions("hasSurge"));
-	private static final Map<String, String> SPELL_SET_ALIASES = Map.of("air", "wind", "wind", "air");
-
 	// {worldInfo hideWorld}.
 	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
 	private static final String HIDE_WORLD = "hideWorld";
 
-	// {hasFreeze icon}, {equip_helm icon}, {active thrall icon}, ...: the icon variables and their aliases ({hasSurge}
-	// and {hasBarrage} complete "icon" among their words).
-	private static final Pattern ICON_OPTION = Pattern.compile("(?i)^(?:" + ICON_VARIABLES.stream()
-		.filter(name -> !SPELL_SET_OPTIONS.containsKey(name.toLowerCase(Locale.ROOT)))
-		.flatMap(name -> Stream.concat(Stream.of(name), VariableCatalog.ALIASES.getOrDefault(name, List.of()).stream()))
-		.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	private static final String ICON = "icon";
 
 	// ":<partial emoji name>" at the cursor. Not after a name character, so ":name:", "9:30" and " : " never start one.
@@ -300,8 +288,7 @@ public class LabelCompleter
 		}
 		// Not a variable with args()'s option words: those are suggested instead.
 		Args args = labelResolver.variables().stream().map(LabelVariable::args)
-			.filter(a -> a != null && token.length() > a.name().length() && token.regionMatches(true, 0, a.name(), 0, a.name().length())
-				&& " ,".indexOf(token.charAt(a.name().length())) >= 0).findFirst().orElse(null);
+			.filter(a -> a != null && argsStart(a, token) >= 0).findFirst().orElse(null);
 		return VariableCatalog.hints(token).stream().filter(line -> args == null || !args.hasOption(line.split(":", 2)[0]))
 			.collect(Collectors.toList());
 	}
@@ -527,8 +514,7 @@ public class LabelCompleter
 		{
 			list.add(prefix(prefix, true, rest -> completeSkill(rest, prefix)));
 		}
-		list.add(pattern(SPELL_SET_WORDS, this::completeSpellSet));
-		list.add(pattern(ICON_OPTION, m -> described(completeWord(m.group(1), ICON, true),
+		list.add(pattern(iconOption(), m -> described(completeWord(m.group(1), ICON, true),
 			m.group().startsWith(EQUIP_PREFIX) ? EQUIP_PREFIX : m.group().split("\\s+")[0])));
 		list.add(prefix(EQUIP_PREFIX, false, rest -> described(withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
 			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
@@ -568,18 +554,40 @@ public class LabelCompleter
 	// A variable with args(): applies once its name is followed by a space or comma; after a math operator only if numeric.
 	private Rule argsRule(Args args)
 	{
-		String name = args.name();
-		boolean inMath = NumericVariableRegistry.NAMES.contains(name);
+		boolean inMath = NumericVariableRegistry.NAMES.contains(args.name());
 		return (partial, numeric) ->
 		{
-			if ((numeric && !inMath) || partial.length() <= name.length() || !partial.regionMatches(true, 0, name, 0, name.length()))
-			{
-				return null;
-			}
-			char next = partial.charAt(name.length());
-			return next == ' ' ? orNone(completeArgs(args, partial.substring(name.length() + 1)))
-				: next == ',' ? orNone(completeArgs(args, partial.substring(name.length()))) : null;
+			int start = argsStart(args, partial);
+			return (numeric && !inMath) || start < 0 ? null : orNone(completeArgs(args, partial.substring(start)));
 		};
+	}
+
+	// Where args' arguments begin in text: after one of its names and a space (or at a comma); -1 if not its.
+	private static int argsStart(Args args, String text)
+	{
+		for (String name : args.names())
+		{
+			if (text.length() > name.length() && text.regionMatches(true, 0, name, 0, name.length()))
+			{
+				char next = text.charAt(name.length());
+				if (next == ' ' || next == ',')
+				{
+					return name.length() + (next == ' ' ? 1 : 0);
+				}
+			}
+		}
+		return -1;
+	}
+
+	// The variables with args() and their aliases, which complete their own "icon"; the rest that take one.
+	private Pattern iconOption()
+	{
+		Set<String> withArgs = labelResolver.variables().stream().map(LabelVariable::args).filter(Objects::nonNull)
+			.flatMap(args -> args.names().stream()).map(name -> name.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+		return Pattern.compile("(?i)^(?:" + ICON_VARIABLES.stream()
+			.flatMap(name -> Stream.concat(Stream.of(name), VariableCatalog.ALIASES.getOrDefault(name, List.of()).stream()))
+			.filter(name -> !withArgs.contains(name.toLowerCase(Locale.ROOT)))
+			.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	}
 
 	// Applies to text pattern matches entirely, never after a math operator.
@@ -718,21 +726,6 @@ public class LabelCompleter
 			prefix);
 	}
 
-	// Each spell word once ("air"/"wind" counting as one).
-	private Completion completeSpellSet(Matcher spellSet)
-	{
-		List<String> used = List.of(spellSet.group(2).trim().toLowerCase(Locale.ROOT).split("\\s+"));
-		List<String> options = new ArrayList<>();
-		for (String option : SPELL_SET_OPTIONS.get(spellSet.group(1).toLowerCase(Locale.ROOT)))
-		{
-			if (!used.contains(option) && !used.contains(SPELL_SET_ALIASES.getOrDefault(option, option)))
-			{
-				options.add(option);
-			}
-		}
-		return described(withIcons(match(spellSet.group(3), options, "{" + spellSet.group().substring(0, spellSet.start(3)), "", "}", true),
-			word -> ICON.equals(word) ? null : "{" + spellSet.group(1) + " " + word + " icon}"), spellSet.group(1));
-	}
 
 	// A variable with args(): a value being typed after its word (e.g. "item="), else its main argument's names, then
 	// once one is given and a comma or option follows, the options (and after a comma, extras) not given yet; "}" once

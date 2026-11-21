@@ -21,7 +21,7 @@ import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.party.PartyMember;
 
 // Shared "how many of X does the player actually have available" logic for any variable
-// that needs to reason about spell reagents (HasSpellLabelVariable, SpellSetLabelVariable). Rune pouch decoding mirrors gearscape's own
+// that needs to reason about spell reagents (SpellVariables). Rune pouch decoding mirrors gearscape's own
 // RunePouchItem/buildRunePouch.
 public final class RuneCounter
 {

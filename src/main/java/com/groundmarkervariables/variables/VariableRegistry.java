@@ -21,13 +21,13 @@ public class VariableRegistry
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args)
+	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args, SpellVariables spells)
 	{
-		// The no- and one-argument variables, defined inline in SimpleVariables and ArgVariables.
+		// The variables defined inline in SimpleVariables, ArgVariables and SpellVariables.
 		List<LabelVariable> variables = new ArrayList<>(simple.all());
 		variables.addAll(args.all());
+		variables.addAll(spells.all());
 		for (Class<? extends LabelVariable> type : List.of(
-			HasSpellLabelVariable.class,
 			SkillLevelLabelVariable.class,
 			BoostedSkillLevelLabelVariable.class,
 			AttackStyleLabelVariable.class,
@@ -47,8 +47,6 @@ public class VariableRegistry
 			ReadyCheckLabelVariable.class,
 			DivineLabelVariable.class,
 			WorldLabelVariable.class,
-			HasSurgeLabelVariable.class,
-			HasBarrageLabelVariable.class,
 			ActiveLabelVariable.class,
 			QuickPrayersLabelVariable.class,
 			GeHistoryLabelVariable.class))
