@@ -6,7 +6,6 @@ import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
 import com.groundmarkervariables.variables.label.GeHistoryLabelVariable;
-import com.groundmarkervariables.variables.label.PriceLabelVariable;
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.BossHiscoreSkill;
 import com.groundmarkervariables.variables.support.CollectionLog;
@@ -39,6 +38,7 @@ import javax.inject.Inject;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.hiscore.HiscoreSkill;
 import net.runelite.client.hiscore.HiscoreSkillType;
 
@@ -258,7 +258,7 @@ public class LabelCompleter
 	private final ItemCharges itemCharges;
 	private final LootTrackerRecords lootTrackerRecords;
 	private final LabelResolver labelResolver;
-	private final PriceLabelVariable price;
+	private final ItemManager itemManager;
 	private final GeHistoryLabelVariable geHistory;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
@@ -272,9 +272,9 @@ public class LabelCompleter
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ConfigManager configManager, Gson gson, Emojis emojis,
 		WeaponStyleTracker weaponStyleTracker, IconNames iconNames, CollectionLog collectionLog, ItemCharges itemCharges,
-		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, PriceLabelVariable price, GeHistoryLabelVariable geHistory)
+		LootTrackerRecords lootTrackerRecords, LabelResolver labelResolver, ItemManager itemManager, GeHistoryLabelVariable geHistory)
 	{
-		this.price = price;
+		this.itemManager = itemManager;
 		this.geHistory = geHistory;
 		this.config = config;
 		this.configManager = configManager;
@@ -614,7 +614,9 @@ public class LabelCompleter
 		list.add(prefix(KC_PREFIX, true, rest -> completeBoss(rest, KC_PREFIX, false)));
 		list.add(prefix(CHARGES_PREFIX, true, this::completeCharges));
 		list.add(pattern(GE_HISTORY_OPTIONS, m -> completeGeHistory(m.group(1))));
-		list.add(prefix(PRICE_PREFIX, true, rest -> described(withIcons(match(rest, price.tradeableNames(), "{" + PRICE_PREFIX, "", "}", true),
+		// RuneLite's price list: every tradeable item.
+		list.add(prefix(PRICE_PREFIX, true, rest -> described(withIcons(match(rest,
+			itemManager.search("").stream().map(item -> item.getName()).distinct().collect(Collectors.toList()), "{" + PRICE_PREFIX, "", "}", true),
 			item -> "<item=" + item + ">"), PRICE_PREFIX)));
 		list.add(prefix(RANK_PREFIX, false, rest -> completeBoss(rest, RANK_PREFIX, true)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));

@@ -22,24 +22,21 @@ public class NumericVariableRegistry
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private NumericVariableRegistry(Injector injector, SimpleVariables simple)
+	private NumericVariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args)
 	{
-		// SimpleVariables' number() variables.
+		// SimpleVariables' and ArgVariables' number() variables.
 		List<LabelVariable> variables = new ArrayList<>(simple.numeric());
+		variables.addAll(args.numeric());
 		for (Class<? extends LabelVariable> type : List.of(
-			KcLabelVariable.class,
 			LootLabelVariable.class,
 			LootSessionLabelVariable.class,
 			LogLabelVariable.class,
 			SkillLevelLabelVariable.class,
 			BoostedSkillLevelLabelVariable.class,
 			XpRateLabelVariable.class,
-			NumItemLabelVariable.class,
-			NumDosesLabelVariable.class,
 			ChargesLabelVariable.class,
 			PartyLabelVariable.class,
 			XpLabelVariable.class,
-			PriceLabelVariable.class,
 			GeHistoryLabelVariable.class))
 		{
 			variables.add(injector.getInstance(type));

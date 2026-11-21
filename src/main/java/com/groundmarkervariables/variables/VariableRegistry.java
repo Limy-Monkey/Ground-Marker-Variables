@@ -21,29 +21,25 @@ public class VariableRegistry
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private VariableRegistry(Injector injector, SimpleVariables simple)
+	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args)
 	{
-		// The no-argument variables, defined inline in SimpleVariables.
+		// The no- and one-argument variables, defined inline in SimpleVariables and ArgVariables.
 		List<LabelVariable> variables = new ArrayList<>(simple.all());
+		variables.addAll(args.all());
 		for (Class<? extends LabelVariable> type : List.of(
 			HasSpellLabelVariable.class,
 			SkillLevelLabelVariable.class,
 			BoostedSkillLevelLabelVariable.class,
 			AttackStyleLabelVariable.class,
 			AttackTypeLabelVariable.class,
-			HasItemLabelVariable.class,
 			ShowItemsLabelVariable.class,
 			RunePouchLabelVariable.class,
 			EquipLabelVariable.class,
-			KcLabelVariable.class,
-			PbLabelVariable.class,
 			XpRateLabelVariable.class,
 			SixHourTimeRemainingLabelVariable.class,
 			LootLabelVariable.class,
 			LootSessionLabelVariable.class,
 			LogLabelVariable.class,
-			NumItemLabelVariable.class,
-			NumDosesLabelVariable.class,
 			ChargesLabelVariable.class,
 			XpLabelVariable.class,
 			RankLabelVariable.class,
@@ -54,9 +50,7 @@ public class VariableRegistry
 			HasSurgeLabelVariable.class,
 			HasBarrageLabelVariable.class,
 			ActiveLabelVariable.class,
-			GroupLabelVariable.class,
 			QuickPrayersLabelVariable.class,
-			PriceLabelVariable.class,
 			GeHistoryLabelVariable.class))
 		{
 			variables.add(injector.getInstance(type));

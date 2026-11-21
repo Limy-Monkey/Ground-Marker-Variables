@@ -436,14 +436,6 @@ public class IconNames
 		return sb.toString();
 	}
 
-	// The lowest ID named name (any case), skipping id()'s nearby/held check; null if none.
-	@Nullable
-	public Integer lowestId(Kind kind, String name)
-	{
-		Index index = index(kind);
-		return index == null ? null : index.ids.get(name.toLowerCase(Locale.ROOT));
-	}
-
 	@Nullable
 	public Integer id(Kind kind, String name)
 	{
