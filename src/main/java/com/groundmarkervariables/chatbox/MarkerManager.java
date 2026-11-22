@@ -12,9 +12,11 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import net.runelite.api.ChatMessageType;
@@ -28,6 +30,7 @@ import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
@@ -56,12 +59,15 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 	private final Client client;
 	private final DeletedMarkers deletedMarkers;
 	private final GroundMarkerVariablesSharingManager sharingManager;
+	private final ClientThread clientThread;
 
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
 	private int scrollOffset;
 	// { } toggle: only rows whose label has a variable (and the areas containing them).
 	private boolean variablesOnly = true;
+	// Typed while open: only rows whose area name or label contains it, any case.
+	private volatile String query = "";
 
 	// Every marker sharing one RegionNames name, or the unnamed ones of a single region.
 	private static final class Group
@@ -107,8 +113,9 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager)
+		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread)
 	{
+		this.clientThread = clientThread;
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.markerStorage = markerStorage;
 		this.chatMessageManager = chatMessageManager;
@@ -160,19 +167,53 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		update();
 	}
 
+	// Escape clears the search, then closes; Backspace removes a character from it.
 	@Override
 	public void keyPressed(KeyEvent ev)
 	{
-		if (ev.getKeyCode() == KeyEvent.VK_ESCAPE && chatboxPanelManager.shouldTakeInput())
+		if (!chatboxPanelManager.shouldTakeInput())
+		{
+			return;
+		}
+		if (ev.getKeyCode() == KeyEvent.VK_ESCAPE)
 		{
 			ev.consume();
-			chatboxPanelManager.close();
+			if (query.isEmpty())
+			{
+				chatboxPanelManager.close();
+			}
+			else
+			{
+				search(query -> "");
+			}
+		}
+		else if (ev.getKeyCode() == KeyEvent.VK_BACK_SPACE && !query.isEmpty())
+		{
+			ev.consume();
+			search(query -> query.isEmpty() ? query : query.substring(0, query.length() - 1));
 		}
 	}
 
 	@Override
 	public void keyTyped(KeyEvent ev)
 	{
+		char c = ev.getKeyChar();
+		if (chatboxPanelManager.shouldTakeInput() && !Character.isISOControl(c) && !ev.isControlDown() && !ev.isAltDown())
+		{
+			ev.consume();
+			search(query -> query + c);
+		}
+	}
+
+	// Keys arrive on the AWT thread; the search changes, and widgets are built, on the client thread.
+	private void search(UnaryOperator<String> change)
+	{
+		clientThread.invoke(() ->
+		{
+			query = change.apply(query);
+			scrollOffset = 0;
+			update();
+		});
 	}
 
 	@Override
@@ -185,8 +226,9 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
 
-		ChatboxWidgets.text(container, "Ground Markers (" + markerCount(visibleEntries()) + ")", FontID.QUILL_8, 0x800000, 6, 5, 200,
-			LINE_HEIGHT);
+		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
+		ChatboxWidgets.text(container, "Ground Markers (" + markerCount(visibleEntries()) + ")" + search, FontID.QUILL_8, 0x800000, 6, 5,
+			260, LINE_HEIGHT);
 		buildTopBar(container);
 		ChatboxWidgets.separator(container, RESULTS_Y - 4);
 		buildRows(container);
@@ -198,7 +240,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
 
 		List<Entry> visible = visibleEntries();
-		boolean anySelected = !selected.isEmpty();
+		boolean anySelected = visible.stream().anyMatch(selected::contains);
 		boolean allSelected = !visible.isEmpty() && selected.containsAll(visible);
 		int count = selectedPoints().size();
 		String selectedTarget = "<col=ff9040>" + count + (count == 1 ? " marker" : " markers") + "</col>";
@@ -290,8 +332,9 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		List<Row> rows = rows();
 		if (rows.isEmpty())
 		{
-			addText(container, variablesOnly ? "No ground markers have variables." : "You have no saved ground markers.", FontID.PLAIN_12,
-				0x000000, 6, RESULTS_Y);
+			String none = !query.isEmpty() ? "No ground markers match \"" + Text.escapeJagex(query) + "\"."
+				: variablesOnly ? "No ground markers have variables." : "You have no saved ground markers.";
+			addText(container, none, FontID.PLAIN_12, 0x000000, 6, RESULTS_Y);
 			return;
 		}
 
@@ -408,20 +451,31 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 
 	private List<Entry> visibleEntries()
 	{
-		if (!variablesOnly)
-		{
-			return entries;
-		}
-
 		List<Entry> visible = new ArrayList<>();
 		for (Entry entry : entries)
 		{
-			if (hasVariable(entry))
+			if (shown(entry))
 			{
 				visible.add(entry);
 			}
 		}
 		return visible;
+	}
+
+	// Passes the { } filter and the search: its area name (or "Region <id>") or label contains it.
+	private boolean shown(Entry entry)
+	{
+		if (variablesOnly && !hasVariable(entry))
+		{
+			return false;
+		}
+		if (query.isEmpty())
+		{
+			return true;
+		}
+		String search = query.toLowerCase(Locale.ROOT);
+		String area = entry.group.name != null ? entry.group.name : "Region " + entry.group.regionIds.iterator().next();
+		return area.toLowerCase(Locale.ROOT).contains(search) || entry.label.toLowerCase(Locale.ROOT).contains(search);
 	}
 
 	// plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).
@@ -465,7 +519,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		List<Entry> result = new ArrayList<>();
 		for (Entry entry : group.byLabel.values())
 		{
-			if (!variablesOnly || hasVariable(entry))
+			if (shown(entry))
 			{
 				result.add(entry);
 			}
@@ -473,10 +527,11 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		return result;
 	}
 
+	// The selected markers shown: hidden ones stay selected, but aren't copied or deleted.
 	private List<GroundMarkerPointData> selectedPoints()
 	{
 		List<GroundMarkerPointData> points = new ArrayList<>();
-		for (Entry entry : entries)
+		for (Entry entry : visibleEntries())
 		{
 			if (selected.contains(entry))
 			{
