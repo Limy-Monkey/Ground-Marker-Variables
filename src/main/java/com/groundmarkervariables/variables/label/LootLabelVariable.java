@@ -61,7 +61,7 @@ public class LootLabelVariable implements LabelVariable
 		this(itemManager, lootTrackerRecords, richText, collectionLog, runeProfile, lootSessions, configManager, gson, false);
 	}
 
-	LootLabelVariable(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
+	private LootLabelVariable(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
 		RuneProfileCollectionLog runeProfile, LootSessions lootSessions, ConfigManager configManager, Gson gson, boolean session)
 	{
 		this.itemManager = itemManager;
@@ -83,6 +83,18 @@ public class LootLabelVariable implements LabelVariable
 			.flag("itemsOnly")
 			.number("lines")
 			.unlisted("lines");
+	}
+
+	// {lootSession <monster>, ...}: {loot}, counting only from its first use (see LootSessions). Reset by Shift
+	// right-click > Tile Variables > Reset Session.
+	public static class LootSession extends LootLabelVariable
+	{
+		@Inject
+		private LootSession(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
+			RuneProfileCollectionLog runeProfile, LootSessions lootSessions, ConfigManager configManager, Gson gson)
+		{
+			super(itemManager, lootTrackerRecords, richText, collectionLog, runeProfile, lootSessions, configManager, gson, true);
+		}
 	}
 
 	@Override

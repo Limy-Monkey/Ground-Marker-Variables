@@ -29,14 +29,10 @@ public class NumericVariableRegistry
 		variables.addAll(args.numeric());
 		for (Class<? extends LabelVariable> type : List.of(
 			LootLabelVariable.class,
-			LootSessionLabelVariable.class,
+			LootLabelVariable.LootSession.class,
 			LogLabelVariable.class,
-			SkillLevelLabelVariable.class,
-			BoostedSkillLevelLabelVariable.class,
-			XpRateLabelVariable.class,
 			ChargesLabelVariable.class,
 			PartyLabelVariable.class,
-			XpLabelVariable.class,
 			GeHistoryLabelVariable.class))
 		{
 			variables.add(injector.getInstance(type));

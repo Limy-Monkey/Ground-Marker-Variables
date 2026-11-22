@@ -1175,12 +1175,22 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		List<Completion.Option> listed = new ArrayList<>();
 		for (Completion.Option option : completion.options)
 		{
-			if (option.label != null)
+			if (option == Completion.BREAK)
+			{
+				addSuggestionRows(rows, listed, preferred);
+				rows.add(Row.hint(""));
+				listed = new ArrayList<>();
+			}
+			else if (option.label != null)
 			{
 				listed.add(option);
 			}
 		}
+		addSuggestionRows(rows, listed, preferred);
+	}
 
+	private static void addSuggestionRows(List<Row> rows, List<Completion.Option> listed, @Nullable Completion.Option preferred)
+	{
 		for (int i = 0; i < listed.size(); i += SUGGESTION_COLUMNS)
 		{
 			List<Completion.Option> row = listed.subList(i, Math.min(i + SUGGESTION_COLUMNS, listed.size()));

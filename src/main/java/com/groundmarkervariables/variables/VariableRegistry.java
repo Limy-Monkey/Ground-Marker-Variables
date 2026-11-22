@@ -28,21 +28,17 @@ public class VariableRegistry
 		variables.addAll(args.all());
 		variables.addAll(spells.all());
 		for (Class<? extends LabelVariable> type : List.of(
-			SkillLevelLabelVariable.class,
-			BoostedSkillLevelLabelVariable.class,
 			AttackStyleLabelVariable.class,
 			AttackTypeLabelVariable.class,
 			ShowItemsLabelVariable.class,
 			ShowItemsLabelVariable.ShowOneItem.class,
 			RunePouchLabelVariable.class,
 			EquipLabelVariable.class,
-			XpRateLabelVariable.class,
 			SixHourTimeRemainingLabelVariable.class,
 			LootLabelVariable.class,
-			LootSessionLabelVariable.class,
+			LootLabelVariable.LootSession.class,
 			LogLabelVariable.class,
 			ChargesLabelVariable.class,
-			XpLabelVariable.class,
 			RankLabelVariable.class,
 			PartyLabelVariable.class,
 			ReadyCheckLabelVariable.class,

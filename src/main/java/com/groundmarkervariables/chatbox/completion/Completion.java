@@ -73,6 +73,9 @@ public final class Completion
 		}
 	}
 
+	// Not a completion: a blank line in the list between groups of options.
+	public static final Option BREAK = new Option(null, "", 0, null);
+
 	public final List<Option> options;
 	// Index into options, or -1 for no ghost (e.g. nothing typed yet).
 	public final int preferred;

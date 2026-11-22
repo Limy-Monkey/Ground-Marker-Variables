@@ -15,22 +15,23 @@ import net.runelite.client.party.PartyMember;
 public class ArgVariable implements LabelVariable
 {
 	private final String name;
-	private final Pattern pattern;
+	private Pattern pattern;
 	private final boolean numeric;
 	private final Function<String, Object> value;
 	private final BiFunction<String, String, String> rich;
 	// Autocomplete's suggestions for arg, if any (see suggest()).
 	@Nullable
 	private Args args;
+	private boolean joined;
 
 	// name: e.g. "kc". numeric: usable in MathVariable.
 	public ArgVariable(String name, boolean numeric, Function<String, Object> value, BiFunction<String, String, String> rich)
 	{
-		this(name, Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!,]+?)\\s*\\}", Pattern.CASE_INSENSITIVE), numeric, value, rich, null);
+		this(name, Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!,]+?)\\s*\\}", Pattern.CASE_INSENSITIVE), numeric, value, rich, null, false);
 	}
 
 	private ArgVariable(String name, Pattern pattern, boolean numeric, Function<String, Object> value, BiFunction<String, String, String> rich,
-		@Nullable Args args)
+		@Nullable Args args, boolean joined)
 	{
 		this.name = name;
 		this.pattern = pattern;
@@ -38,6 +39,7 @@ public class ArgVariable implements LabelVariable
 		this.value = value;
 		this.rich = rich;
 		this.args = args;
+		this.joined = joined;
 	}
 
 	public boolean numeric()
@@ -45,10 +47,26 @@ public class ArgVariable implements LabelVariable
 		return numeric;
 	}
 
+	// arg is one word right after the name, e.g. {lvl_attack}.
+	public ArgVariable joined()
+	{
+		joined = true;
+		pattern = Pattern.compile("\\{" + name + "(\\w+?)\\}", Pattern.CASE_INSENSITIVE);
+		if (args != null)
+		{
+			args.joined();
+		}
+		return this;
+	}
+
 	// Autocomplete suggests arg from names, each with icon's syntax if any.
 	public ArgVariable suggest(Supplier<Collection<String>> names, @Nullable Function<String, String> icon)
 	{
 		args = Args.of(name).main(names, icon == null ? value -> null : icon);
+		if (joined)
+		{
+			args.joined();
+		}
 		return this;
 	}
 
@@ -108,7 +126,7 @@ public class ArgVariable implements LabelVariable
 		private Party(ArgVariable from, BiFunction<String, PartyMember, Object> member, BiFunction<String, PartyMember, String> memberRich,
 			BiFunction<String, String, String> row)
 		{
-			super(from.name, from.pattern, from.numeric, from.value, from.rich, from.args);
+			super(from.name, from.pattern, from.numeric, from.value, from.rich, from.args, from.joined);
 			this.member = member;
 			this.memberRich = memberRich;
 			this.row = row;

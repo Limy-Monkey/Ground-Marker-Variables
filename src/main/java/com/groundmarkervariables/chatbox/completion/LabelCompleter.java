@@ -794,6 +794,7 @@ public class LabelCompleter
 				options.add(new Completion.Option(category.search, category.search, 0, "<sprite=" + category.spriteId + ">",
 					"Search " + category.search + " sprites"));
 			}
+			options.add(Completion.BREAK);
 			options.addAll(completion.options);
 			completion = new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + options.size() - completion.options.size());
 		}
