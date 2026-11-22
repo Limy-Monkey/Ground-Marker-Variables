@@ -5,9 +5,9 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
-import com.groundmarkervariables.variables.support.SkillFinder;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.plugins.PluginManager;
@@ -21,7 +21,7 @@ import net.runelite.client.plugins.xptracker.XpTrackerService;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class XpRateLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{xpRate_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
+	private static final Args ARGS = Args.of("xpRate_").joined().main(Args.SKILLS, Args.SKILL_ICON);
 	private static final String XP_TRACKER_DISABLED_TEXT = "N/A";
 	private static final String XP_TRACKER_DISABLED_RICH_TEXT = "Enable XP Tracker Plugin";
 	private static final int ABBREVIATE_ABOVE = 10_000;
@@ -34,7 +34,13 @@ public class XpRateLabelVariable implements LabelVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -45,7 +51,7 @@ public class XpRateLabelVariable implements LabelVariable
 			return null;
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		if (skill == null)
 		{
 			return null;
@@ -64,7 +70,7 @@ public class XpRateLabelVariable implements LabelVariable
 			return null;
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		if (skill == null)
 		{
 			return null;

@@ -21,7 +21,6 @@ import net.runelite.client.hiscore.HiscoreSkill;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RankLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{rank\\s+([^{}?:<>=!]+?)\\}", Pattern.CASE_INSENSITIVE);
 	// Suggesting only the bosses on the hiscores.
 	private static final Args ARGS = Args.of("rank").main(() -> BossAliases.suggestions(true), Args.BOSS_ICON);
 
@@ -33,7 +32,7 @@ public class RankLabelVariable implements LabelVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
 	}
 
 	@Override
@@ -64,7 +63,7 @@ public class RankLabelVariable implements LabelVariable
 			return null;
 		}
 
-		String canonicalBoss = BossAliases.resolve(matcher.group(1).trim());
+		String canonicalBoss = BossAliases.resolve(ARGS.main(matcher));
 		Integer kc = tracker.getKc(canonicalBoss);
 		Long rank = rankLookup.rank(skill);
 		String rankText = rank == null ? richText.animatedDots(client.getTickCount()) : richText.highlightValue(String.format("%,d", rank));
@@ -79,7 +78,7 @@ public class RankLabelVariable implements LabelVariable
 			return null;
 		}
 
-		String boss = matcher.group(1).trim();
-		return boss.isEmpty() ? null : BossHiscoreSkill.find(BossAliases.resolve(boss));
+		String boss = ARGS.main(matcher);
+		return boss == null ? null : BossHiscoreSkill.find(BossAliases.resolve(boss));
 	}
 }

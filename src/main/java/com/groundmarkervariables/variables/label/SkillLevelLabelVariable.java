@@ -2,13 +2,15 @@ package com.groundmarkervariables.variables.label;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
-import com.groundmarkervariables.variables.support.SkillFinder;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.party.PartyMember;
@@ -23,7 +25,9 @@ import net.runelite.client.party.PartyMember;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{lvl_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
+	// Suggesting every skill, then combat and total.
+	private static final Args ARGS = Args.of("lvl_").joined()
+		.main(() -> Stream.concat(Args.SKILLS.get().stream(), Stream.of("combat", "total")).collect(Collectors.toList()), Args.SKILL_ICON);
 
 	private final Client client;
 	private final RichText richText;
@@ -31,7 +35,13 @@ public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariab
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -42,7 +52,7 @@ public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariab
 			return null;
 		}
 
-		Integer level = level(matcher.group(1));
+		Integer level = level(ARGS.main(matcher));
 		return level == null ? null : String.valueOf(level);
 	}
 
@@ -55,14 +65,14 @@ public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariab
 			return null;
 		}
 
-		return richText.labeled(label(matcher.group(1)), level);
+		return richText.labeled(label(ARGS.main(matcher)), level);
 	}
 
 	// Real skills only: combat and total aren't sent. A base level of 0 means not sent yet.
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		return skill == null || member.getStatBase(skill) <= 0 ? null : String.valueOf(member.getStatBase(skill));
 	}
 
@@ -85,7 +95,7 @@ public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariab
 			return client.getTotalLevel();
 		}
 
-		Skill skill = SkillFinder.find(name);
+		Skill skill = Args.skill(name);
 		return skill == null ? null : client.getRealSkillLevel(skill);
 	}
 
@@ -101,6 +111,6 @@ public class SkillLevelLabelVariable implements LabelVariable, PartyMemberVariab
 			return "Total";
 		}
 
-		return SkillFinder.find(name).getName();
+		return Args.skill(name).getName();
 	}
 }

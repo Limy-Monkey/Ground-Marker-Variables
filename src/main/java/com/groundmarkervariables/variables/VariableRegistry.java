@@ -33,6 +33,7 @@ public class VariableRegistry
 			AttackStyleLabelVariable.class,
 			AttackTypeLabelVariable.class,
 			ShowItemsLabelVariable.class,
+			ShowItemsLabelVariable.ShowOneItem.class,
 			RunePouchLabelVariable.class,
 			EquipLabelVariable.class,
 			XpRateLabelVariable.class,
@@ -46,7 +47,7 @@ public class VariableRegistry
 			PartyLabelVariable.class,
 			ReadyCheckLabelVariable.class,
 			DivineLabelVariable.class,
-			WorldLabelVariable.class,
+			WorldInfoLabelVariable.class,
 			ActiveLabelVariable.class,
 			QuickPrayersLabelVariable.class,
 			GeHistoryLabelVariable.class))

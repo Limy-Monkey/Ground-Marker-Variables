@@ -128,7 +128,7 @@ public class LogLabelVariable implements LabelVariable
 		Integer kc = killCounts.getKc(BossAliases.resolve(page.name));
 		if (kc == null)
 		{
-			kc = killCounts.getKc(BossAliases.resolve(matcher.group(1).trim()));
+			kc = killCounts.getKc(BossAliases.resolve(args.main(matcher)));
 		}
 		return kc == null ? "" : " kc: " + richText.highlightValue(String.valueOf(kc));
 	}
@@ -136,7 +136,7 @@ public class LogLabelVariable implements LabelVariable
 	// Add LootTracker data unknown by RuneProfile yet
 	private RuneProfileCollectionLog.Page withLoot(RuneProfileCollectionLog.Page page, Matcher matcher)
 	{
-		String written = matcher.group(1).trim();
+		String written = args.main(matcher);
 		LootTrackerRecords.Record record = lootTrackerRecords.find(page.name);
 		if (!record.found && !page.name.equalsIgnoreCase(written))
 		{
@@ -153,8 +153,8 @@ public class LogLabelVariable implements LabelVariable
 
 	private RuneProfileCollectionLog.Entry entry(Matcher matcher)
 	{
-		String page = matcher.group(1).trim();
-		return page.isEmpty() ? null : collectionLog.page(page);
+		String page = args.main(matcher);
+		return page == null ? null : collectionLog.page(page);
 	}
 
 	// The collection log's page names, and BossAliases short names for one.

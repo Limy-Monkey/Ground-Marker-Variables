@@ -5,10 +5,10 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.HiscoreRankLookup;
-import com.groundmarkervariables.variables.support.SkillFinder;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.hiscore.HiscoreSkill;
@@ -21,7 +21,8 @@ import net.runelite.client.hiscore.HiscoreSkill;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class XpLabelVariable implements LabelVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{xp_([a-z]+|\\d+)\\}", Pattern.CASE_INSENSITIVE);
+	// Suggesting every skill; a level is typed.
+	private static final Args ARGS = Args.of("xp_").joined().main(Args.SKILLS, Args.SKILL_ICON);
 
 	// oldschool.runescape.wiki/w/Experience, indexed by level - 1.
 	private static final int[] LEVEL_XP = {
@@ -47,7 +48,13 @@ public class XpLabelVariable implements LabelVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -59,7 +66,7 @@ public class XpLabelVariable implements LabelVariable
 			return xp == null ? null : String.valueOf(xp);
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		if (skill == null || client.getLocalPlayer() == null)
 		{
 			return null;
@@ -77,7 +84,7 @@ public class XpLabelVariable implements LabelVariable
 			return xp == null ? null : richText.highlightValue(String.format("%,d", xp));
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		if (skill == null || client.getLocalPlayer() == null)
 		{
 			return null;
@@ -93,13 +100,13 @@ public class XpLabelVariable implements LabelVariable
 
 	private static boolean isLevel(Matcher matcher)
 	{
-		return Character.isDigit(matcher.group(1).charAt(0));
+		return ARGS.main(matcher).matches("\\d+");
 	}
 
 	// Null outside 1-126.
 	private static Integer levelXp(Matcher matcher)
 	{
-		String digits = matcher.group(1);
+		String digits = ARGS.main(matcher);
 		if (digits.length() > 3)
 		{
 			return null;

@@ -22,6 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import net.runelite.api.Skill;
 
 // A variable's arguments, declared once: an optional main one, then options after commas or spaces -- flags
 // ("missing"), numbers ("itemsPerLine=10") and values ("item=Abyssal whip") -- and any extras, free text after commas
@@ -33,6 +34,10 @@ public final class Args
 	public static final String BOSS_ICON_PREFIX = "boss:";
 	public static final Function<String, String> BOSS_ICON = name -> BOSS_ICON_PREFIX + BossAliases.resolve(name);
 	public static final Function<String, String> ITEM_ICON = name -> "<item=" + name + ">";
+	// Every skill's name, lowercase, and its "<name> (Skill)" sprite (none if not a skill).
+	public static final Supplier<Collection<String>> SKILLS = () -> Arrays.stream(Skill.values())
+		.map(skill -> skill.getName().toLowerCase(Locale.ROOT)).collect(Collectors.toList());
+	public static final Function<String, String> SKILL_ICON = name -> skill(name) == null ? null : "<sprite=" + name + " (Skill)>";
 	private static final Function<String, String> NO_ICON = name -> null;
 	// A main argument, value or extra: ends before any of {}?:<>=!,|& so a trailing comparator or || / && isn't part of it.
 	private static final String TEXT = "[^{}?:<>=!,|&]+?";
@@ -47,6 +52,7 @@ public final class Args
 	private Supplier<Collection<String>> mainNames;
 	private Function<String, String> mainIcon = NO_ICON;
 	private boolean mainOptional;
+	private boolean joined;
 	// By its word as typed, lowercase ("missing", "itemsperline=").
 	private final Map<String, Option> options = new LinkedHashMap<>();
 	// Groups of lowercase words of which only one is suggested.
@@ -99,6 +105,20 @@ public final class Args
 		return new Args(name);
 	}
 
+	// The skill named, any case, e.g. "attack"; null if none.
+	@Nullable
+	public static Skill skill(@Nullable String name)
+	{
+		for (Skill skill : Skill.values())
+		{
+			if (skill.getName().equalsIgnoreCase(name))
+			{
+				return skill;
+			}
+		}
+		return null;
+	}
+
 	// Also written as names, e.g. {hasFreezes} for {hasFreeze}.
 	public Args alias(String... names)
 	{
@@ -126,6 +146,18 @@ public final class Args
 	{
 		mainOptional = true;
 		return build();
+	}
+
+	// The main argument is one word right after the name, e.g. {lvl_attack}.
+	public Args joined()
+	{
+		joined = true;
+		return build();
+	}
+
+	public boolean isJoined()
+	{
+		return joined;
 	}
 
 	public Args flag(String... words)
@@ -344,6 +376,13 @@ public final class Args
 		return main == null || main.trim().isEmpty() ? null : main.trim();
 	}
 
+	// The skill the main argument names, e.g. {lvl_attack}; null if none.
+	@Nullable
+	public Skill skill(Matcher matcher)
+	{
+		return skill(main(matcher));
+	}
+
 	public Options options(Matcher matcher)
 	{
 		String text = matcher.group(mainNames == null ? 1 : 2);
@@ -357,12 +396,13 @@ public final class Args
 
 	private Args build()
 	{
-		String option = "(?:" + options.values().stream().map(o -> o.regex).collect(Collectors.joining("|")) + ")";
+		// With none, it matches nothing (not empty).
+		String option = options.isEmpty() ? "(?!)" : "(?:" + options.values().stream().map(o -> o.regex).collect(Collectors.joining("|")) + ")";
 		String afterComma = extras == null ? option : "(?:" + option + "|" + TEXT + ")";
 		// One option: after a comma (or an extra), or a space.
 		String item = "(?:\\s*,\\s*" + afterComma + "|\\s+" + option + ")";
 		String rest = "((?:" + item + ")*)";
-		String main = mainNames == null ? rest : "\\s+(" + TEXT + ")" + rest;
+		String main = mainNames == null ? rest : (joined ? "(\\w+?)" : "\\s+(" + TEXT + ")") + rest;
 		String names = names().stream().map(Pattern::quote).collect(Collectors.joining("|"));
 		pattern = Pattern.compile("\\{(?:" + names + ")" + (mainOptional ? "(?:" + main + ")?" : main) + "[\\s,]*\\}", Pattern.CASE_INSENSITIVE);
 		trailingOptions = Pattern.compile("(?:" + item + ")*[\\s,]*$", Pattern.CASE_INSENSITIVE);

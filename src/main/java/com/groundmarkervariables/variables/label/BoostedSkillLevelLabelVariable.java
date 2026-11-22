@@ -5,10 +5,10 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
-import com.groundmarkervariables.variables.support.SkillFinder;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.client.party.PartyMember;
@@ -20,7 +20,7 @@ import net.runelite.client.party.PartyMember;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class BoostedSkillLevelLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{boost_([a-z]+)\\}", Pattern.CASE_INSENSITIVE);
+	private static final Args ARGS = Args.of("boost_").joined().main(Args.SKILLS, Args.SKILL_ICON);
 
 	private final Client client;
 	private final RichText richText;
@@ -28,7 +28,13 @@ public class BoostedSkillLevelLabelVariable implements LabelVariable, PartyMembe
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -39,7 +45,7 @@ public class BoostedSkillLevelLabelVariable implements LabelVariable, PartyMembe
 			return null;
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		return skill == null ? null : String.valueOf(client.getBoostedSkillLevel(skill));
 	}
 
@@ -52,7 +58,7 @@ public class BoostedSkillLevelLabelVariable implements LabelVariable, PartyMembe
 			return null;
 		}
 
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		if (skill == null)
 		{
 			return null;
@@ -67,7 +73,7 @@ public class BoostedSkillLevelLabelVariable implements LabelVariable, PartyMembe
 	@Override
 	public String resolvePlain(Matcher matcher, PartyMember member)
 	{
-		Skill skill = SkillFinder.find(matcher.group(1));
+		Skill skill = ARGS.skill(matcher);
 		return skill == null || member.getStatBase(skill) <= 0 ? null : String.valueOf(member.getStatBoost(skill));
 	}
 

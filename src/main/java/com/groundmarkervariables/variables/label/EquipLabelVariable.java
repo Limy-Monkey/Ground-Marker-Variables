@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.label;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -7,6 +8,7 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -28,7 +30,11 @@ import net.runelite.client.party.PartyMember;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 {
-	private static final Pattern PATTERN = Pattern.compile("\\{equip_(\\w+?)(\\s+icon)?\\}", Pattern.CASE_INSENSITIVE);
+	// Suggesting each slot, with its icon.
+	private static final Args ARGS = Args.of("equip_").joined()
+		.main(() -> List.of("helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver"),
+			slot -> "{equip_" + slot + " icon}")
+		.flag("icon");
 	private static final String EMPTY = "Empty";
 	private static final String QUIVER = "quiver";
 	// An unknown slot.
@@ -59,7 +65,13 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	@Override
 	public Pattern pattern()
 	{
-		return PATTERN;
+		return ARGS.pattern();
+	}
+
+	@Override
+	public Args args()
+	{
+		return ARGS;
 	}
 
 	@Override
@@ -78,7 +90,7 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 
 		String slot = slot(matcher);
 		int itemId = localItemId(slot);
-		if (matcher.group(2) != null)
+		if (isIcon(matcher))
 		{
 			return icon(itemId);
 		}
@@ -97,7 +109,7 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
 		int itemId = memberItemId(slot(matcher), member);
-		if (matcher.group(2) != null)
+		if (isIcon(matcher))
 		{
 			return icon(itemId);
 		}
@@ -109,12 +121,17 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	@Override
 	public String resolveRowRich(Matcher matcher, RichText richText)
 	{
-		return matcher.group(2) != null ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
+		return isIcon(matcher) ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
+	}
+
+	private static boolean isIcon(Matcher matcher)
+	{
+		return ARGS.options(matcher).flag("icon");
 	}
 
 	private static String slot(Matcher matcher)
 	{
-		return matcher.group(1).toLowerCase(Locale.ENGLISH);
+		return ARGS.main(matcher).toLowerCase(Locale.ENGLISH);
 	}
 
 	// Null for an unknown slot.

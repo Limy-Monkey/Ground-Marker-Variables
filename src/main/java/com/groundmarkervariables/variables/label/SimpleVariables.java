@@ -85,6 +85,10 @@ public class SimpleVariables
 		return List.of(
 			text("rsn", () -> loggedIn() ? client.getLocalPlayer().getName() : null, v -> labeled("RSN", v))
 				.party(PartyMember::getDisplayName, this::highlight),
+			// "World N (type)", e.g. "World 302", "World 301 (F2P)".
+			text("world", () -> loggedIn() ? client.getWorld() : null,
+				v -> "World " + highlight(v) + (WorldInfoLabelVariable.typeName(client.getWorldType()) == null ? ""
+					: " (" + WorldInfoLabelVariable.typeName(client.getWorldType()) + ")")),
 			// A member's spellbook is our own shared PartyValue, unavailable until they've sent it.
 			text("spellbook", () -> loggedIn() ? Spellbooks.name(client) : null, v -> labeled("Spellbook", v))
 				.icon(() -> loggedIn() ? spellbookIcon(Spellbooks.name(client)) : null)

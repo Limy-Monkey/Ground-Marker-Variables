@@ -16,17 +16,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
-import net.runelite.api.Skill;
 import net.runelite.api.gameval.SpriteID;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
@@ -52,22 +49,10 @@ public class LabelCompleter
 	// Names that need more typed before the token is complete, so an exact one isn't closed with "}".
 	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = VariableCatalog.REQUIRING_ARGUMENT;
 
-	// {lvl_<skill>} / {boost_<skill>} / {xpRate_<skill>} / {xp_<skill>}.
-	private static final List<String> SKILL_PREFIXES = List.of("lvl_", "boost_", "xpRate_", "xp_");
-	// {lvl_combat} / {lvl_total}: not real skills, and only for {lvl_}.
-	private static final List<String> LEVEL_EXTRAS = VariableCatalog.completions("lvl_");
-
-	// {equip_<slot>}: EquipLabelVariable's slots, plus "quiver".
-	private static final String EQUIP_PREFIX = "equip_";
-	private static final List<String> EQUIP_SLOTS = VariableCatalog.completions(EQUIP_PREFIX);
 
 
 	// {party <template>}: nothing completed, so its parameter hint shows.
 	private static final String PARTY_PREFIX = "party ";
-
-	// {worldInfo hideWorld}.
-	private static final Pattern WORLD_INFO_OPTION = Pattern.compile("(?i)^worldInfo(?:\\s*,\\s*|\\s+)(\\w*)$");
-	private static final String HIDE_WORLD = "hideWorld";
 
 	private static final String ICON = "icon";
 
@@ -510,16 +495,7 @@ public class LabelCompleter
 	{
 		List<Rule> list = new ArrayList<>();
 		list.add((partial, numeric) -> numeric || partial.charAt(0) != '/' ? null : orNone(match(partial, CLOSE_ALIASES, "{", "", null, true)));
-		for (String prefix : SKILL_PREFIXES)
-		{
-			list.add(prefix(prefix, true, rest -> completeSkill(rest, prefix)));
-		}
-		list.add(pattern(iconOption(), m -> described(completeWord(m.group(1), ICON, true),
-			m.group().startsWith(EQUIP_PREFIX) ? EQUIP_PREFIX : m.group().split("\\s+")[0])));
-		list.add(prefix(EQUIP_PREFIX, false, rest -> described(withIcons(match(rest, EQUIP_SLOTS, "{" + EQUIP_PREFIX, "", "}", false),
-			slot -> "{" + EQUIP_PREFIX + slot + " icon}"), EQUIP_PREFIX)));
 		list.add(prefix(PARTY_PREFIX, false, rest -> null));
-		list.add(pattern(WORLD_INFO_OPTION, m -> described(completeWord(m.group(1), HIDE_WORLD, true), "worldInfo")));
 		for (LabelVariable variable : labelResolver.variables())
 		{
 			Args args = variable.args();
@@ -562,11 +538,16 @@ public class LabelCompleter
 		};
 	}
 
-	// Where args' arguments begin in text: after one of its names and a space (or at a comma); -1 if not its.
+	// Where args' arguments begin in text: right after one of its names if joined, else after it and a space (or at a
+	// comma); -1 if not its.
 	private static int argsStart(Args args, String text)
 	{
 		for (String name : args.names())
 		{
+			if (args.isJoined() && text.regionMatches(true, 0, name, 0, name.length()))
+			{
+				return name.length();
+			}
 			if (text.length() > name.length() && text.regionMatches(true, 0, name, 0, name.length()))
 			{
 				char next = text.charAt(name.length());
@@ -577,17 +558,6 @@ public class LabelCompleter
 			}
 		}
 		return -1;
-	}
-
-	// The variables with args() and their aliases, which complete their own "icon"; the rest that take one.
-	private Pattern iconOption()
-	{
-		Set<String> withArgs = labelResolver.variables().stream().map(LabelVariable::args).filter(Objects::nonNull)
-			.flatMap(args -> args.names().stream()).map(name -> name.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
-		return Pattern.compile("(?i)^(?:" + ICON_VARIABLES.stream()
-			.flatMap(name -> Stream.concat(Stream.of(name), VariableCatalog.ALIASES.getOrDefault(name, List.of()).stream()))
-			.filter(name -> !withArgs.contains(name.toLowerCase(Locale.ROOT)))
-			.map(Pattern::quote).collect(Collectors.joining("|")) + "|active\\s+\\w+|equip_\\w+)\\s+(\\w*)$");
 	}
 
 	// Applies to text pattern matches entirely, never after a math operator.
@@ -685,18 +655,6 @@ public class LabelCompleter
 		return starting.withContained(matches.contained, partial.length(), append);
 	}
 
-	// A fixed option word: closes with "}" once exactly typed (if closes), else completes to it.
-	@Nullable
-	private static Completion completeWord(String word, String option, boolean closes)
-	{
-		if (closes && word.equalsIgnoreCase(option))
-		{
-			return Completion.closer("}");
-		}
-		return option.regionMatches(true, 0, word, 0, word.length()) && word.length() < option.length()
-			? Completion.single(option, option.substring(word.length()), null) : null;
-	}
-
 	// An option after a full name: options listed in order, the first that fits preferred; "}" once one is complete.
 	@Nullable
 	private static Completion completeOption(String word, List<String> options, boolean complete)
@@ -711,20 +669,6 @@ public class LabelCompleter
 		return fitting.isEmpty() ? null : Completion.of(fitting, word.length(), "", word.isEmpty() ? null : fitting.get(0));
 	}
 
-	private Completion completeSkill(String partial, String prefix)
-	{
-		List<String> names = new ArrayList<>();
-		for (Skill skill : Skill.values())
-		{
-			names.add(skill.getName().toLowerCase());
-		}
-		if ("lvl_".equals(prefix))
-		{
-			names.addAll(LEVEL_EXTRAS);
-		}
-		return described(withIcons(match(partial, names, "{" + prefix, "", "}", false), skill -> LEVEL_EXTRAS.contains(skill) ? null : spriteNamed(skill, "Skill")),
-			prefix);
-	}
 
 
 	// A variable with args(): a value being typed after its word (e.g. "item="), else its main argument's names, then
@@ -747,11 +691,13 @@ public class LabelCompleter
 		Set<String> names = new LinkedHashSet<>(args.mainNames());
 		int split = Math.max(partial.lastIndexOf(','), partial.lastIndexOf(' '));
 		String before = partial.substring(0, split + 1);
-		String head = args.withoutTrailingOptions(before);
+		String head = args.hasMain() ? args.withoutTrailingOptions(before) : "";
 		String given = before.substring(head.length());
 		String word = partial.substring(split + 1);
 		String main = args.hasMain() ? head.trim() : null;
-		boolean mainGiven = main == null || names.stream().anyMatch(main::equalsIgnoreCase);
+		// With extras, anything before a comma counts.
+		boolean mainGiven = main == null || names.stream().anyMatch(main::equalsIgnoreCase)
+			|| (args.hasExtras() && !main.isEmpty() && partial.lastIndexOf(',') >= head.length());
 		if (mainGiven && (main == null || !word.isEmpty() || !given.isBlank()))
 		{
 			List<String> unused = args.unusedWords(given, main);
@@ -775,16 +721,22 @@ public class LabelCompleter
 	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, Args args)
 	{
 		String main = partial.trim();
-		if (completion == null || names.stream().noneMatch(main::equalsIgnoreCase))
+		if (names.stream().noneMatch(main::equalsIgnoreCase))
 		{
 			return completion;
 		}
+		// After a space, just the word: {equip_helm icon}.
+		String separator = partial.endsWith(" ") ? "" : ", ";
 		List<String> words = args.unusedWords("", main);
 		List<Completion.Option> options = new ArrayList<>();
 		for (String word : words)
 		{
-			options.add(new Completion.Option(", " + word, ", " + word, 0, args.wordIcon(word),
+			options.add(new Completion.Option(separator + word, separator + word, 0, args.wordIcon(word),
 				VariableCatalog.completionDescription(args.catalogName(), word)));
+		}
+		if (completion == null)
+		{
+			return options.isEmpty() ? null : new Completion(options, -1);
 		}
 		options.addAll(completion.options);
 		return new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + words.size());

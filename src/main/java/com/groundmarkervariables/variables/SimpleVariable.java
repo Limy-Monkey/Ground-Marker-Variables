@@ -19,6 +19,9 @@ public class SimpleVariable implements LabelVariable
 	private final UnaryOperator<String> rich;
 	@Nullable
 	private final Supplier<String> icon;
+	// With icon, autocomplete's "icon" word; its pattern stays this one's.
+	@Nullable
+	private final Args args;
 
 	// names: a regex alternation, e.g. "autoRetal(?:iate)?" or "a|b". numeric: usable in MathVariable.
 	public SimpleVariable(String names, boolean numeric, Supplier<Object> value, UnaryOperator<String> rich)
@@ -35,11 +38,19 @@ public class SimpleVariable implements LabelVariable
 		this.value = value;
 		this.rich = rich;
 		this.icon = icon;
+		this.args = icon == null ? null : Args.of(names).flag("icon");
 	}
 
 	public boolean numeric()
 	{
 		return numeric;
+	}
+
+	@Nullable
+	@Override
+	public Args args()
+	{
+		return args;
 	}
 
 	// Adds "{name icon}", whose Rich Text is icon's. Before party().
