@@ -14,6 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import net.runelite.client.util.QuantityFormatter;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -151,7 +152,7 @@ public class ChargesLabelVariable implements LabelVariable
 				// No icon if no item has its name (e.g. "Quetzal whistle").
 				String named = iconNames.itemNamed(item);
 				String icon = named == null ? "" : iconNames.expand("<item=" + named + ">");
-				parts.add(icon + "x" + (charges == ItemCharges.UNLIMITED_CHARGES ? infinity() : ItemCharges.shortened(charges)));
+				parts.add(icon + "x" + (charges == ItemCharges.UNLIMITED_CHARGES ? infinity() : QuantityFormatter.quantityToStackSize(charges)));
 			}
 		}
 		String header = null;
@@ -160,7 +161,8 @@ public class ChargesLabelVariable implements LabelVariable
 			Map<Integer, Integer> stored = itemCharges.storedItems(item, options.extras());
 			if (stored != null)
 			{
-				stored.forEach((id, quantity) -> parts.add("<item=" + id + ">x" + ItemCharges.shortened(quantity)));
+				parts.add(RichText.itemRows(new ArrayList<>(stored.entrySet()), Map.Entry::getKey, Map.Entry::getValue, Integer.MAX_VALUE,
+					Integer.MAX_VALUE, false));
 				// With icon, its own "<icon>x<charges>" says it.
 				header = options.flag("icon") ? null : containerLine(item, options);
 			}

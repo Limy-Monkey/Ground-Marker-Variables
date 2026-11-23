@@ -1,6 +1,8 @@
 package com.groundmarkervariables.variables.support;
 
 import com.google.gson.Gson;
+import java.time.Instant;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -9,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -29,7 +32,7 @@ public class LootTrackerRecords
 	public static final Map<String, List<String>> COMBINED_MONSTERS = Map.of(
 		"Royal Titans", List.of("Eldric the Ice King", "Branda the Fire Queen"));
 	public static final List<String> PLAYER_NAMES = List.of("players", "pk", "pker");
-	public static final String PLAYER_TYPE = "PLAYER";
+	private static final String PLAYER_TYPE = "PLAYER";
 	private static final String PLAYERS_DISPLAY_NAME = "PKs";
 
 	private final Client client;
@@ -73,6 +76,14 @@ public class LootTrackerRecords
 			this.gp = gp;
 			this.quantities = quantities;
 		}
+
+		// Both monsters' loot added up, named "<this> + <other>".
+		public Record plus(Record other)
+		{
+			Map<Integer, Integer> added = new LinkedHashMap<>(quantities);
+			other.quantities.forEach((id, quantity) -> added.merge(id, quantity, Integer::sum));
+			return new Record(name + " + " + other.name, found || other.found, kills + other.kills, gp + other.gp, added);
+		}
 	}
 
 	// monster's loot (any case); found is false if Loot Tracker has none, or it was cleared.
@@ -100,17 +111,14 @@ public class LootTrackerRecords
 
 		for (String key : configManager.getRSProfileConfigurationKeys(GROUP, profile, KEY_PREFIX))
 		{
-			// "drops_<TYPE>_<name>" -- TYPE (NPC/EVENT/PLAYER/...) has no underscore of its own,
-			// so the first one after the prefix is exactly where the name starts.
-			String rest = key.substring(KEY_PREFIX.length());
-			int typeEnd = rest.indexOf('_');
-			if (typeEnd < 0)
+			String[] typeAndName = typeAndName(key);
+			if (typeAndName == null)
 			{
 				continue;
 			}
-			String candidateName = rest.substring(typeEnd + 1);
+			String candidateName = typeAndName[1];
 			boolean matches = players
-				? rest.substring(0, typeEnd).equalsIgnoreCase(PLAYER_TYPE)
+				? typeAndName[0].equalsIgnoreCase(PLAYER_TYPE)
 				: parts.stream().anyMatch(candidateName::equalsIgnoreCase);
 			if (!matches)
 			{
@@ -163,10 +171,46 @@ public class LootTrackerRecords
 		return new Record(name, found, kills, gp, quantityByItem);
 	}
 
+	// Every monster Loot Tracker has loot for, most recently looted first.
+	public List<String> monsters()
+	{
+		String profile = configManager.getRSProfileKey();
+		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
+		for (String key : configManager.getRSProfileConfigurationKeys(GROUP, profile, KEY_PREFIX))
+		{
+			String[] typeAndName = typeAndName(key);
+			Instant last = typeAndName == null ? null
+				: gson.fromJson(configManager.getConfiguration(GROUP, profile, key), LootConfigData.class).last;
+			if (last != null)
+			{
+				byLast.add(new SimpleEntry<>(typeAndName[1], last));
+			}
+		}
+		byLast.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+		return byLast.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+	}
+
+	// Whether Loot Tracker has any loot from players (see PLAYER_NAMES).
+	public boolean hasPlayerLoot()
+	{
+		return !configManager.getRSProfileConfigurationKeys(GROUP, configManager.getRSProfileKey(), KEY_PREFIX + PLAYER_TYPE + "_").isEmpty();
+	}
+
+	// "drops_<TYPE>_<name>" -> {TYPE, name}; TYPE (NPC/EVENT/PLAYER/...) has no underscore of its own, so the first one
+	// after the prefix is where the name starts. Null if there's none.
+	@Nullable
+	private static String[] typeAndName(String key)
+	{
+		String rest = key.substring(KEY_PREFIX.length());
+		int typeEnd = rest.indexOf('_');
+		return typeEnd < 0 ? null : new String[]{rest.substring(0, typeEnd), rest.substring(typeEnd + 1)};
+	}
+
 	// Field names match Loot Tracker's own (package-private) ConfigLoot for Gson.
 	private static final class LootConfigData
 	{
 		int kills;
 		int[] drops;
+		Instant last;
 	}
 }

@@ -1,6 +1,5 @@
 package com.groundmarkervariables.variables.label;
 
-import com.google.gson.Gson;
 import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.RichText;
@@ -9,11 +8,11 @@ import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.LootSessions;
 import com.groundmarkervariables.variables.support.LootTrackerRecords;
 import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
-import java.time.Instant;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -25,29 +24,32 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.util.QuantityFormatter;
 
-// {loot <monster>[, items=N][, itemsPerLine=N][, oneline][, hideVal][, showItem=<name>]...[, itemsOnly]} -> gp value of loot Loot Tracker has recorded
-// for <monster>, or 0 if none. Rich Text: items shown like {log}, or after the header with oneline.
+// {loot <monster>, ...options} -> gp value of loot Loot Tracker has recorded for <monster> (plus each addLoot=), or 0 if none. Rich
+// Text: items shown like {log}. Options: see variables.json.
 public class LootLabelVariable implements LabelVariable
 {
-	private static final String LOOT_TRACKER_GROUP = "loottracker";
-	private static final String LOOT_KEY_PREFIX = "drops_";
 	// Rich Text lists every pet, then up to items=N collection log or MIN_ITEM_VALUE+ items.
 	private static final long MIN_ITEM_VALUE = 300_000;
 	private static final int DEFAULT_ITEMS_SHOWN = 29;
 	private static final int DEFAULT_ITEMS_PER_LINE = 10;
 
-	private final ItemManager itemManager;
-	private final LootTrackerRecords lootTrackerRecords;
-	private final RichText richText;
-	private final CollectionLog collectionLog;
-	private final RuneProfileCollectionLog runeProfile;
-	private final LootSessions lootSessions;
-	private final ConfigManager configManager;
-	private final Gson gson;
+	// Fields, so LootSession needs no constructor of its own.
+	@Inject
+	private ItemManager itemManager;
+	@Inject
+	private LootTrackerRecords lootTrackerRecords;
+	@Inject
+	private RichText richText;
+	@Inject
+	private CollectionLog collectionLog;
+	@Inject
+	private RuneProfileCollectionLog runeProfile;
+	@Inject
+	private LootSessions lootSessions;
+
 	// {lootSession}: only what's added since its session started (see LootSessions).
 	private final boolean session;
 	// The names of what each monster dropped, by lowercase monster (see lootedItems()).
@@ -55,23 +57,13 @@ public class LootLabelVariable implements LabelVariable
 	private final Args args;
 
 	@Inject
-	private LootLabelVariable(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
-		RuneProfileCollectionLog runeProfile, LootSessions lootSessions, ConfigManager configManager, Gson gson)
+	private LootLabelVariable()
 	{
-		this(itemManager, lootTrackerRecords, richText, collectionLog, runeProfile, lootSessions, configManager, gson, false);
+		this(false);
 	}
 
-	private LootLabelVariable(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
-		RuneProfileCollectionLog runeProfile, LootSessions lootSessions, ConfigManager configManager, Gson gson, boolean session)
+	private LootLabelVariable(boolean session)
 	{
-		this.itemManager = itemManager;
-		this.lootTrackerRecords = lootTrackerRecords;
-		this.richText = richText;
-		this.collectionLog = collectionLog;
-		this.runeProfile = runeProfile;
-		this.lootSessions = lootSessions;
-		this.configManager = configManager;
-		this.gson = gson;
 		this.session = session;
 		// The old lines=N is still accepted, but does nothing.
 		this.args = Args.of(session ? "lootSession" : "loot")
@@ -81,6 +73,9 @@ public class LootLabelVariable implements LabelVariable
 			.flag("oneline", "hideVal")
 			.value("showItem", this::lootedItems, Args.ITEM_ICON)
 			.flag("itemsOnly")
+			.value("addLoot", monster -> monsterNames(), Args.BOSS_ICON)
+			.value("addLog", monster -> collectionLog.pageSuggestions(), Args.BOSS_ICON)
+			.repeatable("showItem", "addLoot", "addLog")
 			.number("lines")
 			.unlisted("lines");
 	}
@@ -90,10 +85,9 @@ public class LootLabelVariable implements LabelVariable
 	public static class LootSession extends LootLabelVariable
 	{
 		@Inject
-		private LootSession(ItemManager itemManager, LootTrackerRecords lootTrackerRecords, RichText richText, CollectionLog collectionLog,
-			RuneProfileCollectionLog runeProfile, LootSessions lootSessions, ConfigManager configManager, Gson gson)
+		private LootSession()
 		{
-			super(itemManager, lootTrackerRecords, richText, collectionLog, runeProfile, lootSessions, configManager, gson, true);
+			super(true);
 		}
 	}
 
@@ -131,9 +125,14 @@ public class LootLabelVariable implements LabelVariable
 			return null;
 		}
 		int perLine = options.number("itemsPerLine", DEFAULT_ITEMS_PER_LINE);
+		// oneline: one row, however many items.
+		if (options.flag("oneline"))
+		{
+			perLine = Integer.MAX_VALUE;
+		}
 		if (options.flag("itemsOnly"))
 		{
-			return options.flag("oneline") ? itemsText(loot.notableItems) : itemRows(loot.notableItems, perLine, false);
+			return itemRows(loot.notableItems, perLine, false);
 		}
 
 		String header = loot.monster + " (" + richText.highlightValue(String.valueOf(loot.kills)) + ")"
@@ -141,52 +140,14 @@ public class LootLabelVariable implements LabelVariable
 		List<NotableItem> items = loot.notableItems;
 		if (options.flag("oneline"))
 		{
-			return items.isEmpty() ? header : header + " | " + itemsText(items);
+			return items.isEmpty() ? header : header + " | " + itemRows(items, perLine, false);
 		}
 		return header + itemRows(items, perLine, true);
 	}
 
-	// As {log} shows items: "<item=ID>xN" (N over 1), spaced, perLine to a row; afterTitle starts with a line break.
 	private static String itemRows(List<NotableItem> items, int perLine, boolean afterTitle)
 	{
-		perLine = Math.max(1, perLine);
-		StringBuilder sb = new StringBuilder();
-		for (int shown = 0; shown < items.size(); shown++)
-		{
-			if (shown % perLine == 0)
-			{
-				if (shown > 0 || afterTitle)
-				{
-					sb.append("\\n");
-				}
-			}
-			else
-			{
-				sb.append(' ');
-			}
-			NotableItem item = items.get(shown);
-			sb.append("<item=").append(item.itemId).append('>');
-			if (item.quantity > 1)
-			{
-				sb.append('x').append(item.quantity);
-			}
-		}
-		return sb.toString();
-	}
-
-	// oneline's items: "2x <item=ID>". <item=ID> is GroundMarkerVariablesOverlay's own inline-icon tag.
-	private static String itemsText(List<NotableItem> items)
-	{
-		StringBuilder sb = new StringBuilder();
-		for (NotableItem item : items)
-		{
-			if (sb.length() > 0)
-			{
-				sb.append(' ');
-			}
-			sb.append(item.quantity).append("x <item=").append(item.itemId).append('>');
-		}
-		return sb.toString();
+		return RichText.itemRows(items, item -> item.itemId, item -> item.quantity, perLine, Integer.MAX_VALUE, afterTitle);
 	}
 
 	@Nullable
@@ -198,24 +159,20 @@ public class LootLabelVariable implements LabelVariable
 			return null;
 		}
 
-		LootTrackerRecords.Record record = lootTrackerRecords.find(monster);
-		if (session)
+		LootTrackerRecords.Record record = record(monster);
+		for (String added : options.values("addLoot"))
 		{
-			record = lootSessions.since(monster, record);
+			record = record.plus(record(added));
 		}
-		if (!record.found)
-		{
-			List<NotableItem> pets = new ArrayList<>();
-			addLoggedPets(pets, record.name);
-			return new Loot(record.name, 0, 0, pets);
-		}
+		Map<Integer, Integer> quantities = new LinkedHashMap<>(record.quantities);
+		addLogged(quantities, record.name, options.values("addLog"));
 
 		// Every showItem=<name>, lower case.
 		List<String> shownNames = options.values("showItem").stream().map(name -> name.toLowerCase(Locale.ROOT)).collect(Collectors.toList());
 		List<NotableItem> pets = new ArrayList<>();
 		List<NotableItem> named = new ArrayList<>();
 		List<NotableItem> others = new ArrayList<>();
-		for (Map.Entry<Integer, Integer> entry : record.quantities.entrySet())
+		for (Map.Entry<Integer, Integer> entry : quantities.entrySet())
 		{
 			// Collection log ids are unnoted.
 			int canonicalId = itemManager.canonicalize(entry.getKey());
@@ -234,7 +191,6 @@ public class LootLabelVariable implements LabelVariable
 				others.add(item);
 			}
 		}
-		addLoggedPets(pets, record.name);
 		Comparator<NotableItem> byValue = Comparator.comparingLong((NotableItem item) -> item.price).reversed();
 		others.sort(byValue);
 		int maxItems = options.number("items", DEFAULT_ITEMS_SHOWN);
@@ -251,51 +207,64 @@ public class LootLabelVariable implements LabelVariable
 		return new Loot(record.name, record.kills, record.gp, notableItems);
 	}
 
+	private LootTrackerRecords.Record record(String monster)
+	{
+		LootTrackerRecords.Record record = lootTrackerRecords.find(monster);
+		return session ? lootSessions.since(monster, record) : record;
+	}
+
 	private static boolean containsAny(String itemName, List<String> names)
 	{
 		String lower = itemName.toLowerCase(Locale.ROOT);
 		return names.stream().anyMatch(lower::contains);
 	}
 
-	// Pets RuneProfile's collection log page for monster has that Loot Tracker doesn't (e.g. cleared since). Not for a
-	// session: they may be from before it.
-	private void addLoggedPets(List<NotableItem> pets, String monster)
+	// From RuneProfile's collection log: every obtained item on each addLog= page, and the pets on each monster's (with
+	// addLoot=) page, at the higher of its and Loot Tracker's quantity: Loot Tracker may have been cleared since. Not for
+	// a session: the log may be from before it.
+	private void addLogged(Map<Integer, Integer> quantities, String monster, List<String> logPages)
 	{
 		if (session)
 		{
 			return;
 		}
-		RuneProfileCollectionLog.Page page = runeProfile.page(monster).page();
-		if (page == null)
+		Set<String> seen = new HashSet<>();
+		logPages.forEach(page -> addPage(quantities, page, true, seen));
+		for (String part : monster.split(" \\+ "))
+		{
+			addPage(quantities, part, false, seen);
+		}
+	}
+
+	// written's page's pets, or with all every obtained item; each page once.
+	private void addPage(Map<Integer, Integer> quantities, String written, boolean all, Set<String> seen)
+	{
+		RuneProfileCollectionLog.Page page = runeProfile.page(written).page();
+		if (page == null || !seen.add(page.name))
 		{
 			return;
 		}
 		for (RuneProfileCollectionLog.Item item : page.items)
 		{
-			if (item.quantity > 0 && collectionLog.isPet(item.id)
-				&& pets.stream().noneMatch(pet -> itemManager.canonicalize(pet.itemId) == item.id))
+			if (item.quantity > 0 && (all || collectionLog.isPet(item.id)))
 			{
-				pets.add(new NotableItem(item.id, item.quantity, 0));
+				// Loot Tracker's id may be noted.
+				int id = quantities.keySet().stream().filter(dropped -> itemManager.canonicalize(dropped) == item.id).findFirst().orElse(item.id);
+				quantities.merge(id, item.quantity, Math::max);
 			}
 		}
 	}
 
-	// Loot Tracker's monsters, most recent first, with their BossAliases short names, combined monsters, and players if
-	// any were killed.
+	// Loot Tracker's monsters, most recent first, each followed by its BossAliases short names; combined monsters; and
+	// players if any were killed.
 	private Collection<String> monsterNames()
 	{
-		List<String> monsters = lootMonsters();
+		List<String> monsters = lootTrackerRecords.monsters();
 		Set<String> names = new LinkedHashSet<>();
 		for (String monster : monsters)
 		{
 			names.add(monster);
-			for (String alias : BossAliases.aliases())
-			{
-				if (!alias.contains(" - ") && !alias.equalsIgnoreCase(monster) && BossAliases.resolve(alias).equalsIgnoreCase(monster))
-				{
-					names.add(alias);
-				}
-			}
+			names.addAll(BossAliases.aliasesOf(List.of(monster)));
 		}
 		for (Map.Entry<String, List<String>> combined : LootTrackerRecords.COMBINED_MONSTERS.entrySet())
 		{
@@ -304,36 +273,11 @@ public class LootLabelVariable implements LabelVariable
 				names.add(combined.getKey());
 			}
 		}
-		String playerKeyPrefix = LOOT_KEY_PREFIX + LootTrackerRecords.PLAYER_TYPE + "_";
-		if (!configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, configManager.getRSProfileKey(), playerKeyPrefix).isEmpty())
+		if (lootTrackerRecords.hasPlayerLoot())
 		{
 			names.addAll(LootTrackerRecords.PLAYER_NAMES);
 		}
 		return names;
-	}
-
-	// Every monster Loot Tracker has recorded loot for, most recent first.
-	private List<String> lootMonsters()
-	{
-		String profile = configManager.getRSProfileKey();
-		List<Map.Entry<String, Instant>> byLast = new ArrayList<>();
-		for (String key : configManager.getRSProfileConfigurationKeys(LOOT_TRACKER_GROUP, profile, LOOT_KEY_PREFIX))
-		{
-			// After the "<TYPE>_" (NPC/EVENT/PLAYER/...).
-			String rest = key.substring(LOOT_KEY_PREFIX.length());
-			int typeEnd = rest.indexOf('_');
-			if (typeEnd < 0)
-			{
-				continue;
-			}
-			Instant last = gson.fromJson(configManager.getConfiguration(LOOT_TRACKER_GROUP, profile, key), LootLast.class).last;
-			if (last != null)
-			{
-				byLast.add(new SimpleEntry<>(rest.substring(typeEnd + 1), last));
-			}
-		}
-		byLast.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-		return byLast.stream().map(Map.Entry::getKey).collect(Collectors.toList());
 	}
 
 	// The names of what monster dropped, for showItem=. Looked up where they can be (client thread), else the last
@@ -352,12 +296,6 @@ public class LootLabelVariable implements LabelVariable
 			return looted;
 		}
 		return lootedByMonster.getOrDefault(key, List.of());
-	}
-
-	// The "last" field of Loot Tracker's (package-private) ConfigLoot, for Gson.
-	private static final class LootLast
-	{
-		Instant last;
 	}
 
 	private static final class Loot

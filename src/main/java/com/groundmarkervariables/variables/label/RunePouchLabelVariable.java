@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder.Match;
 import net.runelite.api.Client;
@@ -44,7 +45,7 @@ public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariabl
 	@Override
 	public String resolveRich(Matcher matcher)
 	{
-		return client.getLocalPlayer() == null ? null : icons(runes(ItemQuantityFinder.findAll(client, itemManager, RUNE)));
+		return client.getLocalPlayer() == null ? null : Icons.items(runes(ItemQuantityFinder.findAll(client, itemManager, RUNE)));
 	}
 
 	@Override
@@ -56,7 +57,7 @@ public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariabl
 	@Override
 	public String resolveRich(Matcher matcher, PartyMember member)
 	{
-		return icons(runes(ItemQuantityFinder.findAll(member, itemManager, RUNE)));
+		return Icons.items(runes(ItemQuantityFinder.findAll(member, itemManager, RUNE)));
 	}
 
 	@Override
@@ -79,13 +80,4 @@ public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariabl
 		return ids;
 	}
 
-	private static String icons(Set<Integer> ids)
-	{
-		StringBuilder icons = new StringBuilder();
-		for (int id : ids)
-		{
-			icons.append("<item=").append(id).append('>');
-		}
-		return icons.toString();
-	}
 }

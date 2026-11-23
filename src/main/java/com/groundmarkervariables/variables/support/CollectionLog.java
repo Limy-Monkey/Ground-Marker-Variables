@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.support;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import javax.inject.Inject;
@@ -41,6 +42,15 @@ public class CollectionLog
 		}
 		load();
 		return pageNames;
+	}
+
+	// The page names, and BossAliases short names for them: {log}'s and addLog='s suggestions.
+	public Set<String> pageSuggestions()
+	{
+		List<String> names = pageNames();
+		Set<String> all = new LinkedHashSet<>(names);
+		all.addAll(BossAliases.aliasesOf(names));
+		return all;
 	}
 
 	public boolean contains(int itemId)

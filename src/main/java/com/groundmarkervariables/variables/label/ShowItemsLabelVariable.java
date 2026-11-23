@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.Args;
@@ -15,6 +16,7 @@ import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.IconNames;
+import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder.Match;
 import net.runelite.api.Client;
@@ -123,18 +125,10 @@ public class ShowItemsLabelVariable implements LabelVariable, PartyMemberVariabl
 		return ItemQuantityFinder.findAll(client, itemManager, search);
 	}
 
+	// {showOneItem}: just the first.
 	private String icons(Set<Integer> ids)
 	{
-		StringBuilder icons = new StringBuilder();
-		for (int id : ids)
-		{
-			icons.append("<item=").append(id).append('>');
-			if (onlyFirst)
-			{
-				break;
-			}
-		}
-		return icons.toString();
+		return Icons.items(onlyFirst ? ids.stream().limit(1).collect(Collectors.toList()) : ids);
 	}
 
 	// Each listed name's first matching item id, in the listed order, without repeats.

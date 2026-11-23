@@ -8,14 +8,13 @@ import com.groundmarkervariables.variables.support.BossKillCountTracker;
 import com.groundmarkervariables.variables.support.CollectionLog;
 import com.groundmarkervariables.variables.support.LootTrackerRecords;
 import com.groundmarkervariables.variables.support.RuneProfileCollectionLog;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
@@ -40,7 +39,7 @@ public class LogLabelVariable implements LabelVariable
 	private final CollectionLog pages;
 
 	private final Args args = Args.of("log")
-		.main(this::pageNames, Args.BOSS_ICON)
+		.main(this::pageSuggestions, Args.BOSS_ICON)
 		.flag("missing", "noicons", "iconsOnly")
 		.number("itemsPerLine", "maxItems");
 
@@ -88,38 +87,12 @@ public class LogLabelVariable implements LabelVariable
 			return text;
 		}
 
+		// Obtained items, or with missing the rest; without a title, no break before the first row.
 		boolean missing = options.flag("missing");
-		int perLine = Math.max(1, options.number("itemsPerLine", DEFAULT_ITEMS_PER_LINE));
-		int max = options.number("maxItems", Integer.MAX_VALUE);
-		StringBuilder sb = new StringBuilder(text);
-		int shown = 0;
-		for (RuneProfileCollectionLog.Item item : page.items)
-		{
-			if ((item.quantity > 0) == missing)
-			{
-				continue;
-			}
-			if (shown >= max)
-			{
-				break;
-			}
-			// Without a title, no break before the first row.
-			if (shown % perLine == 0 && (shown > 0 || !iconsOnly))
-			{
-				sb.append("\\n");
-			}
-			else if (shown % perLine != 0)
-			{
-				sb.append(' ');
-			}
-			sb.append("<item=").append(item.id).append('>');
-			if (item.quantity > 1)
-			{
-				sb.append('x').append(item.quantity);
-			}
-			shown++;
-		}
-		return sb.toString();
+		List<RuneProfileCollectionLog.Item> items = page.items.stream().filter(item -> (item.quantity > 0) != missing)
+			.collect(Collectors.toList());
+		return text + RichText.itemRows(items, item -> item.id, item -> item.quantity, options.number("itemsPerLine", DEFAULT_ITEMS_PER_LINE),
+			options.number("maxItems", Integer.MAX_VALUE), !iconsOnly);
 	}
 
 	// " kc: N" from {kc}'s tracker, by the page's name or as written; empty if unknown.
@@ -157,19 +130,8 @@ public class LogLabelVariable implements LabelVariable
 		return page == null ? null : collectionLog.page(page);
 	}
 
-	// The collection log's page names, and BossAliases short names for one.
-	private Collection<String> pageNames()
+	private Set<String> pageSuggestions()
 	{
-		List<String> names = pages.pageNames();
-		Set<String> all = new LinkedHashSet<>(names);
-		for (String alias : BossAliases.aliases())
-		{
-			String boss = BossAliases.resolve(alias);
-			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && names.stream().anyMatch(boss::equalsIgnoreCase))
-			{
-				all.add(alias);
-			}
-		}
-		return all;
+		return pages.pageSuggestions();
 	}
 }

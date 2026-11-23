@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -50,6 +51,21 @@ public final class BossAliases
 	public static Set<String> aliases()
 	{
 		return Collections.unmodifiableSet(byAlias().keySet());
+	}
+
+	// The short forms of names (any case), e.g. "cox" for "Chambers of Xeric": not the names themselves, nor " - " variants.
+	public static Set<String> aliasesOf(Collection<String> names)
+	{
+		Set<String> aliases = new LinkedHashSet<>();
+		for (String alias : aliases())
+		{
+			String boss = resolve(alias);
+			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && names.stream().anyMatch(boss::equalsIgnoreCase))
+			{
+				aliases.add(alias);
+			}
+		}
+		return aliases;
 	}
 
 	// Every distinct canonical name an alias resolves to, e.g. "Chambers of Xeric".

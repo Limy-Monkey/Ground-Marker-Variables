@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.support;
 
+import java.util.Collection;
 import javax.annotation.Nullable;
 
 // Overlay icon tags for a variable's "icon" option. Off icons are drawn darkened, and unsure ones
@@ -26,6 +27,14 @@ public final class Icons
 	public static String item(int itemId)
 	{
 		return "<item=" + itemId + ">";
+	}
+
+	// Each item's icon, back to back: {showItems}' and {runePouch}'.
+	public static String items(Collection<Integer> itemIds)
+	{
+		StringBuilder icons = new StringBuilder();
+		itemIds.forEach(id -> icons.append(item(id)));
+		return icons.toString();
 	}
 
 	public static String item(int itemId, @Nullable Boolean on)

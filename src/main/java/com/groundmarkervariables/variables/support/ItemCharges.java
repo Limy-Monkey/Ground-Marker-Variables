@@ -200,25 +200,6 @@ public class ItemCharges
 		return names;
 	}
 
-	// 8643 -> "8.6k", 15000 -> "15k", 2000000 -> "2m", as Improved shortens them.
-	public static String shortened(int quantity)
-	{
-		if (quantity >= 1_000_000)
-		{
-			return quantity / 1_000_000 + "m";
-		}
-		if (quantity >= 10_000)
-		{
-			return Math.round(quantity / 1000f) + "k";
-		}
-		if (quantity >= 1000)
-		{
-			int hundreds = Math.min((quantity % 1000 + 50) / 100, 9);
-			return quantity / 1000 + (hundreds > 0 ? "." + hundreds : "") + "k";
-		}
-		return String.valueOf(quantity);
-	}
-
 	// An Improved item's own charges, else those of what it holds; null if neither is known.
 	@Nullable
 	private Integer improvedCharges(String key)

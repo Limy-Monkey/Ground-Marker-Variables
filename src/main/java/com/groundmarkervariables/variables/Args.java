@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import net.runelite.api.Skill;
 
@@ -76,6 +77,7 @@ public final class Args
 		// Suggested only when this holds for the main argument, and only if listed.
 		private final Predicate<String> when;
 		private boolean listed = true;
+		private boolean repeatable;
 
 		private Option(String word, String regex, Function<String, Collection<String>> values, Function<String, String> icon,
 			Predicate<String> when)
@@ -209,11 +211,20 @@ public final class Args
 	// Still accepted, never suggested, e.g. a retired option.
 	public Args unlisted(String... words)
 	{
-		for (String word : words)
-		{
-			options.values().stream().filter(option -> option.word.replace("=", "").equalsIgnoreCase(word)).forEach(option -> option.listed = false);
-		}
+		named(words).forEach(option -> option.listed = false);
 		return this;
+	}
+
+	// Still suggested once given, e.g. showItem=.
+	public Args repeatable(String... words)
+	{
+		named(words).forEach(option -> option.repeatable = true);
+		return this;
+	}
+
+	private Stream<Option> named(String... words)
+	{
+		return options.values().stream().filter(option -> Arrays.stream(words).anyMatch(option.word.replace("=", "")::equalsIgnoreCase));
 	}
 
 	// Once one of words is given, the others aren't suggested.
@@ -292,9 +303,8 @@ public final class Args
 			words.add(token.contains("=") ? token.substring(0, token.indexOf('=') + 1) : token);
 		}
 		List<String> unused = options.values().stream()
-			.filter(option -> option.listed && option.when.test(main))
+			.filter(option -> option.listed && option.when.test(main) && (option.repeatable || !words.contains(option.word.toLowerCase(Locale.ROOT))))
 			.map(option -> option.word)
-			.filter(word -> !words.contains(word.toLowerCase(Locale.ROOT)))
 			.filter(word -> exclusive.stream().noneMatch(group -> group.contains(word.toLowerCase(Locale.ROOT))
 				&& group.stream().anyMatch(words::contains)))
 			.collect(Collectors.toList());
