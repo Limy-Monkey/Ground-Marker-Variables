@@ -27,6 +27,7 @@ import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
+import com.groundmarkervariables.variables.support.LatestData;
 import com.groundmarkervariables.variables.support.MetronomeResetHotkeyListener;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -276,6 +277,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private MarkerSets markerSets;
 
 	@Inject
+	private LatestData latestData;
+
+	@Inject
 	private RenderedTiles renderedTiles;
 
 	// Saved markers by region, resolved. Rebuilt when marker data or visible regions change (see onXxx subscribers);
@@ -327,6 +331,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		runeProfileCollectionLog.startUp();
 		renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, pingedTileManager, importPreviewManager));
 		markerSets.startUp();
+		latestData.startUp();
 		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())

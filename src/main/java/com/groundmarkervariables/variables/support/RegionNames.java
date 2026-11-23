@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,8 +23,9 @@ import net.runelite.api.coords.WorldPoint;
 // All rights reserved.
 // See https://github.com/runelite/runelite/blob/master/LICENSE
 //
-// A tile's area name, e.g. "Lumbridge", from region-names.json: area name -> its whole regions (ids) and bounds within
-// regions ({region, sw, ne, planes}, each optional but region). Tiles in no listed area have no name.
+// A tile's area name, e.g. "Lumbridge", from region-names.json (the bundled one, or GitHub's newer one): area name -> its
+// whole regions (ids) and bounds within regions ({region, sw, ne, planes}, each optional but region). Tiles in no listed
+// area have no name.
 @Slf4j
 public final class RegionNames
 {
@@ -56,19 +58,17 @@ public final class RegionNames
 		}
 	}
 
-	// Loaded on first use.
 	private static final class Names
 	{
 		// Whole regions; a region listed twice takes the later name.
-		private static final Map<Integer, String> BY_REGION = new HashMap<>();
+		private final Map<Integer, String> byRegion = new HashMap<>();
 		// Checked before whole regions, the first containing a tile naming it.
-		private static final Map<Integer, List<Bounds>> BOUNDS = new HashMap<>();
-
-		static
-		{
-			load();
-		}
+		private final Map<Integer, List<Bounds>> bounds = new HashMap<>();
 	}
+
+	// The bundled file's, loaded on first use, until update() replaces them.
+	@Nullable
+	private static volatile Names names;
 
 	private RegionNames()
 	{
@@ -77,7 +77,8 @@ public final class RegionNames
 	@Nullable
 	public static String name(WorldPoint point)
 	{
-		List<Bounds> boundsList = Names.BOUNDS.get(point.getRegionID());
+		Names names = names();
+		List<Bounds> boundsList = names.bounds.get(point.getRegionID());
 		if (boundsList != null)
 		{
 			for (Bounds bounds : boundsList)
@@ -88,40 +89,67 @@ public final class RegionNames
 				}
 			}
 		}
-		return Names.BY_REGION.get(point.getRegionID());
+		return names.byRegion.get(point.getRegionID());
 	}
 
-	private static void load()
+	// A newer region-names.json (see LatestData); a damaged one is ignored.
+	public static void update(String json)
 	{
-		try (Reader reader = new InputStreamReader(RegionNames.class.getResourceAsStream("region-names.json"), StandardCharsets.UTF_8))
+		try
 		{
-			for (Map.Entry<String, JsonElement> area : new JsonParser().parse(reader).getAsJsonObject().entrySet())
-			{
-				String name = area.getKey();
-				for (JsonElement region : area.getValue().getAsJsonArray())
-				{
-					if (region.isJsonPrimitive())
-					{
-						Names.BY_REGION.put(region.getAsInt(), name);
-						continue;
-					}
-					JsonObject bounds = region.getAsJsonObject();
-					int regionId = bounds.get("region").getAsInt();
-					// Without a box, the whole region: its sw corner and 64 tiles across.
-					int baseX = (regionId >>> 8) << 6;
-					int baseY = (regionId & 0xFF) << 6;
-					int[] sw = pair(bounds, "sw", baseX, baseY);
-					int[] ne = pair(bounds, "ne", baseX + 63, baseY + 63);
-					int[] planes = pair(bounds, "planes", 0, 3);
-					Names.BOUNDS.computeIfAbsent(regionId, k -> new ArrayList<>())
-						.add(new Bounds(name, sw[0], sw[1], ne[0], ne[1], planes[0], planes[1]));
-				}
-			}
+			names = parse(new StringReader(json));
 		}
 		catch (Exception e)
 		{
-			log.warn("Couldn't load region names", e);
+			log.warn("Couldn't read the latest region names", e);
 		}
+	}
+
+	private static Names names()
+	{
+		Names loaded = names;
+		if (loaded == null)
+		{
+			try (Reader reader = new InputStreamReader(RegionNames.class.getResourceAsStream("region-names.json"), StandardCharsets.UTF_8))
+			{
+				loaded = parse(reader);
+			}
+			catch (Exception e)
+			{
+				log.warn("Couldn't load region names", e);
+				loaded = new Names();
+			}
+			names = loaded;
+		}
+		return loaded;
+	}
+
+	private static Names parse(Reader reader)
+	{
+		Names names = new Names();
+		for (Map.Entry<String, JsonElement> area : new JsonParser().parse(reader).getAsJsonObject().entrySet())
+		{
+			String name = area.getKey();
+			for (JsonElement region : area.getValue().getAsJsonArray())
+			{
+				if (region.isJsonPrimitive())
+				{
+					names.byRegion.put(region.getAsInt(), name);
+					continue;
+				}
+				JsonObject bounds = region.getAsJsonObject();
+				int regionId = bounds.get("region").getAsInt();
+				// Without a box, the whole region: its sw corner and 64 tiles across.
+				int baseX = (regionId >>> 8) << 6;
+				int baseY = (regionId & 0xFF) << 6;
+				int[] sw = pair(bounds, "sw", baseX, baseY);
+				int[] ne = pair(bounds, "ne", baseX + 63, baseY + 63);
+				int[] planes = pair(bounds, "planes", 0, 3);
+				names.bounds.computeIfAbsent(regionId, k -> new ArrayList<>())
+					.add(new Bounds(name, sw[0], sw[1], ne[0], ne[1], planes[0], planes[1]));
+			}
+		}
+		return names;
 	}
 
 	// bounds' two-number field, or first/second if it has none.
