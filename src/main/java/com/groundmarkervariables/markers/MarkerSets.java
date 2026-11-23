@@ -1,0 +1,737 @@
+package com.groundmarkervariables.markers;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSyntaxException;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.LabelResolver;
+import com.groundmarkervariables.variables.meta.MetaVariableResolver;
+import java.io.IOException;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.WorldView;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.client.config.ConfigManager;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+
+// Marker sets, stored in config, drawn over saved markers while enabled. Built-in sets come from GitHub's
+// data/marker-sets: index.json lists [{"id", "version"}], and <id>.json is the set. Changes on the client thread.
+@Slf4j
+@Singleton
+public class MarkerSets implements TileSource
+{
+	private static final String GROUP = GroundMarkerVariablesConfig.GROUP;
+	private static final String PLUGIN_NAME = "Ground Marker Variables";
+	private static final String SET_PREFIX = "set_";
+	private static final String STATE_KEY = "setState";
+	private static final String CHECKED_KEY = "setsChecked";
+	private static final String BASE_URL = "https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/data/marker-sets/";
+	private static final Duration CHECK_EVERY = Duration.ofHours(6);
+	private static final Duration RETRY_AFTER = Duration.ofMinutes(15);
+
+	// Sets switched on, and each set's entries the user switched away from their default.
+	private static final class State
+	{
+		Set<String> enabled = new HashSet<>();
+		Map<String, Map<String, Boolean>> entries = new HashMap<>();
+	}
+
+	// A drawn marker's set and entry.
+	private static final class Placed
+	{
+		final MarkerSet set;
+		final MarkerSet.Entry entry;
+
+		Placed(MarkerSet set, MarkerSet.Entry entry)
+		{
+			this.set = set;
+			this.entry = entry;
+		}
+	}
+
+	private final ConfigManager configManager;
+	private final Gson gson;
+	private final OkHttpClient okHttpClient;
+	private final ClientThread clientThread;
+	private final RenderedTiles renderedTiles;
+	private final LabelResolver labelResolver;
+	private final MetaVariableResolver metaVariableResolver;
+
+	private volatile List<MarkerSet> sets = List.of();
+	private State state = new State();
+	private volatile Map<Integer, List<SourceMarker>> byRegion = Map.of();
+	private volatile long lastChecked;
+	private final AtomicBoolean checking = new AtomicBoolean();
+	// Shown in the set list while checking.
+	@Nullable
+	private volatile String status;
+	// The last check failed.
+	private volatile boolean failed;
+	// Run on the client thread after any change, e.g. to redraw the set list.
+	@Nullable
+	private volatile Runnable listener;
+
+	@Inject
+	private MarkerSets(ConfigManager configManager, Gson gson, OkHttpClient okHttpClient, ClientThread clientThread,
+		RenderedTiles renderedTiles, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
+	{
+		this.configManager = configManager;
+		this.gson = gson;
+		this.okHttpClient = okHttpClient;
+		this.clientThread = clientThread;
+		this.renderedTiles = renderedTiles;
+		this.labelResolver = labelResolver;
+		this.metaVariableResolver = metaVariableResolver;
+	}
+
+	public void startUp()
+	{
+		clientThread.invoke(this::load);
+	}
+
+	public void shutDown()
+	{
+		sets = List.of();
+		byRegion = Map.of();
+		listener = null;
+	}
+
+	// Reads every stored set and the on/off state, e.g. after a profile change.
+	public void load()
+	{
+		String prefix = GROUP + "." + SET_PREFIX;
+		List<MarkerSet> loaded = new ArrayList<>();
+		for (String fullKey : configManager.getConfigurationKeys(prefix))
+		{
+			String key = fullKey.substring(prefix.length());
+			int split = key.indexOf('_');
+			MarkerSet.Kind kind = split < 0 ? null : kind(key.substring(0, split));
+			if (kind == null)
+			{
+				continue;
+			}
+			try
+			{
+				MarkerSet set = parse(configManager.getConfiguration(GROUP, SET_PREFIX + key), kind, key.substring(split + 1));
+				if (set != null)
+				{
+					loaded.add(set);
+				}
+			}
+			catch (JsonParseException e)
+			{
+				log.warn("Unreadable marker set {}", key, e);
+			}
+		}
+		loaded.sort(Comparator.comparing((MarkerSet set) -> set.kind).thenComparing(set -> set.title, String.CASE_INSENSITIVE_ORDER));
+		sets = List.copyOf(loaded);
+
+		String json = configManager.getConfiguration(GROUP, STATE_KEY);
+		State read = json == null ? null : gson.fromJson(json, State.class);
+		state = read != null && read.enabled != null && read.entries != null ? read : new State();
+		lastChecked = parseLong(configManager.getConfiguration(GROUP, CHECKED_KEY));
+		rebuild();
+	}
+
+	public List<MarkerSet> sets()
+	{
+		return sets;
+	}
+
+	@Nullable
+	public String status()
+	{
+		return status;
+	}
+
+	public boolean failed()
+	{
+		return failed;
+	}
+
+	public void setListener(@Nullable Runnable listener)
+	{
+		this.listener = listener;
+	}
+
+	public boolean enabled(MarkerSet set)
+	{
+		return state.enabled.contains(set.key());
+	}
+
+	public boolean enabled(MarkerSet set, MarkerSet.Entry entry)
+	{
+		return state.entries.getOrDefault(set.key(), Map.of()).getOrDefault(entry.key, entry.enabledByDefault);
+	}
+
+	public void setEnabled(MarkerSet set, boolean enabled)
+	{
+		if (enabled)
+		{
+			state.enabled.add(set.key());
+		}
+		else
+		{
+			state.enabled.remove(set.key());
+		}
+		saveState();
+	}
+
+	public void setEnabled(MarkerSet set, MarkerSet.Entry entry, boolean enabled)
+	{
+		Map<String, Boolean> changed = state.entries.computeIfAbsent(set.key(), key -> new HashMap<>());
+		if (enabled == entry.enabledByDefault)
+		{
+			changed.remove(entry.key);
+		}
+		else
+		{
+			changed.put(entry.key, enabled);
+		}
+		if (changed.isEmpty())
+		{
+			state.entries.remove(set.key());
+		}
+		saveState();
+	}
+
+	// The stored set it would replace on import, if any.
+	@Nullable
+	public MarkerSet existing(MarkerSet set)
+	{
+		return sets.stream().filter(stored -> stored.key().equals(set.key())).findFirst().orElse(null);
+	}
+
+	// Adds (or replaces) an imported set, switched on, keeping text's author history.
+	public void addShared(MarkerSet set, String text)
+	{
+		addSet(set, history(text));
+	}
+
+	private void addSet(MarkerSet set, JsonArray history)
+	{
+		store(set, history);
+		state.enabled.add(set.key());
+		saveState();
+		load();
+	}
+
+	// A new set of the user's own, switched on.
+	public MarkerSet create(String title, String author, List<MarkerSet.Entry> entries)
+	{
+		return create(title, author, entries, new JsonArray());
+	}
+
+	// A built-in or imported set copied as the user's own, "<title> (clone)" by author; its author joins its history.
+	public MarkerSet cloneSet(MarkerSet set, String author)
+	{
+		JsonArray history = history(set);
+		history.add(set.author);
+		return create(set.title + " (clone)", author, set.entries, history);
+	}
+
+	private MarkerSet create(String title, String author, List<MarkerSet.Entry> entries, JsonArray history)
+	{
+		String id = slug(author + " " + title);
+		Set<String> taken = new HashSet<>();
+		sets.forEach(set -> taken.add(set.key()));
+		String unique = id;
+		for (int n = 2; taken.contains(MarkerSet.Kind.OWN.prefix + "_" + unique); n++)
+		{
+			unique = id + "_" + n;
+		}
+		MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, author, 1, LocalDate.now(), entries);
+		addSet(set, history);
+		return set;
+	}
+
+	// set with entries added at the end.
+	public MarkerSet add(MarkerSet set, List<MarkerSet.Entry> entries)
+	{
+		List<MarkerSet.Entry> all = new ArrayList<>(set.entries);
+		for (MarkerSet.Entry entry : entries)
+		{
+			all.add(new MarkerSet.Entry(entry.title, entry.tiles, entry.group, entry.enabledByDefault, all.size()));
+		}
+		return edit(set, set.title, set.author, all);
+	}
+
+	public void setAuthor(MarkerSet set, String author)
+	{
+		edit(set, set.title, author, set.entries);
+	}
+
+	// An Unknown set (imported ground markers) claimed by author: "Imported" joins its history.
+	public void claim(MarkerSet set, String author)
+	{
+		JsonArray history = history(set);
+		history.add("Imported");
+		store(new MarkerSet(set.kind, set.id, set.title, author, set.version + 1, LocalDate.now(), set.entries), history);
+		load();
+	}
+
+	// Its id (where it's stored, and its on/off state) stays.
+	public void setTitle(MarkerSet set, String title)
+	{
+		edit(set, title.trim(), set.author, set.entries);
+	}
+
+	// set without removed: later untitled entries move up a position.
+	public void remove(MarkerSet set, MarkerSet.Entry removed)
+	{
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			if (entry != removed)
+			{
+				moved.put(entry, new MarkerSet.Entry(entry.title, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
+			}
+		}
+		edit(set, moved);
+	}
+
+	// An entry retitled (blank for none). False if another entry already has that title, as their states would be shared.
+	public boolean setTitle(MarkerSet set, MarkerSet.Entry retitled, String title)
+	{
+		String newTitle = title.isBlank() ? null : title.trim();
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			if (entry != retitled && newTitle != null && newTitle.equals(entry.title))
+			{
+				return false;
+			}
+			moved.put(entry, entry != retitled ? entry
+				: new MarkerSet.Entry(newTitle, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
+		}
+		edit(set, moved);
+		return true;
+	}
+
+	// A single-tile entry's label (blank for none).
+	public void setLabel(MarkerSet set, MarkerSet.Entry edited, String label)
+	{
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			GroundMarkerPointData tile = entry.tiles.get(0);
+			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, List.of(new GroundMarkerPointData(tile.getRegionId(),
+				tile.getRegionX(), tile.getRegionY(), tile.getZ(), tile.getColor(), label.isEmpty() ? null : label)), false,
+				entry.enabledByDefault, moved.size()));
+		}
+		edit(set, moved);
+	}
+
+	// An own set's entries replaced, each old entry by its new one (in order); their on/off changes follow them to their
+	// new keys (an untitled entry's key is its position).
+	private void edit(MarkerSet set, Map<MarkerSet.Entry, MarkerSet.Entry> moved)
+	{
+		Map<String, Boolean> before = state.entries.remove(set.key());
+		Map<String, Boolean> after = new HashMap<>();
+		moved.forEach((from, to) ->
+		{
+			if (before != null && before.containsKey(from.key))
+			{
+				after.put(to.key, before.get(from.key));
+			}
+		});
+		if (!after.isEmpty())
+		{
+			state.entries.put(set.key(), after);
+		}
+		configManager.setConfiguration(GROUP, STATE_KEY, gson.toJson(state));
+		edit(set, set.title, set.author, new ArrayList<>(moved.values()));
+	}
+
+	// An own set changed, stored as its next version, dated today.
+	private MarkerSet edit(MarkerSet set, String title, String author, List<MarkerSet.Entry> entries)
+	{
+		MarkerSet edited = new MarkerSet(set.kind, set.id, title, author, set.version + 1, LocalDate.now(), entries);
+		store(edited);
+		load();
+		return edited;
+	}
+
+	public void delete(MarkerSet set)
+	{
+		configManager.unsetConfiguration(GROUP, SET_PREFIX + set.key());
+		state.enabled.remove(set.key());
+		state.entries.remove(set.key());
+		saveState();
+		load();
+	}
+
+	// An imported set, or null if text isn't one. Throws JsonSyntaxException if it's damaged.
+	@Nullable
+	public MarkerSet parse(String text)
+	{
+		return parse(text, MarkerSet.Kind.SHARED, null);
+	}
+
+	// {"title", "author", "version", "updated": "yyyy-mm-dd", "tiles": [marker, or {"title", "tiles": [marker...]}]}; a marker
+	// may have a "title", and either may have "enabled": false to start off.
+	@Nullable
+	private MarkerSet parse(String text, MarkerSet.Kind kind, @Nullable String id)
+	{
+		try
+		{
+			JsonElement element = gson.fromJson(text, JsonElement.class);
+			if (element == null || !element.isJsonObject())
+			{
+				return null;
+			}
+			JsonObject json = element.getAsJsonObject();
+			if (!json.has("tiles") || !json.get("tiles").isJsonArray())
+			{
+				return null;
+			}
+			String title = string(json, "title");
+			String author = string(json, "author");
+			title = title == null ? "Untitled" : title;
+			author = author == null ? MarkerSet.ANON : author;
+			int version = json.has("version") ? json.get("version").getAsInt() : 0;
+			String updated = string(json, "updated");
+
+			List<MarkerSet.Entry> entries = new ArrayList<>();
+			for (JsonElement entryJson : json.getAsJsonArray("tiles"))
+			{
+				JsonObject entry = entryJson.getAsJsonObject();
+				boolean group = entry.has("tiles");
+				List<GroundMarkerPointData> tiles = new ArrayList<>();
+				for (JsonElement tile : group ? entry.getAsJsonArray("tiles") : List.<JsonElement>of(entry))
+				{
+					tiles.add(gson.fromJson(tile, GroundMarkerPointData.class));
+				}
+				boolean enabled = !entry.has("enabled") || entry.get("enabled").getAsBoolean();
+				entries.add(new MarkerSet.Entry(string(entry, "title"), tiles, group, enabled, entries.size()));
+			}
+			return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, author, version,
+				updated == null ? null : LocalDate.parse(updated), entries);
+		}
+		catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException e)
+		{
+			throw new JsonSyntaxException(e);
+		}
+	}
+
+	// The set's JSON, as parse() reads it, with its stored author history.
+	public String export(MarkerSet set)
+	{
+		return export(set, history(set));
+	}
+
+	// history: earlier authors, oldest first, written only if any. Starts by naming the plugin it's for (not read back).
+	private String export(MarkerSet set, JsonArray history)
+	{
+		JsonObject json = new JsonObject();
+		json.addProperty("plugin", PLUGIN_NAME);
+		json.addProperty("title", set.title);
+		json.addProperty("author", set.author);
+		if (history.size() > 0)
+		{
+			json.add("history", history);
+		}
+		json.addProperty("version", set.version);
+		if (set.updated != null)
+		{
+			json.addProperty("updated", set.updated.toString());
+		}
+		JsonArray entries = new JsonArray();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			JsonObject entryJson = new JsonObject();
+			if (entry.title != null)
+			{
+				entryJson.addProperty("title", entry.title);
+			}
+			if (!entry.enabledByDefault)
+			{
+				entryJson.addProperty("enabled", false);
+			}
+			if (entry.group)
+			{
+				entryJson.add("tiles", gson.toJsonTree(entry.tiles));
+			}
+			else
+			{
+				gson.toJsonTree(entry.tiles.get(0)).getAsJsonObject().entrySet().forEach(field -> entryJson.add(field.getKey(), field.getValue()));
+			}
+			entries.add(entryJson);
+		}
+		json.add("tiles", entries);
+		return gson.newBuilder().disableHtmlEscaping().create().toJson(json);
+	}
+
+	// Fetches newer built-in sets from GitHub when forced, or 6+ hours since the last check. Never blocks the caller.
+	public void checkForUpdates(boolean force)
+	{
+		if (!force && System.currentTimeMillis() - lastChecked < CHECK_EVERY.toMillis() || !checking.compareAndSet(false, true))
+		{
+			return;
+		}
+		status = "Checking GitHub...";
+		failed = false;
+		clientThread.invoke(this::changed);
+		okHttpClient.newCall(new Request.Builder().url(BASE_URL + "index.json").build()).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				failed(e);
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (response)
+				{
+					JsonArray index = gson.fromJson(body(response), JsonArray.class);
+					Map<String, Integer> versions = new HashMap<>();
+					Map<MarkerSet, JsonArray> downloaded = new LinkedHashMap<>();
+					for (JsonElement listed : index)
+					{
+						String id = string(listed.getAsJsonObject(), "id");
+						int version = listed.getAsJsonObject().get("version").getAsInt();
+						if (id == null || !id.matches("[a-z0-9_]+"))
+						{
+							continue;
+						}
+						versions.put(id, version);
+						MarkerSet cached = sets.stream().filter(set -> set.kind == MarkerSet.Kind.BUILT_IN && set.id.equals(id))
+							.findFirst().orElse(null);
+						if (cached == null || cached.version < version)
+						{
+							download(id, version, downloaded);
+						}
+					}
+					clientThread.invoke(() -> updated(versions, downloaded));
+				}
+				catch (IOException | RuntimeException e)
+				{
+					failed(e);
+				}
+			}
+		});
+	}
+
+	// Off the client thread, into downloaded with its author history. Stored with the index's version, so an update is
+	// downloaded once.
+	private void download(String id, int version, Map<MarkerSet, JsonArray> downloaded) throws IOException
+	{
+		try (Response response = okHttpClient.newCall(new Request.Builder().url(BASE_URL + id + ".json").build()).execute())
+		{
+			String text = body(response);
+			MarkerSet set = parse(text, MarkerSet.Kind.BUILT_IN, id);
+			if (set == null)
+			{
+				throw new IOException("Not a marker set: " + id);
+			}
+			downloaded.put(new MarkerSet(set.kind, id, set.title, set.author, version, set.updated, set.entries), history(text));
+		}
+	}
+
+	private static String body(Response response) throws IOException
+	{
+		ResponseBody body = response.body();
+		if (!response.isSuccessful() || body == null)
+		{
+			throw new IOException("HTTP " + response.code());
+		}
+		return body.string();
+	}
+
+	// Stores the downloads and drops built-in sets no longer listed.
+	private void updated(Map<String, Integer> versions, Map<MarkerSet, JsonArray> downloaded)
+	{
+		downloaded.forEach(this::store);
+		for (MarkerSet set : sets)
+		{
+			if (set.kind == MarkerSet.Kind.BUILT_IN && !versions.containsKey(set.id))
+			{
+				configManager.unsetConfiguration(GROUP, SET_PREFIX + set.key());
+			}
+		}
+		configManager.setConfiguration(GROUP, CHECKED_KEY, String.valueOf(System.currentTimeMillis()));
+		status = null;
+		checking.set(false);
+		load();
+	}
+
+	private void failed(Exception e)
+	{
+		log.debug("Marker set update failed", e);
+		status = null;
+		failed = true;
+		lastChecked = System.currentTimeMillis() - CHECK_EVERY.toMillis() + RETRY_AFTER.toMillis();
+		checking.set(false);
+		clientThread.invoke(this::changed);
+	}
+
+	// Keeps the history already stored for it, e.g. through an edit.
+	private void store(MarkerSet set)
+	{
+		store(set, history(set));
+	}
+
+	private void store(MarkerSet set, JsonArray history)
+	{
+		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), export(set, history));
+	}
+
+	// The author history stored for set.
+	private JsonArray history(MarkerSet set)
+	{
+		return history(configManager.getConfiguration(GROUP, SET_PREFIX + set.key()));
+	}
+
+	// A set's JSON's "history", or none.
+	private JsonArray history(@Nullable String text)
+	{
+		try
+		{
+			JsonElement json = text == null ? null : gson.fromJson(text, JsonElement.class);
+			JsonElement history = json != null && json.isJsonObject() ? json.getAsJsonObject().get("history") : null;
+			return history != null && history.isJsonArray() ? history.getAsJsonArray() : new JsonArray();
+		}
+		catch (JsonParseException e)
+		{
+			return new JsonArray();
+		}
+	}
+
+	private void saveState()
+	{
+		configManager.setConfiguration(GROUP, STATE_KEY, gson.toJson(state));
+		rebuild();
+	}
+
+	// Later sets win ties.
+	private void rebuild()
+	{
+		Map<Integer, List<SourceMarker>> regions = new HashMap<>();
+		long order = 0;
+		for (MarkerSet set : sets)
+		{
+			order++;
+			if (!enabled(set))
+			{
+				continue;
+			}
+			for (MarkerSet.Entry entry : set.entries)
+			{
+				if (!enabled(set, entry))
+				{
+					continue;
+				}
+				Placed placed = new Placed(set, entry);
+				for (GroundMarkerPointData tile : entry.tiles)
+				{
+					regions.computeIfAbsent(tile.getRegionId(), r -> new ArrayList<>()).add(new SourceMarker(
+						new CachedMarker(tile, labelResolver, metaVariableResolver), this, RenderedTiles.SET_PRIORITY, order, placed));
+				}
+			}
+		}
+		byRegion = regions;
+		renderedTiles.invalidate();
+		changed();
+	}
+
+	private void changed()
+	{
+		Runnable listener = this.listener;
+		if (listener != null)
+		{
+			listener.run();
+		}
+	}
+
+	// Drawing a set's tiles is also when built-in sets are checked for updates.
+	@Override
+	public Collection<SourceMarker> markers(int regionId)
+	{
+		List<SourceMarker> markers = byRegion.getOrDefault(regionId, List.of());
+		if (!markers.isEmpty())
+		{
+			checkForUpdates(false);
+		}
+		return markers;
+	}
+
+	// Disable the drawn set tile's entry, or its whole set.
+	public List<ExternalMarkerManager.MenuOption> menuOptions(WorldView wv, WorldPoint worldPoint)
+	{
+		RenderedTile drawn = renderedTiles.winner(wv, worldPoint);
+		if (drawn == null || drawn.marker.source != this)
+		{
+			return List.of();
+		}
+		Placed placed = (Placed) drawn.marker.owner;
+		return List.of(
+			new ExternalMarkerManager.MenuOption("Disable", placed.set.title + ": " + placed.entry.name(),
+				() -> setEnabled(placed.set, placed.entry, false)),
+			new ExternalMarkerManager.MenuOption("Disable set", placed.set.title, () -> setEnabled(placed.set, false)));
+	}
+
+	@Nullable
+	private static MarkerSet.Kind kind(String prefix)
+	{
+		for (MarkerSet.Kind kind : MarkerSet.Kind.values())
+		{
+			if (kind.prefix.equals(prefix))
+			{
+				return kind;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	private static String string(JsonObject json, String field)
+	{
+		JsonElement value = json.get(field);
+		return value == null || !value.isJsonPrimitive() || value.getAsString().isBlank() ? null : value.getAsString().trim();
+	}
+
+	private static String slug(String text)
+	{
+		String slug = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+		return slug.isEmpty() ? "set" : slug;
+	}
+
+	private static long parseLong(@Nullable String value)
+	{
+		try
+		{
+			return value == null ? 0 : Long.parseLong(value);
+		}
+		catch (NumberFormatException e)
+		{
+			return 0;
+		}
+	}
+}

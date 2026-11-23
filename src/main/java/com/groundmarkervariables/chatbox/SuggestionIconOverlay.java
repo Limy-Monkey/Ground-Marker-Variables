@@ -41,13 +41,28 @@ public class SuggestionIconOverlay extends Overlay
 	{
 		private final Widget container;
 		private final Rectangle area;
+		@Nullable
 		private final Completion.Icon icon;
+		@Nullable
+		private final BufferedImage image;
 
 		public Placement(Widget container, Rectangle area, Completion.Icon icon)
+		{
+			this(container, area, icon, null);
+		}
+
+		// A fixed image instead of an icon.
+		public Placement(Widget container, Rectangle area, BufferedImage image)
+		{
+			this(container, area, null, image);
+		}
+
+		private Placement(Widget container, Rectangle area, @Nullable Completion.Icon icon, @Nullable BufferedImage image)
 		{
 			this.container = container;
 			this.area = area;
 			this.icon = icon;
+			this.image = image;
 		}
 	}
 
@@ -120,7 +135,8 @@ public class SuggestionIconOverlay extends Overlay
 		for (Placement placement : placements)
 		{
 			Rectangle container = placement.container.isHidden() ? null : placement.container.getBounds();
-			BufferedImage source = container == null || container.isEmpty() ? null : image(placement.icon);
+			BufferedImage source = container == null || container.isEmpty() ? null
+				: placement.image != null ? placement.image : image(placement.icon);
 			if (source == null)
 			{
 				continue;

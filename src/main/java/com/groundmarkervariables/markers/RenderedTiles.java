@@ -23,6 +23,7 @@ public class RenderedTiles
 {
 	public static final float PINGED_PRIORITY = 0.55f;
 	public static final float SAVED_PRIORITY = 0.6f;
+	public static final float SET_PRIORITY = 0.7f;
 	public static final float PREVIEW_PRIORITY = 2f;
 
 	private static final Comparator<RenderedTile> BEST_FIRST = Comparator

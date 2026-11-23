@@ -52,6 +52,24 @@ public class MarkerMinifier
 		return gson.newBuilder().disableHtmlEscaping().create().toJson(points);
 	}
 
+	// As exportPlain, but a label with variables goes in "gmv" as written, so core imports the tile unlabeled.
+	public String exportGmvPlain(List<GroundMarkerPointData> points)
+	{
+		Gson plain = gson.newBuilder().disableHtmlEscaping().create();
+		JsonArray array = plain.toJsonTree(points).getAsJsonArray();
+		for (JsonElement element : array)
+		{
+			JsonObject marker = element.getAsJsonObject();
+			JsonElement label = marker.get("label");
+			if (label != null && label.getAsString().contains("{"))
+			{
+				marker.remove("label");
+				marker.add(FIELD, label);
+			}
+		}
+		return plain.toJson(array);
+	}
+
 	// Throws JsonSyntaxException if text isn't an array of markers, IllegalArgumentException if a gmv
 	// label is damaged.
 	public List<GroundMarkerPointData> parse(String text) throws NewerFormatException
@@ -129,8 +147,13 @@ public class MarkerMinifier
 		return out.toString();
 	}
 
+	// A compressed label, or one written as itself (see exportGmvPlain), which a compressed one never is: it has a "{".
 	private static String label(String gmv) throws NewerFormatException
 	{
+		if (gmv.contains("{"))
+		{
+			return gmv;
+		}
 		Matcher matcher = GMV.matcher(gmv);
 		if (!matcher.matches())
 		{

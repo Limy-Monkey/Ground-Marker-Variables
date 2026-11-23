@@ -123,7 +123,7 @@ public class ExternalMarkerManager implements TileSource
 		public final String target;
 		public final Runnable action;
 
-		private MenuOption(String option, String target, Runnable action)
+		MenuOption(String option, String target, Runnable action)
 		{
 			this.option = option;
 			this.target = target;

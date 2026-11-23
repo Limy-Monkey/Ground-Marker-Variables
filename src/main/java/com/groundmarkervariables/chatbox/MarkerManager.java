@@ -1,12 +1,14 @@
 package com.groundmarkervariables.chatbox;
 
+import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerStorage;
+import com.groundmarkervariables.markers.MarkerSet;
+import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -16,58 +18,42 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.UnaryOperator;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
-import net.runelite.api.ChatMessageType;
+import javax.inject.Provider;
 import net.runelite.api.Client;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.QueuedMessage;
-import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
-import net.runelite.client.input.KeyListener;
 import net.runelite.client.util.Text;
 
 // ::manageGroundMarkerVariables -- every saved marker, grouped by area name (current area first),
 // with same-label markers in an area combined into one row. Rows and region headers have
 // checkboxes; the top bar filters to markers with variables, selects all shown, and exports or deletes the selection.
-public class MarkerManager extends ChatboxInput implements KeyListener
+public class MarkerManager extends SearchableChatbox
 {
-	private static final int LINE_HEIGHT = 20;
-	private static final int ROW_HEIGHT = 16;
-	private static final int ENTRY_CHECKBOX_SIZE = 12;
-	private static final int BUTTON_FONT = FontID.PLAIN_11;
-	private static final int RESULTS_Y = 30;
-	// Fixed, like AdvancedLabelEditor -- fills the chatbox down to where its own list ends.
-	private static final int VISIBLE_ROWS = 6;
-	private static final int TOP_BAR_GAP = 8;
 	private static final int ACTIVE_COLOR = 0x800000;
 	private static final Pattern HAS_VARIABLE = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
-	private final ChatboxPanelManager chatboxPanelManager;
 	private final MarkerStorage markerStorage;
-	private final ChatMessageManager chatMessageManager;
-	private final Client client;
 	private final DeletedMarkers deletedMarkers;
 	private final GroundMarkerVariablesSharingManager sharingManager;
-	private final ClientThread clientThread;
+	private final MarkerSets markerSets;
+	private final Provider<MarkerSetManager> markerSetManagerProvider;
 
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
-	private int scrollOffset;
 	// { } toggle: only rows whose label has a variable (and the areas containing them).
 	private boolean variablesOnly = true;
-	// Typed while open: only rows whose area name or label contains it, any case.
-	private volatile String query = "";
 
 	// Every marker sharing one RegionNames name, or the unnamed ones of a single region.
 	private static final class Group
@@ -113,13 +99,14 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread)
+		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread,
+		MarkerSets markerSets, Provider<MarkerSetManager> markerSetManagerProvider, ChatboxWidgets widgets, SuggestionIconOverlay iconOverlay,
+		GroundMarkerVariablesPlugin plugin)
 	{
-		this.clientThread = clientThread;
-		this.chatboxPanelManager = chatboxPanelManager;
+		super(chatboxPanelManager, clientThread, chatMessageManager, iconOverlay, widgets, client, plugin);
+		this.markerSets = markerSets;
+		this.markerSetManagerProvider = markerSetManagerProvider;
 		this.markerStorage = markerStorage;
-		this.chatMessageManager = chatMessageManager;
-		this.client = client;
 		this.deletedMarkers = deletedMarkers;
 		this.sharingManager = sharingManager;
 	}
@@ -167,101 +154,55 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		update();
 	}
 
-	// Escape clears the search, then closes; Backspace removes a character from it.
 	@Override
-	public void keyPressed(KeyEvent ev)
+	protected String title()
 	{
-		if (!chatboxPanelManager.shouldTakeInput())
-		{
-			return;
-		}
-		if (ev.getKeyCode() == KeyEvent.VK_ESCAPE)
-		{
-			ev.consume();
-			if (query.isEmpty())
-			{
-				chatboxPanelManager.close();
-			}
-			else
-			{
-				search(query -> "");
-			}
-		}
-		else if (ev.getKeyCode() == KeyEvent.VK_BACK_SPACE && !query.isEmpty())
-		{
-			ev.consume();
-			search(query -> query.isEmpty() ? query : query.substring(0, query.length() - 1));
-		}
+		return "Ground Markers (" + markerCount(visibleEntries()) + ")";
 	}
 
+	// After x and _, right to left: Undo, Del, Copy, Set, { }, All (while filtered), (selected count). The full name shows as the hover/menu
+	// text.
 	@Override
-	public void keyTyped(KeyEvent ev)
+	protected void buildTopBar(Widget container, FontTypeFace font, int rightX)
 	{
-		char c = ev.getKeyChar();
-		if (chatboxPanelManager.shouldTakeInput() && !Character.isISOControl(c) && !ev.isControlDown() && !ev.isAltDown())
-		{
-			ev.consume();
-			search(query -> query + c);
-		}
-	}
-
-	// Keys arrive on the AWT thread; the search changes, and widgets are built, on the client thread.
-	private void search(UnaryOperator<String> change)
-	{
-		clientThread.invoke(() ->
-		{
-			query = change.apply(query);
-			scrollOffset = 0;
-			update();
-		});
-	}
-
-	@Override
-	public void keyReleased(KeyEvent ev)
-	{
-	}
-
-	private void update()
-	{
-		Widget container = chatboxPanelManager.getContainerWidget();
-		container.deleteAllChildren();
-
-		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
-		ChatboxWidgets.text(container, "Ground Markers (" + markerCount(visibleEntries()) + ")" + search, FontID.QUILL_8, 0x800000, 6, 5,
-			260, LINE_HEIGHT);
-		buildTopBar(container);
-		ChatboxWidgets.separator(container, RESULTS_Y - 4);
-		buildRows(container);
-	}
-
-	// Right to left: x, Del, Copy, { }, All, (selected count). The full name shows as the hover/menu text.
-	private void buildTopBar(Widget container)
-	{
-		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
-
 		List<Entry> visible = visibleEntries();
 		boolean anySelected = visible.stream().anyMatch(selected::contains);
 		boolean allSelected = !visible.isEmpty() && selected.containsAll(visible);
 		int count = selectedPoints().size();
 		String selectedTarget = "<col=ff9040>" + count + (count == 1 ? " marker" : " markers") + "</col>";
 
-		int rightX = TOP_BAR_GAP;
-		rightX = nextX(addButton(container, font, "x", "Close", "", true, rightX, chatboxPanelManager::close));
 		int deleted = deletedMarkers.last().size();
 		if (deleted > 0)
 		{
 			String deletedTarget = "<col=ff9040>" + deleted + (deleted == 1 ? " marker" : " markers") + "</col>";
-			rightX = nextX(addButton(container, font, "Undo", "Restore deleted", deletedTarget, true, rightX, this::undoDelete));
+			rightX = nextX(button(container, font, "Undo", "Restore deleted", deletedTarget, true, rightX, this::undoDelete));
 		}
-		rightX = nextX(addButton(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
-		Widget copy = addButton(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> exportSelected(false));
+		rightX = nextX(button(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
+		Widget copy = button(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> exportSelected(false));
 		if (anySelected)
 		{
 			copy.setAction(1, "Copy as plaintext");
 			copy.setOnOpListener((JavaScriptCallback) ev -> exportSelected(ev.getOp() == 2));
 		}
 		rightX = nextX(copy);
-		Widget filter = addButton(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
+		Widget set = button(container, font, "Set", "Make a marker set from selected", selectedTarget, anySelected, rightX, this::makeSet);
+		if (anySelected && !ownSets().isEmpty())
+		{
+			set.setAction(1, "Add to existing set");
+			set.setOnOpListener((JavaScriptCallback) ev ->
+			{
+				if (ev.getOp() == 2)
+				{
+					addToExistingSet();
+				}
+				else
+				{
+					makeSet();
+				}
+			});
+		}
+		rightX = nextX(set);
+		Widget filter = button(container, font, "{ }", variablesOnly ? "Show all markers" : "Show only markers with variables", "",
 			!entries.isEmpty(), rightX, this::toggleVariablesFilter);
 		if (variablesOnly)
 		{
@@ -270,45 +211,33 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		}
 		rightX = nextX(filter);
 
-		Widget all = addButton(container, font, "All", allSelected ? "Deselect all" : "Select all", "", !visible.isEmpty(), rightX,
-			allSelected ? this::deselectAll : this::selectAll);
-		if (anySelected && !allSelected)
+		// All only while filtered to markers with variables.
+		if (variablesOnly)
 		{
-			all.setAction(1, "Deselect all");
-			all.setOnOpListener((JavaScriptCallback) ev ->
+			Widget all = button(container, font, "All", allSelected ? "Deselect all" : "Select all", "", !visible.isEmpty(), rightX,
+				allSelected ? this::deselectAll : this::selectAll);
+			if (anySelected && !allSelected)
 			{
-				if (ev.getOp() == 2)
+				all.setAction(1, "Deselect all");
+				all.setOnOpListener((JavaScriptCallback) ev ->
 				{
-					deselectAll();
-				}
-				else
-				{
-					selectAll();
-				}
-			});
+					if (ev.getOp() == 2)
+					{
+						deselectAll();
+					}
+					else
+					{
+						selectAll();
+					}
+				});
+			}
+			rightX = nextX(all);
 		}
 
 		if (count > 0)
 		{
-			addButton(container, font, "(" + count + ")", "Deselect all", selectedTarget, true, nextX(all), this::deselectAll);
+			button(container, font, "(" + count + ")", "Deselect all", selectedTarget, true, rightX, this::deselectAll);
 		}
-	}
-
-	private static int nextX(Widget button)
-	{
-		return button.getOriginalX() + button.getOriginalWidth() + TOP_BAR_GAP;
-	}
-
-	private Widget addButton(Widget container, FontTypeFace font, String text, String action, String target, boolean enabled, int rightX,
-		Runnable onClick)
-	{
-		Widget button = ChatboxWidgets.button(container, text, BUTTON_FONT, rightX, 5, font.getTextWidth(text) + 4, LINE_HEIGHT, action,
-			enabled ? onClick : null);
-		if (enabled)
-		{
-			button.setName(target);
-		}
-		return button;
 	}
 
 	private List<Row> rows()
@@ -327,14 +256,15 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		return rows;
 	}
 
-	private void buildRows(Widget container)
+	@Override
+	protected void buildRows(Widget container)
 	{
 		List<Row> rows = rows();
 		if (rows.isEmpty())
 		{
 			String none = !query.isEmpty() ? "No ground markers match \"" + Text.escapeJagex(query) + "\"."
 				: variablesOnly ? "No ground markers have variables." : "You have no saved ground markers.";
-			addText(container, none, FontID.PLAIN_12, 0x000000, 6, RESULTS_Y);
+			addText(container, none, widgets.fontId(), 0x000000, 6, RESULTS_Y);
 			return;
 		}
 
@@ -353,11 +283,7 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 			List<Entry> rowEntries = header ? groupEntries(row.group) : List.of(row.entry);
 			boolean checked = selected.containsAll(rowEntries);
 			int checkboxX = header ? 6 : 22;
-			int checkboxSize = header ? ROW_HEIGHT : ENTRY_CHECKBOX_SIZE;
-
-			Widget checkbox = ChatboxWidgets.child(container, WidgetType.GRAPHIC, checkboxX, y + (ROW_HEIGHT - checkboxSize) / 2, checkboxSize,
-				checkboxSize);
-			checkbox.setSpriteId(checked ? SpriteID.Checkbox._2 : SpriteID.Checkbox._0);
+			Widget checkbox = checkbox(container, checked, checkboxX, y);
 
 			String text;
 			int color;
@@ -382,12 +308,28 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 				color = 0x000000;
 			}
 
-			Widget label = addText(container, text, header ? FontID.QUILL_8 : FontID.PLAIN_12, color, checkboxX + checkboxSize + 4, y);
+			Widget label = addText(container, text, header ? FontID.QUILL_8 : widgets.fontId(), color, checkboxX + checkbox.getOriginalWidth() + 4, y);
+			// A single marker can also be edited.
+			GroundMarkerPointData single = !header && row.entry.points.size() == 1 ? row.entry.points.get(0) : null;
 			for (Widget clickable : List.of(checkbox, label))
 			{
 				clickable.setHasListener(true);
 				clickable.setAction(0, checked ? "Deselect" : "Select");
-				clickable.setOnOpListener((JavaScriptCallback) ev -> toggle(rowEntries, !checked));
+				if (single != null)
+				{
+					clickable.setAction(1, "Edit");
+				}
+				clickable.setOnOpListener((JavaScriptCallback) ev ->
+				{
+					if (ev.getOp() == 2 && single != null)
+					{
+						edit(single);
+					}
+					else
+					{
+						toggle(rowEntries, !checked);
+					}
+				});
 			}
 			ChatboxWidgets.hover(label, color);
 		}
@@ -396,15 +338,18 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 			this::scroll);
 	}
 
-	private Widget addText(Widget container, String text, int fontId, int color, int x, int y)
+	private void edit(GroundMarkerPointData point)
 	{
-		return ChatboxWidgets.rowText(container, text, fontId, color, x, y, ROW_HEIGHT, x + ChatboxWidgets.SCROLLBAR_WIDTH + 6);
+		editLabel(point, label -> plugin.saveExpandedLabel(
+			WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ()), label));
 	}
 
-	private void scroll(int direction)
+	// Reloaded, e.g. to show an edited label.
+	@Override
+	protected void reopen()
 	{
-		scrollOffset += direction;
-		update();
+		load();
+		super.reopen();
 	}
 
 	private void toggle(List<Entry> rowEntries, boolean select)
@@ -484,6 +429,95 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		List<GroundMarkerPointData> points = selectedPoints();
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sharingManager.exportText(points, plain)), null);
 		sendChatMessage(points.size() + " ground markers were copied to your clipboard.");
+	}
+
+	// Asks for a title, then whether to keep the markers or move them into the set. The author is the logged-in name, else
+	// anon. onDone returns false: the menu it opens replaces this prompt, which closing would close instead.
+	private void makeSet()
+	{
+		List<Entry> chosen = chosenEntries();
+		Player player = client.getLocalPlayer();
+		String author = player != null && player.getName() != null ? player.getName() : MarkerSet.ANON;
+		chatboxPanelManager.openTextInput("Marker set title")
+			.onDone((Predicate<String>) title ->
+			{
+				if (title.isBlank())
+				{
+					chatboxPanelManager.openInput(this);
+					return false;
+				}
+				keepOrMove(chosen, move -> addToSet(chosen, move, entries -> markerSets.create(title.trim(), author, entries)));
+				return false;
+			})
+			.build();
+	}
+
+	// Picks one of the user's own sets in Marker Sets (searchable, however many there are), then asks whether to keep the
+	// markers or move them into it.
+	private void addToExistingSet()
+	{
+		List<Entry> chosen = chosenEntries();
+		chatboxPanelManager.openInput(markerSetManagerProvider.get().pick(set ->
+			keepOrMove(chosen, move -> addToSet(chosen, move, entries -> markerSets.add(set, entries)))));
+	}
+
+	private void keepOrMove(List<Entry> chosen, Consumer<Boolean> then)
+	{
+		chatboxPanelManager.openTextMenuInput("Keep these markers as your own too, or move them into the set?")
+			.option("Keep them", () -> then.accept(false))
+			.option("Move them", () -> then.accept(true))
+			.option("Cancel", () -> chatboxPanelManager.openInput(this))
+			.build();
+	}
+
+	// One entry per row (a row of same-label markers becomes a group), given to save, which returns the set; then shows
+	// Marker Sets.
+	private void addToSet(List<Entry> chosen, boolean move, Function<List<MarkerSet.Entry>, MarkerSet> save)
+	{
+		clientThread.invoke(() ->
+		{
+			List<MarkerSet.Entry> entries = new ArrayList<>();
+			List<GroundMarkerPointData> points = new ArrayList<>();
+			for (Entry entry : chosen)
+			{
+				entries.add(new MarkerSet.Entry(null, entry.points, entry.points.size() > 1, true, entries.size()));
+				points.addAll(entry.points);
+			}
+			MarkerSet set = save.apply(entries);
+			if (move)
+			{
+				deletedMarkers.remember(points);
+				markerStorage.deletePoints(points);
+			}
+			sendChatMessage(points.size() + " ground markers were added to the marker set \"" + set.title + "\".");
+			chatboxPanelManager.openInput(markerSetManagerProvider.get());
+		});
+	}
+
+	private List<Entry> chosenEntries()
+	{
+		List<Entry> chosen = new ArrayList<>();
+		for (Entry entry : visibleEntries())
+		{
+			if (selected.contains(entry))
+			{
+				chosen.add(entry);
+			}
+		}
+		return chosen;
+	}
+
+	private List<MarkerSet> ownSets()
+	{
+		List<MarkerSet> own = new ArrayList<>();
+		for (MarkerSet set : markerSets.sets())
+		{
+			if (set.kind == MarkerSet.Kind.OWN)
+			{
+				own.add(set);
+			}
+		}
+		return own;
 	}
 
 	private void confirmDelete()
@@ -571,13 +605,5 @@ public class MarkerManager extends ChatboxInput implements KeyListener
 		}
 		WorldPoint location = WorldPoint.fromLocalInstance(client, player.getLocalLocation());
 		return groupKey(RegionNames.name(location), location.getRegionID());
-	}
-
-	private void sendChatMessage(String message)
-	{
-		chatMessageManager.queue(QueuedMessage.builder()
-			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage(message)
-			.build());
 	}
 }

@@ -8,6 +8,8 @@ import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.markers.MarkerStorage;
+import com.groundmarkervariables.markers.MarkerSet;
+import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
 import com.groundmarkervariables.markers.minify.NewerFormatException;
 import java.awt.Toolkit;
@@ -33,6 +35,7 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.menus.MenuManager;
 import net.runelite.client.menus.WidgetMenuOption;
+import net.runelite.client.util.Text;
 
 // Mirrors core's GroundMarkerSharingManager — clipboard export/import and a "Clear" confirmation
 // for every currently loaded ground marker, via the world map orb's right-click menu.
@@ -52,12 +55,14 @@ public class GroundMarkerVariablesSharingManager
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final DeletedMarkers deletedMarkers;
 	private final MarkerMinifier markerMinifier;
+	private final MarkerSets markerSets;
 
 	@Inject
 	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, Client client,
 		ImportPreviewManager importPreviewManager, MenuManager menuManager, ChatMessageManager chatMessageManager,
-		ChatboxPanelManager chatboxPanelManager, DeletedMarkers deletedMarkers, MarkerMinifier markerMinifier)
+		ChatboxPanelManager chatboxPanelManager, DeletedMarkers deletedMarkers, MarkerMinifier markerMinifier, MarkerSets markerSets)
 	{
+		this.markerSets = markerSets;
 		this.plugin = plugin;
 		this.markerStorage = markerStorage;
 		this.client = client;
@@ -151,6 +156,22 @@ public class GroundMarkerVariablesSharingManager
 			return;
 		}
 
+		// A marker set is added as an Imported set, not as markers.
+		MarkerSet set;
+		try
+		{
+			set =markerSets.parse(clipboardText);
+		}
+		catch (JsonSyntaxException e)
+		{
+			set =null;
+		}
+		if (set != null)
+		{
+			confirmSetImport(set, clipboardText, Runnables.doNothing());
+			return;
+		}
+
 		List<GroundMarkerPointData> importPoints;
 		try
 		{
@@ -181,6 +202,28 @@ public class GroundMarkerVariablesSharingManager
 		}
 
 		confirmImport(importPoints, " ground markers were imported from the clipboard.", Runnables.doNothing(), Runnables.doNothing());
+	}
+
+	// Previews the set's tiles and asks before adding it; one with the same title and author is replaced. Then after, either
+	// way (also Marker Sets' Import).
+	public void confirmSetImport(MarkerSet set, String text, Runnable after)
+	{
+		List<GroundMarkerPointData> tiles = new ArrayList<>();
+		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+		importPreviewManager.show(tiles);
+		boolean replaces = markerSets.existing(set) != null;
+		new ImportConfirmInput(chatboxPanelManager)
+			.yes(() ->
+			{
+				markerSets.addShared(set, text);
+				sendChatMessage("The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
+				after.run();
+			}, null)
+			.title("Import the marker set \"" + Text.escapeJagex(set.title) + "\" by " + Text.escapeJagex(set.author) + " ("
+				+ tiles.size() + " tiles)?" + (replaces ? "<br>This replaces your copy of it." : ""))
+			.option("No", after)
+			.onClose(importPreviewManager::clear)
+			.build();
 	}
 
 	// Previews importPoints and asks before importing them -- also MarkerManager's Undo.

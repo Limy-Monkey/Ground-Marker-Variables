@@ -18,6 +18,7 @@ import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.RenderedTile;
 import com.groundmarkervariables.markers.RenderedTiles;
 import com.groundmarkervariables.markers.SourceMarker;
+import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.TileSource;
 import com.google.inject.Provides;
 import com.groundmarkervariables.party.*;
@@ -272,6 +273,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private ExternalMarkerManager externalMarkerManager;
 
 	@Inject
+	private MarkerSets markerSets;
+
+	@Inject
 	private RenderedTiles renderedTiles;
 
 	// Saved markers by region, resolved. Rebuilt when marker data or visible regions change (see onXxx subscribers);
@@ -321,7 +325,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		activeEffectTracker.startUp();
 		weaponStyleTracker.startUp();
 		runeProfileCollectionLog.startUp();
-		renderedTiles.setSources(List.of(this, externalMarkerManager, pingedTileManager, importPreviewManager));
+		renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, pingedTileManager, importPreviewManager));
+		markerSets.startUp();
 		pluginMessageHandler.startUp();
 
 		if (config.showImportExport())
@@ -393,6 +398,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		runeProfileCollectionLog.shutDown();
 		pluginMessageHandler.shutDown();
 		externalMarkerManager.shutDown();
+		markerSets.shutDown();
 		keyManager.unregisterKeyListener(metronomeResetHotkeyListener);
 		overlayManager.remove(tileOverlay);
 		overlayManager.remove(labelOverlay);
@@ -487,7 +493,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private void buildConfigureMenu(@Nullable GroundMarkerPointData existing, WorldView wv, WorldPoint tile)
 	{
 		Menu submenu = null;
-		for (ExternalMarkerManager.MenuOption option : externalMarkerManager.menuOptions(wv, tile))
+		List<ExternalMarkerManager.MenuOption> sourceOptions = new ArrayList<>(externalMarkerManager.menuOptions(wv, tile));
+		sourceOptions.addAll(markerSets.menuOptions(wv, tile));
+		for (ExternalMarkerManager.MenuOption option : sourceOptions)
 		{
 			submenu = addVariableOption(submenu, option.option, option.target, option.action);
 		}
@@ -760,16 +768,22 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private void openAdvancedLabelEditor(WorldPoint worldPoint)
 	{
 		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
-		// Icon IDs shown by name, as typed; saving turns them back into IDs.
-		String currentLabel = iconNames.collapse(existing != null && existing.getLabel() != null ? existing.getLabel() : "");
-		Color tileColor = existing != null && existing.getColor() != null ? existing.getColor() : config.markerColor();
+		editLabel(worldPoint, existing != null ? existing.getLabel() : null, existing != null ? existing.getColor() : null,
+			label -> saveExpandedLabel(worldPoint, label), importPreviewManager::clear);
+	}
 
+	// The Advanced Label Editor on label (recommending labels near worldPoint), its icon IDs shown by name as typed; save
+	// gets the new label with them turned back into IDs, on the client thread. Also Marker Sets' Edit.
+	public void editLabel(WorldPoint worldPoint, @Nullable String label, @Nullable Color color, Consumer<String> save, Runnable onClose)
+	{
+		String currentLabel = iconNames.collapse(label != null ? label : "");
 		advancedLabelEditorProvider.get()
-			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel, tileColor)
+			.recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel,
+				color != null ? color : config.markerColor())
 			.prompt("Tile label")
 			.value(currentLabel)
-			.onDone((Consumer<String>) newLabel -> saveLabel(worldPoint, newLabel))
-			.onClose(importPreviewManager::clear)
+			.onDone((Consumer<String>) newLabel -> clientThread.invoke(() -> save.accept(iconNames.expand(newLabel))))
+			.onClose(onClose)
 			.build();
 	}
 
@@ -857,7 +871,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		clientThread.invoke(() -> saveExpandedLabel(worldPoint, iconNames.expand(newLabel)));
 	}
 
-	private void saveExpandedLabel(WorldPoint worldPoint, String newLabel)
+	// A saved marker's label (icon names already IDs); also the Marker Manager's Edit.
+	public void saveExpandedLabel(WorldPoint worldPoint, String newLabel)
 	{
 		int regionId = worldPoint.getRegionID();
 		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
@@ -905,7 +920,11 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	{
 		// Undo would otherwise restore the old profile's markers into this one.
 		deletedMarkers.clear();
-		clientThread.invoke(() -> loadPoints());
+		clientThread.invoke(() ->
+		{
+			loadPoints();
+			markerSets.load();
+		});
 	}
 
 	@Subscribe

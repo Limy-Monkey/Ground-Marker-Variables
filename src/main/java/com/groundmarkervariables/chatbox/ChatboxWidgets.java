@@ -1,7 +1,13 @@
 package com.groundmarkervariables.chatbox;
 
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
+import javax.inject.Inject;
+import javax.inject.Provider;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.widgets.JavaScriptCallback;
@@ -10,8 +16,14 @@ import net.runelite.api.widgets.WidgetPositionMode;
 import net.runelite.api.widgets.WidgetSizeMode;
 import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.chatbox.ChatboxInput;
+import net.runelite.client.game.chatbox.ChatboxPanelManager;
+import net.runelite.client.util.ImageUtil;
 
 // Widgets for chatbox panels, placed from the container's top and revalidated; set only non-layout properties after.
+// Static, except logo(), which needs the chatboxes it opens.
 public final class ChatboxWidgets
 {
 	public static final int SCROLLBAR_WIDTH = 14;
@@ -20,9 +32,69 @@ public final class ChatboxWidgets
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
 	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
+	// Half the logo's pixel-art size, so its edges stay sharp.
+	// The "_" toggle's smaller font (PLAIN_11), shared by every chatbox; persisted across restarts.
+	private static final String SMALL_FONT_KEY = "advancedEditorSmallFont";
+	private static final Rectangle LOGO_AREA = new Rectangle(4, 2, 24, 24);
+	// Where the top row's other content can start, right of the logo.
+	public static final int LOGO_RIGHT = LOGO_AREA.x + LOGO_AREA.width + 4;
+	private static final BufferedImage LOGO = ImageUtil.loadImageResource(ChatboxWidgets.class, "gmv-logo.png");
 
-	private ChatboxWidgets()
+	private final ChatboxPanelManager chatboxPanelManager;
+	private final Provider<MarkerSetManager> markerSetManagerProvider;
+	private final Provider<MarkerManager> markerManagerProvider;
+	private final ConfigManager configManager;
+
+	@Inject
+	private ChatboxWidgets(ChatboxPanelManager chatboxPanelManager, Provider<MarkerSetManager> markerSetManagerProvider,
+		Provider<MarkerManager> markerManagerProvider, ConfigManager configManager)
 	{
+		this.configManager = configManager;
+		this.chatboxPanelManager = chatboxPanelManager;
+		this.markerSetManagerProvider = markerSetManagerProvider;
+		this.markerManagerProvider = markerManagerProvider;
+	}
+
+	// The chatboxes' text font: RuneScape 12, or PLAIN_11 once toggled by "_".
+	public int fontId()
+	{
+		return smallFont() ? FontID.PLAIN_11 : FontID.PLAIN_12;
+	}
+
+	public boolean smallFont()
+	{
+		return Boolean.parseBoolean(configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY));
+	}
+
+	public void toggleFontSize()
+	{
+		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY, !smallFont());
+	}
+
+	// The logo at the top-left, drawn by SuggestionIconOverlay once placements are shown: opens Marker Sets or the Marker
+	// Manager, except current's own. Opening one closes current, unsaved.
+	public void logo(Widget container, List<SuggestionIconOverlay.Placement> placements, ChatboxInput current)
+	{
+		placements.add(new SuggestionIconOverlay.Placement(container, LOGO_AREA, LOGO));
+		Widget logo = child(container, WidgetType.GRAPHIC, LOGO_AREA.x, LOGO_AREA.y, LOGO_AREA.width, LOGO_AREA.height);
+		logo.setHasListener(true);
+		List<Runnable> opens = new ArrayList<>();
+		if (!(current instanceof MarkerSetManager))
+		{
+			logo.setAction(opens.size(), "Marker Sets");
+			opens.add(() -> chatboxPanelManager.openInput(markerSetManagerProvider.get()));
+		}
+		if (!(current instanceof MarkerManager))
+		{
+			logo.setAction(opens.size(), "Marker Manager");
+			opens.add(() ->
+			{
+				MarkerManager manager = markerManagerProvider.get();
+				manager.load();
+				chatboxPanelManager.openInput(manager);
+			});
+		}
+		logo.setOnOpListener((JavaScriptCallback) ev -> opens.get(ev.getOp() - 1).run());
 	}
 
 	public static Widget child(Widget container, int type, int x, int y, int width, int height)

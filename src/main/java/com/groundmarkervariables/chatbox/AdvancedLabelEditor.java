@@ -77,7 +77,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Labels this long get a ⚠️ (U+26A0) in the prompt row's left, showing the count on hover.
 	private static final int LONG_LABEL = 10_000;
 	private static final String WARNING_EMOJI = "26a0";
-
 	// For underlining only — matches <col=HEX|NAME>, {col=HEX|NAME}, </col> and {/col} (no groups means </col> or
 	// {/col}, both reverting to the tile's own color).
 	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile(
@@ -156,6 +155,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final ConfigManager configManager;
 	private final LabelCompleter completer;
 	private final SuggestionIconOverlay iconOverlay;
+	private final ChatboxWidgets widgets;
 	// This update's suggestion icons and tooltips, for iconOverlay.
 	private final List<SuggestionIconOverlay.Placement> iconPlacements = new ArrayList<>();
 	private final List<SuggestionIconOverlay.Tip> tips = new ArrayList<>();
@@ -240,9 +240,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay)
+		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets)
 	{
 		super(chatboxPanelManager, clientThread);
+		this.widgets = widgets;
 		this.chatboxPanelManager = chatboxPanelManager;
 		this.config = config;
 		this.configManager = configManager;
@@ -260,18 +261,15 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		iconOverlay.clear();
 	}
 
-	// Persisted (not RS-profile-scoped, like recentLabels) so the "_" toggle survives restarts.
-	private static final String SMALL_FONT_KEY = "advancedEditorSmallFont";
-
 	// PLAIN_11 once toggled via the "_" button, else the default PLAIN_12.
 	private int editorFontId()
 	{
-		return smallFont() ? FontID.PLAIN_11 : FontID.PLAIN_12;
+		return widgets.fontId();
 	}
 
 	private boolean smallFont()
 	{
-		return Boolean.parseBoolean(configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY));
+		return widgets.smallFont();
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
@@ -895,6 +893,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		followCaret(wrappedLines);
 
 		buildTopBar(container);
+		widgets.logo(container, iconPlacements, this);
 		buildLengthWarning(container);
 
 		fontID(editorFontId());
@@ -953,7 +952,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		}
 	}
 
-	// ⚠️ at the prompt row's left once the label reaches LONG_LABEL characters, its tooltip the count used.
+	// ⚠️ right of the logo once the label reaches LONG_LABEL characters, its tooltip the count used.
 	private void buildLengthWarning(Widget container)
 	{
 		int length = getValue().length();
@@ -961,7 +960,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		{
 			return;
 		}
-		Rectangle area = new Rectangle(TOP_BAR_GAP, 5 + (LINE_HEIGHT - ICON_HEIGHT) / 2, ICON_HEIGHT, ICON_HEIGHT);
+		Rectangle area = new Rectangle(ChatboxWidgets.LOGO_RIGHT, 5 + (LINE_HEIGHT - ICON_HEIGHT) / 2, ICON_HEIGHT, ICON_HEIGHT);
 		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(WARNING_EMOJI)));
 		tips.add(new SuggestionIconOverlay.Tip(container, area, String.format("%,d characters used", length)));
 	}
@@ -1070,7 +1069,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	private void toggleFontSize()
 	{
-		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, SMALL_FONT_KEY, !smallFont());
+		widgets.toggleFontSize();
 		font = null;
 		update();
 	}
