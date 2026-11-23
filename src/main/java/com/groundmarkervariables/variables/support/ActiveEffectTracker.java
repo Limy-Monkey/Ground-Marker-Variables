@@ -48,16 +48,11 @@ public class ActiveEffectTracker
 	private static final int THRALL_SUMMON_TICKS = 4;
 	private static final int PURGING_STAFF_MULTIPLIER = 5;
 
+	@RequiredArgsConstructor
 	private static final class Timer
 	{
 		private final int start;
 		private final int ticks;
-
-		private Timer(int start, int ticks)
-		{
-			this.start = start;
-			this.ticks = ticks;
-		}
 	}
 
 	private final Client client;

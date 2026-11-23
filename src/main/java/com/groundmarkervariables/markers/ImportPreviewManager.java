@@ -10,11 +10,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 
 // Unsaved preview of tiles an import (or an unmarked tile's label) is about to add, drawn half see-through over
 // everything else -- cleared via the chatbox input's own onClose, which fires on every dismissal path.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ImportPreviewManager implements TileSource
 {
 	private static final float OPACITY = 0.5f;
@@ -25,14 +27,6 @@ public class ImportPreviewManager implements TileSource
 
 	// Replaced whole, so a concurrent read never sees a partly built map.
 	private volatile Map<Integer, List<SourceMarker>> byRegion = Collections.emptyMap();
-
-	@Inject
-	private ImportPreviewManager(RenderedTiles renderedTiles, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
-	{
-		this.renderedTiles = renderedTiles;
-		this.labelResolver = labelResolver;
-		this.metaVariableResolver = metaVariableResolver;
-	}
 
 	public void show(Collection<GroundMarkerPointData> points)
 	{

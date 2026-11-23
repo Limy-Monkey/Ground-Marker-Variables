@@ -2,6 +2,7 @@ package com.groundmarkervariables.markers;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
@@ -13,15 +14,10 @@ import net.runelite.api.coords.WorldPoint;
 // camera is detached, e.g. spectating a teammate after dying in a raid. Only on the top-level
 // worldview, since the player's position isn't meaningful for a world entity's (e.g. a ship's) own.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerCulling
 {
 	private final Client client;
-
-	@Inject
-	private MarkerCulling(Client client)
-	{
-		this.client = client;
-	}
 
 	// True if tile is within distance of the player or the camera's focal point, or culling doesn't apply.
 	public boolean inRange(WorldPoint tile, int distance)

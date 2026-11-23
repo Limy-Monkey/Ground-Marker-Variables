@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 // Exports markers as core's JSON, but a label with variables becomes "gmv":"<version>~<compressed>".
 // Core ignores that field, so it still imports the tile, without the label.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerMinifier
 {
 	private static final String FIELD = "gmv";
@@ -22,12 +24,6 @@ public class MarkerMinifier
 	private static final String JSON_ESCAPES = "\"\\/bfnrtu";
 
 	private final Gson gson;
-
-	@Inject
-	private MarkerMinifier(Gson gson)
-	{
-		this.gson = gson;
-	}
 
 	public String export(List<GroundMarkerPointData> points)
 	{

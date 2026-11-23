@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -16,18 +17,13 @@ import okhttp3.ResponseBody;
 // bundled copies are used until (and unless) they arrive.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LatestData
 {
 	private static final String BASE_URL =
 		"https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/src/main/resources/com/groundmarkervariables/variables/support/";
 
 	private final OkHttpClient okHttpClient;
-
-	@Inject
-	private LatestData(OkHttpClient okHttpClient)
-	{
-		this.okHttpClient = okHttpClient;
-	}
 
 	public void startUp()
 	{

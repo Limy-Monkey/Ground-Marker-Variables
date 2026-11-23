@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Model;
@@ -23,6 +24,7 @@ import net.runelite.api.NPCComposition;
 // <npc=ID[,head]>: the NPC's model (or chathead) drawn into a flat-shaded image. Its model is also used on {ground}
 // (GroundModelRenderer). Client thread only; cached per NPC.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class NpcImages
 {
 	private static final int SIZE = 64;
@@ -39,13 +41,6 @@ public class NpcImages
 	private final Map<String, Optional<BufferedImage>> images = new HashMap<>();
 	private final Map<String, Optional<Model>> models = new HashMap<>();
 	private final Map<Model, float[][]> turnedVertices = new IdentityHashMap<>();
-
-	@Inject
-	private NpcImages(Client client, ModelColors modelColors)
-	{
-		this.client = client;
-		this.modelColors = modelColors;
-	}
 
 	@Nullable
 	public BufferedImage image(int npcId, boolean head)

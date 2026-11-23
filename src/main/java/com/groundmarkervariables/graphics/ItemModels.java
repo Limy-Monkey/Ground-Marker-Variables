@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.ItemComposition;
@@ -14,6 +16,7 @@ import net.runelite.api.ModelData;
 // {ground}<item=ID>: the item's inventory model, lit and recolored as in game. Equippable items lie as when dropped,
 // others as their inventory icon. Client thread only; cached per item.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ItemModels
 {
 	// The game's item lighting, before each item's own ambient/contrast.
@@ -27,27 +30,14 @@ public class ItemModels
 	private final Client client;
 	private final Map<Integer, Optional<Oriented>> models = new HashMap<>();
 
-	@Inject
-	private ItemModels(Client client)
-	{
-		this.client = client;
-	}
-
 	// A lit model and its turned vertices: x right, y down, front toward -z.
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Oriented
 	{
 		public final Model model;
 		public final float[] x;
 		public final float[] y;
 		public final float[] z;
-
-		private Oriented(Model model, float[] x, float[] y, float[] z)
-		{
-			this.model = model;
-			this.x = x;
-			this.y = y;
-			this.z = z;
-		}
 	}
 
 	// E.g. with Parallax icons turned off.

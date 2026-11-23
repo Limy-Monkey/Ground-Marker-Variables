@@ -66,6 +66,7 @@ import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
+import lombok.RequiredArgsConstructor;
 
 // Shared tile/label drawing code behind GroundMarkerVariablesTileOverlay and
 // GroundMarkerVariablesLabelOverlay -- not an Overlay itself.
@@ -715,6 +716,7 @@ public class GroundMarkerVariablesOverlay
 	}
 
 	// A label laid out for this frame: its lines, where they go, and the screen area they cover.
+	@RequiredArgsConstructor
 	private static final class LabelLayout
 	{
 		private final List<LineLayout> layouts;
@@ -726,23 +728,10 @@ public class GroundMarkerVariablesOverlay
 		private final int startY;
 		private final int lineHeight;
 		private final Rectangle bounds;
-
-		private LabelLayout(List<LineLayout> layouts, int[] widths, int[][] columnOffsets, int[] blockMaxWidths, List<TextAlign> alignments,
-			Point anchor, int startY, int lineHeight, Rectangle bounds)
-		{
-			this.layouts = layouts;
-			this.widths = widths;
-			this.columnOffsets = columnOffsets;
-			this.blockMaxWidths = blockMaxWidths;
-			this.alignments = alignments;
-			this.anchor = anchor;
-			this.startY = startY;
-			this.lineHeight = lineHeight;
-			this.bounds = bounds;
-		}
 	}
 
 	// A label waiting to be drawn, e.g. the hovered one, drawn after all the others.
+	@RequiredArgsConstructor
 	private static final class PendingLabel
 	{
 		private final LabelLayout layout;
@@ -755,18 +744,6 @@ public class GroundMarkerVariablesOverlay
 		private final Color hoverBackground;
 		private final CachedMarker marker;
 		private final WorldPoint worldPoint;
-
-		private PendingLabel(LabelLayout layout, @Nullable LabelLayout hoverLayout, Color color, float opacity, @Nullable Color hoverBackground,
-			CachedMarker marker, WorldPoint worldPoint)
-		{
-			this.layout = layout;
-			this.hoverLayout = hoverLayout;
-			this.color = color;
-			this.opacity = opacity;
-			this.hoverBackground = hoverBackground;
-			this.marker = marker;
-			this.worldPoint = worldPoint;
-		}
 	}
 
 	private void drawPending(Graphics2D graphics, PendingLabel label, boolean hovered)
@@ -942,6 +919,7 @@ public class GroundMarkerVariablesOverlay
 
 	// A line's text runs, <item=ID> icon images and {b}/{i} toggles, pre-measured once so both
 	// the per-line width (for maxWidth) and the actual draw pass can reuse the same icon lookups.
+	@RequiredArgsConstructor
 	private static final class LineLayout
 	{
 		private final List<Object> segments;
@@ -954,32 +932,14 @@ public class GroundMarkerVariablesOverlay
 		// Font style bits in effect at the start/end of this line.
 		private final int startStyle;
 		private final int endStyle;
-
-		private LineLayout(List<Object> segments, List<BufferedImage> images, List<Integer> iconWidths, int width,
-			List<Integer> cellWidths, List<Integer> cellPaddings, int startStyle, int endStyle)
-		{
-			this.segments = segments;
-			this.images = images;
-			this.iconWidths = iconWidths;
-			this.width = width;
-			this.cellWidths = cellWidths;
-			this.cellPaddings = cellPaddings;
-			this.startStyle = startStyle;
-			this.endStyle = endStyle;
-		}
 	}
 
 	// {b}/{/b}/{i}/{/i} -- switches one Font style bit on or off from here onward.
+	@RequiredArgsConstructor
 	private static final class StyleToggle
 	{
 		private final int bit;
 		private final boolean on;
-
-		private StyleToggle(int bit, boolean on)
-		{
-			this.bit = bit;
-			this.on = on;
-		}
 
 		private int apply(int style)
 		{
@@ -988,75 +948,49 @@ public class GroundMarkerVariablesOverlay
 	}
 
 	// <sprite=ID[,frame][@N%]>, kept apart from flags/emojis so only it gets drawGlow.
+	@RequiredArgsConstructor
 	private static final class SpriteIcon
 	{
 		private final BufferedImage image;
-
-		private SpriteIcon(BufferedImage image)
-		{
-			this.image = image;
-		}
 	}
 
 	// A unicode symbol's <emoji=>: its white glyph, and the glyph with its shadow as drawn flat.
+	@RequiredArgsConstructor
 	private static final class SymbolIcon
 	{
 		private final BufferedImage glyph;
 		private final BufferedImage shadowed;
-
-		private SymbolIcon(BufferedImage glyph, BufferedImage shadowed)
-		{
-			this.glyph = glyph;
-			this.shadowed = shadowed;
-		}
 	}
 
 	// <badge[=N]> over the previous icon, percent null for a full dot.
+	@RequiredArgsConstructor
 	private static final class Badge
 	{
 		@Nullable
 		private final Integer percent;
-
-		private Badge(@Nullable Integer percent)
-		{
-			this.percent = percent;
-		}
 	}
 
 	// {tip=text} opens a tooltip, {/tip} (null text) closes it.
+	@RequiredArgsConstructor
 	private static final class TipToggle
 	{
 		@Nullable
 		private final String text;
-
-		private TipToggle(@Nullable String text)
-		{
-			this.text = text;
-		}
 	}
 
 	// \t[@Npx]: ends a table cell, N px before the next column.
+	@RequiredArgsConstructor
 	private static final class CellBreak
 	{
 		private final int padding;
-
-		private CellBreak(int padding)
-		{
-			this.padding = padding;
-		}
 	}
 
 	// <item=ID[@N%]>
+	@RequiredArgsConstructor
 	private static final class ItemIcon
 	{
 		private final int id;
 		private final int brightness;
-
-		private ItemIcon(int id, int brightness)
-		{
-			this.id = id;
-			this.brightness = brightness;
-		}
 	}
 
 	private LineLayout layoutLine(Graphics2D graphics, String line, int startStyle)

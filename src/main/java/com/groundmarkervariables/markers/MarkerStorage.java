@@ -12,12 +12,14 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.config.ConfigManager;
 
 // CRUD against core's and our own "region_<id>" config keys.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerStorage
 {
 	private static final String CORE_CONFIG_GROUP = "groundMarker";
@@ -27,14 +29,6 @@ public class MarkerStorage
 	private final ConfigManager configManager;
 	private final GroundMarkerVariablesConfig config;
 	private final Gson gson;
-
-	@Inject
-	private MarkerStorage(ConfigManager configManager, GroundMarkerVariablesConfig config, Gson gson)
-	{
-		this.configManager = configManager;
-		this.config = config;
-		this.gson = gson;
-	}
 
 	// Every region with saved markers, in core's keys or ours.
 	public List<Integer> storedRegionIds()

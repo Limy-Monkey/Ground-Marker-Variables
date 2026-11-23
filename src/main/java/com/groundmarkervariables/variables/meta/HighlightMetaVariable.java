@@ -6,12 +6,14 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.support.NamedColors;
 import net.runelite.client.util.ColorUtil;
 
 // {highlight<corner>} / {highlight<corner>=<col>} -- SW/NW/NE/SE, or Corners/All for all four.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HighlightMetaVariable implements MetaVariable
 {
 	static final Pattern PATTERN = Pattern.compile(
@@ -20,12 +22,6 @@ public class HighlightMetaVariable implements MetaVariable
 		Pattern.CASE_INSENSITIVE);
 
 	private final GroundMarkerVariablesConfig config;
-
-	@Inject
-	private HighlightMetaVariable(GroundMarkerVariablesConfig config)
-	{
-		this.config = config;
-	}
 
 	@Override
 	public Pattern pattern()

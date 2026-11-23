@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
@@ -94,6 +95,7 @@ import net.runelite.client.events.PluginMessage;
 //       Map.of("plugin", "my-plugin", "group", "my-plugin-tiles")));
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PluginMessageHandler
 {
 	static final String NAMESPACE = "ground-marker-variables";
@@ -108,17 +110,6 @@ public class PluginMessageHandler
 	private final ClientThread clientThread;
 	private final MarkerMinifier markerMinifier;
 	private final ExternalMarkerManager externalMarkerManager;
-
-	@Inject
-	private PluginMessageHandler(EventBus eventBus, LabelResolver labelResolver, ClientThread clientThread, MarkerMinifier markerMinifier,
-		ExternalMarkerManager externalMarkerManager)
-	{
-		this.eventBus = eventBus;
-		this.labelResolver = labelResolver;
-		this.clientThread = clientThread;
-		this.markerMinifier = markerMinifier;
-		this.externalMarkerManager = externalMarkerManager;
-	}
 
 	public void startUp()
 	{

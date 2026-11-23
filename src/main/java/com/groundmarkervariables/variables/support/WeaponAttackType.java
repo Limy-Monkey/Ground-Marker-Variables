@@ -1,6 +1,9 @@
 package com.groundmarkervariables.variables.support;
 
+import lombok.RequiredArgsConstructor;
+
 // The damage type a combat style slot uses -- see WeaponAttackTypes.
+@RequiredArgsConstructor
 public enum WeaponAttackType
 {
 	STAB("Stab"),
@@ -11,11 +14,6 @@ public enum WeaponAttackType
 	NONE("None");
 
 	private final String displayName;
-
-	WeaponAttackType(String displayName)
-	{
-		this.displayName = displayName;
-	}
 
 	public String displayName()
 	{

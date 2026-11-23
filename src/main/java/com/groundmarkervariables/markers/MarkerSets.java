@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
@@ -43,6 +44,7 @@ import okhttp3.ResponseBody;
 // data/marker-sets: index.json lists [{"id", "version"}], and <id>.json is the set. Changes on the client thread.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerSets implements TileSource
 {
 	private static final String GROUP = GroundMarkerVariablesConfig.GROUP;
@@ -62,16 +64,11 @@ public class MarkerSets implements TileSource
 	}
 
 	// A drawn marker's set and entry.
+	@RequiredArgsConstructor
 	private static final class Placed
 	{
 		final MarkerSet set;
 		final MarkerSet.Entry entry;
-
-		Placed(MarkerSet set, MarkerSet.Entry entry)
-		{
-			this.set = set;
-			this.entry = entry;
-		}
 	}
 
 	private final ConfigManager configManager;
@@ -95,19 +92,6 @@ public class MarkerSets implements TileSource
 	// Run on the client thread after any change, e.g. to redraw the set list.
 	@Nullable
 	private volatile Runnable listener;
-
-	@Inject
-	private MarkerSets(ConfigManager configManager, Gson gson, OkHttpClient okHttpClient, ClientThread clientThread,
-		RenderedTiles renderedTiles, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
-	{
-		this.configManager = configManager;
-		this.gson = gson;
-		this.okHttpClient = okHttpClient;
-		this.clientThread = clientThread;
-		this.renderedTiles = renderedTiles;
-		this.labelResolver = labelResolver;
-		this.metaVariableResolver = metaVariableResolver;
-	}
 
 	public void startUp()
 	{

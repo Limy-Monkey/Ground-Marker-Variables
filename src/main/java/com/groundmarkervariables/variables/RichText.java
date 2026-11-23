@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.ToIntFunction;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -13,17 +14,12 @@ import net.runelite.client.util.QuantityFormatter;
 // those only expand on the raw label before LabelResolver runs (see CachedMarker), so a
 // variable's own output would never get expanded.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RichText
 {
 	private static final int DOT_COUNT = 3;
 
 	private final GroundMarkerVariablesConfig config;
-
-	@Inject
-	private RichText(GroundMarkerVariablesConfig config)
-	{
-		this.config = config;
-	}
 
 	public String labeled(String label, String value)
 	{

@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Provider;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
@@ -56,45 +57,30 @@ public class MarkerManager extends SearchableChatbox
 	private boolean variablesOnly = true;
 
 	// Every marker sharing one RegionNames name, or the unnamed ones of a single region.
+	@RequiredArgsConstructor
 	private static final class Group
 	{
 		private final String key;
 		private final String name;
 		private final Set<Integer> regionIds = new TreeSet<>();
 		private final Map<String, Entry> byLabel = new LinkedHashMap<>();
-
-		private Group(String key, String name)
-		{
-			this.key = key;
-			this.name = name;
-		}
 	}
 
 	// Every marker in one group sharing the same label ("" for none).
+	@RequiredArgsConstructor
 	private static final class Entry
 	{
 		private final Group group;
 		private final String label;
 		private final List<GroundMarkerPointData> points = new ArrayList<>();
-
-		private Entry(Group group, String label)
-		{
-			this.group = group;
-			this.label = label;
-		}
 	}
 
 	// A group header (entry == null) or one Entry.
+	@RequiredArgsConstructor
 	private static final class Row
 	{
 		private final Group group;
 		private final Entry entry;
-
-		private Row(Group group, Entry entry)
-		{
-			this.group = group;
-			this.entry = entry;
-		}
 	}
 
 	@Inject

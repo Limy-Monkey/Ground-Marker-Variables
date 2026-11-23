@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
@@ -24,6 +25,7 @@ import net.runelite.api.coords.LocalPoint;
 // {ground}: an image drawn flat on a tile, top to the north. The tile is cut into cells whose corners are
 // projected separately (so it follows slopes and perspective), each cell drawn with one affine transform.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundImageRenderer
 {
 	// Space left around the image inside the tile, in local units, and the size left inside it.
@@ -44,12 +46,6 @@ public class GroundImageRenderer
 	private BufferedImage buffer;
 	// A black copy of buffer, for a shadow.
 	private BufferedImage shadowBuffer;
-
-	@Inject
-	private GroundImageRenderer(Client client)
-	{
-		this.client = client;
-	}
 
 	// smooth: sampled straight from image (emoji); otherwise blown up into even pixel blocks first (items, sprites).
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity)

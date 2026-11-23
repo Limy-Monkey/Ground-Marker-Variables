@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
@@ -42,18 +43,12 @@ public class RuneProfileCollectionLog
 	private final Map<String, Entry> pages = new ConcurrentHashMap<>();
 
 	// A loaded page; its total is items.size().
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Page
 	{
 		public final String name;
 		public final int obtained;
 		public final List<Item> items;
-
-		private Page(String name, int obtained, List<Item> items)
-		{
-			this.name = name;
-			this.obtained = obtained;
-			this.items = items;
-		}
 
 		// This page with each item's quantity at least atLeast's (item ID -> quantity), e.g. drops RuneProfile
 		// hasn't synced yet.
@@ -71,16 +66,11 @@ public class RuneProfileCollectionLog
 		}
 	}
 
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Item
 	{
 		public final int id;
 		public final int quantity;
-
-		private Item(int id, int quantity)
-		{
-			this.id = id;
-			this.quantity = quantity;
-		}
 	}
 
 	// A page's state: the last loaded page (kept while it's requested again), else an error, else still loading.

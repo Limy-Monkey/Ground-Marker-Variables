@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 
 import com.groundmarkervariables.variables.support.GroupState;
 
@@ -13,6 +14,7 @@ import com.groundmarkervariables.variables.support.GroupState;
 // shift+right-click Tile Variables menu of this tile, in this order. See {group <name>}. A leading *
 // marks the default, e.g. *Any. Without options, only adds the menu, for options declared by another tile.
 // A leading ~ on the name, e.g. ~Role, unpicks the group once you leave its {setGroup} tiles.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SetGroupMetaVariable implements MetaVariable
 {
 	private static final Pattern PATTERN = Pattern.compile("\\{setGroup\\s+([^{}?:<>=!,]+?)\\s*(?:,([^{}]*))?\\}", Pattern.CASE_INSENSITIVE);
@@ -21,12 +23,6 @@ public class SetGroupMetaVariable implements MetaVariable
 	private static final String TEMPORARY_MARK = "~";
 
 	private final GroupState groupState;
-
-	@Inject
-	private SetGroupMetaVariable(GroupState groupState)
-	{
-		this.groupState = groupState;
-	}
 
 	@Override
 	public Pattern pattern()

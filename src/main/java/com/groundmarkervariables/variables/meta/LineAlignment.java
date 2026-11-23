@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 
 // {align=left/right/center} / {/align} -- scoped from the line it's on through the next
 // {align}/{/align} (which resets to center), so it's handled separately from MetaVariable.
@@ -16,16 +17,11 @@ final class LineAlignment
 	{
 	}
 
+	@RequiredArgsConstructor
 	static final class Result
 	{
 		final String label;
 		final List<TextAlign> lineAlignments;
-
-		private Result(String label, List<TextAlign> lineAlignments)
-		{
-			this.label = label;
-			this.lineAlignments = lineAlignments;
-		}
 	}
 
 	static Result strip(String label)

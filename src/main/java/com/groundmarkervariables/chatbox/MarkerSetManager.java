@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.FontID;
@@ -78,18 +79,13 @@ public class MarkerSetManager extends SearchableChatbox
 	private int[] widths;
 
 	// A set, one of its entries, or the status line (entry == STATUS).
+	@RequiredArgsConstructor
 	private static final class Row
 	{
 		@Nullable
 		private final MarkerSet set;
 		@Nullable
 		private final MarkerSet.Entry entry;
-
-		private Row(@Nullable MarkerSet set, @Nullable MarkerSet.Entry entry)
-		{
-			this.set = set;
-			this.entry = entry;
-		}
 	}
 
 	@Inject

@@ -1,7 +1,10 @@
 package com.groundmarkervariables.variables.support;
 
+import lombok.RequiredArgsConstructor;
+
 // VarbitID.SLAYER_MODIFIER_ID -> display name. Not exposed anywhere in RuneLite itself (only
 // ever compared to 2, unnamed) -- these names/IDs are reverse-engineered from observation.
+@RequiredArgsConstructor
 public enum SlayerModifierType
 {
 	SLAYER_POINTS(1, "Slayer Points"),
@@ -12,12 +15,6 @@ public enum SlayerModifierType
 
 	private final int id;
 	private final String displayName;
-
-	SlayerModifierType(int id, String displayName)
-	{
-		this.id = id;
-		this.displayName = displayName;
-	}
 
 	public String displayName()
 	{

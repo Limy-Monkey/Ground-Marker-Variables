@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.gameval.SpriteID;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
@@ -68,16 +69,11 @@ public class LabelCompleter
 
 	// Searches listed first after a bare "<sprite=": each sprite name ends in its "(Category)", so inserting it lists
 	// that category. With the sprite shown for it.
+	@RequiredArgsConstructor
 	private static final class SpriteCategory
 	{
 		private final String search;
 		private final int spriteId;
-
-		private SpriteCategory(String search, int spriteId)
-		{
-			this.search = search;
-			this.spriteId = spriteId;
-		}
 	}
 
 	private static final List<SpriteCategory> SPRITE_CATEGORIES = List.of(

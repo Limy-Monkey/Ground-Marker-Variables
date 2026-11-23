@@ -3,6 +3,7 @@ package com.groundmarkervariables.markers;
 import java.time.LocalDate;
 import java.util.List;
 import javax.annotation.Nullable;
+import lombok.RequiredArgsConstructor;
 
 // A titled set of markers by an author. Its entries are what can be switched on and off: one tile, or a group of tiles.
 public final class MarkerSet
@@ -11,6 +12,7 @@ public final class MarkerSet
 	// Imported ground markers' author, until claimed.
 	public static final String UNKNOWN = "Unknown";
 
+	@RequiredArgsConstructor
 	public enum Kind
 	{
 		BUILT_IN("Built-in", "builtin"),
@@ -19,12 +21,6 @@ public final class MarkerSet
 
 		public final String title;
 		final String prefix;
-
-		Kind(String title, String prefix)
-		{
-			this.title = title;
-			this.prefix = prefix;
-		}
 	}
 
 	public static final class Entry

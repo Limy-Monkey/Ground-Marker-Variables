@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
@@ -37,6 +39,7 @@ public class SuggestionIconOverlay extends Overlay
 {
 	// An icon and the area it fills (aspect kept, never enlarged), relative to container: the chatbox's container
 	// outlives each update's widgets, which have no screen bounds until first drawn.
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Placement
 	{
 		private final Widget container;
@@ -56,29 +59,15 @@ public class SuggestionIconOverlay extends Overlay
 		{
 			this(container, area, null, image);
 		}
-
-		private Placement(Widget container, Rectangle area, @Nullable Completion.Icon icon, @Nullable BufferedImage image)
-		{
-			this.container = container;
-			this.area = area;
-			this.icon = icon;
-			this.image = image;
-		}
 	}
 
 	// A suggestion's tooltip, shown while the mouse is over area (relative to container, as a Placement's).
+	@RequiredArgsConstructor
 	public static final class Tip
 	{
 		private final Widget container;
 		private final Rectangle area;
 		private final String text;
-
-		public Tip(Widget container, Rectangle area, String text)
-		{
-			this.container = container;
-			this.area = area;
-			this.text = text;
-		}
 	}
 
 	private final Client client;

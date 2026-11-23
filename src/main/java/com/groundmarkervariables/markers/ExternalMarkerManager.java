@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
@@ -19,11 +21,13 @@ import net.runelite.api.coords.WorldPoint;
 // Markers other plugins render through us (see PluginMessageHandler), in memory only, as a TileSource. Each group has
 // its sending plugin, a priority and the user's hides. Client thread only.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ExternalMarkerManager implements TileSource
 {
 	public static final float DEFAULT_PRIORITY = 0.5f;
 	public static final int MAX_MARKERS = 2000;
 
+	@RequiredArgsConstructor
 	static final class Group
 	{
 		final String name;
@@ -35,11 +39,6 @@ public class ExternalMarkerManager implements TileSource
 		// Hidden by the user: the whole group, or tiles by stored (region) point. Kept across sets.
 		boolean hidden;
 		final Set<WorldPoint> hiddenTiles = new HashSet<>();
-
-		private Group(String name)
-		{
-			this.name = name;
-		}
 	}
 
 	private final RenderedTiles renderedTiles;
@@ -50,14 +49,6 @@ public class ExternalMarkerManager implements TileSource
 	// Every group's markers by region.
 	private final Map<Integer, List<SourceMarker>> byRegion = new HashMap<>();
 	private long order;
-
-	@Inject
-	private ExternalMarkerManager(RenderedTiles renderedTiles, LabelResolver labelResolver, MetaVariableResolver metaVariableResolver)
-	{
-		this.renderedTiles = renderedTiles;
-		this.labelResolver = labelResolver;
-		this.metaVariableResolver = metaVariableResolver;
-	}
 
 	public void shutDown()
 	{
@@ -117,18 +108,12 @@ public class ExternalMarkerManager implements TileSource
 	}
 
 	// A Shift right-click Tile Variables option.
+	@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 	public static final class MenuOption
 	{
 		public final String option;
 		public final String target;
 		public final Runnable action;
-
-		MenuOption(String option, String target, Runnable action)
-		{
-			this.option = option;
-			this.target = target;
-			this.action = action;
-		}
 	}
 
 	// Hide the drawn group marker's tile or group, or show hidden ones on this tile (an instanced point).

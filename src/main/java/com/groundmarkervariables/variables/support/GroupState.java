@@ -8,6 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 
 // {group}/{setGroup}: each group's options, merged from every {setGroup} declaring it in first-seen
@@ -15,15 +17,11 @@ import javax.inject.Singleton;
 @Singleton
 public class GroupState
 {
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Group
 	{
 		public final String name;
 		public final List<String> options = new ArrayList<>();
-
-		private Group(String name)
-		{
-			this.name = name;
-		}
 	}
 
 	private static final int TEMPORARY_GRACE_TICKS = 5;

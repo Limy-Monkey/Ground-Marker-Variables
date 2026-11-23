@@ -6,6 +6,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 // Render-affecting state collected from a label's meta variables (see MetaVariableResolver).
 // A null field means "no override".
@@ -53,17 +55,12 @@ public class MetaState
 	}
 
 	// A {setGroup} in the resolved label: its group, and its own options in order, or null for the declared ones.
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class GroupMenu
 	{
 		public final String name;
 		@Nullable
 		public final List<String> options;
-
-		private GroupMenu(String name, @Nullable List<String> options)
-		{
-			this.name = name;
-			this.options = options;
-		}
 	}
 
 	public List<GroupMenu> getGroupMenus()

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Model;
@@ -31,6 +32,7 @@ import net.runelite.api.coords.LocalPoint;
 // ABOVE over and BELOW under the ground; the part below is clipped to the tile, as if seen through it. Projected through
 // the game camera every frame, Gouraud shaded, textures scrolling as in game.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundModelRenderer
 {
 	// Space around the model inside the tile, in local units.
@@ -57,15 +59,9 @@ public class GroundModelRenderer
 	private BufferedImage buffer;
 	private int[] bufferPixels;
 
-	@Inject
-	private GroundModelRenderer(Client client, ModelColors modelColors)
-	{
-		this.client = client;
-		this.modelColors = modelColors;
-	}
-
 	// The model laid flat: each vertex's offset from the tile center and height, in local units, and per face to draw
 	// (back to front) its color, three corner colors, and texture (-1 none) with corner u/v (0..1) and darkening.
+	@RequiredArgsConstructor
 	private static final class Flat
 	{
 		private final int[] east;
@@ -81,24 +77,6 @@ public class GroundModelRenderer
 		private final int[] f1;
 		private final int[] f2;
 		private final int[] f3;
-
-		private Flat(int[] east, int[] north, int[] height, int[] faces, Color[] colors, int[] corners, int[] textures, float[] u,
-			float[] v, float[] shade, int[] f1, int[] f2, int[] f3)
-		{
-			this.east = east;
-			this.north = north;
-			this.height = height;
-			this.faces = faces;
-			this.colors = colors;
-			this.corners = corners;
-			this.textures = textures;
-			this.u = u;
-			this.v = v;
-			this.shade = shade;
-			this.f1 = f1;
-			this.f2 = f2;
-			this.f3 = f3;
-		}
 	}
 
 	// E.g. with Parallax icons turned off.

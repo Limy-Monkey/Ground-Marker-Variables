@@ -4,9 +4,12 @@ import com.groundmarkervariables.markers.CachedMarker;
 
 import java.time.Duration;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 // One temp-cached tile shared by a party member's ping — not persisted, just displayed for a
 // while. A small holder around a CachedMarker.
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class PingedTile
 {
 	private static final Duration FULL_OPACITY_DURATION = Duration.ofSeconds(5);
@@ -18,14 +21,6 @@ public class PingedTile
 	// Snapshotted at receipt -- the sender may leave the party before this entry expires.
 	final String senderName;
 	final Instant receivedAt;
-
-	PingedTile(CachedMarker marker, long senderMemberId, String senderName, Instant receivedAt)
-	{
-		this.marker = marker;
-		this.senderMemberId = senderMemberId;
-		this.senderName = senderName;
-		this.receivedAt = receivedAt;
-	}
 
 	// 100% for the first 5s, linearly down to 0% over the next 20s, then 0% until expiry.
 	public float opacity(Instant now)

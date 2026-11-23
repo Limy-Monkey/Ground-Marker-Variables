@@ -10,6 +10,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.Model;
 import net.runelite.api.Texture;
@@ -18,6 +19,7 @@ import net.runelite.api.TextureProvider;
 // A lit model's face colors, and its textures for drawing them scrolling. A textured face stores only brightness, so
 // its color is the texture's average at that brightness. Client thread only.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 class ModelColors
 {
 	private static final double BRIGHTNESS = 0.8;
@@ -29,27 +31,14 @@ class ModelColors
 	private final Map<Integer, Integer> textureColors = new HashMap<>();
 	private final Map<Integer, Optional<TextureFill>> textureFills = new HashMap<>();
 
-	@Inject
-	private ModelColors(Client client)
-	{
-		this.client = client;
-	}
-
 	// A texture as a tiled paint, size px square. Scrolls speed px per game cycle: direction 1 up, 2 left, 3 down, 4 right.
+	@RequiredArgsConstructor
 	static final class TextureFill
 	{
 		final TexturePaint paint;
 		final int size;
 		final int direction;
 		final int speed;
-
-		private TextureFill(TexturePaint paint, int size, int direction, int speed)
-		{
-			this.paint = paint;
-			this.size = size;
-			this.direction = direction;
-			this.speed = speed;
-		}
 
 		// Scrolled px at this game cycle.
 		double offsetU(int cycle)

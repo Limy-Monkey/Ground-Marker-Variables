@@ -3,6 +3,8 @@ package com.groundmarkervariables.variables.meta;
 import java.util.List;
 import java.util.regex.Matcher;
 import javax.inject.Inject;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 // Strips every meta-variable token out of a label and collects their effect into a MetaState.
 // Run on the already LabelResolver-resolved label, not the raw one, so a meta token written
@@ -17,16 +19,11 @@ public class MetaVariableResolver
 		this.metaVariables = registry.all();
 	}
 
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Result
 	{
 		public final String label;
 		public final MetaState state;
-
-		private Result(String label, MetaState state)
-		{
-			this.label = label;
-			this.state = state;
-		}
 	}
 
 	public Result resolve(String label)

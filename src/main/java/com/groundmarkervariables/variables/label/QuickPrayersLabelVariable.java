@@ -26,6 +26,7 @@ public class QuickPrayersLabelVariable implements LabelVariable
 {
 
 	// Prayer book order. Bits of QUICKPRAYER_SELECTED from Quick Prayer Preview (Hydrox6, BSD-2-Clause).
+	@RequiredArgsConstructor
 	private enum Prayer
 	{
 		THICK_SKIN(0, "Thick Skin", SpriteID.Prayeron.THICK_SKIN),
@@ -64,13 +65,6 @@ public class QuickPrayersLabelVariable implements LabelVariable
 		private final int bit;
 		private final String name;
 		private final int spriteId;
-
-		Prayer(int bit, String name, int spriteId)
-		{
-			this.bit = bit;
-			this.name = name;
-			this.spriteId = spriteId;
-		}
 	}
 
 	// Suggesting every prayer by name, with its sprite.

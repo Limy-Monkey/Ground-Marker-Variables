@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
@@ -24,6 +25,7 @@ public class GeHistory
 	private static final String GROUP = "grandexchange";
 	private static final String KEY = "tradeHistory";
 
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Trade
 	{
 		public final boolean bought;
@@ -32,15 +34,6 @@ public class GeHistory
 		// Average gp each.
 		public final long price;
 		public final Instant time;
-
-		private Trade(boolean bought, int itemId, int quantity, long price, Instant time)
-		{
-			this.bought = bought;
-			this.itemId = itemId;
-			this.quantity = quantity;
-			this.price = price;
-			this.time = time;
-		}
 	}
 
 	private final ConfigManager configManager;

@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -298,33 +299,20 @@ public class LootLabelVariable implements LabelVariable
 		return lootedByMonster.getOrDefault(key, List.of());
 	}
 
+	@RequiredArgsConstructor
 	private static final class Loot
 	{
 		final String monster;
 		final int kills;
 		final long gp;
 		final List<NotableItem> notableItems;
-
-		Loot(String monster, int kills, long gp, List<NotableItem> notableItems)
-		{
-			this.monster = monster;
-			this.kills = kills;
-			this.gp = gp;
-			this.notableItems = notableItems;
-		}
 	}
 
+	@RequiredArgsConstructor
 	private static final class NotableItem
 	{
 		final int itemId;
 		final int quantity;
 		final long price;
-
-		NotableItem(int itemId, int quantity, long price)
-		{
-			this.itemId = itemId;
-			this.quantity = quantity;
-			this.price = price;
-		}
 	}
 }

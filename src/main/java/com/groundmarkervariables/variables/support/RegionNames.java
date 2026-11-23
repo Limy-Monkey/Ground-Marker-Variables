@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
 
@@ -30,6 +31,7 @@ import net.runelite.api.coords.WorldPoint;
 public final class RegionNames
 {
 	// Bounds within a region: a box (inclusive world x/y, any plane) and/or a range of planes.
+	@RequiredArgsConstructor
 	private static final class Bounds
 	{
 		private final String name;
@@ -39,17 +41,6 @@ public final class RegionNames
 		private final int maxY;
 		private final int minPlane;
 		private final int maxPlane;
-
-		private Bounds(String name, int minX, int minY, int maxX, int maxY, int minPlane, int maxPlane)
-		{
-			this.name = name;
-			this.minX = minX;
-			this.minY = minY;
-			this.maxX = maxX;
-			this.maxY = maxY;
-			this.minPlane = minPlane;
-			this.maxPlane = maxPlane;
-		}
 
 		private boolean contains(WorldPoint point)
 		{

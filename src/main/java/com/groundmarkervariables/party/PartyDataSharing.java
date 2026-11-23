@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
@@ -29,6 +30,7 @@ import net.runelite.client.plugins.Plugin;
 // sent on change and all again after a UserSync.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PartyDataSharing
 {
 	private final Client client;
@@ -47,18 +49,6 @@ public class PartyDataSharing
 
 	// Arrive on WSClient's thread.
 	private final Map<Long, Map<PartyValue, String>> memberValues = new ConcurrentHashMap<>();
-
-	@Inject
-	private PartyDataSharing(Client client, ClientThread clientThread, EventBus eventBus, PartyService partyService,
-		PartyDataService partyDataService, WSClient wsClient)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-		this.eventBus = eventBus;
-		this.partyService = partyService;
-		this.partyDataService = partyDataService;
-		this.wsClient = wsClient;
-	}
 
 	public void startUp(Plugin plugin)
 	{

@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.widgets.JavaScriptCallback;
@@ -91,6 +92,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// One row in the list: a section title (not selectable), a label (click fills the input; only Recent ones are
 	// removable, since Current/Nearby aren't backed by the saved recent-labels list), up to SUGGESTION_COLUMNS
 	// suggestions (click inserts), or a line of a parameter's description (not selectable).
+	@RequiredArgsConstructor
 	private static final class Row
 	{
 		private final String text;
@@ -102,17 +104,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		@Nullable
 		private final Completion.Option preferred;
 		private final boolean hint;
-
-		private Row(String text, boolean title, boolean removable, @Nullable List<Completion.Option> suggestions,
-			@Nullable Completion.Option preferred, boolean hint)
-		{
-			this.text = text;
-			this.title = title;
-			this.removable = removable;
-			this.suggestions = suggestions;
-			this.preferred = preferred;
-			this.hint = hint;
-		}
 
 		private static Row title(String text)
 		{
@@ -136,18 +127,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// One wrapped row of edit text — mirrors ChatboxTextInput's own private Line class.
+	@RequiredArgsConstructor
 	private static final class WrappedLine
 	{
 		private final int start;
 		private final int end;
 		private final String text;
-
-		private WrappedLine(int start, int end, String text)
-		{
-			this.start = start;
-			this.end = end;
-			this.text = text;
-		}
 	}
 
 	private final ChatboxPanelManager chatboxPanelManager;
@@ -193,6 +178,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private int shiftSelectionAnchor = -1;
 
 	// One edit: at position, removed became inserted; and the selection before and after.
+	@RequiredArgsConstructor
 	private static final class Change
 	{
 		private final int position;
@@ -201,16 +187,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		private final int startBefore;
 		private final int endBefore;
 		private final int caretAfter;
-
-		private Change(int position, String removed, String inserted, int startBefore, int endBefore, int caretAfter)
-		{
-			this.position = position;
-			this.removed = removed;
-			this.inserted = inserted;
-			this.startBefore = startBefore;
-			this.endBefore = endBefore;
-			this.caretAfter = caretAfter;
-		}
 	}
 
 	// One Ctrl+Z step: the edits made without a STEP_PAUSE_MS gap, in order.

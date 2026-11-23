@@ -4,12 +4,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 // What can complete the token at the cursor: every option, and the preferred one (the ghost text and Tab), if any.
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public final class Completion
 {
 	// One completion: its list label (null for a bare closer), the text it inserts over the replace chars before the
 	// cursor, its icon syntax, and its tooltip description.
+	@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 	public static final class Option
 	{
 		@Nullable
@@ -25,19 +29,11 @@ public final class Completion
 		{
 			this(label, insert, replace, icon, null);
 		}
-
-		Option(@Nullable String label, String insert, int replace, @Nullable String icon, @Nullable String description)
-		{
-			this.label = label;
-			this.insert = insert;
-			this.replace = replace;
-			this.icon = icon;
-			this.description = description;
-		}
 	}
 
 	// A resolved icon: a sprite, an item's image, an NPC's, an emoji, a color swatch, or a {split} of parts. id is the
 	// number, for an emoji its hex codepoint, or for a color its RRGGBB.
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Icon
 	{
 		public enum Kind
@@ -52,13 +48,6 @@ public final class Completion
 		Icon(Kind kind, String id)
 		{
 			this(kind, id, List.of());
-		}
-
-		private Icon(Kind kind, String id, List<Icon> parts)
-		{
-			this.kind = kind;
-			this.id = id;
-			this.parts = parts;
 		}
 
 		static Icon split(List<Icon> parts)
@@ -79,12 +68,6 @@ public final class Completion
 	public final List<Option> options;
 	// Index into options, or -1 for no ghost (e.g. nothing typed yet).
 	public final int preferred;
-
-	Completion(List<Option> options, int preferred)
-	{
-		this.options = options;
-		this.preferred = preferred;
-	}
 
 	// Just a closer, e.g. "}" once a name is exactly typed.
 	static Completion closer(String closer)

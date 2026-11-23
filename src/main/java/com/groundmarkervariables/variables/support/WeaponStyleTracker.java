@@ -13,6 +13,7 @@ import java.util.TreeMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -42,17 +43,12 @@ public class WeaponStyleTracker
 	// A spell obj's enabled spellbook sprite (596, SPELL_BUTTON, is its widget).
 	private static final int SPELL_SPRITE = 597;
 
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Style
 	{
 		public final String name;
 		@Nullable
 		public final WeaponAttackType type;
-
-		private Style(String name, @Nullable WeaponAttackType type)
-		{
-			this.name = name;
-			this.type = type;
-		}
 	}
 
 	private final Client client;

@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import net.runelite.api.Client;
 import net.runelite.api.EnumComposition;
@@ -24,18 +26,12 @@ import net.runelite.client.party.PartyMember;
 // quiver, then rune pouch order. Each holder's items, and its matches by search, are cached until clearCache().
 public final class ItemQuantityFinder
 {
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	public static final class Match
 	{
 		public final int id;
 		public final String name;
 		public final int quantity;
-
-		private Match(int id, String name, int quantity)
-		{
-			this.id = id;
-			this.name = name;
-			this.quantity = quantity;
-		}
 	}
 
 	// A holder's items with their lowercase names, and its matches by search.
