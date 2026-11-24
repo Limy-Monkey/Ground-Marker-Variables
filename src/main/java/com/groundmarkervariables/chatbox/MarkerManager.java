@@ -461,6 +461,13 @@ public class MarkerManager extends SearchableChatbox
 				points.addAll(entry.points);
 			}
 			MarkerSet set = save.apply(entries);
+			// Too large: nothing saved, so nothing moved.
+			if (set == null)
+			{
+				sendChatMessage(MarkerSets.TOO_LARGE);
+				chatboxPanelManager.openInput(this);
+				return;
+			}
 			if (move)
 			{
 				deletedMarkers.remember(points);

@@ -398,7 +398,8 @@ public class MarkerSetManager extends SearchableChatbox
 	{
 		Player player = client.getLocalPlayer();
 		MarkerSet clone = markerSets.cloneSet(set, player != null && player.getName() != null ? player.getName() : MarkerSet.ANON);
-		sendChatMessage("The marker set \"" + clone.title + "\" was made from \"" + set.title + "\" by " + set.author + ".");
+		sendChatMessage(clone == null ? MarkerSets.TOO_LARGE
+			: "The marker set \"" + clone.title + "\" was made from \"" + set.title + "\" by " + set.author + ".");
 	}
 
 	private void confirmDelete(MarkerSet set)

@@ -205,8 +205,8 @@ public class GroundMarkerVariablesSharingManager
 				+ Text.escapeJagex(set.author) + " (" + tiles.size() + " tiles)?" + (replaces ? "<br>This replaces your copy of it." : ""))
 			.yes(() ->
 			{
-				markerSets.addShared(set, text);
-				sendChatMessage("The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
+				sendChatMessage(!markerSets.addShared(set, text) ? MarkerSets.TOO_LARGE
+					: "The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
 				after.run();
 			})
 			.no(after)
@@ -257,7 +257,8 @@ public class GroundMarkerVariablesSharingManager
 				clientThread.invoke(() ->
 				{
 					MarkerSet set = markerSets.createFrom(title, MarkerSet.UNKNOWN, points);
-					sendChatMessage(points.size() + " ground markers were imported as the marker set \"" + set.title + "\".");
+					sendChatMessage(set == null ? MarkerSets.TOO_LARGE
+						: points.size() + " ground markers were imported as the marker set \"" + set.title + "\".");
 					then.run();
 				});
 				return false;

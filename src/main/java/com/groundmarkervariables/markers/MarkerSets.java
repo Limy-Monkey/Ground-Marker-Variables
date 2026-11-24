@@ -57,6 +57,10 @@ public class MarkerSets implements TileSource
 	private static final String BASE_URL = "https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/data/marker-sets/";
 	private static final Duration CHECK_EVERY = Duration.ofHours(6);
 	private static final Duration RETRY_AFTER = Duration.ofMinutes(15);
+	// A set's stored JSON stays under this, half of a config value's ~200k limit, so later edits still fit. Sets that would
+	// be longer aren't created, imported or added to (the methods saying so return null or false), with TOO_LARGE shown.
+	private static final int MAX_SET_LENGTH = 100_000;
+	public static final String TOO_LARGE = "That marker set would be too large to save. Try splitting it into smaller sets.";
 
 	// Sets switched on, and each set's entries the user switched away from their default.
 	private static final class State
@@ -214,26 +218,33 @@ public class MarkerSets implements TileSource
 	}
 
 	// Adds (or replaces) an imported set, switched on, keeping text's author history.
-	public void addShared(MarkerSet set, String text)
+	public boolean addShared(MarkerSet set, String text)
 	{
-		addSet(set, history(text));
+		return addSet(set, history(text));
 	}
 
-	private void addSet(MarkerSet set, JsonArray history)
+	// false, adding nothing, if it's too large to store.
+	private boolean addSet(MarkerSet set, JsonArray history)
 	{
-		store(set, history);
+		if (!store(set, history))
+		{
+			return false;
+		}
 		state.enabled.add(set.key());
 		saveState();
 		load();
+		return true;
 	}
 
 	// A new set of the user's own, switched on.
+	@Nullable
 	public MarkerSet create(String title, String author, List<MarkerSet.Entry> entries)
 	{
 		return create(title, author, entries, new JsonArray());
 	}
 
 	// points as a new set of the user's own, one entry per label (same-label markers grouped); blank title is defaultTitle's.
+	@Nullable
 	public MarkerSet createFrom(String title, String author, List<GroundMarkerPointData> points)
 	{
 		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
@@ -259,6 +270,7 @@ public class MarkerSets implements TileSource
 	}
 
 	// A built-in or imported set copied as the user's own, "<title> (clone)" by author; its author joins its history.
+	@Nullable
 	public MarkerSet cloneSet(MarkerSet set, String author)
 	{
 		JsonArray history = history(set);
@@ -266,6 +278,7 @@ public class MarkerSets implements TileSource
 		return create(set.title + " (clone)", author, set.entries, history);
 	}
 
+	@Nullable
 	private MarkerSet create(String title, String author, List<MarkerSet.Entry> entries, JsonArray history)
 	{
 		String id = slug(author + " " + title);
@@ -277,11 +290,11 @@ public class MarkerSets implements TileSource
 			unique = id + "_" + n;
 		}
 		MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, author, 1, LocalDate.now(), entries);
-		addSet(set, history);
-		return set;
+		return addSet(set, history) ? set : null;
 	}
 
 	// set with entries added at the end.
+	@Nullable
 	public MarkerSet add(MarkerSet set, List<MarkerSet.Entry> entries)
 	{
 		List<MarkerSet.Entry> all = new ArrayList<>(set.entries);
@@ -380,10 +393,15 @@ public class MarkerSets implements TileSource
 	}
 
 	// An own set changed, stored as its next version, dated today.
+	// null, changing nothing, if it would be too large to store.
+	@Nullable
 	private MarkerSet edit(MarkerSet set, String title, String author, List<MarkerSet.Entry> entries)
 	{
 		MarkerSet edited = new MarkerSet(set.kind, set.id, title, author, set.version + 1, LocalDate.now(), entries);
-		store(edited);
+		if (!store(edited))
+		{
+			return null;
+		}
 		load();
 		return edited;
 	}
@@ -605,14 +623,21 @@ public class MarkerSets implements TileSource
 	}
 
 	// Keeps the history already stored for it, e.g. through an edit.
-	private void store(MarkerSet set)
+	private boolean store(MarkerSet set)
 	{
-		store(set, history(set));
+		return store(set, history(set));
 	}
 
-	private void store(MarkerSet set, JsonArray history)
+	// false, storing nothing, if its JSON would be over MAX_SET_LENGTH.
+	private boolean store(MarkerSet set, JsonArray history)
 	{
-		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), export(set, history, false));
+		String json = export(set, history, false);
+		if (json.length() > MAX_SET_LENGTH)
+		{
+			return false;
+		}
+		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), json);
+		return true;
 	}
 
 	// The author history stored for set.
