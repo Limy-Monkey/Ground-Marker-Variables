@@ -1,27 +1,19 @@
 package com.groundmarkervariables.markers;
 
-import java.util.List;
+import java.util.Collection;
 import javax.inject.Singleton;
 
-// The last batch of markers deleted by MarkerManager or the world map "Clear" option, for a
-// single undo. Memory only -- never saved, gone on restart.
+// The markers' recycling bin: each marker deleted by MarkerManager or the world map "Clear" option, keyed by itself.
 @Singleton
-public class DeletedMarkers
+public class DeletedMarkers extends RecyclingBin<GroundMarkerPointData, GroundMarkerPointData>
 {
-	private List<GroundMarkerPointData> last = List.of();
-
-	public void remember(List<GroundMarkerPointData> points)
+	public void addAll(Collection<GroundMarkerPointData> points)
 	{
-		last = List.copyOf(points);
+		points.forEach(point -> add(point, point));
 	}
 
-	public List<GroundMarkerPointData> last()
+	public void removeAll(Collection<GroundMarkerPointData> points)
 	{
-		return last;
-	}
-
-	public void clear()
-	{
-		last = List.of();
+		points.forEach(this::remove);
 	}
 }

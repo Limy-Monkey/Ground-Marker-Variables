@@ -14,6 +14,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
+import javax.inject.Inject;
 import java.util.function.UnaryOperator;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -48,24 +49,38 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// Table columns start after the row's check box.
 	protected static final int TABLE_X = 6 + ROW_HEIGHT + 4;
 	static final int BUTTON_FONT = FontID.PLAIN_11;
-	private static final int TOP_BAR_GAP = 8;
+	static final int TOP_BAR_GAP = 8;
+	// The recycling bin's :recycle@white: (see recycleBinButton), and a deleted thing's crossed check box there.
+	private static final String RECYCLE = "267b@ffffff";
+	private static final int RECYCLE_SIZE = 14;
+	private static final int RECYCLED_CHECKBOX = SpriteID.OptionsRadioButtons.CROSS_RED_HOVER;
 	private static final int COLUMN_GAP = 6;
 	// Beside the sorted column's heading.
 	private static final String SORTED_UP = "25b2";
 	private static final String SORTED_DOWN = "25bc";
 	private static final int SORT_ARROW_SIZE = 8;
 
-	protected final ChatboxPanelManager chatboxPanelManager;
-	protected final ClientThread clientThread;
-	protected final ChatboxWidgets widgets;
-	protected final Client client;
-	protected final GroundMarkerVariablesPlugin plugin;
-	private final ChatMessageManager chatMessageManager;
-	private final SuggestionIconOverlay iconOverlay;
+	// Injected into the fields, so subclasses' constructors (Lombok's) take only their own.
+	@Inject
+	protected ChatboxPanelManager chatboxPanelManager;
+	@Inject
+	protected ClientThread clientThread;
+	@Inject
+	protected ChatboxWidgets widgets;
+	@Inject
+	protected Client client;
+	@Inject
+	protected GroundMarkerVariablesPlugin plugin;
+	@Inject
+	private ChatMessageManager chatMessageManager;
+	@Inject
+	private SuggestionIconOverlay iconOverlay;
 	// This update's icons (the logo, check marks, ...) and tooltips, drawn by iconOverlay.
 	protected final List<SuggestionIconOverlay.Placement> iconPlacements = new ArrayList<>();
 	protected final List<SuggestionIconOverlay.Tip> tips = new ArrayList<>();
 	protected int scrollOffset;
+	// Listing the recycling bin instead (see recycleBinButton).
+	protected boolean recycleBin;
 	protected volatile String query = "";
 	// The table column the rows are sorted by, and which way; clicking a heading changes them.
 	protected int sortColumn;
@@ -77,20 +92,11 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// This update's addSubmenu() choices, by widget and option.
 	private final Map<Widget, Map<String, Map<String, Runnable>>> submenus = new HashMap<>();
 
-	protected SearchableChatbox(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, ChatMessageManager chatMessageManager,
-		SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets, Client client, GroundMarkerVariablesPlugin plugin)
-	{
-		this.client = client;
-		this.plugin = plugin;
-		this.chatboxPanelManager = chatboxPanelManager;
-		this.clientThread = clientThread;
-		this.chatMessageManager = chatMessageManager;
-		this.iconOverlay = iconOverlay;
-		this.widgets = widgets;
-	}
-
 	// The title row's text before the search, e.g. "Marker Sets (2)".
 	protected abstract String title();
+
+	// What's in the recycling bin (0 for none, or none to show), for its title, icon and closing once empty.
+	protected abstract int recycled();
 
 	// Buttons right to left from rightX, after "x" and "_".
 	protected abstract void buildTopBar(Widget container, FontTypeFace font, int rightX);
@@ -99,6 +105,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	protected void update()
 	{
+		leaveEmptyBin();
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
 		iconPlacements.clear();
@@ -107,7 +114,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 		widgets.logo(container, iconPlacements, this);
 		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
-		ChatboxWidgets.text(container, title() + search, FontID.QUILL_8, 0x800000, ChatboxWidgets.LOGO_RIGHT, 5, 260, LINE_HEIGHT);
+		ChatboxWidgets.text(container, (recycleBin ? "Recycling Bin (" + recycled() + ")" : title()) + search, FontID.QUILL_8, 0x800000, ChatboxWidgets.LOGO_RIGHT, 5, 260, LINE_HEIGHT);
 
 		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
 		buildTopBar(container, font, closeAndFontButtons(container, font, chatboxPanelManager, widgets, this::update));
@@ -195,6 +202,53 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		}));
 	}
 
+	// Out of the recycling bin once it's empty, e.g. after restoring its last.
+	protected void leaveEmptyBin()
+	{
+		recycleBin &= recycled() > 0;
+	}
+
+	// While the recycling bin has something: its :recycle@white: at rightX, opening it (recycleBin) or going back; then
+	// shown runs. Returns the x for the next button.
+	protected int recycleBinButton(Widget container, int rightX, Runnable shown)
+	{
+		if (recycled() == 0)
+		{
+			return rightX;
+		}
+		Rectangle area = new Rectangle(container.getWidth() - rightX - RECYCLE_SIZE, 5 + (LINE_HEIGHT - RECYCLE_SIZE) / 2, RECYCLE_SIZE,
+			RECYCLE_SIZE);
+		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(RECYCLE)));
+		Widget bin = ChatboxWidgets.child(container, WidgetType.GRAPHIC, area.x, area.y, area.width, area.height);
+		addAction(bin, new ArrayList<>(), recycleBin ? "Back" : "Open recycling bin", () ->
+		{
+			recycleBin = !recycleBin;
+			scrollOffset = 0;
+			shown.run();
+		});
+		return rightX + RECYCLE_SIZE + TOP_BAR_GAP;
+	}
+
+	// Deleting from the recycling bin permanently: until it's been there 30 minutes (minutesLeft, see
+	// RecyclingBin#minutesLeft), a notice under area of how long is left; then, once what (escaped, e.g. "this ground
+	// marker") is confirmed, delete.
+	protected void confirmPurge(long minutesLeft, Rectangle area, String what, Runnable delete)
+	{
+		if (minutesLeft > 0)
+		{
+			notice(area, "You must wait " + minutesLeft + (minutesLeft == 1 ? " minute" : " minutes") + " before deleting this permanently.");
+			return;
+		}
+		new ConfirmChatbox(chatboxPanelManager, "Delete " + what + " permanently? It can't be restored.")
+			.yes(() ->
+			{
+				delete.run();
+				reopen();
+			})
+			.no(() -> chatboxPanelManager.openInput(this))
+			.build();
+	}
+
 	// The x for the next button to the left of button.
 	protected static int nextX(Widget button)
 	{
@@ -215,9 +269,10 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	}
 
 	// The Settings menu's round check box (empty, or ticked green), at its own size (a smaller widget crops its bottom-right), centered in the row at y.
+	// In the recycling bin, crossed instead.
 	protected Widget checkbox(Widget container, boolean checked, int x, int y)
 	{
-		int spriteId = checked ? SpriteID.OptionsRadioButtons.CHECK_GREEN : SpriteID.OptionsRadioButtons.EMPTY;
+		int spriteId = recycleBin ? RECYCLED_CHECKBOX : checked ? SpriteID.OptionsRadioButtons.CHECK_GREEN : SpriteID.OptionsRadioButtons.EMPTY;
 		SpritePixels[] sprites = client.getSprites(client.getIndexSprites(), spriteId, 0);
 		int width = sprites == null ? ROW_HEIGHT : sprites[0].getMaxWidth();
 		int height = sprites == null ? ROW_HEIGHT : sprites[0].getMaxHeight();

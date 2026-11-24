@@ -245,8 +245,11 @@ public class SuggestionIconOverlay extends Overlay
 			case NPC_HEAD:
 				return npcImages.image(Integer.parseInt(icon.id), true);
 			case EMOJI:
-				BufferedImage symbol = emojis.shadowed(icon.id, null);
-				return symbol != null ? symbol : emojis.image(icon.id, null);
+				// Its codepoint, then "@" and a tint's hex if tinted, e.g. :recycle@white:'s "267b@ffffff".
+				String[] emoji = icon.id.split("@", 2);
+				String tint = emoji.length > 1 ? emoji[1] : null;
+				BufferedImage symbol = emojis.shadowed(emoji[0], tint);
+				return symbol != null ? symbol : emojis.image(emoji[0], tint);
 			case COLOR:
 				return swatches.computeIfAbsent(icon.id, SuggestionIconOverlay::swatch);
 			case DIAMOND:

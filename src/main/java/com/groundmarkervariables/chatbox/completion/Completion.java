@@ -56,7 +56,7 @@ public final class Completion
 			return new Icon(Kind.SPLIT, "", List.copyOf(parts));
 		}
 
-		// An emoji by its hex codepoint, e.g. "26a0".
+		// An emoji by its hex codepoint, e.g. "26a0", then "@" and a tint's hex if tinted, e.g. "267b@ffffff".
 		public static Icon emoji(String codepoint)
 		{
 			return new Icon(Kind.EMOJI, codepoint);

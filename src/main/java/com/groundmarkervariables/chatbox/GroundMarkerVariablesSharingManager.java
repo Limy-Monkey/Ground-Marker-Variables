@@ -350,7 +350,7 @@ public class GroundMarkerVariablesSharingManager
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to clear the " + numActivePoints + " currently loaded ground markers?")
 			.yes(() ->
 			{
-				deletedMarkers.remember(activePoints);
+				deletedMarkers.addAll(activePoints);
 				markerStorage.deletePoints(activePoints);
 
 				plugin.loadPoints();

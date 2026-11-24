@@ -71,6 +71,19 @@ public class MarkerSets implements TileSource
 		Map<String, Map<String, Boolean>> entries = new HashMap<>();
 	}
 
+	// A deleted set: as stored, whether it and its entries were switched on, and whether it was dissolved (its tiles went
+	// back into saved markers).
+	@RequiredArgsConstructor
+	public static final class Recycled
+	{
+		public final MarkerSet set;
+		private final String json;
+		private final boolean enabled;
+		@Nullable
+		private final Map<String, Boolean> entries;
+		public final boolean dissolved;
+	}
+
 	// A drawn marker's set and entry.
 	@RequiredArgsConstructor
 	private static final class Placed
@@ -102,6 +115,7 @@ public class MarkerSets implements TileSource
 	// Run on the client thread after any change, e.g. to redraw the set list.
 	@Nullable
 	private volatile Runnable listener;
+	private final RecyclingBin<String, Recycled> bin = new RecyclingBin<>();
 
 	public void startUp()
 	{
@@ -464,11 +478,50 @@ public class MarkerSets implements TileSource
 		return edited;
 	}
 
+	// Into the recycling bin (see bin()), as stored and with its on/off state.
 	public void delete(MarkerSet set)
 	{
+		delete(set, false);
+	}
+
+	// dissolved: its tiles went back into saved markers.
+	public void delete(MarkerSet set, boolean dissolved)
+	{
+		String json = configManager.getConfiguration(GROUP, SET_PREFIX + set.key());
+		if (json != null)
+		{
+			bin.add(set.key(), new Recycled(set, json, state.enabled.contains(set.key()), state.entries.get(set.key()), dissolved));
+		}
 		configManager.unsetConfiguration(GROUP, SET_PREFIX + set.key());
 		state.enabled.remove(set.key());
 		state.entries.remove(set.key());
+		saveState();
+		load();
+	}
+
+	// The recycling bin, by set key: restored with restore(), and deleted permanently by removing from it.
+	public RecyclingBin<String, Recycled> bin()
+	{
+		return bin;
+	}
+
+	// A recycled set back as it was stored, switched on or off as it was.
+	public void restore(MarkerSet set)
+	{
+		Recycled recycled = bin.remove(set.key());
+		if (recycled == null)
+		{
+			return;
+		}
+		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), recycled.json);
+		if (recycled.enabled)
+		{
+			state.enabled.add(set.key());
+		}
+		if (recycled.entries != null)
+		{
+			state.entries.put(set.key(), recycled.entries);
+		}
 		saveState();
 		load();
 	}

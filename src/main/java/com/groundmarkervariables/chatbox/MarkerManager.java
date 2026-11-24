@@ -1,6 +1,5 @@
 package com.groundmarkervariables.chatbox;
 
-import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
@@ -29,7 +28,6 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import lombok.RequiredArgsConstructor;
-import net.runelite.api.Client;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
@@ -37,14 +35,12 @@ import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
-import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.callback.ClientThread;
-import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.util.Text;
 
 // ::manageGroundMarkerVariables -- every saved marker in a table: one row per area (a RegionNames name, else its region),
 // label and color, with how many markers share them; current area first, or sorted by a heading. Rows have checkboxes;
 // the top bar filters to markers with variables, selects all shown, and exports or deletes the selection.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerManager extends SearchableChatbox
 {
 	private static final int ACTIVE_COLOR = 0x800000;
@@ -90,21 +86,6 @@ public class MarkerManager extends SearchableChatbox
 		private final List<GroundMarkerPointData> points = new ArrayList<>();
 	}
 
-	@Inject
-	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
-		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread,
-		MarkerSets markerSets, Provider<MarkerSetManager> markerSetManagerProvider, ChatboxWidgets widgets, SuggestionIconOverlay iconOverlay,
-		GroundMarkerVariablesPlugin plugin, WorldMapPins mapPins)
-	{
-		super(chatboxPanelManager, clientThread, chatMessageManager, iconOverlay, widgets, client, plugin);
-		this.mapPins = mapPins;
-		this.markerSets = markerSets;
-		this.markerSetManagerProvider = markerSetManagerProvider;
-		this.markerStorage = markerStorage;
-		this.deletedMarkers = deletedMarkers;
-		this.sharingManager = sharingManager;
-	}
-
 	// Rebuilds the list from storage, clearing the selection but keeping the scroll (a new manager starts at the top).
 	public void load()
 	{
@@ -113,16 +94,16 @@ public class MarkerManager extends SearchableChatbox
 		shown = null;
 
 		Map<String, Entry> byKey = new LinkedHashMap<>();
-		for (int regionId : markerStorage.storedRegionIds())
+		leaveEmptyBin();
+		if (recycleBin)
 		{
-			// Each marker's own area: one region can hold several.
-			for (GroundMarkerPointData point : markerStorage.getStoredPoints(regionId))
+			deletedMarkers.values().forEach(point -> addPoint(byKey, point, String.valueOf(byKey.size())));
+		}
+		else
+		{
+			for (int regionId : markerStorage.storedRegionIds())
 			{
-				String name = RegionNames.name(point.worldPoint());
-				String area = name != null ? name : "Region " + regionId;
-				String label = point.getLabel() == null ? "" : point.getLabel();
-				byKey.computeIfAbsent(area + '\0' + label + '\0' + point.getColor(),
-					key -> new Entry(area, name != null, regionId, label, point.getColor())).points.add(point);
+				markerStorage.getStoredPoints(regionId).forEach(point -> addPoint(byKey, point, ""));
 			}
 		}
 		entries.addAll(byKey.values());
@@ -131,6 +112,16 @@ public class MarkerManager extends SearchableChatbox
 		WorldPoint location = player == null ? null : WorldPoint.fromLocalInstance(client, player.getLocalLocation());
 		String name = location == null ? null : RegionNames.name(location);
 		currentArea = location == null ? null : name != null ? name : "Region " + location.getRegionID();
+	}
+
+	// point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart.
+	private static void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row)
+	{
+		String name = RegionNames.name(point.worldPoint());
+		String area = name != null ? name : "Region " + point.getRegionId();
+		String label = point.getLabel() == null ? "" : point.getLabel();
+		byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor(),
+			key -> new Entry(area, name != null, point.getRegionId(), label, point.getColor())).points.add(point);
 	}
 
 	// By sortColumn, reversed if descending; then the current area first, named areas alphabetically, unnamed regions by id,
@@ -158,23 +149,29 @@ public class MarkerManager extends SearchableChatbox
 		return "Ground Markers (" + markerCount(visibleEntries()) + ")";
 	}
 
-	// After x and _, right to left: Undo, Del, Copy, Set, { }, All (while filtered), (selected count). The full name shows as the hover/menu
-	// text.
+	@Override
+	protected int recycled()
+	{
+		return deletedMarkers.size();
+	}
+
+	// After x and _, right to left: the recycling bin's :recycle: (while it has markers, or is open; alone there), Del, Copy,
+	// Set, { }, All (while filtered), (selected count). The full name shows as the hover/menu text.
 	@Override
 	protected void buildTopBar(Widget container, FontTypeFace font, int rightX)
 	{
+		rightX = recycleBinButton(container, rightX, this::reopen);
+		if (recycleBin)
+		{
+			return;
+		}
+
 		List<Entry> visible = visibleEntries();
 		boolean anySelected = visible.stream().anyMatch(selected::contains);
 		boolean allSelected = !visible.isEmpty() && selected.containsAll(visible);
 		int count = selectedPoints().size();
 		String selectedTarget = "<col=ff9040>" + count + (count == 1 ? " marker" : " markers") + "</col>";
 
-		int deleted = deletedMarkers.last().size();
-		if (deleted > 0)
-		{
-			String deletedTarget = "<col=ff9040>" + deleted + (deleted == 1 ? " marker" : " markers") + "</col>";
-			rightX = nextX(button(container, font, "Undo", "Restore deleted", deletedTarget, true, rightX, this::undoDelete));
-		}
 		rightX = nextX(button(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, this::confirmDelete));
 		Widget copy = button(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> exportSelected(false));
 		if (anySelected)
@@ -257,7 +254,7 @@ public class MarkerManager extends SearchableChatbox
 
 	// Its checkbox, area, count (right-aligned), color diamond (none for the default color) and label (escaped, so a label's
 	// own <col=> etc. shows as written). The whole row is clicked to select it, or a single marker's to edit it, and grays
-	// while hovered.
+	// while hovered. In the recycling bin, its crossed check box (or the row) restores it, and right-click deletes it for good.
 	private void addEntry(Widget container, Entry entry, int y)
 	{
 		boolean checked = selected.contains(entry);
@@ -274,8 +271,9 @@ public class MarkerManager extends SearchableChatbox
 		// Over the whole row, on top of its cells.
 		Widget row = ChatboxWidgets.child(container, WidgetType.TEXT, 6, y, columnX(LABEL) + columnWidth(LABEL) - 6, ROW_HEIGHT);
 		List<Runnable> actions = new ArrayList<>();
-		addAction(row, actions, checked ? "Deselect" : "Select", () -> toggle(entry, !checked));
-		if (entry.points.size() == 1)
+		addAction(row, actions, recycleBin ? "Restore" : checked ? "Deselect" : "Select",
+			recycleBin ? () -> restore(entry) : () -> toggle(entry, !checked));
+		if (entry.points.size() == 1 && !recycleBin)
 		{
 			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
 		}
@@ -285,6 +283,15 @@ public class MarkerManager extends SearchableChatbox
 			shown = entry;
 			updatePins();
 		}, text -> notice(labelArea, text), this::updateIfOpen));
+		if (recycleBin)
+		{
+			addAction(row, actions, "Delete", () -> confirmPurge(deletedMarkers.minutesLeft(entry.points.get(0)), labelArea,
+				"this ground marker", () ->
+				{
+					deletedMarkers.removeAll(entry.points);
+					sendChatMessage("The ground marker was deleted permanently.");
+				}));
+		}
 		ChatboxWidgets.hover(row, 0x000000, area, label);
 	}
 
@@ -454,9 +461,9 @@ public class MarkerManager extends SearchableChatbox
 				chatboxPanelManager.openInput(this);
 				return;
 			}
+			// Moved, not deleted: they're in the set, so not recycled.
 			if (move)
 			{
-				deletedMarkers.remember(points);
 				markerStorage.deletePoints(points);
 			}
 			sendChatMessage(points.size() + " ground markers were added to the marker set \"" + set.title + "\".");
@@ -494,27 +501,25 @@ public class MarkerManager extends SearchableChatbox
 	{
 		List<GroundMarkerPointData> points = selectedPoints();
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete " + points.size()
-				+ (points.size() == 1 ? " ground marker?" : " ground markers?") + "<br>This cannot be undone.")
+				+ (points.size() == 1 ? " ground marker?" : " ground markers?"))
 			.yes(() ->
 			{
-				deletedMarkers.remember(points);
+				deletedMarkers.addAll(points);
 				markerStorage.deletePoints(points);
-				sendChatMessage(points.size() + " ground markers were deleted.");
-				load();
-				chatboxPanelManager.openInput(this);
+				sendChatMessage(points.size() + " ground markers were moved to the recycling bin, where they can be restored until you close the client.");
+				reopen();
 			})
 			.no(() -> chatboxPanelManager.openInput(this))
 			.build();
 	}
 
-	// Restores the last deleted batch through the same confirmation as a clipboard import.
-	private void undoDelete()
+	// Back into saved markers, through the same confirmation as a clipboard import; back to them once the bin's empty.
+	private void restore(Entry entry)
 	{
-		sharingManager.confirmImport(deletedMarkers.last(), " ground markers were restored.", () ->
+		sharingManager.confirmImport(entry.points, " ground markers were restored.", () ->
 		{
-			deletedMarkers.clear();
-			load();
-			chatboxPanelManager.openInput(this);
+			deletedMarkers.removeAll(entry.points);
+			reopen();
 		}, () -> chatboxPanelManager.openInput(this));
 	}
 

@@ -31,7 +31,7 @@ public final class ChatboxWidgets
 {
 	public static final int SCROLLBAR_WIDTH = 14;
 	public static final int HOVER_COLOR = 0x444444;
-	public static final int DISABLED_COLOR = 0x888888;
+	public static final int DISABLED_COLOR = 0x666666;
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
 	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
