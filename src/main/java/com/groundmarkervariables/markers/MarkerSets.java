@@ -8,6 +8,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSyntaxException;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.markers.minify.MarkerMinifier;
+import com.groundmarkervariables.markers.minify.NewerFormatException;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.support.RegionNames;
@@ -84,6 +86,7 @@ public class MarkerSets implements TileSource
 	private final RenderedTiles renderedTiles;
 	private final LabelResolver labelResolver;
 	private final MetaVariableResolver metaVariableResolver;
+	private final MarkerMinifier markerMinifier;
 
 	private volatile List<MarkerSet> sets = List.of();
 	private State state = new State();
@@ -422,56 +425,116 @@ public class MarkerSets implements TileSource
 		return parse(text, MarkerSet.Kind.SHARED, null);
 	}
 
-	// {"title", "author", "version", "updated": "yyyy-mm-dd", "tiles": [marker, or {"title", "tiles": [marker...]}]}; a marker
-	// may have a "title", and either may have "enabled": false to start off.
+	// Copy's array (see export(MarkerSet)), or the stored {"title", "author", "version", "updated": "yyyy-mm-dd", "tiles":
+	// [marker, or {"title", "tiles": [marker...]}]}, where a marker may have a "title", and either "enabled": false.
 	@Nullable
 	private MarkerSet parse(String text, MarkerSet.Kind kind, @Nullable String id)
 	{
 		try
 		{
 			JsonElement element = gson.fromJson(text, JsonElement.class);
-			if (element == null || !element.isJsonObject())
+			JsonObject json = element != null && element.isJsonArray() ? copiedSet(element.getAsJsonArray())
+				: element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+			if (json == null || !element.isJsonArray() && !(json.has("tiles") && json.get("tiles").isJsonArray()))
 			{
 				return null;
 			}
-			JsonObject json = element.getAsJsonObject();
-			if (!json.has("tiles") || !json.get("tiles").isJsonArray())
-			{
-				return null;
-			}
+			List<MarkerSet.Entry> entries = element.isJsonArray() ? copiedEntries(text, element.getAsJsonArray()) : storedEntries(json);
 			String title = string(json, "title");
 			String author = string(json, "author");
 			title = title == null ? "Untitled" : title;
 			author = author == null ? MarkerSet.ANON : author;
 			int version = json.has("version") ? json.get("version").getAsInt() : 0;
 			String updated = string(json, "updated");
-
-			List<MarkerSet.Entry> entries = new ArrayList<>();
-			for (JsonElement entryJson : json.getAsJsonArray("tiles"))
-			{
-				JsonObject entry = entryJson.getAsJsonObject();
-				boolean group = entry.has("tiles");
-				List<GroundMarkerPointData> tiles = new ArrayList<>();
-				for (JsonElement tile : group ? entry.getAsJsonArray("tiles") : List.<JsonElement>of(entry))
-				{
-					tiles.add(gson.fromJson(tile, GroundMarkerPointData.class));
-				}
-				boolean enabled = !entry.has("enabled") || entry.get("enabled").getAsBoolean();
-				entries.add(new MarkerSet.Entry(string(entry, "title"), tiles, group, enabled, entries.size()));
-			}
 			return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, author, version,
 				updated == null ? null : LocalDate.parse(updated), entries);
 		}
-		catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException e)
+		catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException | NewerFormatException e)
 		{
 			throw new JsonSyntaxException(e);
 		}
 	}
 
+	// A copied set's own fields: its first tile's "set", or null if it's just markers.
+	@Nullable
+	private static JsonObject copiedSet(JsonArray tiles)
+	{
+		JsonElement set = tiles.size() > 0 && tiles.get(0).isJsonObject() ? tiles.get(0).getAsJsonObject().get("set") : null;
+		return set != null && set.isJsonObject() ? set.getAsJsonObject() : null;
+	}
+
+	// Its tiles by "entry", in order: a title and on/off from each entry's first tile, a group if it has several.
+	private List<MarkerSet.Entry> copiedEntries(String text, JsonArray array) throws NewerFormatException
+	{
+		List<GroundMarkerPointData> tiles = markerMinifier.parse(text);
+		Map<Integer, JsonObject> firsts = new LinkedHashMap<>();
+		Map<Integer, List<GroundMarkerPointData>> byEntry = new HashMap<>();
+		for (int i = 0; i < tiles.size(); i++)
+		{
+			JsonObject tile = array.get(i).getAsJsonObject();
+			// Without "entry", a tile is its own.
+			int entry = tile.has("entry") ? tile.get("entry").getAsInt() : -1 - i;
+			firsts.putIfAbsent(entry, tile);
+			byEntry.computeIfAbsent(entry, key -> new ArrayList<>()).add(tiles.get(i));
+		}
+		List<MarkerSet.Entry> entries = new ArrayList<>();
+		firsts.forEach((entry, first) -> entries.add(new MarkerSet.Entry(string(first, "entryTitle"), byEntry.get(entry),
+			byEntry.get(entry).size() > 1, !first.has("enabled") || first.get("enabled").getAsBoolean(), entries.size())));
+		return entries;
+	}
+
+	private List<MarkerSet.Entry> storedEntries(JsonObject json)
+	{
+		List<MarkerSet.Entry> entries = new ArrayList<>();
+		for (JsonElement entryJson : json.getAsJsonArray("tiles"))
+		{
+			JsonObject entry = entryJson.getAsJsonObject();
+			boolean group = entry.has("tiles");
+			List<GroundMarkerPointData> tiles = new ArrayList<>();
+			for (JsonElement tile : group ? entry.getAsJsonArray("tiles") : List.<JsonElement>of(entry))
+			{
+				tiles.add(gson.fromJson(tile, GroundMarkerPointData.class));
+			}
+			boolean enabled = !entry.has("enabled") || entry.get("enabled").getAsBoolean();
+			entries.add(new MarkerSet.Entry(string(entry, "title"), tiles, group, enabled, entries.size()));
+		}
+		return entries;
+	}
+
 	// The set's JSON, as parse() reads it, with its stored author history; an own set's entries start as they're switched now.
+	// Copy's text: core's marker array, so core and Tile Packs can import it, with "entry"/"entryTitle"/"enabled" per tile
+	// and the set's fields in the first tile's "set" for parse(). Own sets use their current on/off; empty sets, the stored form.
 	public String export(MarkerSet set)
 	{
-		return export(set, history(set), set.kind == MarkerSet.Kind.OWN);
+		List<GroundMarkerPointData> tiles = new ArrayList<>();
+		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+		if (tiles.isEmpty())
+		{
+			return export(set, history(set), set.kind == MarkerSet.Kind.OWN);
+		}
+		JsonArray array = gson.fromJson(markerMinifier.exportGmvPlain(tiles), JsonArray.class);
+		int index = 0;
+		for (int entryIndex = 0; entryIndex < set.entries.size(); entryIndex++)
+		{
+			MarkerSet.Entry entry = set.entries.get(entryIndex);
+			for (int tile = 0; tile < entry.tiles.size(); tile++, index++)
+			{
+				JsonObject json = array.get(index).getAsJsonObject();
+				json.addProperty("entry", entryIndex);
+				if (tile == 0 && entry.title != null)
+				{
+					json.addProperty("entryTitle", entry.title);
+				}
+				if (tile == 0 && !(set.kind == MarkerSet.Kind.OWN ? enabled(set, entry) : entry.enabledByDefault))
+				{
+					json.addProperty("enabled", false);
+				}
+			}
+		}
+		JsonObject setJson = gson.fromJson(export(set, history(set), false), JsonObject.class);
+		setJson.remove("tiles");
+		array.get(0).getAsJsonObject().add("set", setJson);
+		return gson.newBuilder().disableHtmlEscaping().create().toJson(array);
 	}
 
 	// history: earlier authors, oldest first, written only if any. Starts by naming the plugin it's for (not read back).
@@ -646,12 +709,13 @@ public class MarkerSets implements TileSource
 		return history(configManager.getConfiguration(GROUP, SET_PREFIX + set.key()));
 	}
 
-	// A set's JSON's "history", or none.
+	// A set's JSON's "history" (a copied one's in its "set"), or none.
 	private JsonArray history(@Nullable String text)
 	{
 		try
 		{
 			JsonElement json = text == null ? null : gson.fromJson(text, JsonElement.class);
+			json = json != null && json.isJsonArray() ? copiedSet(json.getAsJsonArray()) : json;
 			JsonElement history = json != null && json.isJsonObject() ? json.getAsJsonObject().get("history") : null;
 			return history != null && history.isJsonArray() ? history.getAsJsonArray() : new JsonArray();
 		}
