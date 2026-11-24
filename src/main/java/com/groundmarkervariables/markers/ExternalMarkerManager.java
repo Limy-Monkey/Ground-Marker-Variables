@@ -126,7 +126,7 @@ public class ExternalMarkerManager implements TileSource
 	boolean shown(String name, List<GroundMarkerPointData> tiles)
 	{
 		Group group = groups.get(name);
-		return group != null && tiles.stream().noneMatch(tile -> group.hiddenTiles.contains(stored(tile)));
+		return group != null && tiles.stream().noneMatch(tile -> group.hiddenTiles.contains(tile.worldPoint()));
 	}
 
 	void show(String name, boolean shown)
@@ -150,11 +150,11 @@ public class ExternalMarkerManager implements TileSource
 		{
 			if (shown)
 			{
-				group.hiddenTiles.remove(stored(tile));
+				group.hiddenTiles.remove(tile.worldPoint());
 			}
 			else
 			{
-				group.hiddenTiles.add(stored(tile));
+				group.hiddenTiles.add(tile.worldPoint());
 			}
 		}
 		hidesChanged();
@@ -167,11 +167,6 @@ public class ExternalMarkerManager implements TileSource
 		{
 			listener.run();
 		}
-	}
-
-	private static WorldPoint stored(GroundMarkerPointData tile)
-	{
-		return WorldPoint.fromRegion(tile.getRegionId(), tile.getRegionX(), tile.getRegionY(), tile.getZ());
 	}
 
 	@Override

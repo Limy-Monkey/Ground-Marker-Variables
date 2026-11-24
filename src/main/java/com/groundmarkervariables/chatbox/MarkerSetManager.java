@@ -292,32 +292,30 @@ public class MarkerSetManager extends SearchableChatbox
 		ChatboxWidgets.hover(label, 0x000000);
 	}
 
-	// Show on map, if tiles are on a world map: pins all set's tiles (each named by its entry) and moves the open map to
-	// tiles; with it closed, a notice under labelArea.
+	// Map (see WorldMapPins#mapChoices): all set's tiles pinned (each named by its entry) or on RuneLite.net, the open
+	// world map moved to tiles.
 	private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea)
 	{
-		if (!mapPins.onAnyMap(tiles, this::updateIfOpen))
+		addSubmenu(widget, actions, "Map", mapPins.mapChoices(tiles, titledTiles(set), () ->
 		{
-			return;
-		}
-		addAction(widget, actions, "Show on map", () ->
-		{
-			if (!mapPins.mapOpen())
-			{
-				notice(labelArea, "Open the world map first, then choose Show on map again.");
-				return;
-			}
 			Map<String, List<GroundMarkerPointData>> byEntry = new LinkedHashMap<>();
 			set.entries.forEach(entry -> byEntry.computeIfAbsent(entry.name(), name -> new ArrayList<>()).addAll(entry.tiles));
 			mapPins.pin(set, byEntry);
-			mapPins.moveTo(tiles);
-		});
+		}, text -> notice(labelArea, text), this::updateIfOpen));
 	}
 
 	private static List<GroundMarkerPointData> tiles(MarkerSet set)
 	{
 		List<GroundMarkerPointData> tiles = new ArrayList<>();
 		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+		return tiles;
+	}
+
+	// tiles(set), each labeled by its entry's title if it has one, for RuneLite.net.
+	private static List<GroundMarkerPointData> titledTiles(MarkerSet set)
+	{
+		List<GroundMarkerPointData> tiles = new ArrayList<>();
+		set.entries.forEach(entry -> entry.tiles.forEach(tile -> tiles.add(entry.title == null ? tile : tile.withLabel(entry.title))));
 		return tiles;
 	}
 

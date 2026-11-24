@@ -69,7 +69,7 @@ public class MarkerStorage
 		for (GroundMarkerPointData point : core)
 		{
 			GroundMarkerPointData gmvPoint = find(gmv, point);
-			merged.add(gmvPoint != null && isEmpty(point.getLabel()) ? withLabel(point, gmvPoint.getLabel()) : point);
+			merged.add(gmvPoint != null && isEmpty(point.getLabel()) ? point.withLabel(gmvPoint.getLabel()) : point);
 		}
 		for (GroundMarkerPointData gmvPoint : gmv)
 		{
@@ -149,7 +149,7 @@ public class MarkerStorage
 		{
 			if (config.smartSave() && point.getLabel() != null && VARIABLE.matcher(point.getLabel()).find())
 			{
-				core.add(withLabel(point, null));
+				core.add(point.withLabel(null));
 				gmv.add(point);
 			}
 			else
@@ -195,10 +195,6 @@ public class MarkerStorage
 		return label == null || label.isEmpty();
 	}
 
-	private static GroundMarkerPointData withLabel(GroundMarkerPointData point, String label)
-	{
-		return new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), point.getColor(), label);
-	}
 
 	private static GroundMarkerPointData find(Collection<GroundMarkerPointData> points, GroundMarkerPointData point)
 	{

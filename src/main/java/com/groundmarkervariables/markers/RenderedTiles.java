@@ -127,7 +127,7 @@ public class RenderedTiles
 					for (SourceMarker marker : source.markers(regionId))
 					{
 						GroundMarkerPointData point = marker.marker.source;
-						WorldPoint stored = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+						WorldPoint stored = point.worldPoint();
 						for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, stored))
 						{
 							tiles.all.computeIfAbsent(worldPoint, p -> new ArrayList<>()).add(new RenderedTile(worldPoint, stored, marker));

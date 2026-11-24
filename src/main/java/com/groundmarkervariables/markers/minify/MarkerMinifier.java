@@ -6,7 +6,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,6 +48,12 @@ public class MarkerMinifier
 	public String exportPlain(List<GroundMarkerPointData> points)
 	{
 		return gson.newBuilder().disableHtmlEscaping().create().toJson(points);
+	}
+
+	// exportPlain's UTF-8 in base64, e.g. for runelite.net's tile map link.
+	public String exportPlainBase64(List<GroundMarkerPointData> points)
+	{
+		return Base64.getEncoder().encodeToString(exportPlain(points).getBytes(StandardCharsets.UTF_8));
 	}
 
 	// As exportPlain, but a label with variables goes in "gmv" as written, so core imports the tile unlabeled.
@@ -92,8 +100,7 @@ public class MarkerMinifier
 			JsonElement gmv = element.getAsJsonObject().get(FIELD);
 			if (gmv != null && gmv.isJsonPrimitive())
 			{
-				point = new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(),
-					point.getColor(), label(gmv.getAsString()));
+				point = point.withLabel(label(gmv.getAsString()));
 			}
 			points.add(point);
 		}

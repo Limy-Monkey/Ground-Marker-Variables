@@ -118,7 +118,7 @@ public class MarkerManager extends SearchableChatbox
 			// Each marker's own area: one region can hold several.
 			for (GroundMarkerPointData point : markerStorage.getStoredPoints(regionId))
 			{
-				String name = RegionNames.name(WorldMapPins.worldPoint(point));
+				String name = RegionNames.name(point.worldPoint());
 				String area = name != null ? name : "Region " + regionId;
 				String label = point.getLabel() == null ? "" : point.getLabel();
 				byKey.computeIfAbsent(area + '\0' + label + '\0' + point.getColor(),
@@ -279,27 +279,14 @@ public class MarkerManager extends SearchableChatbox
 		{
 			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
 		}
-		if (mapPins.onAnyMap(entry.points, this::updateIfOpen))
+		Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
+		addSubmenu(row, actions, "Map", mapPins.mapChoices(entry.points, entry.points, () ->
 		{
-			Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
-			addAction(row, actions, "Show on map", () -> showOnMap(entry, labelArea));
-		}
+			shown = entry;
+			updatePins();
+		}, text -> notice(labelArea, text), this::updateIfOpen));
 		row.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		ChatboxWidgets.hover(row, 0x000000, area, label);
-	}
-
-	// Pins entry's markers on the open world map and moves it to them, switching maps (e.g. to Prifddinas) through the map's
-	// own link handling. Else a notice under labelArea that the map is closed.
-	private void showOnMap(Entry entry, Rectangle labelArea)
-	{
-		if (!mapPins.mapOpen())
-		{
-			notice(labelArea, "Open the world map first, then choose Show on map again.");
-			return;
-		}
-		shown = entry;
-		updatePins();
-		mapPins.moveTo(entry.points);
 	}
 
 	private void updatePins()
@@ -324,7 +311,7 @@ public class MarkerManager extends SearchableChatbox
 
 	private void edit(GroundMarkerPointData point)
 	{
-		editLabel(point, label -> plugin.saveExpandedLabel(WorldMapPins.worldPoint(point), label));
+		editLabel(point, label -> plugin.saveExpandedLabel(point.worldPoint(), label));
 	}
 
 	// Reloaded, e.g. to show an edited label.

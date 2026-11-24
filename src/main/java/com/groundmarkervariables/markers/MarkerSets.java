@@ -292,7 +292,7 @@ public class MarkerSets implements TileSource
 		Map<String, Integer> counts = new HashMap<>();
 		for (GroundMarkerPointData point : points)
 		{
-			String name = RegionNames.name(WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ()));
+			String name = RegionNames.name(point.worldPoint());
 			if (name != null)
 			{
 				counts.merge(name, 1, Integer::sum);
@@ -405,9 +405,8 @@ public class MarkerSets implements TileSource
 		for (MarkerSet.Entry entry : set.entries)
 		{
 			GroundMarkerPointData tile = entry.tiles.get(0);
-			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, List.of(new GroundMarkerPointData(tile.getRegionId(),
-				tile.getRegionX(), tile.getRegionY(), tile.getZ(), tile.getColor(), label.isEmpty() ? null : label)), false,
-				entry.enabledByDefault, moved.size()));
+			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, List.of(tile.withLabel(label.isEmpty() ? null : label)),
+				false, entry.enabledByDefault, moved.size()));
 		}
 		edit(set, moved);
 	}

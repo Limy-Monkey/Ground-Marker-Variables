@@ -6,6 +6,7 @@ import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
 import com.groundmarkervariables.chatbox.ConfirmChatbox;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.chatbox.MarkerManager;
+import com.groundmarkervariables.chatbox.SearchableChatbox;
 import com.groundmarkervariables.chatbox.SuggestionIconOverlay;
 import com.groundmarkervariables.graphics.GroundMarkerVariablesMinimapOverlay;
 import com.groundmarkervariables.markers.CachedMarker;
@@ -399,6 +400,12 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	@Subscribe(priority = -1)
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
+		// The Marker Manager's and Marker Sets' submenus.
+		if (chatboxPanelManager.getCurrentInput() instanceof SearchableChatbox)
+		{
+			((SearchableChatbox) chatboxPanelManager.getCurrentInput()).menuEntryAdded(event.getMenuEntry());
+		}
+
 		MenuAction menuAction = event.getMenuEntry().getType();
 		if (!client.isKeyPressed(KeyCode.KC_SHIFT) || (menuAction != MenuAction.WALK && menuAction != MenuAction.SET_HEADING))
 		{
@@ -678,7 +685,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
 				&& point.getZ() == worldPoint.getPlane())
 			{
-				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), newColor, point.getLabel()));
+				points.set(i, point.withColor(newColor));
 				markerStorage.savePoints(regionId, points);
 				return;
 			}
@@ -693,7 +700,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		List<GroundMarkerPointData> newPoints = new ArrayList<>();
 		for (GroundMarkerPointData point : regionPoints)
 		{
-			newPoints.add(new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), defaultColor, point.getLabel()));
+			newPoints.add(point.withColor(defaultColor));
 		}
 
 		markerStorage.savePoints(regionId, newPoints);
@@ -854,7 +861,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
 				&& point.getZ() == worldPoint.getPlane())
 			{
-				points.set(i, new GroundMarkerPointData(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ(), point.getColor(), label));
+				points.set(i, point.withLabel(label));
 				markerStorage.savePoints(regionId, points);
 				if (label != null)
 				{

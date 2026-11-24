@@ -6,17 +6,22 @@ import com.groundmarkervariables.markers.GroundMarkerPointData;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.SpritePixels;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
+import net.runelite.api.Menu;
+import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
@@ -67,6 +72,8 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	protected FontTypeFace font;
 	private String[] headings;
 	private int[] widths;
+	// This update's addSubmenu() choices, by widget and option.
+	private final Map<Widget, Map<String, Map<String, Runnable>>> submenus = new HashMap<>();
 
 	protected SearchableChatbox(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, ChatMessageManager chatMessageManager,
 		SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets, Client client, GroundMarkerVariablesPlugin plugin)
@@ -94,6 +101,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		container.deleteAllChildren();
 		iconPlacements.clear();
 		tips.clear();
+		submenus.clear();
 
 		widgets.logo(container, iconPlacements, this);
 		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
@@ -214,7 +222,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// another chatbox (which leaves a current input).
 	protected void editLabel(GroundMarkerPointData tile, Consumer<String> save)
 	{
-		plugin.editLabel(WorldPoint.fromRegion(tile.getRegionId(), tile.getRegionX(), tile.getRegionY(), tile.getZ()), tile.getLabel(),
+		plugin.editLabel(tile.worldPoint(), tile.getLabel(),
 			tile.getColor(), save, () -> clientThread.invokeLater(() ->
 			{
 				if (chatboxPanelManager.getCurrentInput() == null)
@@ -367,6 +375,30 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		widget.setHasListener(true);
 		widget.setAction(actions.size(), name);
 		actions.add(action);
+	}
+
+	// widget's next right-click option, opening a submenu of choices (in order, e.g. Map > On World Map); itself does
+	// nothing. See menuEntryAdded().
+	protected void addSubmenu(Widget widget, List<Runnable> actions, String name, Map<String, Runnable> choices)
+	{
+		addAction(widget, actions, name, () -> { });
+		submenus.computeIfAbsent(widget, key -> new HashMap<>()).put(name, choices);
+	}
+
+	// From the plugin's onMenuEntryAdded while this is open: makes an addSubmenu() option's entry its submenu.
+	public void menuEntryAdded(MenuEntry entry)
+	{
+		Map<String, Runnable> choices = entry.getWidget() == null ? null
+			: submenus.getOrDefault(entry.getWidget(), Map.of()).get(Text.removeTags(entry.getOption()));
+		if (choices == null)
+		{
+			return;
+		}
+		Menu submenu = entry.createSubMenu();
+		// Each entry goes above the last, so the first choice is added last.
+		List<String> names = new ArrayList<>(choices.keySet());
+		Collections.reverse(names);
+		names.forEach(name -> submenu.createMenuEntry(-1).setOption(name).setType(MenuAction.RUNELITE).onClick(e -> choices.get(name).run()));
 	}
 
 	protected static Widget addText(Widget container, String text, int fontId, int color, int x, int y)

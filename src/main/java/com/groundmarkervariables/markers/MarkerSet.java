@@ -52,9 +52,15 @@ public final class MarkerSet
 			{
 				return title;
 			}
-			String label = tiles.isEmpty() || tiles.get(0).getLabel() == null ? "" : tiles.get(0).getLabel().split("\\\\n|\n", 2)[0].trim();
+			String label = tiles.isEmpty() ? "" : firstLine(tiles.get(0).getLabel());
 			return label.isEmpty() ? "(no label)" : label.length() > 40 ? label.substring(0, 40) + "..." : label;
 		}
+	}
+
+	// A label's first line (before a "\n", typed or real), trimmed; "" for none.
+	public static String firstLine(@Nullable String label)
+	{
+		return label == null ? "" : label.split("\\\\n|\n", 2)[0].trim();
 	}
 
 	public final Kind kind;
