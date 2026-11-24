@@ -122,13 +122,16 @@ public final class Completion
 				all.add(new Option(" " + option.label, " " + option.insert, option.replace, option.icon, option.description));
 			}
 		}
-		int shift = all.size();
-		if (completion == null)
-		{
-			return new Completion(all, -1);
-		}
-		all.addAll(completion.options);
-		return new Completion(all, completion.preferred < 0 ? -1 : completion.preferred + shift);
+		return completion == null ? new Completion(all, -1) : completion.around(all, List.of());
+	}
+
+	// first, this, then last; still preferring the same option.
+	Completion around(List<Option> first, List<Option> last)
+	{
+		List<Option> all = new ArrayList<>(first);
+		all.addAll(options);
+		all.addAll(last);
+		return new Completion(all, preferred < 0 ? -1 : preferred + first.size());
 	}
 
 	// This, each labeled option given icon(label) as its icon (null for none).

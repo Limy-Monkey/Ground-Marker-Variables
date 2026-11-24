@@ -6,6 +6,7 @@ import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
+import com.groundmarkervariables.variables.meta.SimpleMetaVariables;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -24,36 +25,25 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
-import lombok.RequiredArgsConstructor;
 import net.runelite.api.gameval.SpriteID;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
 // editor; labels() gives it that editor's recent/nearby labels.
 public class LabelCompleter
 {
-	// The completable name of every variable (variables.json); "lvl_", "col=", ... include what joins them to their argument.
-	private static final List<String> VARIABLE_NAMES = VariableCatalog.NAMES;
-	private static final List<String> NUMERIC_VARIABLE_NAMES = VARIABLE_NAMES.stream()
+	// The variable names (VariableCatalog.NAMES) that fit after a math operator.
+	private static final List<String> NUMERIC_VARIABLE_NAMES = VariableCatalog.NAMES.stream()
 		.filter(NumericVariableRegistry.NAMES::contains).collect(Collectors.toList());
 
-	// Variables with an icon option: listed with what "{<name> icon}" shows.
-	private static final Set<String> ICON_VARIABLES = VariableCatalog.WITH_ICON;
-	// Icon syntax of a boss by name: its hiscores icon, else a sprite of that name.
-	private static final String BOSS_ICON = Args.BOSS_ICON_PREFIX;
-	// Icon syntax of a color swatch: "color:RRGGBB".
-	private static final String COLOR_ICON = "color:";
 	// The first icon tag in a resolved icon.
 	private static final Pattern ICON_TAG = Pattern.compile("<(?:(sprite|item|npc)=(\\d+)(,head)?|(emoji)=([0-9a-f]+))");
 	private static final String SPLIT_OPEN = "{split}";
 	private static final String SPLIT_CLOSE = "{/split}";
 
-	// Names that need more typed before the token is complete, so an exact one isn't closed with "}".
-	private static final Set<String> VARIABLE_NAMES_NEEDING_MORE = VariableCatalog.REQUIRING_ARGUMENT;
-
 
 
 	// {party <template>}: nothing completed, so its parameter hint shows.
-	private static final String PARTY_PREFIX = "party ";
+	private static final Pattern PARTY = Pattern.compile("(?is)party .*");
 
 	private static final String ICON = "icon";
 
@@ -67,70 +57,21 @@ public class LabelCompleter
 	private static final Pattern ICON_TAG_PARTIAL = Pattern.compile("(?:^|[^a-z0-9_])<([a-z]+)$", Pattern.CASE_INSENSITIVE);
 	private static final List<String> ICON_TAGS = List.of("item=", "npc=", "sprite=");
 
-	// Searches listed first after a bare "<sprite=": each sprite name ends in its "(Category)", so inserting it lists
-	// that category. With the sprite shown for it.
-	@RequiredArgsConstructor
-	private static final class SpriteCategory
-	{
-		private final String search;
-		private final int spriteId;
-	}
-
-	private static final List<SpriteCategory> SPRITE_CATEGORIES = List.of(
-		new SpriteCategory("(Prayer)", 946),
-		new SpriteCategory("(Spell)", 328),
-		new SpriteCategory("(Skill)", 222),
-		new SpriteCategory("(Hiscore)", 4281),
-		new SpriteCategory("(Map Icon)", 1453),
-		new SpriteCategory("(Emote)", 707),
-		new SpriteCategory("(Combat)", 238),
-		new SpriteCategory("(Equipment)", 159),
-		new SpriteCategory("(Tab)", 900),
-		new SpriteCategory("(Hitsplat)", 1358),
-		new SpriteCategory("(Chat)", 2158),
-		new SpriteCategory("(Clan Rank)", 3270),
-		new SpriteCategory("(Friends)", 2828),
-		new SpriteCategory("(Bank)", 1041),
-		new SpriteCategory("(Sailing)", 7201),
-		new SpriteCategory("(Ge)", 1108),
-		new SpriteCategory("(Minimap)", 1067),
-		new SpriteCategory("(Texture)", 476),
-		new SpriteCategory("(TFA)", 8360),
-		new SpriteCategory("(Mortimer)", 8551),
-		new SpriteCategory("(Minigame Teleport)", 7479),
-		new SpriteCategory("(Arrow)", 6858),
-		new SpriteCategory("(Options)", 1084));
-
-	// {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage.
-	private static final String METRONOME_NAME = "metronome";
-	private static final String METRONOME_ALIAS = "m";
+	// {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage. "m" only once a digit or +/- follows, so
+	// "{mis..." still completes to miscellania.
+	private static final Pattern METRONOME_NAME = Pattern.compile("(?i)(?:metronome|m(?=[\\d+-]))(.*)");
 	private static final Pattern METRONOME_TOKEN = Pattern.compile("\\{(?:metronome|m)([+-]?\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
 	private static final Pattern METRONOME_PARAM = Pattern.compile("[+-]?\\d+(_\\d+)?");
 	private static final String DEFAULT_METRONOME = "4";
 
-	// {col=<col>}: a named color, else a hex value from recent/nearby <col=> usage.
-	private static final String COLOR_PREFIX = "col=";
+	// {col=}'s hex values from recent/nearby <col=> usage.
 	private static final Pattern COLOR_TAG = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
-
-	// {tileCol=<col>}: a named color, a named opacity, or "N%".
-	private static final String TILECOL_PREFIX = "tileCol=";
-	private static final Pattern TILECOL_PERCENT = Pattern.compile("\\d{1,3}%");
-
-	// {highlight<corner>[=<col>]}: <col> a named color.
-	private static final String HIGHLIGHT_NAME = "highlight";
-	private static final List<String> HIGHLIGHT_CORNERS = List.of("SW", "NW", "NE", "SE", "Corners", "All");
 
 	// {/col}, {/align}, ...: diverge from their opening token at the "/".
 	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}", "/hoverOnly}", "/hoverHide}", "/tip}", "/ground}");
 
-	// {ground@<dir>}: where the top of the {ground} content faces; "{ground" offers the optional "@".
+	// "{ground" offers the optional "@<dir>".
 	private static final Pattern GROUND_NAME = Pattern.compile("(?i)^ground$");
-	private static final Pattern GROUND_FACING = Pattern.compile("(?i)^ground@(\\w*)$");
-	private static final List<String> GROUND_DIRECTIONS = List.of("n", "ne", "e", "se", "s", "sw", "w", "nw");
-
-	// {align=<align>}.
-	private static final String ALIGN_PREFIX = "align=";
-	private static final List<String> ALIGN_VALUES = List.of("Left", "Right", "Center");
 
 	// After a math operator only numeric variables fit. "(" needs no padding, as MathVariable's own (e.g. "(kc tob").
 	private static final Pattern MATH_OPERATOR_BOUNDARY = Pattern.compile("\\s[+\\-*/]\\s|\\(");
@@ -190,14 +131,15 @@ public class LabelCompleter
 			return cached.orElse(null);
 		}
 
-		if (syntax.startsWith(COLOR_ICON))
+		if (syntax.startsWith(Args.COLOR_ICON_PREFIX))
 		{
-			return new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(COLOR_ICON.length()));
+			return new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(Args.COLOR_ICON_PREFIX.length()));
 		}
 
-		if (syntax.startsWith(BOSS_ICON))
+		// A boss: its hiscores icon, else a sprite of that name.
+		if (syntax.startsWith(Args.BOSS_ICON_PREFIX))
 		{
-			String name = syntax.substring(BOSS_ICON.length());
+			String name = syntax.substring(Args.BOSS_ICON_PREFIX.length());
 			Integer sprite = iconNames.bossSprite(name);
 			if (sprite == null)
 			{
@@ -296,16 +238,10 @@ public class LabelCompleter
 	@Nullable
 	private static String token(String text, int cursor)
 	{
-		String before = text.substring(0, cursor);
-		int open = before.lastIndexOf('{');
-		if (open < 0 || before.indexOf('}', open) >= 0)
+		String partial = afterOpen(text.substring(0, cursor));
+		if (partial == null)
 		{
 			return null;
-		}
-		String partial = before.substring(open + 1);
-		if (!partial.isEmpty() && "^&*".indexOf(partial.charAt(0)) >= 0)
-		{
-			partial = partial.substring(1);
 		}
 		int boundaryEnd = Math.max(lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial), lastMatchEnd(CONDITION_BOUNDARY, partial));
 		return boundaryEnd >= 0 ? partial.substring(boundaryEnd).stripLeading() : partial;
@@ -356,6 +292,19 @@ public class LabelCompleter
 				variable.endsWith("}") ? variable : variable + "}", option.description));
 		}
 		return new Completion(options, completion.preferred);
+	}
+
+	// What's typed after the last "{" in before if it's open, without a {^var} / {&var} / {*var} Rich/Plain prefix; else null.
+	@Nullable
+	private static String afterOpen(String before)
+	{
+		int open = before.lastIndexOf('{');
+		if (open < 0 || before.indexOf('}', open) >= 0)
+		{
+			return null;
+		}
+		String partial = before.substring(open + 1);
+		return !partial.isEmpty() && "^&*".indexOf(partial.charAt(0)) >= 0 ? partial.substring(1) : partial;
 	}
 
 	// The innermost "{" in before still open (nested pairs skipped), or -1.
@@ -409,7 +358,7 @@ public class LabelCompleter
 		{
 			String name = emojiColor.group(1);
 			return withIcons(match(emojiColor.group(2), NamedColors.SUGGESTED, ":" + name + "@", ":", ":", true),
-				LabelCompleter::colorIcon);
+				Args.COLOR_ICON);
 		}
 
 		Matcher emoji = EMOJI_PARTIAL.matcher(before);
@@ -418,18 +367,11 @@ public class LabelCompleter
 			return completeEmoji(emoji.group(1));
 		}
 
-		int open = before.lastIndexOf('{');
-		if (open < 0 || before.indexOf('}', open) >= 0)
+		String partial = afterOpen(before);
+		if (partial == null)
 		{
 			// Right after a nested variable inside one still open, e.g. "{party {rsn}": close the outer one.
 			return before.endsWith("}") && unclosedOpen(before) >= 0 && !text.startsWith("}", cursor) ? Completion.closer("}") : null;
-		}
-
-		String partial = before.substring(open + 1);
-		// {^var} / {&var} / {*var}: a Rich/Plain override prefix.
-		if (!partial.isEmpty() && "^&*".indexOf(partial.charAt(0)) >= 0)
-		{
-			partial = partial.substring(1);
 		}
 		if (partial.isEmpty())
 		{
@@ -493,7 +435,7 @@ public class LabelCompleter
 	{
 		List<Rule> list = new ArrayList<>();
 		list.add((partial, numeric) -> numeric || partial.charAt(0) != '/' ? null : orNone(match(partial, CLOSE_ALIASES, "{", "", null, true)));
-		list.add(prefix(PARTY_PREFIX, false, rest -> null));
+		list.add(pattern(PARTY, m -> null));
 		for (LabelVariable variable : labelResolver.variables())
 		{
 			Args args = variable.args();
@@ -502,27 +444,12 @@ public class LabelCompleter
 				list.add(argsRule(args));
 			}
 		}
-		list.add(prefix(METRONOME_NAME, false, this::completeMetronomeParams));
-		// "m" alias: only once a digit or +/- follows, so "{mis..." still completes to miscellania.
-		list.add((partial, numeric) -> numeric || partial.length() < 2 || !partial.regionMatches(true, 0, METRONOME_ALIAS, 0, 1)
-			|| !(Character.isDigit(partial.charAt(1)) || partial.charAt(1) == '+' || partial.charAt(1) == '-')
-			? null : orNone(completeMetronomeParams(partial.substring(1))));
-		list.add(prefix(COLOR_PREFIX, false, this::completeColorValue));
-		list.add(prefix(TILECOL_PREFIX, false, this::completeTileColValue));
-		list.add(prefix(HIGHLIGHT_NAME, false, this::completeHighlight));
-		list.add(prefix(ALIGN_PREFIX, false, rest -> match(rest, ALIGN_VALUES, "{" + ALIGN_PREFIX, "}", null, true)));
+		list.add(pattern(METRONOME_NAME, m -> completeMetronomeParams(m.group(1))));
+		SimpleMetaVariables.args(() -> recent.values(COLOR_TAG)).forEach(args -> list.add(argsRule(args)));
 		// "@" listed; Tab still closes with "}".
 		list.add(pattern(GROUND_NAME, m -> described(new Completion(List.of(new Completion.Option("@", "@", 0, null),
 			new Completion.Option(null, "}", 0, null)), 1), "ground")));
-		list.add(pattern(GROUND_FACING, m -> completeGroundFacing(m.group(1))));
 		return list;
-	}
-
-	// Applies to text starting with prefix (any case), completing what follows it; inMath: also after a math operator.
-	private static Rule prefix(String prefix, boolean inMath, Function<String, Completion> complete)
-	{
-		return (partial, numeric) -> (numeric && !inMath) || !partial.regionMatches(true, 0, prefix, 0, prefix.length())
-			? null : orNone(complete.apply(partial.substring(prefix.length())));
 	}
 
 	// A variable with args(): applies once its name is followed by a space or comma; after a math operator only if numeric.
@@ -582,18 +509,20 @@ public class LabelCompleter
 	@Nullable
 	private Completion variableNames(String partial, boolean numeric)
 	{
-		boolean needsMore = VARIABLE_NAMES_NEEDING_MORE.stream().anyMatch(partial::equalsIgnoreCase);
-		Completion names = withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VARIABLE_NAMES, "{", "", needsMore ? null : "}", false),
-			name -> ICON_VARIABLES.contains(name) ? "{" + name + " icon}" : null);
+		// One needing an argument isn't closed with "}"; one with an icon option shows what "{<name> icon}" does.
+		boolean needsMore = VariableCatalog.REQUIRING_ARGUMENT.stream().anyMatch(partial::equalsIgnoreCase);
+		Completion names = withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VariableCatalog.NAMES, "{", "", needsMore ? null : "}", false),
+			name -> VariableCatalog.WITH_ICON.contains(name) ? "{" + name + " icon}" : null);
 		return names == null ? null : names.withDescriptions(VariableCatalog::description);
 	}
 
-	// The names starting with partial (any case), those only containing it, and whether one equals it.
+	// The longer names starting with partial (any case), those only containing it, and the one equal to it, if any.
 	private static final class Matches
 	{
 		private final List<String> names = new ArrayList<>();
 		private final List<String> contained = new ArrayList<>();
-		private boolean exact;
+		@Nullable
+		private String exact;
 	}
 
 	private static Matches matches(String partial, Iterable<String> names)
@@ -608,7 +537,7 @@ public class LabelCompleter
 			}
 			else if (name.equalsIgnoreCase(partial))
 			{
-				matches.exact = true;
+				matches.exact = name;
 			}
 			else if (!partial.isEmpty() && name.toLowerCase(Locale.ROOT).contains(lower))
 			{
@@ -638,7 +567,7 @@ public class LabelCompleter
 			String preferred = partial.isEmpty() && !ghostWhenEmpty ? null : recent.pick(matches.names, tokenPrefix);
 			starting = Completion.of(matches.names, partial.length(), append, preferred);
 		}
-		else if (matches.exact && exactCloser != null)
+		else if (matches.exact != null && exactCloser != null)
 		{
 			starting = Completion.closer(exactCloser);
 		}
@@ -661,9 +590,7 @@ public class LabelCompleter
 		{
 			return Completion.closer("}");
 		}
-		List<String> fitting = options.stream()
-			.filter(option -> word.length() < option.length() && option.regionMatches(true, 0, word, 0, word.length()))
-			.collect(Collectors.toList());
+		List<String> fitting = matches(word, options).names;
 		return fitting.isEmpty() ? null : Completion.of(fitting, word.length(), "", word.isEmpty() ? null : fitting.get(0));
 	}
 
@@ -675,7 +602,7 @@ public class LabelCompleter
 	@Nullable
 	private Completion completeArgs(Args args, String partial)
 	{
-		String prefix = args.name() + " ";
+		String prefix = args.name() + (args.isJoined() ? "" : " ");
 		String catalog = args.catalogName();
 		Matcher value = args.valueTyped(partial);
 		if (value != null)
@@ -736,8 +663,7 @@ public class LabelCompleter
 		{
 			return options.isEmpty() ? null : new Completion(options, -1);
 		}
-		options.addAll(completion.options);
-		return new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + words.size());
+		return completion.around(options, List.of());
 	}
 
 	// Each option given the description of the parameter it completes for variable (variables.json), if any.
@@ -756,16 +682,17 @@ public class LabelCompleter
 		{
 			return null;
 		}
-		List<String> names = iconNames.matches(kind, partial);
-		if (names.isEmpty())
+		// An exact name is listed too, to close it.
+		Matches matches = matches(partial, iconNames.matches(kind, partial));
+		List<String> starting = matches.names;
+		List<String> contained = matches.contained;
+		if (matches.exact != null)
+		{
+			starting.add(0, matches.exact);
+		}
+		if (starting.isEmpty() && contained.isEmpty())
 		{
 			return null;
-		}
-		List<String> starting = new ArrayList<>();
-		List<String> contained = new ArrayList<>();
-		for (String name : names)
-		{
-			(name.regionMatches(true, 0, partial, 0, partial.length()) ? starting : contained).add(name);
 		}
 		String closer = closed ? "" : ">";
 		Completion completion = Completion.of(starting, partial.length(), closer, starting.isEmpty() || partial.isEmpty() ? null : starting.get(0))
@@ -787,21 +714,15 @@ public class LabelCompleter
 		if (kind == IconNames.Kind.SPRITE && partial.isEmpty())
 		{
 			List<Completion.Option> options = new ArrayList<>();
-			for (SpriteCategory category : SPRITE_CATEGORIES)
-			{
-				options.add(new Completion.Option(category.search, category.search, 0, "<sprite=" + category.spriteId + ">",
-					"Search " + category.search + " sprites"));
-			}
+			iconNames.spriteCategories().forEach((search, sprite) ->
+				options.add(new Completion.Option(search, search, 0, "<sprite=" + sprite + ">", "Search " + search + " sprites")));
 			options.add(Completion.BREAK);
-			options.addAll(completion.options);
-			completion = new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + options.size() - completion.options.size());
+			completion = completion.around(options, List.of());
 		}
 		// A typed NPC with a chathead also offers ",head" first.
 		if (kind == IconNames.Kind.NPC && iconNames.hasHead(partial))
 		{
-			List<Completion.Option> options = new ArrayList<>(completion.options);
-			options.add(0, new Completion.Option(",head", ",head" + closer, 0, "<npc=" + partial.trim() + ",head>"));
-			completion = new Completion(options, completion.preferred < 0 ? -1 : completion.preferred + 1);
+			completion = completion.around(List.of(new Completion.Option(",head", ",head" + closer, 0, "<npc=" + partial.trim() + ",head>")), List.of());
 		}
 		return completion;
 	}
@@ -818,9 +739,7 @@ public class LabelCompleter
 		{
 			return completion;
 		}
-		List<Completion.Option> options = new ArrayList<>(completion.options);
-		options.add(new Completion.Option("@", "@", 0, null));
-		return new Completion(options, completion.preferred);
+		return completion.around(List.of(), List.of(new Completion.Option("@", "@", 0, null)));
 	}
 
 	// The parameter after "metronome" or "m": digits, an optional "_" and leading +/-. From recent/nearby usage, else
@@ -847,76 +766,6 @@ public class LabelCompleter
 			return Completion.single(partial + DEFAULT_METRONOME, DEFAULT_METRONOME, null);
 		}
 		return METRONOME_PARAM.matcher(partial).matches() ? Completion.closer("}") : null;
-	}
-
-	// A named color, else a hex value from recent/nearby <col=> usage (even with nothing typed: there's no fixed list
-	// to guess from).
-	@Nullable
-	private Completion completeColorValue(String partial)
-	{
-		Completion named = withIcons(match(partial, NamedColors.SUGGESTED, "{" + COLOR_PREFIX, "}", null, true), LabelCompleter::colorIcon);
-		if (named != null)
-		{
-			return named;
-		}
-		String hex = recent.firstValue(COLOR_TAG, partial);
-		return hex == null ? null : Completion.single(hex, hex.substring(partial.length()) + "}", null);
-	}
-
-	// A named opacity or color, or "N%"; closed with "}".
-	@Nullable
-	private Completion completeTileColValue(String partial)
-	{
-		if (TILECOL_PERCENT.matcher(partial).matches())
-		{
-			return Completion.closer("}");
-		}
-		List<String> names = new ArrayList<>(NamedColors.OPACITY_BY_NAME.keySet());
-		names.addAll(NamedColors.SUGGESTED);
-		return withIcons(match(partial, names, "{" + TILECOL_PREFIX, "}", null, true), LabelCompleter::colorIcon);
-	}
-
-	// A named color's swatch icon syntax, or null if name isn't a color (e.g. an opacity name).
-	@Nullable
-	private static String colorIcon(String name)
-	{
-		String hex = NamedColors.HEX_BY_NAME.get(name.toLowerCase(Locale.ROOT));
-		return hex == null ? null : COLOR_ICON + hex;
-	}
-
-	// The corner; once "=" follows a full corner name, a named color closed with "}".
-	@Nullable
-	private Completion completeHighlight(String rest)
-	{
-		int eq = rest.indexOf('=');
-		if (eq < 0)
-		{
-			return match(rest, HIGHLIGHT_CORNERS, "{" + HIGHLIGHT_NAME, "", "}", true);
-		}
-		String corner = rest.substring(0, eq);
-		return HIGHLIGHT_CORNERS.stream().anyMatch(corner::equalsIgnoreCase)
-			? withIcons(match(rest.substring(eq + 1), NamedColors.SUGGESTED, "{" + HIGHLIGHT_NAME, "}", null, true), LabelCompleter::colorIcon)
-			: null;
-	}
-
-	// A direction, closed with "}"; an exact one ("n", which "ne"/"nw" also start) closes as it is.
-	@Nullable
-	private Completion completeGroundFacing(String partial)
-	{
-		if (GROUND_DIRECTIONS.stream().anyMatch(partial::equalsIgnoreCase))
-		{
-			List<String> longer = GROUND_DIRECTIONS.stream()
-				.filter(dir -> dir.length() > partial.length() && dir.regionMatches(true, 0, partial, 0, partial.length()))
-				.collect(Collectors.toList());
-			List<Completion.Option> options = new ArrayList<>();
-			options.add(new Completion.Option(partial.toLowerCase(Locale.ROOT), "}", 0, null));
-			for (String dir : longer)
-			{
-				options.add(new Completion.Option(dir, dir.substring(partial.length()) + "}", 0, null));
-			}
-			return new Completion(options, 0);
-		}
-		return match(partial, GROUND_DIRECTIONS, "{ground@", "}", null, true);
 	}
 
 	private static int lastMatchEnd(Pattern pattern, String text)

@@ -83,17 +83,10 @@ public final class RegionNames
 		return names.byRegion.get(point.getRegionID());
 	}
 
-	// A newer region-names.json (see LatestData); a damaged one is ignored.
+	// A newer region-names.json (see LatestData).
 	public static void update(String json)
 	{
-		try
-		{
-			names = parse(new StringReader(json));
-		}
-		catch (Exception e)
-		{
-			log.warn("Couldn't read the latest region names", e);
-		}
+		names = parse(new StringReader(json));
 	}
 
 	private static Names names()

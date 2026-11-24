@@ -1,7 +1,9 @@
 package com.groundmarkervariables.chatbox.completion;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -45,10 +47,10 @@ final class RecentUsage
 		return candidates.get(0);
 	}
 
-	// The first group-1 value of token in a recent/nearby label that's longer than partial and starts with it.
-	@Nullable
-	String firstValue(Pattern token, String partial)
+	// Every group-1 value of token in a recent/nearby label, recent first.
+	Set<String> values(Pattern token)
 	{
+		Set<String> values = new LinkedHashSet<>();
 		for (List<String> labels : List.of(recent, nearby))
 		{
 			for (String label : labels)
@@ -56,14 +58,18 @@ final class RecentUsage
 				Matcher matcher = token.matcher(label);
 				while (matcher.find())
 				{
-					String value = matcher.group(1);
-					if (value.length() > partial.length() && value.regionMatches(true, 0, partial, 0, partial.length()))
-					{
-						return value;
-					}
+					values.add(matcher.group(1));
 				}
 			}
 		}
-		return null;
+		return values;
+	}
+
+	// The first of values(token) that's longer than partial and starts with it.
+	@Nullable
+	String firstValue(Pattern token, String partial)
+	{
+		return values(token).stream().filter(value -> value.length() > partial.length() && value.regionMatches(true, 0, partial, 0, partial.length()))
+			.findFirst().orElse(null);
 	}
 }

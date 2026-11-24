@@ -74,17 +74,10 @@ public final class BossAliases
 		return new LinkedHashSet<>(byAlias().values());
 	}
 
-	// A newer boss-aliases.json (see LatestData); a damaged one is ignored.
+	// A newer boss-aliases.json (see LatestData).
 	public static void update(String json)
 	{
-		try
-		{
-			byAlias = parse(new StringReader(json));
-		}
-		catch (Exception e)
-		{
-			log.warn("Couldn't read the latest boss aliases", e);
-		}
+		byAlias = parse(new StringReader(json));
 	}
 
 	// Bosses to suggest: the hiscores' (no "The ", no colon, as BossKillCountTracker keys them), the short forms and

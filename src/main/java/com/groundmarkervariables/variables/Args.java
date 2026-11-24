@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.variables.support.BossAliases;
 import com.groundmarkervariables.variables.support.DateLiteralParser;
+import com.groundmarkervariables.variables.support.NamedColors;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -35,11 +36,18 @@ public final class Args
 	public static final String BOSS_ICON_PREFIX = "boss:";
 	public static final Function<String, String> BOSS_ICON = name -> BOSS_ICON_PREFIX + BossAliases.resolve(name);
 	public static final Function<String, String> ITEM_ICON = name -> "<item=" + name + ">";
+	// A named color's swatch, "color:RRGGBB"; none if not a color (e.g. an opacity name).
+	public static final String COLOR_ICON_PREFIX = "color:";
+	public static final Function<String, String> COLOR_ICON = name ->
+	{
+		String hex = NamedColors.HEX_BY_NAME.get(name.toLowerCase(Locale.ROOT));
+		return hex == null ? null : COLOR_ICON_PREFIX + hex;
+	};
 	// Every skill's name, lowercase, and its "<name> (Skill)" sprite (none if not a skill).
 	public static final Supplier<Collection<String>> SKILLS = () -> Arrays.stream(Skill.values())
 		.map(skill -> skill.getName().toLowerCase(Locale.ROOT)).collect(Collectors.toList());
 	public static final Function<String, String> SKILL_ICON = name -> skill(name) == null ? null : "<sprite=" + name + " (Skill)>";
-	private static final Function<String, String> NO_ICON = name -> null;
+	public static final Function<String, String> NO_ICON = name -> null;
 	// A main argument, value or extra: ends before any of {}?:<>=!,|& so a trailing comparator or || / && isn't part of it.
 	private static final String TEXT = "[^{}?:<>=!,|&]+?";
 	// A date value's "-N days" / "N days" (see Options#date).

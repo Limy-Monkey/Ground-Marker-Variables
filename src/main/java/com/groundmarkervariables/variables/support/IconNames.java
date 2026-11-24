@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.support;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -75,7 +76,6 @@ public class IconNames
 	private static final int SPELL_ICON = 597;
 
 	private static final Map<String, Integer> PRAYERS = new LinkedHashMap<>();
-	private static final Map<String, Integer> JSON_SPRITES = loadJsonSprites();
 
 	static
 	{
@@ -146,6 +146,25 @@ public class IconNames
 	private Map<String, Integer> bossSprites;
 	// Sprite ID -> name, for collapse(). Client thread only.
 	private Map<Integer, String> spriteNames;
+	// sprite-names.json: the bundled copy until updateSprites() replaces it.
+	private volatile JsonObject spriteJson = bundledSprites();
+
+	// A newer sprite-names.json (see LatestData). The sprites are rebuilt on next use.
+	public void updateSprites(String json)
+	{
+		spriteJson = new JsonParser().parse(json).getAsJsonObject();
+		clientThread.invoke(() ->
+		{
+			indexes.remove(Kind.SPRITE);
+			spriteNames = null;
+		});
+	}
+
+	// Searches listed first after a bare "<sprite=", each with its sprite: every sprite name ends in its "(Category)".
+	public Map<String, Integer> spriteCategories()
+	{
+		return jsonSprites(spriteJson, "categories");
+	}
 
 	// Client thread. Takes note of nearby NPCs and held items for complete().
 	public void refreshNearby()
@@ -571,23 +590,35 @@ public class IconNames
 
 		addTableSprites(names, ids, DBTableID.HiscoresBossesInfo.ID, DBTableID.HiscoresBossesInfo.COL_BOSSNAME,
 			DBTableID.HiscoresBossesInfo.COL_BOSSICON, " (Hiscore)");
-		JSON_SPRITES.forEach((name, id) -> addSprite(names, ids, name, id));
+		jsonSprites(spriteJson, "sprites").forEach((name, id) -> addSprite(names, ids, name, id));
 	}
 
-	// sprite-names.json: RuneLite's SpriteID constants as "Name (Category)" -> id.
-	private static Map<String, Integer> loadJsonSprites()
+	// The bundled sprite-names.json; empty if unreadable.
+	private static JsonObject bundledSprites()
 	{
-		Map<String, Integer> sprites = new LinkedHashMap<>();
 		try (Reader reader = new InputStreamReader(IconNames.class.getResourceAsStream("sprite-names.json"), StandardCharsets.UTF_8))
 		{
-			for (Map.Entry<String, JsonElement> sprite : new JsonParser().parse(reader).getAsJsonObject().getAsJsonObject("sprites").entrySet())
-			{
-				sprites.put(sprite.getKey(), sprite.getValue().getAsInt());
-			}
+			return new JsonParser().parse(reader).getAsJsonObject();
 		}
 		catch (Exception e)
 		{
 			log.warn("Couldn't load sprite names", e);
+			return new JsonObject();
+		}
+	}
+
+	// A name -> sprite ID map from json, in order: "sprites", RuneLite's SpriteID constants as "Name (Category)", or
+	// "categories". Empty if missing.
+	private static Map<String, Integer> jsonSprites(JsonObject json, String key)
+	{
+		Map<String, Integer> sprites = new LinkedHashMap<>();
+		JsonObject section = json.getAsJsonObject(key);
+		if (section != null)
+		{
+			for (Map.Entry<String, JsonElement> sprite : section.entrySet())
+			{
+				sprites.put(sprite.getKey(), sprite.getValue().getAsInt());
+			}
 		}
 		return sprites;
 	}
