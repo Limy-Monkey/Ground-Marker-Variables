@@ -30,6 +30,7 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -71,6 +73,7 @@ import lombok.RequiredArgsConstructor;
 // Shared tile/label drawing code behind GroundMarkerVariablesTileOverlay and
 // GroundMarkerVariablesLabelOverlay -- not an Overlay itself.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundMarkerVariablesOverlay
 {
 	private static final int MAX_DRAW_DISTANCE = 32;
@@ -108,7 +111,6 @@ public class GroundMarkerVariablesOverlay
 	// Bounds on the screen px per text px a {ground} text image is rendered at.
 	private static final double MIN_GROUND_TEXT_RESOLUTION = 0.25;
 	private static final double MAX_GROUND_TEXT_RESOLUTION = 16;
-	private static final Pattern GROUND_NPC_PATTERN = Pattern.compile("<npc=(\\d+)(,head)?>", Pattern.CASE_INSENSITIVE);
 	private static final int DEFAULT_CELL_PADDING = 4;
 	// Space around a hovered label's text, inside its background.
 	private static final int HOVER_MARGIN = 3;
@@ -184,25 +186,6 @@ public class GroundMarkerVariablesOverlay
 	private final GroundModelRenderer groundModelRenderer;
 	private final ItemModels itemModels;
 	private final GroundImageRenderer groundImageRenderer;
-	@Inject
-	private GroundMarkerVariablesOverlay(Client client, GroundMarkerVariablesConfig config,
-		ItemManager itemManager, SpriteManager spriteManager, Emojis emojis, RenderedTiles renderedTiles, TooltipManager tooltipManager,
-		MarkerCulling markerCulling, GroundImageRenderer groundImageRenderer, NpcImages npcImages, GroundModelRenderer groundModelRenderer,
-		ItemModels itemModels)
-	{
-		this.renderedTiles = renderedTiles;
-		this.itemModels = itemModels;
-		this.npcImages = npcImages;
-		this.groundModelRenderer = groundModelRenderer;
-		this.groundImageRenderer = groundImageRenderer;
-		this.tooltipManager = tooltipManager;
-		this.markerCulling = markerCulling;
-		this.client = client;
-		this.config = config;
-		this.itemManager = itemManager;
-		this.spriteManager = spriteManager;
-		this.emojis = emojis;
-	}
 
 	// Called by both wrapper overlays, once per pass, so other overlays can draw between tiles
 	// and labels. Both passes walk the same cached marker lists.
@@ -270,17 +253,8 @@ public class GroundMarkerVariablesOverlay
 
 	private void drawTileAt(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, Stroke borderStroke, float opacity, boolean labels)
 	{
-		if (worldPoint.getPlane() != wv.getPlane())
-		{
-			return;
-		}
-
-		if (!markerCulling.inRange(worldPoint, MAX_DRAW_DISTANCE))
-		{
-			return;
-		}
-
-		LocalPoint localPoint = LocalPoint.fromWorld(wv, worldPoint);
+		LocalPoint localPoint = worldPoint.getPlane() != wv.getPlane() || !markerCulling.inRange(worldPoint, MAX_DRAW_DISTANCE) ? null
+			: LocalPoint.fromWorld(wv, worldPoint);
 		if (localPoint == null)
 		{
 			return;
@@ -375,7 +349,7 @@ public class GroundMarkerVariablesOverlay
 			boolean visible = false;
 			for (Object segment : splitSegments(line))
 			{
-				if (segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof SymbolIcon || segment instanceof BufferedImage)
+				if (isIcon(segment))
 				{
 					segments.add(segment);
 				}
@@ -408,7 +382,7 @@ public class GroundMarkerVariablesOverlay
 			facing, textScale, segments.isEmpty() ? 0 : -(size - textHeight) / 2, text.getWidth() * textScale, textHeight);
 
 		// Parallax icons off: the flat image, far cheaper.
-		if (segments.size() == 1 && config.parallaxIcons() && drawGroundModel(graphics, localPoint, plane, label, segments.get(0), opacity,
+		if (segments.size() == 1 && config.parallaxIcons() && drawGroundModel(graphics, localPoint, plane, segments.get(0), opacity,
 			facing, iconSize / GroundImageRenderer.SIZE, iconNorth, drawText))
 		{
 			return;
@@ -417,26 +391,11 @@ public class GroundMarkerVariablesOverlay
 		List<BufferedImage> icons = new ArrayList<>();
 		for (Object segment : segments)
 		{
-			if (segment instanceof ItemIcon)
+			// Lifted, a symbol's shadow is the row's.
+			BufferedImage image = iconImage(segment, !config.parallaxIcons());
+			if (image != null)
 			{
-				BufferedImage image = itemManager.getImage(((ItemIcon) segment).id);
-				if (image != null)
-				{
-					icons.add(dimmed(image, ((ItemIcon) segment).brightness));
-				}
-			}
-			else if (segment instanceof SpriteIcon)
-			{
-				icons.add(((SpriteIcon) segment).image);
-			}
-			else if (segment instanceof SymbolIcon)
-			{
-				// Lifted, a symbol's shadow is the row's.
-				icons.add(config.parallaxIcons() ? ((SymbolIcon) segment).glyph : ((SymbolIcon) segment).shadowed);
-			}
-			else
-			{
-				icons.add((BufferedImage) segment);
+				icons.add(image);
 			}
 		}
 
@@ -507,22 +466,10 @@ public class GroundMarkerVariablesOverlay
 			return image;
 		}
 
-		List<LineLayout> layouts = new ArrayList<>();
-		int style = Font.PLAIN;
-		for (List<Object> line : lines)
-		{
-			LineLayout layout = layoutSegments(graphics, line, style);
-			layouts.add(layout);
-			style = layout.endStyle;
-		}
-		int[] widths = new int[layouts.size()];
-		int[][] columnOffsets = new int[layouts.size()][];
-		layoutTables(layouts, widths, columnOffsets);
-		int maxWidth = 0;
-		for (int width : widths)
-		{
-			maxWidth = Math.max(maxWidth, width);
-		}
+		int[] widths = new int[lines.size()];
+		int[][] columnOffsets = new int[lines.size()][];
+		List<LineLayout> layouts = layoutLines(graphics, lines, widths, columnOffsets);
+		int maxWidth = Arrays.stream(widths).max().orElse(0);
 		if (maxWidth == 0)
 		{
 			return null;
@@ -587,9 +534,8 @@ public class GroundMarkerVariablesOverlay
 	}
 
 	// The lone icon's model, if it's an item or NPC whose model loads, scale times its size and offsetNorth north of
-	// the tile's center, top toward facing; onGround runs between its parts under and over the ground. An NPC image is
-	// the only icon, so its tag is the label's.
-	private boolean drawGroundModel(Graphics2D graphics, LocalPoint localPoint, int plane, String label, Object icon, float opacity,
+	// the tile's center, top toward facing; onGround runs between its parts under and over the ground.
+	private boolean drawGroundModel(Graphics2D graphics, LocalPoint localPoint, int plane, Object icon, float opacity,
 		int facing, double scale, double offsetNorth, Runnable onGround)
 	{
 		if (icon instanceof ItemIcon)
@@ -604,14 +550,12 @@ public class GroundMarkerVariablesOverlay
 			return true;
 		}
 
-		Matcher npc = GROUND_NPC_PATTERN.matcher(label);
-		if (icon instanceof BufferedImage && smoothImages.contains(icon) && npc.find())
+		if (icon instanceof NpcIcon)
 		{
-			int npcId = Integer.parseInt(npc.group(1));
-			boolean head = npc.group(2) != null;
-			Model model = npcImages.model(npcId, head);
+			NpcIcon npc = (NpcIcon) icon;
+			Model model = npcImages.model(npc.id, npc.head);
 			// Turned as its image.
-			float[][] turned = npcImages.turned(npcId, head);
+			float[][] turned = npcImages.turned(npc.id, npc.head);
 			if (model != null && turned != null)
 			{
 				groundModelRenderer.draw(graphics, localPoint, plane, model, turned[0], turned[1], turned[2], opacity, facing, scale,
@@ -790,19 +734,10 @@ public class GroundMarkerVariablesOverlay
 		int lineHeight = fontMetrics.getHeight();
 		int startY = -((lines.length - 1) * lineHeight) / 2;
 
-		// {b}/{i} carry across lines until closed.
-		List<LineLayout> layouts = new ArrayList<>();
-		int style = Font.PLAIN;
-		for (String line : lines)
-		{
-			LineLayout layout = layoutLine(graphics, line, style);
-			layouts.add(layout);
-			style = layout.endStyle;
-		}
-
 		int[] widths = new int[lines.length];
 		int[][] columnOffsets = new int[lines.length][];
-		layoutTables(layouts, widths, columnOffsets);
+		List<LineLayout> layouts = layoutLines(graphics, Arrays.stream(lines).map(this::splitSegments).collect(Collectors.toList()), widths,
+			columnOffsets);
 		int[] blockMaxWidths = blockMaxWidths(widths, alignments);
 
 		int left = Integer.MAX_VALUE;
@@ -954,6 +889,15 @@ public class GroundMarkerVariablesOverlay
 		private final BufferedImage image;
 	}
 
+	// <npc=ID[,head]>: its image, and what {ground} draws its model from.
+	@RequiredArgsConstructor
+	private static final class NpcIcon
+	{
+		private final BufferedImage image;
+		private final int id;
+		private final boolean head;
+	}
+
 	// A unicode symbol's <emoji=>: its white glyph, and the glyph with its shadow as drawn flat.
 	@RequiredArgsConstructor
 	private static final class SymbolIcon
@@ -993,9 +937,20 @@ public class GroundMarkerVariablesOverlay
 		private final int brightness;
 	}
 
-	private LineLayout layoutLine(Graphics2D graphics, String line, int startStyle)
+	// Each line laid out, {b}/{i} carried across lines until closed, then its tables (filling widths and columnOffsets,
+	// see layoutTables).
+	private List<LineLayout> layoutLines(Graphics2D graphics, List<List<Object>> lines, int[] widths, int[][] columnOffsets)
 	{
-		return layoutSegments(graphics, splitSegments(line), startStyle);
+		List<LineLayout> layouts = new ArrayList<>();
+		int style = Font.PLAIN;
+		for (List<Object> line : lines)
+		{
+			LineLayout layout = layoutSegments(graphics, line, style);
+			layouts.add(layout);
+			style = layout.endStyle;
+		}
+		layoutTables(layouts, widths, columnOffsets);
+		return layouts;
 	}
 
 	private LineLayout layoutSegments(Graphics2D graphics, List<Object> segments, int startStyle)
@@ -1014,29 +969,17 @@ public class GroundMarkerVariablesOverlay
 		int cellStart = 0;
 		for (Object segment : segments)
 		{
-			if (segment instanceof ItemIcon)
+			if (isIcon(segment))
 			{
-				// null on a lookup failure (see ItemManager#getImage) -- treated as zero-width
-				// and simply skipped when drawing below, rather than dropping the whole line.
-				ItemIcon item = (ItemIcon) segment;
-				BufferedImage image = itemManager.getImage(item.id);
-				image = image == null ? null : scaledIcon(dimmed(image, item.brightness), iconHeight);
+				// An item's null on a lookup failure (see ItemManager#getImage) -- treated as zero-width and simply
+				// skipped when drawing below, rather than dropping the whole line. An item fills the line's height.
+				BufferedImage image = iconImage(segment, false);
+				image = image == null ? null : scaledIcon(image, iconHeight);
 				images.add(image);
-				int iconWidth = image == null ? 0
-					: image.getHeight() == iconHeight ? image.getWidth() : image.getWidth() * iconHeight / image.getHeight();
+				int iconWidth = image == null ? 0 : segment instanceof ItemIcon && image.getHeight() != iconHeight
+					? image.getWidth() * iconHeight / image.getHeight() : image.getWidth();
 				iconWidths.add(iconWidth);
 				totalWidth += iconWidth;
-				continue;
-			}
-
-			if (segment instanceof BufferedImage || segment instanceof SpriteIcon || segment instanceof SymbolIcon)
-			{
-				BufferedImage source = segment instanceof SpriteIcon ? ((SpriteIcon) segment).image
-					: segment instanceof SymbolIcon ? ((SymbolIcon) segment).glyph : (BufferedImage) segment;
-				BufferedImage flag = scaledIcon(source, iconHeight);
-				images.add(flag);
-				iconWidths.add(flag.getWidth());
-				totalWidth += flag.getWidth();
 				continue;
 			}
 
@@ -1062,6 +1005,28 @@ public class GroundMarkerVariablesOverlay
 		cellWidths.add(totalWidth - cellStart);
 
 		return new LineLayout(segments, images, iconWidths, totalWidth, cellWidths, cellPaddings, startStyle, style);
+	}
+
+	private static boolean isIcon(Object segment)
+	{
+		return segment instanceof ItemIcon || segment instanceof SpriteIcon || segment instanceof SymbolIcon || segment instanceof NpcIcon
+			|| segment instanceof BufferedImage;
+	}
+
+	// An icon segment's image: an item's dimmed (null while it has none), a symbol's glyph, or with shadowed, the
+	// glyph with its shadow.
+	@Nullable
+	private BufferedImage iconImage(Object segment, boolean shadowed)
+	{
+		if (segment instanceof ItemIcon)
+		{
+			BufferedImage image = itemManager.getImage(((ItemIcon) segment).id);
+			return image == null ? null : dimmed(image, ((ItemIcon) segment).brightness);
+		}
+		return segment instanceof SpriteIcon ? ((SpriteIcon) segment).image
+			: segment instanceof NpcIcon ? ((NpcIcon) segment).image
+			: segment instanceof SymbolIcon ? (shadowed ? ((SymbolIcon) segment).shadowed : ((SymbolIcon) segment).glyph)
+			: (BufferedImage) segment;
 	}
 
 	// "80" from "@80%", capped at 100; full brightness without it.
@@ -1187,7 +1152,7 @@ public class GroundMarkerVariablesOverlay
 				column++;
 				x = columnOffsets != null && column < columnOffsets.length ? lineStart + columnOffsets[column] : x + ((CellBreak) segment).padding;
 			}
-			else if (segment instanceof BufferedImage || segment instanceof SpriteIcon || segment instanceof SymbolIcon)
+			else if (isIcon(segment) && !(segment instanceof ItemIcon))
 			{
 				BufferedImage flag = layout.images.get(i);
 				int flagY = y - fontMetrics.getAscent() + (lineHeight(fontMetrics) - flag.getHeight()) / 2;
@@ -1403,11 +1368,13 @@ public class GroundMarkerVariablesOverlay
 			}
 			else if (matcher.group(15) != null)
 			{
-				BufferedImage npc = npcImages.image(Integer.parseInt(matcher.group(15)), matcher.group(16) != null);
+				int id = Integer.parseInt(matcher.group(15));
+				boolean head = matcher.group(16) != null;
+				BufferedImage npc = npcImages.image(id, head);
 				if (npc != null)
 				{
 					smoothImages.add(npc);
-					icons.add(npc);
+					icons.add(new NpcIcon(npc, id, head));
 				}
 			}
 			else if (matcher.group(13) != null)
@@ -1458,24 +1425,8 @@ public class GroundMarkerVariablesOverlay
 		boolean sprite = false;
 		for (Object icon : icons.subList(0, Math.min(icons.size(), SplitIcons.MAX_PARTS)))
 		{
-			if (icon instanceof ItemIcon)
-			{
-				BufferedImage image = itemManager.getImage(((ItemIcon) icon).id);
-				parts.add(image == null ? null : dimmed(image, ((ItemIcon) icon).brightness));
-			}
-			else if (icon instanceof SpriteIcon)
-			{
-				parts.add(((SpriteIcon) icon).image);
-				sprite = true;
-			}
-			else if (icon instanceof SymbolIcon)
-			{
-				parts.add(((SymbolIcon) icon).shadowed);
-			}
-			else
-			{
-				parts.add((BufferedImage) icon);
-			}
+			parts.add(iconImage(icon, true));
+			sprite |= icon instanceof SpriteIcon;
 		}
 
 		BufferedImage image = splitIcon(parts);
