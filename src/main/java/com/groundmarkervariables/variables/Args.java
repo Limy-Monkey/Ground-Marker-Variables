@@ -1,12 +1,7 @@
 package com.groundmarkervariables.variables;
 
 import com.groundmarkervariables.variables.support.BossAliases;
-import com.groundmarkervariables.variables.support.DateLiteralParser;
 import com.groundmarkervariables.variables.support.NamedColors;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,8 +51,6 @@ public final class Args
 	public static final Function<String, String> NO_ICON = name -> null;
 	// A main argument, value or extra: ends before any of {}?:<>=!,|& so a trailing comparator or || / && isn't part of it.
 	private static final String TEXT = "[^{}?:<>=!,|&]+?";
-	// A date value's "-N days" / "N days" (see Options#date).
-	private static final Pattern DAYS = Pattern.compile("-?\\s*(\\d+)\\s*days?", Pattern.CASE_INSENSITIVE);
 
 	private final String name;
 	// Other names it's written as, accepted but not suggested.
@@ -510,28 +503,6 @@ public final class Args
 			{
 				return fallback;
 			}
-		}
-
-		// A date value's time: today's or the date's start, or N days back from now; null if not given or unreadable.
-		@Nullable
-		public Instant date(String word)
-		{
-			String value = value(word);
-			if (value == null)
-			{
-				return null;
-			}
-			if (value.equalsIgnoreCase("today"))
-			{
-				return LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
-			}
-			Matcher days = DAYS.matcher(value);
-			if (days.matches())
-			{
-				return Instant.now().minus(Long.parseLong(days.group(1)), ChronoUnit.DAYS);
-			}
-			LocalDate date = DateLiteralParser.parse(value);
-			return date == null ? null : date.atStartOfDay(ZoneId.systemDefault()).toInstant();
 		}
 	}
 }

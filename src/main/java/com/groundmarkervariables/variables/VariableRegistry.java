@@ -45,8 +45,7 @@ public class VariableRegistry
 			DivineLabelVariable.class,
 			WorldInfoLabelVariable.class,
 			ActiveLabelVariable.class,
-			QuickPrayersLabelVariable.class,
-			GeHistoryLabelVariable.class))
+			QuickPrayersLabelVariable.class))
 		{
 			variables.add(injector.getInstance(type));
 		}
