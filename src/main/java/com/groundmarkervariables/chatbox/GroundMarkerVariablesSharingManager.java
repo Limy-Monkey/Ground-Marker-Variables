@@ -2,7 +2,7 @@ package com.groundmarkervariables.chatbox;
 
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Runnables;
-import com.google.gson.JsonSyntaxException;
+import com.google.gson.JsonParseException;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
@@ -22,14 +22,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
@@ -40,6 +45,7 @@ import net.runelite.client.util.Text;
 // Mirrors core's GroundMarkerSharingManager — clipboard export/import and a "Clear" confirmation
 // for every currently loaded ground marker, via the world map orb's right-click menu.
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundMarkerVariablesSharingManager
 {
 	private static final WidgetMenuOption EXPORT_MARKERS_OPTION = new WidgetMenuOption("Export", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
@@ -56,23 +62,7 @@ public class GroundMarkerVariablesSharingManager
 	private final DeletedMarkers deletedMarkers;
 	private final MarkerMinifier markerMinifier;
 	private final MarkerSets markerSets;
-
-	@Inject
-	private GroundMarkerVariablesSharingManager(GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, Client client,
-		ImportPreviewManager importPreviewManager, MenuManager menuManager, ChatMessageManager chatMessageManager,
-		ChatboxPanelManager chatboxPanelManager, DeletedMarkers deletedMarkers, MarkerMinifier markerMinifier, MarkerSets markerSets)
-	{
-		this.markerSets = markerSets;
-		this.plugin = plugin;
-		this.markerStorage = markerStorage;
-		this.client = client;
-		this.importPreviewManager = importPreviewManager;
-		this.menuManager = menuManager;
-		this.chatMessageManager = chatMessageManager;
-		this.chatboxPanelManager = chatboxPanelManager;
-		this.deletedMarkers = deletedMarkers;
-		this.markerMinifier = markerMinifier;
-	}
+	private final ClientThread clientThread;
 
 	public void addImportExportMenuOptions()
 	{
@@ -132,56 +122,50 @@ public class GroundMarkerVariablesSharingManager
 		sendChatMessage(activePoints.size() + " ground markers were copied to your clipboard.");
 	}
 
+	// A marker set is added as an Imported set, not as markers.
 	private void promptForImport(MenuEntry menuEntry)
 	{
-		final String clipboardText;
+		parseClipboard((set, text) -> confirmSetImport(set, text, Runnables.doNothing()), points ->
+			confirmImport(points, " ground markers were imported from the clipboard.", Runnables.doNothing(), Runnables.doNothing(), true));
+	}
+
+	// The clipboard as a copied marker set (onSet, with its text), else as ground markers (onMarkers); if neither, a chat
+	// message says why. Also Marker Sets' Import.
+	public void parseClipboard(BiConsumer<MarkerSet, String> onSet, Consumer<List<GroundMarkerPointData>> onMarkers)
+	{
+		String text;
 		try
 		{
-			clipboardText = Toolkit.getDefaultToolkit()
-				.getSystemClipboard()
-				.getData(DataFlavor.stringFlavor)
-				.toString();
+			text = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
 		}
-		catch (IOException | UnsupportedFlavorException ex)
+		catch (IOException | UnsupportedFlavorException e)
 		{
+			log.warn("error reading clipboard", e);
 			sendChatMessage("Unable to read system clipboard.");
-			log.warn("error reading clipboard", ex);
 			return;
 		}
 
-		log.debug("Clipboard contents: {}", clipboardText);
-		if (Strings.isNullOrEmpty(clipboardText))
+		if (Strings.isNullOrEmpty(text))
 		{
-			sendChatMessage("You do not have any ground markers copied in your clipboard.");
-			return;
+			text = "[]";
 		}
-
-		// A marker set is added as an Imported set, not as markers.
-		MarkerSet set;
+		MarkerSet set = null;
 		try
 		{
-			set =markerSets.parse(clipboardText);
+			set = markerSets.parse(text);
 		}
-		catch (JsonSyntaxException e)
+		catch (JsonParseException e)
 		{
-			set =null;
+			// Not a set: maybe markers.
 		}
-		if (set != null)
-		{
-			confirmSetImport(set, clipboardText, Runnables.doNothing());
-			return;
-		}
-
-		List<GroundMarkerPointData> importPoints;
+		List<GroundMarkerPointData> markers = List.of();
 		try
 		{
-			importPoints = markerMinifier.parse(clipboardText);
+			markers = set != null ? List.of() : markerMinifier.parse(text);
 		}
-		catch (JsonSyntaxException e)
+		catch (JsonParseException e)
 		{
 			log.debug("Malformed JSON for clipboard import", e);
-			sendChatMessage("You do not have any ground markers copied in your clipboard.");
-			return;
 		}
 		catch (NewerFormatException e)
 		{
@@ -195,13 +179,18 @@ public class GroundMarkerVariablesSharingManager
 			return;
 		}
 
-		if (importPoints.isEmpty())
+		if (set != null)
 		{
-			sendChatMessage("You do not have any ground markers copied in your clipboard.");
-			return;
+			onSet.accept(set, text);
 		}
-
-		confirmImport(importPoints, " ground markers were imported from the clipboard.", Runnables.doNothing(), Runnables.doNothing());
+		else if (markers.isEmpty())
+		{
+			sendChatMessage("You do not have a marker set or ground markers copied in your clipboard.");
+		}
+		else
+		{
+			onMarkers.accept(markers);
+		}
 	}
 
 	// Previews the set's tiles and asks before adding it; one with the same title and author is replaced. Then after, either
@@ -212,16 +201,15 @@ public class GroundMarkerVariablesSharingManager
 		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
 		importPreviewManager.show(tiles);
 		boolean replaces = markerSets.existing(set) != null;
-		new ImportConfirmInput(chatboxPanelManager)
+		new ConfirmChatbox(chatboxPanelManager, "Import the marker set \"" + Text.escapeJagex(set.title) + "\" by "
+				+ Text.escapeJagex(set.author) + " (" + tiles.size() + " tiles)?" + (replaces ? "<br>This replaces your copy of it." : ""))
 			.yes(() ->
 			{
 				markerSets.addShared(set, text);
 				sendChatMessage("The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
 				after.run();
-			}, null)
-			.title("Import the marker set \"" + Text.escapeJagex(set.title) + "\" by " + Text.escapeJagex(set.author) + " ("
-				+ tiles.size() + " tiles)?" + (replaces ? "<br>This replaces your copy of it." : ""))
-			.option("No", after)
+			})
+			.no(after)
 			.onClose(importPreviewManager::clear)
 			.build();
 	}
@@ -229,25 +217,51 @@ public class GroundMarkerVariablesSharingManager
 	// Previews importPoints and asks before importing them -- also MarkerManager's Undo.
 	public void confirmImport(List<GroundMarkerPointData> importPoints, String importedMessage, Runnable onImported, Runnable onCancelled)
 	{
+		confirmImport(importPoints, importedMessage, onImported, onCancelled, false);
+	}
+
+	// asSet: also "Yes, as a marker set" (the clipboard import's).
+	private void confirmImport(List<GroundMarkerPointData> importPoints, String importedMessage, Runnable onImported, Runnable onCancelled,
+		boolean asSet)
+	{
 		List<GroundMarkerPointData> nonOverlapping = nonOverlapping(importPoints);
 		importPreviewManager.show(nonOverlapping);
 		String count = countWithOverlap(importPoints.size(), nonOverlapping.size());
-		Runnable overwrite = () ->
-		{
-			overwriteGroundMarkers(importPoints);
-			sendChatMessage(importPoints.size() + importedMessage);
-			onImported.run();
-		};
-		new ImportConfirmInput(chatboxPanelManager)
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to import " + count + " ground markers?")
 			.yes(() ->
 			{
 				importGroundMarkers(importPoints);
 				sendChatMessage(nonOverlapping.size() + importedMessage);
 				onImported.run();
-			}, nonOverlapping.size() < importPoints.size() ? overwrite : null)
-			.title("Are you sure you want to import " + count + " ground markers?")
-			.option("No", onCancelled)
+			})
+			.option("Yes, and overwrite", nonOverlapping.size() == importPoints.size() ? null : () ->
+			{
+				overwriteGroundMarkers(importPoints);
+				sendChatMessage(importPoints.size() + importedMessage);
+				onImported.run();
+			})
+			.option("Yes, as a marker set", asSet ? () -> importAsSet(importPoints, chatboxPanelManager::close) : null)
+			.no(onCancelled)
 			.onClose(importPreviewManager::clear)
+			.build();
+	}
+
+	// points as a new set by an unknown author (also Marker Sets' Import), asking for the title, which starts as (and blank
+	// is) MarkerSets#defaultTitle's; then replaces the prompt (onDone returns false, as closing would close what it opens).
+	public void importAsSet(List<GroundMarkerPointData> points, Runnable then)
+	{
+		chatboxPanelManager.openTextInput("Marker set title")
+			.value(MarkerSets.defaultTitle(points))
+			.onDone((Predicate<String>) title ->
+			{
+				clientThread.invoke(() ->
+				{
+					MarkerSet set = markerSets.createFrom(title, MarkerSet.UNKNOWN, points);
+					sendChatMessage(points.size() + " ground markers were imported as the marker set \"" + set.title + "\".");
+					then.run();
+				});
+				return false;
+			})
 			.build();
 	}
 
@@ -332,8 +346,8 @@ public class GroundMarkerVariablesSharingManager
 		}
 
 		int numActivePoints = activePoints.size();
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to clear the<br>" + numActivePoints + " currently loaded ground markers?")
-			.option("Yes", () ->
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to clear the " + numActivePoints + " currently loaded ground markers?")
+			.yes(() ->
 			{
 				deletedMarkers.remember(activePoints);
 				markerStorage.deletePoints(activePoints);
@@ -342,7 +356,6 @@ public class GroundMarkerVariablesSharingManager
 				sendChatMessage(numActivePoints + " ground marker"
 					+ (numActivePoints == 1 ? " was cleared." : "s were cleared."));
 			})
-			.option("No", Runnables.doNothing())
 			.build();
 	}
 

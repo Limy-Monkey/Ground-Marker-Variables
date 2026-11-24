@@ -449,7 +449,7 @@ public class MarkerManager extends SearchableChatbox
 
 	private void keepOrMove(List<Entry> chosen, Consumer<Boolean> then)
 	{
-		chatboxPanelManager.openTextMenuInput("Keep these markers as your own too, or move them into the set?")
+		new ConfirmChatbox(chatboxPanelManager, "Keep these markers as your own too, or move them into the set?")
 			.option("Keep them", () -> then.accept(false))
 			.option("Move them", () -> then.accept(true))
 			.option("Cancel", () -> chatboxPanelManager.openInput(this))
@@ -509,9 +509,9 @@ public class MarkerManager extends SearchableChatbox
 	private void confirmDelete()
 	{
 		List<GroundMarkerPointData> points = selectedPoints();
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to delete " + points.size()
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete " + points.size()
 				+ (points.size() == 1 ? " ground marker?" : " ground markers?") + "<br>This cannot be undone.")
-			.option("Yes", () ->
+			.yes(() ->
 			{
 				deletedMarkers.remember(points);
 				markerStorage.deletePoints(points);
@@ -519,7 +519,7 @@ public class MarkerManager extends SearchableChatbox
 				load();
 				chatboxPanelManager.openInput(this);
 			})
-			.option("No", () -> chatboxPanelManager.openInput(this))
+			.no(() -> chatboxPanelManager.openInput(this))
 			.build();
 	}
 

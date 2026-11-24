@@ -1,10 +1,10 @@
 package com.groundmarkervariables.party;
 
-import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.chatbox.ConfirmChatbox;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.markers.minify.MarkerCompression;
@@ -198,9 +198,8 @@ public class GroundMarkerPartySharingManager
 			return;
 		}
 
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to share " + activePoints.size() + " ground markers with your party?")
-			.option("Yes", () -> share(activePoints))
-			.option("No", Runnables.doNothing())
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to share " + activePoints.size() + " ground markers with your party?")
+			.yes(() -> share(activePoints))
 			.build();
 	}
 
@@ -290,10 +289,8 @@ public class GroundMarkerPartySharingManager
 		List<GroundMarkerPointData> nonOverlapping = sharingManager.nonOverlapping(points);
 		importPreviewManager.show(nonOverlapping);
 		String count = GroundMarkerVariablesSharingManager.countWithOverlap(points.size(), nonOverlapping.size());
-		chatboxPanelManager.openTextMenuInput(
-				"Are you sure you want to import " + count + " ground markers<br>from " + pending.senderName + "?")
-			.option("Yes", () -> doImport(pending, nonOverlapping))
-			.option("No", Runnables.doNothing())
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to import " + count + " ground markers from " + pending.senderName + "?")
+			.yes(() -> doImport(pending, nonOverlapping))
 			.onClose(importPreviewManager::clear)
 			.build();
 	}

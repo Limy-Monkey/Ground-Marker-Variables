@@ -1,28 +1,21 @@
 package com.groundmarkervariables.chatbox;
 
-import com.google.gson.JsonParseException;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
-import com.groundmarkervariables.markers.minify.NewerFormatException;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
-import java.awt.datatransfer.UnsupportedFlavorException;
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -137,7 +130,7 @@ public class MarkerSetManager extends SearchableChatbox
 	@Override
 	protected void buildTopBar(Widget container, FontTypeFace font, int rightX)
 	{
-		rightX = nextX(button(container, font, "Import", "Import a marker set or ground markers from your clipboard", "", true, rightX,
+		rightX = nextX(button(container, font, "Import", "Import from clipboard", "", true, rightX,
 			this::importClipboard));
 		if (markerSets.failed())
 		{
@@ -489,61 +482,9 @@ public class MarkerSetManager extends SearchableChatbox
 	// same-label markers grouped (as Marker Manager's Set).
 	private void importClipboard()
 	{
-		String text;
-		try
-		{
-			text = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-		}
-		catch (IOException | UnsupportedFlavorException e)
-		{
-			sendChatMessage("Unable to read system clipboard.");
-			return;
-		}
-
-		MarkerSet set;
-		List<GroundMarkerPointData> markers;
-		try
-		{
-			set = markerSets.parse(text);
-			markers = set != null ? List.of() : markerMinifier.parse(text);
-		}
-		catch (JsonParseException | IllegalArgumentException | NewerFormatException e)
-		{
-			set = null;
-			markers = List.of();
-		}
-		if (set != null)
-		{
-			sharingManager.confirmSetImport(set, text, () -> chatboxPanelManager.openInput(this));
-			return;
-		}
-		if (markers.isEmpty())
-		{
-			sendChatMessage("You do not have a marker set or ground markers copied in your clipboard.");
-			return;
-		}
-
-		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
-		markers.forEach(marker -> byLabel.computeIfAbsent(marker.getLabel() == null ? "" : marker.getLabel(), label -> new ArrayList<>())
-			.add(marker));
-		List<MarkerSet.Entry> entries = new ArrayList<>();
-		byLabel.values().forEach(tiles -> entries.add(new MarkerSet.Entry(null, tiles, tiles.size() > 1, true, entries.size())));
-		int count = markers.size();
-		chatboxPanelManager.openTextInput("Name the marker set for these " + count + " ground markers")
-			.onDone((Predicate<String>) title ->
-			{
-				clientThread.invoke(() ->
-				{
-					if (!title.isBlank())
-					{
-						markerSets.create(title.trim(), MarkerSet.UNKNOWN, entries);
-						sendChatMessage(count + " ground markers were imported as the marker set \"" + title.trim() + "\".");
-					}
-					chatboxPanelManager.openInput(this);
-				});
-				return false;
-			})
-			.build();
+		Runnable reopen = () -> chatboxPanelManager.openInput(this);
+		sharingManager.parseClipboard((set, text) -> sharingManager.confirmSetImport(set, text, reopen),
+			markers -> sharingManager.importAsSet(markers, reopen));
 	}
 
 	// Just its tiles, as ground markers: a label with variables goes in "gmv", as written.
@@ -565,14 +506,14 @@ public class MarkerSetManager extends SearchableChatbox
 
 	private void confirmDelete(MarkerSet set)
 	{
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to delete the marker set \"" + Text.escapeJagex(set.title) + "\"?")
-			.option("Yes", () ->
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete the marker set \"" + Text.escapeJagex(set.title) + "\"?")
+			.yes(() ->
 			{
 				markerSets.delete(set);
 				sendChatMessage("The marker set \"" + set.title + "\" was deleted.");
 				chatboxPanelManager.openInput(this);
 			})
-			.option("No", () -> chatboxPanelManager.openInput(this))
+			.no(() -> chatboxPanelManager.openInput(this))
 			.build();
 	}
 
@@ -638,15 +579,15 @@ public class MarkerSetManager extends SearchableChatbox
 	private void confirmDelete(MarkerSet set, MarkerSet.Entry entry)
 	{
 		int tiles = entry.tiles.size();
-		chatboxPanelManager.openTextMenuInput("Are you sure you want to delete \"" + Text.escapeJagex(entry.name()) + "\" ("
+		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete \"" + Text.escapeJagex(entry.name()) + "\" ("
 				+ tiles + (tiles == 1 ? " tile" : " tiles") + ") from the marker set \"" + Text.escapeJagex(set.title) + "\"?")
-			.option("Yes", () ->
+			.yes(() ->
 			{
 				markerSets.remove(set, entry);
 				sendChatMessage("\"" + entry.name() + "\" was deleted from the marker set \"" + set.title + "\".");
 				chatboxPanelManager.openInput(this);
 			})
-			.option("No", () -> chatboxPanelManager.openInput(this))
+			.no(() -> chatboxPanelManager.openInput(this))
 			.build();
 	}
 }

@@ -1,5 +1,6 @@
 package com.groundmarkervariables.markers;
 
+import com.google.common.base.Strings;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -9,6 +10,7 @@ import com.google.gson.JsonSyntaxException;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
+import com.groundmarkervariables.variables.support.RegionNames;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -229,6 +231,31 @@ public class MarkerSets implements TileSource
 	public MarkerSet create(String title, String author, List<MarkerSet.Entry> entries)
 	{
 		return create(title, author, entries, new JsonArray());
+	}
+
+	// points as a new set of the user's own, one entry per label (same-label markers grouped); blank title is defaultTitle's.
+	public MarkerSet createFrom(String title, String author, List<GroundMarkerPointData> points)
+	{
+		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
+		points.forEach(point -> byLabel.computeIfAbsent(Strings.nullToEmpty(point.getLabel()), label -> new ArrayList<>()).add(point));
+		List<MarkerSet.Entry> entries = new ArrayList<>();
+		byLabel.values().forEach(tiles -> entries.add(new MarkerSet.Entry(null, tiles, tiles.size() > 1, true, entries.size())));
+		return create(title.isBlank() ? defaultTitle(points) : title.trim(), author, entries);
+	}
+
+	// The RegionNames name most of points are in, else "Import <date>".
+	public static String defaultTitle(List<GroundMarkerPointData> points)
+	{
+		Map<String, Integer> counts = new HashMap<>();
+		for (GroundMarkerPointData point : points)
+		{
+			String name = RegionNames.name(WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ()));
+			if (name != null)
+			{
+				counts.merge(name, 1, Integer::sum);
+			}
+		}
+		return counts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("Import " + LocalDate.now());
 	}
 
 	// A built-in or imported set copied as the user's own, "<title> (clone)" by author; its author joins its history.

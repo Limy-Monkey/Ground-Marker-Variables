@@ -1,9 +1,9 @@
 package com.groundmarkervariables;
 
-import com.google.common.util.concurrent.Runnables;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
+import com.groundmarkervariables.chatbox.ConfirmChatbox;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.chatbox.MarkerManager;
 import com.groundmarkervariables.chatbox.SuggestionIconOverlay;
@@ -630,9 +630,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 			submenu.createMenuEntry(-1)
 				.setOption("Reset all")
 				.setType(MenuAction.RUNELITE)
-				.onClick(e -> chatboxPanelManager.openTextMenuInput("Are you sure you want to reset the color of " + regionPoints.size() + " tiles?")
-					.option("Yes", () -> resetRegionColors(regionId, regionPoints))
-					.option("No", Runnables.doNothing())
+				.onClick(e -> new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to reset the color of " + regionPoints.size() + " tiles?")
+					.yes(() -> resetRegionColors(regionId, regionPoints))
 					.build());
 		}
 
