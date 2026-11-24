@@ -285,7 +285,6 @@ public class MarkerManager extends SearchableChatbox
 			shown = entry;
 			updatePins();
 		}, text -> notice(labelArea, text), this::updateIfOpen));
-		row.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		ChatboxWidgets.hover(row, 0x000000, area, label);
 	}
 

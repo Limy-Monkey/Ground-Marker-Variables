@@ -91,7 +91,7 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 	{
 		Widget container = chatboxPanelManager.getContainerWidget();
 		FontTypeFace font = ChatboxWidgets.font(container, FontID.QUILL_8);
-		List<String> lines = wrap(title, font, container.getWidth() - 4 * MARGIN);
+		List<String> lines = ChatboxWidgets.wrap(font, title, container.getWidth() - 4 * MARGIN);
 		Widget prompt = ChatboxWidgets.centeredText(container, String.join("<br>", lines), FontID.QUILL_8, TITLE_COLOR, MARGIN,
 			lines.size() * LINE_HEIGHT);
 		prompt.setLineHeight(LINE_HEIGHT);
@@ -115,27 +115,6 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 			option.setHasListener(true);
 			y += step;
 		}
-	}
-
-	// text's lines, split at <br> and wherever the next word wouldn't fit in width.
-	private static List<String> wrap(String text, FontTypeFace font, int width)
-	{
-		List<String> lines = new ArrayList<>();
-		for (String paragraph : text.split("<br>", -1))
-		{
-			StringBuilder line = new StringBuilder();
-			for (String word : paragraph.split(" "))
-			{
-				if (line.length() > 0 && font.getTextWidth(line + " " + word) > width)
-				{
-					lines.add(line.toString());
-					line.setLength(0);
-				}
-				line.append(line.length() > 0 ? " " : "").append(word);
-			}
-			lines.add(line.toString());
-		}
-		return lines;
 	}
 
 	// As RuneLite's menu: closes, then runs the choice.

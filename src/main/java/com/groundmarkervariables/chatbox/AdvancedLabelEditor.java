@@ -14,16 +14,18 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
-import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
@@ -70,21 +72,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private static final int ICON_HEIGHT = 16;
 	private static final int ICON_GAP = 2;
 
-	// Shrink/Undo/Redo/"_"/"x", right-aligned in the prompt row.
-	private static final int TOP_BAR_GAP = 4;
-	private static final int CLOSE_BUTTON_WIDTH = 12;
-	private static final int FONT_TOGGLE_BUTTON_WIDTH = 12;
-	private static final int UNDO_BUTTON_WIDTH = 12;
-	private static final int SHRINK_BUTTON_WIDTH = 12;
 	// Labels this long get a ⚠️ (U+26A0) in the prompt row's left, showing the count on hover.
 	private static final int LONG_LABEL = 10_000;
 	private static final String WARNING_EMOJI = "26a0";
 	// For underlining only — matches <col=HEX|NAME>, {col=HEX|NAME}, </col> and {/col} (no groups means </col> or
 	// {/col}, both reverting to the tile's own color).
-	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile(
-		"<col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")>"
-			+ "|\\{col=([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")\\}"
-			+ "|</col>|\\{/col\\}",
+	private static final String COLOR_VALUE = "([0-9a-fA-F]{2,6}|" + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + ")";
+	private static final Pattern COLOR_TAG_PATTERN_ANY = Pattern.compile("<col=" + COLOR_VALUE + ">|\\{col=" + COLOR_VALUE + "\\}|</col>|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
 
 	// Matches ChatboxTextInput's own BREAK_MATCHER exactly — see computeWrappedLines().
@@ -212,7 +206,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// Lazily cached — only ever touched from update() (key-typing/click/scroll triggered,
 	// all confirmed client-thread), never from mousePressed/mouseDragged. Cleared by
-	// toggleFontSize() to force a re-probe against the new font.
+	// the "_" button to force a re-probe against the new font.
 	private FontTypeFace font;
 
 	@Inject
@@ -246,17 +240,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		iconOverlay.clear();
 	}
 
-	// PLAIN_11 once toggled via the "_" button, else the default PLAIN_12.
-	private int editorFontId()
-	{
-		return widgets.fontId();
-	}
-
-	private boolean smallFont()
-	{
-		return widgets.smallFont();
-	}
-
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
 	// onRemoveRecent handles right-click "Remove" on a Recent entry. tileColor is used to
 	// underline </col> — see buildColorTagUnderlines().
@@ -286,11 +269,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		Completion completion = completion();
 		String insert = completion == null ? null : completion.preferredInsert();
 		return insert == null || insert.isEmpty() ? null : insert;
-	}
-
-	private void insertAtCursor(String insert)
-	{
-		insertAtCursor(insert, 0);
 	}
 
 	// insert in place of the replace characters before the cursor.
@@ -324,11 +302,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		super.keyTyped(ev);
 	}
 
-	private static boolean isCtrlSpace(KeyEvent ev)
-	{
-		return ev.getKeyCode() == KeyEvent.VK_SPACE && ev.isControlDown();
-	}
-
 	@Override
 	public void keyPressed(KeyEvent ev)
 	{
@@ -353,13 +326,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		if (code == KeyEvent.VK_TAB || isCtrlSpace(ev))
+		if (code == KeyEvent.VK_TAB || (code == KeyEvent.VK_SPACE && ev.isControlDown()))
 		{
 			String completion = pendingCompletion();
 			if (completion != null)
 			{
 				ev.consume();
-				insertAtCursor(completion);
+				insertAtCursor(completion, 0);
 				return;
 			}
 		}
@@ -541,21 +514,21 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		// pos may be at the very end (no character there) — fall back to the last
 		// character's category so double-clicking past the last word still selects it.
 		boolean alphanumeric = Character.isLetterOrDigit(text.charAt(Math.min(pos, text.length() - 1)));
-
-		int start = pos;
-		while (start > 0 && Character.isLetterOrDigit(text.charAt(start - 1)) == alphanumeric)
-		{
-			start--;
-		}
-
-		int end = pos;
-		while (end < text.length() && Character.isLetterOrDigit(text.charAt(end)) == alphanumeric)
-		{
-			end++;
-		}
-
 		shiftSelectionAnchor = -1;
-		cursorAt(start, end);
+		cursorAt(runEdge(text, pos, alphanumeric, -1), runEdge(text, pos, alphanumeric, 1));
+	}
+
+	// From pos, past the characters that are (or, not alphanumeric, aren't) letters or digits, going left (step -1) or
+	// right (1).
+	private static int runEdge(String value, int pos, boolean alphanumeric, int step)
+	{
+		int i = pos;
+		while (step < 0 ? i > 0 && Character.isLetterOrDigit(value.charAt(i - 1)) == alphanumeric
+			: i < value.length() && Character.isLetterOrDigit(value.charAt(i)) == alphanumeric)
+		{
+			i += step;
+		}
+		return i;
 	}
 
 	// A "word" is a single run of one category — alphanumeric, or not — starting from
@@ -565,35 +538,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// then at the very start (the rest of "hasFreeze").
 	private static int previousWordBoundary(String value, int pos)
 	{
-		if (pos <= 0)
-		{
-			return pos;
-		}
-
-		boolean alphanumeric = Character.isLetterOrDigit(value.charAt(pos - 1));
-		int i = pos;
-		while (i > 0 && Character.isLetterOrDigit(value.charAt(i - 1)) == alphanumeric)
-		{
-			i--;
-		}
-		return i;
+		return pos <= 0 ? pos : runEdge(value, pos, Character.isLetterOrDigit(value.charAt(pos - 1)), -1);
 	}
 
 	private static int nextWordBoundary(String value, int pos)
 	{
-		int len = value.length();
-		if (pos >= len)
-		{
-			return pos;
-		}
-
-		boolean alphanumeric = Character.isLetterOrDigit(value.charAt(pos));
-		int i = pos;
-		while (i < len && Character.isLetterOrDigit(value.charAt(i)) == alphanumeric)
-		{
-			i++;
-		}
-		return i;
+		return pos >= value.length() ? pos : runEdge(value, pos, Character.isLetterOrDigit(value.charAt(pos)), 1);
 	}
 
 	// Absolute Y of the top of wrapped edit row `lineIndex` (0-based).
@@ -704,9 +654,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		int localCursor = cursor - line.start;
 
 		String escapedCompletion = Text.escapeJagex(completion);
-		int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
-		int lineStartX = editX + (editWidth - lineFullWidth) / 2;
-		int ghostX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localCursor)));
+		int ghostX = textX(line, localCursor);
 		int ghostWidth = font.getTextWidth(escapedCompletion);
 		int ghostY = editRowY(lineIndex - editScroll) + ghostYOffset();
 
@@ -718,27 +666,20 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			ChatboxWidgets.rect(container, GHOST_BACKGROUND_COLOR, ghostX - 1, ghostY, ghostWidth + 2, LINE_HEIGHT);
 		}
 
-		ChatboxWidgets.text(container, escapedCompletion, editorFontId(), AUTOCOMPLETE_COLOR, ghostX, ghostY, ghostWidth, LINE_HEIGHT);
+		ChatboxWidgets.text(container, escapedCompletion, widgets.fontId(), AUTOCOMPLETE_COLOR, ghostX, ghostY, ghostWidth, LINE_HEIGHT);
 	}
 
 	// Empirically tuned — PLAIN_11 needs 2px more than PLAIN_12.
 	private int ghostYOffset()
 	{
-		return smallFont() ? -4 : -2;
+		return widgets.smallFont() ? -4 : -2;
 	}
 
 	// Underlines any complete <col=RRGGBB> or <col=name> tag in the label, in the color it
 	// names. A tag split across a wrapped line break (rare) is skipped rather than drawn wrong.
 	private void buildColorTagUnderlines(Widget container, List<WrappedLine> wrappedLines)
 	{
-		String text = getValue();
-		Matcher matcher = COLOR_TAG_PATTERN_ANY.matcher(text);
-		if (!matcher.find())
-		{
-			return;
-		}
-
-		matcher.reset();
+		Matcher matcher = COLOR_TAG_PATTERN_ANY.matcher(getValue());
 		while (matcher.find())
 		{
 			int lineIndex = findLineIndex(wrappedLines, matcher.start());
@@ -769,15 +710,17 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 				}
 			}
 
-			int lineFullWidth = font.getTextWidth(Text.escapeJagex(line.text));
-			int lineStartX = editX + (editWidth - lineFullWidth) / 2;
-			int localStart = matcher.start() - line.start;
-			int localEnd = matcher.end() - line.start;
-			int startX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localStart)));
-			int endX = lineStartX + font.getTextWidth(Text.escapeJagex(line.text.substring(0, localEnd)));
-
+			int startX = textX(line, matcher.start() - line.start);
+			int endX = textX(line, matcher.end() - line.start);
 			ChatboxWidgets.rect(container, color, startX, editRowY(lineIndex - editScroll) + LINE_HEIGHT - 3, Math.max(1, endX - startX), 1);
 		}
+	}
+
+	// The x of index in line's text, as shown: centered in the edit row.
+	private int textX(WrappedLine line, int index)
+	{
+		return editX + (editWidth - font.getTextWidth(Text.escapeJagex(line.text))) / 2
+			+ font.getTextWidth(Text.escapeJagex(line.text.substring(0, index)));
 	}
 
 	// Mirrors ChatboxTextInput#buildEdit()'s own word-wrap algorithm, since it's computed
@@ -860,7 +803,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		if (font == null)
 		{
-			font = ChatboxWidgets.font(container, editorFontId());
+			font = ChatboxWidgets.font(container, widgets.fontId());
 		}
 
 		// Every line wraps; a window of them shows. When it can scroll, a scrollbar takes the right margin, and the
@@ -881,7 +824,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		widgets.logo(container, iconPlacements, this);
 		buildLengthWarning(container);
 
-		fontID(editorFontId());
+		// PLAIN_11 once toggled via the "_" button, else the default PLAIN_12.
+		fontID(widgets.fontId());
 		int before = container.getDynamicChildren().length;
 		buildEdit(editX, editRowY(-editScroll), editWidth, LINE_HEIGHT);
 		hideOutsideWindow(container, before);
@@ -912,28 +856,34 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		iconOverlay.show(iconPlacements, tips);
 	}
 
-	// "<" undo (grayed out with nothing to undo), ">" redo (only while there's something to redo), "_" (font size
-	// toggle) and "x" (close without saving), right-aligned in the prompt row.
+	// As the other chatboxes' (see SearchableChatbox): "x" (close without saving) and "_" (font size toggle), then "<"
+	// undo (grayed out with nothing to undo), ">" redo (only while there's something to redo), right-aligned in the prompt
+	// row.
 	private void buildTopBar(Widget container)
 	{
-		int rightX = TOP_BAR_GAP;
-		rightX = addTopBarButton(container, "x", rightX, CLOSE_BUTTON_WIDTH, "Close", chatboxPanelManager::close);
-		rightX = addTopBarButton(container, "_", rightX, FONT_TOGGLE_BUTTON_WIDTH, "Toggle font size", this::toggleFontSize);
+		FontTypeFace buttonFont = ChatboxWidgets.font(container, SearchableChatbox.BUTTON_FONT);
+		int rightX = SearchableChatbox.closeAndFontButtons(container, buttonFont, chatboxPanelManager, widgets, () ->
+		{
+			font = null;
+			update();
+		});
 
 		// ">" only while there's something to redo: a new edit clears it.
 		if (!redoSteps.isEmpty())
 		{
-			rightX = addTopBarButton(container, Text.escapeJagex(">"), rightX, UNDO_BUTTON_WIDTH, "Redo", this::redoStep);
+			rightX = SearchableChatbox.nextX(SearchableChatbox.button(container, buttonFont, Text.escapeJagex(">"), "Redo", "", true, rightX,
+				this::redoStep));
 		}
 
 		// Escaped — a lone "<" is parsed as the start of an inline tag and never drawn otherwise.
-		rightX = addTopBarButton(container, Text.escapeJagex("<"), rightX, UNDO_BUTTON_WIDTH, "Undo",
-			undoSteps.isEmpty() ? null : this::undoStep);
+		rightX = SearchableChatbox.nextX(SearchableChatbox.button(container, buttonFont, Text.escapeJagex("<"), "Undo", "",
+			!undoSteps.isEmpty(), rightX, this::undoStep));
 
 		// From 3 wrapped lines: "-" shrinks the text to COMPACT_EDIT_LINES rows, "+" brings back MAX_EDIT_LINES.
 		if (editLines >= 3)
 		{
-			addTopBarButton(container, compact ? "+" : "-", rightX, SHRINK_BUTTON_WIDTH, compact ? "Expand" : "Shrink", this::toggleCompact);
+			SearchableChatbox.button(container, buttonFont, compact ? "+" : "-", compact ? "Expand" : "Shrink", "", true, rightX,
+				this::toggleCompact);
 		}
 	}
 
@@ -948,13 +898,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		Rectangle area = new Rectangle(ChatboxWidgets.LOGO_RIGHT, 5 + (LINE_HEIGHT - ICON_HEIGHT) / 2, ICON_HEIGHT, ICON_HEIGHT);
 		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(WARNING_EMOJI)));
 		tips.add(new SuggestionIconOverlay.Tip(container, area, String.format("%,d characters used", length)));
-	}
-
-	// Returns the next button's rightX.
-	private int addTopBarButton(Widget container, String text, int rightX, int width, String action, @Nullable Runnable onClick)
-	{
-		ChatboxWidgets.button(container, text, FontID.BOLD_12, rightX, 5, width, LINE_HEIGHT, action, onClick);
-		return rightX + width + TOP_BAR_GAP;
 	}
 
 	// Every edit ends in update(), so it's recorded here as just what changed: added to the newest undo step if it's
@@ -1005,39 +948,42 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		lastEditAt = time;
 	}
 
-	// Each of the step's edits reversed, last first; the selection back to before its first.
 	private void undoStep()
 	{
-		Step step = undoSteps.poll();
-		if (step != null)
-		{
-			String value = getValue();
-			for (int i = step.changes.size() - 1; i >= 0; i--)
-			{
-				Change change = step.changes.get(i);
-				value = value.substring(0, change.position) + change.removed + value.substring(change.position + change.inserted.length());
-			}
-			Change first = step.changes.get(0);
-			apply(value, first.startBefore, first.endBefore);
-			redoSteps.push(step);
-		}
+		replay(undoSteps, redoSteps, true);
 	}
 
-	// The step's edits again, in order; the caret where its last left it.
 	private void redoStep()
 	{
-		Step step = redoSteps.poll();
-		if (step != null)
+		replay(redoSteps, undoSteps, false);
+	}
+
+	// The newest step of from, moved to to: undone, each of its edits reversed, last first, the selection back to
+	// before its first; or redone, its edits again in order, the caret where its last left it.
+	private void replay(Deque<Step> from, Deque<Step> to, boolean undo)
+	{
+		Step step = from.poll();
+		if (step == null)
 		{
-			String value = getValue();
-			for (Change change : step.changes)
-			{
-				value = value.substring(0, change.position) + change.inserted + value.substring(change.position + change.removed.length());
-			}
-			int caret = step.changes.get(step.changes.size() - 1).caretAfter;
-			apply(value, caret, caret);
-			undoSteps.push(step);
+			return;
 		}
+		List<Change> changes = new ArrayList<>(step.changes);
+		if (undo)
+		{
+			Collections.reverse(changes);
+		}
+		String value = getValue();
+		for (Change change : changes)
+		{
+			String in = undo ? change.removed : change.inserted;
+			String out = undo ? change.inserted : change.removed;
+			value = value.substring(0, change.position) + in + value.substring(change.position + out.length());
+		}
+		// Pushed first: from a button (on the client thread), apply() redraws the top bar straight away.
+		to.push(step);
+		Change first = step.changes.get(0);
+		int caret = step.changes.get(step.changes.size() - 1).caretAfter;
+		apply(value, undo ? first.startBefore : caret, undo ? first.endBefore : caret);
 	}
 
 	// Recorded first, so undoing or redoing isn't itself recorded as an edit. The next edit starts a new step.
@@ -1050,13 +996,6 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		shiftSelectionAnchor = -1;
 		value(value);
 		cursorAt(start, end);
-	}
-
-	private void toggleFontSize()
-	{
-		widgets.toggleFontSize();
-		font = null;
-		update();
 	}
 
 	private List<Row> buildRows()
@@ -1077,56 +1016,34 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			rows.add(Row.label(originalLabel, false));
 		}
 
+		// Recent, then Nearby, each skipping labels already listed (Current's even when it isn't shown), so none is
+		// listed twice.
 		if (!edited)
 		{
-			// Skip anything already shown as Current, so the same label isn't listed twice.
-			// Left empty when Show Recent is off, so Nearby's own dedup below naturally excludes
-			// nothing from Recent (there's nothing to exclude if Recent isn't shown at all).
-			List<String> dedupedRecent = new ArrayList<>();
+			Set<String> listed = new HashSet<>(Set.of(originalLabel));
 			if (config.showRecent())
 			{
-				for (String label : recentLabels)
-				{
-					if (!hasCurrent || !label.equals(originalLabel))
-					{
-						dedupedRecent.add(label);
-					}
-				}
-
-				if (!dedupedRecent.isEmpty())
-				{
-					rows.add(Row.title("Recent"));
-					for (String label : dedupedRecent)
-					{
-						rows.add(Row.label(label, true));
-					}
-				}
+				addSection(rows, "Recent", recentLabels, listed, true);
 			}
-
-			// Skip anything already shown as Current or Recent.
 			if (config.showNearby())
 			{
-				List<String> dedupedNearby = new ArrayList<>();
-				for (String label : nearbyLabels)
-				{
-					if ((!hasCurrent || !label.equals(originalLabel)) && !dedupedRecent.contains(label))
-					{
-						dedupedNearby.add(label);
-					}
-				}
-
-				if (!dedupedNearby.isEmpty())
-				{
-					rows.add(Row.title("Nearby"));
-					for (String label : dedupedNearby)
-					{
-						rows.add(Row.label(label, false));
-					}
-				}
+				addSection(rows, "Nearby", nearbyLabels, listed, false);
 			}
 		}
 
 		return rows;
+	}
+
+	// title, then each of labels not in listed (now added to it); nothing if none are left.
+	private static void addSection(List<Row> rows, String title, List<String> labels, Set<String> listed, boolean removable)
+	{
+		List<String> left = labels.stream().filter(label -> !listed.contains(label)).collect(Collectors.toList());
+		if (!left.isEmpty())
+		{
+			rows.add(Row.title(title));
+			left.forEach(label -> rows.add(Row.label(label, removable)));
+		}
+		listed.addAll(left);
 	}
 
 	// A variable's exact name first gets its own line, or a required value being typed its parameter's. Then every
@@ -1195,11 +1112,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			scrolledValue = getValue();
 			scrollOffset = 0;
 		}
-		int maxOffset = Math.max(0, rows.size() - visibleRows + 1);
-		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
-
-		ChatboxWidgets.scrollCapture(container, resultsStartY, visibleRows * ROW_HEIGHT, this::scroll);
-
+		scrollOffset = ChatboxWidgets.scrollList(container, resultsStartY, ROW_HEIGHT, visibleRows, rows.size(),
+			Math.max(0, rows.size() - visibleRows + 1), scrollOffset, this::scroll);
 		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
 		for (int i = 0; i < visibleCount; i++)
 		{
@@ -1213,43 +1127,28 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			int color = row.title ? 0x800000 : row.hint ? HINT_COLOR : ROW_COLOR;
 
 			// Escaped so a recommendation containing our own <col=> label syntax (or any other
-			// Jagex markup) shows as literal text instead of actually being applied.
-			Widget text = ChatboxWidgets.rowText(container, row.title ? row.text : Text.escapeJagex(row.text),
-				row.title ? FontID.QUILL_8 : editorFontId(), color, row.title ? 6 : 13, y, ROW_HEIGHT, SCROLLBAR_WIDTH + 6);
+			// Jagex markup) shows as literal text instead of actually being applied. Hints are, already.
+			Widget text = ChatboxWidgets.rowText(container, row.title || row.hint ? row.text : Text.escapeJagex(row.text),
+				row.title ? FontID.QUILL_8 : widgets.fontId(), color, row.title ? 6 : 13, y, ROW_HEIGHT, SCROLLBAR_WIDTH + 6);
 
 			if (!row.title && !row.hint)
 			{
 				addRowActions(text, row, color);
 			}
 		}
-
-		ChatboxWidgets.scrollbar(container, resultsStartY, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(),
-			this::scroll);
 	}
 
 	// A label fills the input; a Recent one can be removed.
 	private void addRowActions(Widget text, Row row, int color)
 	{
-		text.setHasListener(true);
 		// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
 		text.setName(NamedColors.expandColorAliases(row.text));
-		String selected = row.text;
-		text.setAction(0, "Select");
+		List<Runnable> actions = new ArrayList<>();
+		SearchableChatbox.addAction(text, actions, "Select", () -> value(row.text));
 		if (row.removable)
 		{
-			text.setAction(1, "Remove");
+			SearchableChatbox.addAction(text, actions, "Remove", () -> removeRecentEntry(row.text));
 		}
-		text.setOnOpListener((JavaScriptCallback) ev ->
-		{
-			if (ev.getOp() == 2)
-			{
-				removeRecentEntry(selected);
-			}
-			else
-			{
-				value(selected);
-			}
-		});
 		ChatboxWidgets.hover(text, color);
 	}
 
@@ -1279,7 +1178,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 			int color = option == row.preferred ? PREFERRED_SUGGESTION_COLOR : ROW_COLOR;
 			int textWidth = x + columnWidth - textX - 2;
-			Widget text = ChatboxWidgets.text(container, Text.escapeJagex(fit(option.label, textWidth)), editorFontId(), color, textX, y,
+			Widget text = ChatboxWidgets.text(container, Text.escapeJagex(ChatboxWidgets.fit(font, option.label, textWidth)), widgets.fontId(), color, textX, y,
 				textWidth, ROW_HEIGHT);
 			addInsertAction(text, option);
 			ChatboxWidgets.hover(text, color);
@@ -1290,74 +1189,32 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// also gets "Wiki".
 	private void addInsertAction(Widget widget, Completion.Option option)
 	{
-		widget.setHasListener(true);
 		widget.setName(NamedColors.expandColorAliases(option.label));
-		widget.setAction(0, "Insert");
+		List<Runnable> actions = new ArrayList<>();
+		Runnable insert = () -> insertAtCursor(option.insert, option.replace);
+		SearchableChatbox.addAction(widget, actions, "Insert", insert);
 		String wikiType = option.icon == null ? null : option.icon.startsWith("<item=") ? "item"
 			: option.icon.startsWith(Args.NPC_ICON_PREFIX) ? "npc" : null;
 		if (wikiType != null)
 		{
-			widget.setAction(1, "Wiki");
+			SearchableChatbox.addAction(widget, actions, "Wiki", () ->
+			{
+				// The ID from its icon, if worked out by now; else it inserts.
+				Completion.Icon icon = completer.icon(option.icon);
+				if (icon == null)
+				{
+					insert.run();
+					return;
+				}
+				LinkBrowser.browse(WIKI_LOOKUP.newBuilder().addQueryParameter("type", wikiType).addQueryParameter("id", icon.id).build().toString());
+			});
 		}
-		widget.setOnOpListener((JavaScriptCallback) ev ->
-		{
-			// The ID from its icon, if worked out by now.
-			Completion.Icon icon = wikiType == null ? null : completer.icon(option.icon);
-			if (icon != null && ev.getOp() == 2)
-			{
-				LinkBrowser.browse(WIKI_LOOKUP.newBuilder()
-					.addQueryParameter("type", wikiType)
-					.addQueryParameter("id", icon.id)
-					.build().toString());
-			}
-			else
-			{
-				insertAtCursor(option.insert, option.replace);
-			}
-		});
 	}
 
-	// hint as rows, wrapped to the list's width.
+	// hint as rows, escaped (as drawn), wrapped to the list's width.
 	private void addHint(List<Row> rows, String hint)
 	{
-		wrap(hint, rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
-	}
-
-	// text split at spaces into lines of at most width px in the editor font (a longer word stays whole).
-	private List<String> wrap(String text, int width)
-	{
-		List<String> lines = new ArrayList<>();
-		StringBuilder line = new StringBuilder();
-		for (String word : text.split(" "))
-		{
-			String next = line.length() == 0 ? word : line + " " + word;
-			if (line.length() > 0 && font != null && font.getTextWidth(Text.escapeJagex(next)) > width)
-			{
-				lines.add(line.toString());
-				line = new StringBuilder(word);
-			}
-			else
-			{
-				line = new StringBuilder(next);
-			}
-		}
-		lines.add(line.toString());
-		return lines;
-	}
-
-	// text cut short with ".." to fit width px in the editor font.
-	private String fit(String text, int width)
-	{
-		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
-		{
-			return text;
-		}
-		String cut = text;
-		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut + "..")) > width)
-		{
-			cut = cut.substring(0, cut.length() - 1);
-		}
-		return cut + "..";
+		ChatboxWidgets.wrap(font, Text.escapeJagex(hint), rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
 	}
 
 	private void removeRecentEntry(String label)
@@ -1369,8 +1226,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	private void scroll(int direction)
 	{
-		int maxOffset = Math.max(0, buildRows().size() - visibleRows + 1);
-		scrollOffset = Math.max(0, Math.min(scrollOffset + direction, maxOffset));
+		// Kept in range by update().
+		scrollOffset += direction;
 		update();
 	}
 }

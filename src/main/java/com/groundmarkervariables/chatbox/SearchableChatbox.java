@@ -47,7 +47,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	protected static final int DETAIL_COLOR = 0x555555;
 	// Table columns start after the row's check box.
 	protected static final int TABLE_X = 6 + ROW_HEIGHT + 4;
-	private static final int BUTTON_FONT = FontID.PLAIN_11;
+	static final int BUTTON_FONT = FontID.PLAIN_11;
 	private static final int TOP_BAR_GAP = 8;
 	private static final int COLUMN_GAP = 6;
 	// Beside the sorted column's heading.
@@ -110,13 +110,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		ChatboxWidgets.text(container, title() + search, FontID.QUILL_8, 0x800000, ChatboxWidgets.LOGO_RIGHT, 5, 260, LINE_HEIGHT);
 
 		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
-		int rightX = nextX(button(container, font, "x", "Close", "", true, TOP_BAR_GAP, chatboxPanelManager::close));
-		rightX = nextX(button(container, font, "_", "Toggle font size", "", true, rightX, () ->
-		{
-			widgets.toggleFontSize();
-			update();
-		}));
-		buildTopBar(container, font, rightX);
+		buildTopBar(container, font, closeAndFontButtons(container, font, chatboxPanelManager, widgets, this::update));
 
 		ChatboxWidgets.separator(container, RESULTS_Y - 4);
 		buildRows(container);
@@ -188,6 +182,19 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		update();
 	}
 
+	// Every chatbox's top bar starts at its right with "x" (Close) and "_" (Toggle font size, then redraw), in font (of
+	// BUTTON_FONT). Returns the x for the next button.
+	static int closeAndFontButtons(Widget container, FontTypeFace font, ChatboxPanelManager chatboxPanelManager, ChatboxWidgets widgets,
+		Runnable redraw)
+	{
+		int rightX = nextX(button(container, font, "x", "Close", "", true, TOP_BAR_GAP, chatboxPanelManager::close));
+		return nextX(button(container, font, "_", "Toggle font size", "", true, rightX, () ->
+		{
+			widgets.toggleFontSize();
+			redraw.run();
+		}));
+	}
+
 	// The x for the next button to the left of button.
 	protected static int nextX(Widget button)
 	{
@@ -249,7 +256,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	}
 
 	// Sizes the table's columns: each but flex fits its heading with a sort arrow and sizedFor's values in the row font
-	// (longer ones get "..."); flex takes the rest of the row, up to the scrollbar (the last column's gap is its margin). A
+	// (longer ones get ".."); flex takes the rest of the row, up to the scrollbar (the last column's gap is its margin). A
 	// "" heading isn't shown, sized for or sortable.
 	protected void columns(Widget container, String[] headings, List<List<String>> sizedFor, int flex)
 	{
@@ -281,18 +288,16 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	{
 		int top = headed ? RESULTS_Y + ROW_HEIGHT : RESULTS_Y;
 		int visibleRows = headed ? VISIBLE_ROWS - 1 : VISIBLE_ROWS;
-		int maxOffset = Math.max(0, count - visibleRows);
-		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+		scrollOffset = ChatboxWidgets.scrollList(container, top, ROW_HEIGHT, visibleRows, count, Math.max(0, count - visibleRows), scrollOffset,
+			this::scroll);
 		if (headed && (fixedRow == null || count == 0 || !fixedRow.test(scrollOffset, RESULTS_Y)))
 		{
 			addHeadings(container, RESULTS_Y);
 		}
-		ChatboxWidgets.scrollCapture(container, top, visibleRows * ROW_HEIGHT, this::scroll);
 		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++)
 		{
 			addRow.accept(scrollOffset + i, top + ROW_HEIGHT * i);
 		}
-		ChatboxWidgets.scrollbar(container, top, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, count, this::scroll);
 	}
 
 	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
@@ -307,7 +312,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 			}
 			int sortBy = column;
 			// The sorted column's arrow takes from its room.
-			String text = fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
+			String text = ChatboxWidgets.fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
 			Widget heading = ChatboxWidgets.text(container, text, FontID.QUILL_8, 0x800000, columnX(column), y, columnWidth(column),
 				ROW_HEIGHT);
 			heading.setHasListener(true);
@@ -351,32 +356,19 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 			columnWidth(column), ROW_HEIGHT);
 	}
 
-	// text in the row font, cut to fit width with "...".
+	// text in the row font, cut to fit width with "..".
 	protected String fit(String text, int width)
 	{
-		return fit(font, text, width);
+		return ChatboxWidgets.fit(font, text, width);
 	}
 
-	private static String fit(FontTypeFace font, String text, int width)
-	{
-		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
-		{
-			return text;
-		}
-		String cut = text;
-		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut) + "...") > width)
-		{
-			cut = cut.substring(0, cut.length() - 1);
-		}
-		return cut.trim() + "...";
-	}
-
-	// widget's next right-click option; its op listener runs actions.get(op - 1).
-	protected static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action)
+	// widget's next right-click option, of actions (one list per widget), each run by its option.
+	static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action)
 	{
 		widget.setHasListener(true);
 		widget.setAction(actions.size(), name);
 		actions.add(action);
+		widget.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 	}
 
 	// widget's next right-click option, opening a submenu of choices (in order, e.g. Map > On World Map); itself does

@@ -301,7 +301,6 @@ public class MarkerSetManager extends SearchableChatbox
 			addAction(label, actions, "Dissolve set", () -> confirmDissolve(set));
 			addAction(label, actions, "Delete", () -> confirmDelete(set));
 		}
-		label.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		ChatboxWidgets.hover(label, 0x000000);
 	}
 
@@ -360,7 +359,6 @@ public class MarkerSetManager extends SearchableChatbox
 					askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
 				addAction(clickable, actions, "Delete", () -> confirmDelete(set, entry));
 			}
-			clickable.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		}
 		ChatboxWidgets.hover(label, color);
 	}

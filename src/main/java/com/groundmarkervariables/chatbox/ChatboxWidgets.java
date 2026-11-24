@@ -23,6 +23,7 @@ import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.util.Text;
 
 // Widgets for chatbox panels, placed from the container's top and revalidated; set only non-layout properties after.
 // Static, except logo(), which needs the chatboxes it opens.
@@ -179,6 +180,53 @@ public final class ChatboxWidgets
 		Widget probe = container.createChild(-1, WidgetType.TEXT);
 		probe.setFontId(fontId);
 		return probe.getFont();
+	}
+
+	// text's lines of at most width px in font, split at <br> and between words (a longer word stays whole).
+	public static List<String> wrap(FontTypeFace font, String text, int width)
+	{
+		List<String> lines = new ArrayList<>();
+		for (String paragraph : text.split("<br>", -1))
+		{
+			StringBuilder line = new StringBuilder();
+			for (String word : paragraph.split(" "))
+			{
+				if (line.length() > 0 && font.getTextWidth(line + " " + word) > width)
+				{
+					lines.add(line.toString());
+					line.setLength(0);
+				}
+				line.append(line.length() > 0 ? " " : "").append(word);
+			}
+			lines.add(line.toString());
+		}
+		return lines;
+	}
+
+	// text cut short with ".." to fit width px in font, as drawn escaped.
+	public static String fit(FontTypeFace font, String text, int width)
+	{
+		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
+		{
+			return text;
+		}
+		String cut = text;
+		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut) + "..") > width)
+		{
+			cut = cut.substring(0, cut.length() - 1);
+		}
+		return cut.trim() + "..";
+	}
+
+	// A list of visible rows of height from top, of count, scrolled to offset kept within 0 to maxOffset (returned): the
+	// wheel over it and a scrollbar call scroll. Its rows go on after, over the wheel's capture.
+	public static int scrollList(Widget container, int top, int height, int visible, int count, int maxOffset, int offset,
+		IntConsumer scroll)
+	{
+		offset = Math.max(0, Math.min(offset, maxOffset));
+		scrollCapture(container, top, visible * height, scroll);
+		scrollbar(container, top, visible * height, offset, maxOffset, visible, count, scroll);
+		return offset;
 	}
 
 	// Invisible: the mouse wheel over the container's full width from y scrolls by its direction.
