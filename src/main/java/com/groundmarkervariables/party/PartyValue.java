@@ -4,5 +4,8 @@ package com.groundmarkervariables.party;
 // Sent by name, so a client ignores names it doesn't know.
 public enum PartyValue
 {
-	SPELLBOOK
+	SPELLBOOK,
+	// The map clock tick our {metronome}s count from, and our Count Down setting, for Party Sync followers.
+	METRONOME_RESET,
+	METRONOME_COUNT_DOWN
 }

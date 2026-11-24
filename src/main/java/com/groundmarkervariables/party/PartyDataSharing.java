@@ -1,5 +1,7 @@
 package com.groundmarkervariables.party;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -7,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +29,8 @@ import net.runelite.client.party.events.UserPart;
 import net.runelite.client.party.messages.UserSync;
 import net.runelite.client.plugins.Plugin;
 
-// Shares party data for {party}: all of core's PartyDataService data, plus our own PartyValues,
-// sent on change and all again after a UserSync.
+// Shares party data for {party} and Party Sync: all of core's PartyDataService data, plus our own PartyValues,
+// sent on change (at most once a tick) and all again after a UserSync.
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -39,6 +42,9 @@ public class PartyDataSharing
 	private final PartyService partyService;
 	private final PartyDataService partyDataService;
 	private final WSClient wsClient;
+	private final GroundMarkerVariablesConfig config;
+	// A Provider: the metronome reads members' values from here.
+	private final Provider<MetronomeLabelVariable> metronome;
 
 	private Plugin plugin;
 	private boolean registered;
@@ -140,6 +146,10 @@ public class PartyDataSharing
 		{
 			case SPELLBOOK:
 				return Spellbooks.name(client);
+			case METRONOME_RESET:
+				return String.valueOf(metronome.get().resetTick());
+			case METRONOME_COUNT_DOWN:
+				return String.valueOf(config.countDown());
 			default:
 				return null;
 		}

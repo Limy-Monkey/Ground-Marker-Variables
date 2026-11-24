@@ -26,7 +26,6 @@ import com.groundmarkervariables.variables.support.BossKillCountTracker;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.meta.MetaState;
-import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.support.LatestData;
 import com.groundmarkervariables.variables.support.MetronomeResetHotkeyListener;
 import com.groundmarkervariables.variables.support.MiscellaniaTracker;
@@ -87,9 +86,7 @@ import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.input.KeyManager;
-import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
-import net.runelite.client.party.WSClient;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -181,9 +178,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	private MetaVariableResolver metaVariableResolver;
 
 	@Inject
-	private MetronomeLabelVariable metronomeLabelVariable;
-
-	@Inject
 	private OverlayManager overlayManager;
 
 	@Inject
@@ -191,9 +185,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 
 	@Inject
 	private GroundMarkerVariablesSharingManager sharingManager;
-
-	@Inject
-	private WSClient wsClient;
 
 	@Inject
 	private GroundMarkerVariablesTileOverlay tileOverlay;
@@ -286,9 +277,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	// drawn ones refresh once per tick (onGameTick). RenderedTiles translates and weighs them with other sources.
 	private final Map<Integer, List<SourceMarker>> markersByRegion = new ConcurrentHashMap<>();
 
-	// Guards against replying twice in the same tick if multiple party members target us.
-	private boolean hasRespondedThisTick;
-
 	// Captured in startUp() -- true only for a brand new install, so announceUpdateIfNeeded()
 	// can skip users who've never seen the old behavior.
 	private boolean freshInstall;
@@ -344,18 +332,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		// SwingUtilities.invokeAndWait), but resolving a variable requires the client thread —
 		// same reasoning as onConfigChanged's rebuild below.
 		clientThread.invoke(() -> loadPoints());
-
-		// A collision (another plugin already claiming these message names) throws here;
-		// party sync is simply unavailable in that case rather than failing the whole plugin.
-		try
-		{
-			wsClient.registerMessage(GMVMetronomeSyncRequest.class);
-			wsClient.registerMessage(GMVMetronomeSyncResponse.class);
-		}
-		catch (IllegalArgumentException e)
-		{
-			log.warn("Party sync unavailable due to a message type collision with another plugin", e);
-		}
 	}
 
 	// Copies core's current Ground Markers config values into our own "Ground Markers" section.
@@ -414,16 +390,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		sharingManager.removeMenuOptions();
 		markersByRegion.clear();
 		renderedTiles.clear();
-
-		try
-		{
-			wsClient.unregisterMessage(GMVMetronomeSyncRequest.class);
-			wsClient.unregisterMessage(GMVMetronomeSyncResponse.class);
-		}
-		catch (IllegalArgumentException e)
-		{
-			// Never registered successfully; nothing to unregister.
-		}
 	}
 
 	// Mirrors core's GroundMarkerPlugin#onMenuEntryAdded shift-click handling — builds our own
@@ -1034,51 +1000,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		RuneCounter.clearCache();
 		refreshNearbyMarkers();
 		groupState.tick();
-
-		hasRespondedThisTick = false;
-		if (config.enablePartySync() && !config.syncTarget().isEmpty()
-			&& partyService.getMembers().stream().anyMatch(m -> matchesTarget(m.getDisplayName(), config.syncTarget())))
-		{
-			partyService.send(new GMVMetronomeSyncRequest(config.syncTarget()));
-		}
-	}
-
-	// Answers a request if we're the named target, regardless of our own Party Sync setting —
-	// being a sync source doesn't require opting into following anyone yourself.
-	@Subscribe
-	public void onGMVMetronomeSyncRequest(GMVMetronomeSyncRequest request)
-	{
-		PartyMember localMember = partyService.getLocalMember();
-		if (localMember == null || !matchesTarget(localMember.getDisplayName(), request.getTarget()))
-		{
-			return;
-		}
-
-		if (hasRespondedThisTick)
-		{
-			return;
-		}
-		hasRespondedThisTick = true;
-
-		partyService.send(new GMVMetronomeSyncResponse(metronomeLabelVariable.elapsedTicks(), config.countDown()));
-	}
-
-	// Applies a response only if it's actually from our configured sync target.
-	@Subscribe
-	public void onGMVMetronomeSyncResponse(GMVMetronomeSyncResponse response)
-	{
-		if (!config.enablePartySync())
-		{
-			return;
-		}
-
-		PartyMember sender = partyService.getMemberById(response.getMemberId());
-		if (sender == null || !matchesTarget(sender.getDisplayName(), config.syncTarget()))
-		{
-			return;
-		}
-
-		metronomeLabelVariable.syncTo(response.getElapsedTicks(), response.isCountDown());
 	}
 
 	// Feeds {6HourTimeRemaining} — see SixHourTimeRemainingLabelVariable.
@@ -1129,11 +1050,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 
 	// Case-insensitive, and underscore/space-interchangeable, since a display name can arrive
 	// over the party websocket with underscores in place of spaces.
-	private static boolean matchesTarget(String displayName, String target)
-	{
-		return displayName.replace('_', ' ').equalsIgnoreCase(target.replace('_', ' '));
-	}
-
 	public Collection<WorldView> getTrackedWorldViews()
 	{
 		return renderedTiles.worldViews();

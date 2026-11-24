@@ -170,7 +170,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			position = 1,
 			keyName = "enablePartySync",
 			name = "Party Sync",
-			description = "Sync {metronome} to a party member's tick count.",
+			description = "Sync {metronome} to a party member's tick count.<br>They must be on the same world as you.",
 			section = partySyncSection
 	)
 	default boolean enablePartySync()

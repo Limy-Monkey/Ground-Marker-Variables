@@ -1,30 +1,27 @@
 package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.party.PartyDataSharing;
+import com.groundmarkervariables.party.PartyValue;
+import com.groundmarkervariables.variables.LabelVariable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
-
-import com.groundmarkervariables.variables.LabelVariable;
 import net.runelite.api.Client;
+import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.util.ColorUtil;
 
-// {metronomeN} (or its {mN} alias) counts up from 1 to N, or with the "Count Down" config
-// option, down from N to 1, then repeats, advancing once per game tick. {metronomeN_M} is
-// the same, but only advances once every M ticks (default M = 1). Driven
-// by Client.getTickCount() rather than our own counter so it stays exact regardless of how
-// often the overlay redraws, and so every {metronomeN_M} with the same N and M stays in sync
-// — offset by the "Reset metronome" hotkey's tick (see offset()) so every metronome can be
-// re-synced to a moment the player chooses, e.g. the start of a boss fight.
+// {metronomeN} (or {mN}) counts up from 1 to N, or with "Count Down" down from N to 1, then repeats, once per game tick;
+// {metronomeN_M} advances once every M ticks. Counted on the server's map clock (VarPlayerID.MAP_CLOCK) from the "Reset
+// metronome" hotkey's tick, so every metronome with the same N and M stays in step; with Party Sync, from the sync
+// target's published reset tick and direction instead (see PartyDataSharing).
 //
-// @Singleton because this is injected at two separate points (LabelResolver and the reset
-// hotkey listener, in the main com.groundmarkervariables package) that must share the same
-// offset state — Guice hands out a fresh instance per injection point otherwise. Public (unlike
-// every other LabelVariable) for the same reason: the hotkey listener outside this package
-// needs to call offset().
+// @Singleton: LabelResolver, the hotkey listener and PartyDataSharing share its reset tick.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MetronomeLabelVariable implements LabelVariable
@@ -33,81 +30,55 @@ public class MetronomeLabelVariable implements LabelVariable
 	private static final Pattern PATTERN = Pattern.compile(
 		"\\{(?:metronome|m)([+-]?)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
-	// Sync target's "Count Down" stops overriding our own config after this many ticks (30s)
-	// with no new GMVMetronomeSyncResponse.
-	private static final int SYNC_TIMEOUT_TICKS = 50;
-
-	// A new offset only commits after this many consecutive responses agree on it.
-	private static final int CONSECUTIVE_REQUIRED = 4;
-
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
 	private final PartyService partyService;
-	private volatile int offsetTick;
-	private volatile boolean syncedCountDown;
-	private volatile int lastSyncTick = -SYNC_TIMEOUT_TICKS - 1;
-	private volatile int pendingOffset;
-	private volatile int pendingCount;
+	private final PartyDataSharing partyDataSharing;
+	// The map clock tick counting starts from: 0 until reset, the same for everyone.
+	private volatile int resetTick;
 
-	public void offset()
+	public void reset()
 	{
-		offsetTick = client.getTickCount();
+		resetTick = client.getVarpValue(VarPlayerID.MAP_CLOCK);
 	}
 
-	// Ticks elapsed since offsetTick — the one value every marker's countdown is derived
-	// from, sent to party members as a GMVMetronomeSyncResponse.
-	public int elapsedTicks()
+	// Ours, published to the party.
+	public int resetTick()
 	{
-		return client.getTickCount() - offsetTick;
+		return resetTick;
 	}
 
-	// countDown applies immediately; a new offset needs CONSECUTIVE_REQUIRED matching responses.
-	public void syncTo(int remoteElapsedTicks, boolean remoteCountDown)
+	// The Party Sync target's published value, if following someone who's sent it.
+	@Nullable
+	private String synced(PartyValue value)
 	{
-		lastSyncTick = client.getTickCount();
-		syncedCountDown = remoteCountDown;
-
-		int candidateOffset = client.getTickCount() - remoteElapsedTicks;
-		if (candidateOffset == offsetTick)
+		String target = config.syncTarget().replace('_', ' ');
+		if (!config.enablePartySync() || target.isEmpty())
 		{
-			pendingCount = 0;
-			return;
+			return null;
 		}
-
-		if (candidateOffset == pendingOffset)
+		for (PartyMember member : partyService.getMembers())
 		{
-			pendingCount++;
-		}
-		else
-		{
-			pendingOffset = candidateOffset;
-			pendingCount = 1;
-		}
-
-		if (pendingCount >= CONSECUTIVE_REQUIRED)
-		{
-			offsetTick = pendingOffset;
-			pendingCount = 0;
-		}
-	}
-
-	// The sync target's countDown, unless stale (no response in SYNC_TIMEOUT_TICKS) or we've
-	// left the party -- then back to our own config, same as if never synced.
-	private boolean effectiveCountDown()
-	{
-		if (client.getTickCount() - lastSyncTick < SYNC_TIMEOUT_TICKS)
-		{
-			if (!partyService.isInParty())
+			if (member.getDisplayName().replace('_', ' ').equalsIgnoreCase(target))
 			{
-				lastSyncTick = -SYNC_TIMEOUT_TICKS;
-				pendingCount = 0;
-				return config.countDown();
+				return partyDataSharing.value(member.getMemberId(), value);
 			}
-
-			return syncedCountDown;
 		}
+		return null;
+	}
 
-		return config.countDown();
+	// The sync target's reset tick if published, else ours.
+	private int countedFrom()
+	{
+		try
+		{
+			String synced = synced(PartyValue.METRONOME_RESET);
+			return synced != null ? Integer.parseInt(synced) : resetTick;
+		}
+		catch (NumberFormatException e)
+		{
+			return resetTick;
+		}
 	}
 
 	@Override
@@ -132,9 +103,11 @@ public class MetronomeLabelVariable implements LabelVariable
 		}
 
 		String direction = matcher.group(1);
-		boolean countDown = direction.isEmpty() ? effectiveCountDown() : direction.equals("-");
+		String syncedCountDown = synced(PartyValue.METRONOME_COUNT_DOWN);
+		boolean countDown = !direction.isEmpty() ? direction.equals("-")
+			: syncedCountDown != null ? Boolean.parseBoolean(syncedCountDown) : config.countDown();
 
-		int step = Math.floorDiv(client.getTickCount() - offsetTick, ticksPerStep);
+		int step = Math.floorDiv(client.getVarpValue(VarPlayerID.MAP_CLOCK) - countedFrom(), ticksPerStep);
 		int position = Math.floorMod(step, max);
 		String value = String.valueOf(countDown ? max - position : position + 1);
 

@@ -20,6 +20,6 @@ public class MetronomeResetHotkeyListener extends HotkeyListener
 	@Override
 	public void hotkeyPressed()
 	{
-		metronome.offset();
+		metronome.reset();
 	}
 }
