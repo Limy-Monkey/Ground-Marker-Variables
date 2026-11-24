@@ -1,10 +1,13 @@
 package com.groundmarkervariables.chatbox;
 
+import com.google.common.base.Strings;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.chatbox.completion.LabelCompleter;
+import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
+import com.groundmarkervariables.variables.support.IconNames;
 import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -136,6 +139,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	private final LabelCompleter completer;
 	private final SuggestionIconOverlay iconOverlay;
 	private final ChatboxWidgets widgets;
+	private final ClientThread clientThread;
+	// Ctrl+V of copied markers (see pasteMarkers()).
+	private final GroundMarkerVariablesSharingManager sharingManager;
+	private final IconNames iconNames;
+	// Closing for the import's prompts, coming back after (see close()).
+	private boolean handingOff;
 	// This update's suggestion icons and tooltips, for iconOverlay.
 	private final List<SuggestionIconOverlay.Placement> iconPlacements = new ArrayList<>();
 	private final List<SuggestionIconOverlay.Tip> tips = new ArrayList<>();
@@ -211,7 +220,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
-		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets)
+		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets,
+		GroundMarkerVariablesSharingManager sharingManager, IconNames iconNames)
 	{
 		super(chatboxPanelManager, clientThread);
 		this.widgets = widgets;
@@ -220,6 +230,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.configManager = configManager;
 		this.completer = completer;
 		this.iconOverlay = iconOverlay;
+		this.clientThread = clientThread;
+		this.sharingManager = sharingManager;
+		this.iconNames = iconNames;
 		// Names still loading when suggested: suggested again once they have, if still open.
 		completer.onNamesLoaded(() ->
 		{
@@ -236,8 +249,14 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	@Override
 	protected void close()
 	{
-		super.close();
 		iconOverlay.clear();
+		// Handed off to the import, which comes back here: its onClose (e.g. clearing the tile's preview) waits for then.
+		if (handingOff)
+		{
+			handingOff = false;
+			return;
+		}
+		super.close();
 	}
 
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
@@ -269,6 +288,30 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		Completion completion = completion();
 		String insert = completion == null ? null : completion.preferredInsert();
 		return insert == null || insert.isEmpty() ? null : insert;
+	}
+
+	// Ctrl+V of copied ground markers (or a marker set), true if handled here (else it's a normal paste): one marker's label
+	// alone (icons by name, as labels are edited), not its color or place, at the cursor; more go through the import, which
+	// asks first, then back to this editor.
+	private boolean pasteMarkers()
+	{
+		List<GroundMarkerPointData> markers = sharingManager.clipboardMarkers();
+		if (markers.isEmpty())
+		{
+			return false;
+		}
+		if (markers.size() == 1)
+		{
+			String label = Strings.nullToEmpty(markers.get(0).getLabel());
+			clientThread.invoke(() -> insertAtCursor(iconNames.collapse(label), 0));
+			return true;
+		}
+		clientThread.invoke(() ->
+		{
+			handingOff = true;
+			sharingManager.importClipboard(() -> chatboxPanelManager.openInput(this));
+		});
+		return true;
 	}
 
 	// insert in place of the replace characters before the cursor.
@@ -323,6 +366,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			{
 				redoStep();
 			}
+			return;
+		}
+
+		if (ev.isControlDown() && code == KeyEvent.VK_V && pasteMarkers())
+		{
+			ev.consume();
 			return;
 		}
 

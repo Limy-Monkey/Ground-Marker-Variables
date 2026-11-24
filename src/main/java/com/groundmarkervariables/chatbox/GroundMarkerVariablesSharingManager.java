@@ -67,7 +67,7 @@ public class GroundMarkerVariablesSharingManager
 	public void addImportExportMenuOptions()
 	{
 		menuManager.addManagedCustomMenu(EXPORT_MARKERS_OPTION, this::exportGroundMarkers);
-		menuManager.addManagedCustomMenu(IMPORT_MARKERS_OPTION, this::promptForImport);
+		menuManager.addManagedCustomMenu(IMPORT_MARKERS_OPTION, menuEntry -> importClipboard(Runnables.doNothing()));
 	}
 
 	public void addClearMenuOption()
@@ -122,11 +122,12 @@ public class GroundMarkerVariablesSharingManager
 		sendChatMessage(activePoints.size() + " ground markers were copied to your clipboard.");
 	}
 
-	// A marker set is added as an Imported set, not as markers.
-	private void promptForImport(MenuEntry menuEntry)
+	// The clipboard's marker set (added as an Imported set, not as markers) or ground markers, each asked about first; then
+	// after, imported or not. Also the Advanced Label Editor's Ctrl+V.
+	public void importClipboard(Runnable after)
 	{
-		parseClipboard((set, text) -> confirmSetImport(set, text, Runnables.doNothing()), points ->
-			confirmImport(points, " ground markers were imported from the clipboard.", Runnables.doNothing(), Runnables.doNothing(), true));
+		parseClipboard((set, text) -> confirmSetImport(set, text, after), points ->
+			confirmImport(points, " ground markers were imported from the clipboard.", after, after, true));
 	}
 
 	// The clipboard as a copied marker set (onSet, with its text), else as ground markers (onMarkers); if neither, a chat
@@ -193,6 +194,22 @@ public class GroundMarkerVariablesSharingManager
 		}
 	}
 
+	// The ground markers copied in the clipboard, or a copied marker set's tiles, quietly: empty if none, unreadable or damaged.
+	public List<GroundMarkerPointData> clipboardMarkers()
+	{
+		try
+		{
+			String text = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+			MarkerSet set = Strings.isNullOrEmpty(text) ? null : markerSets.parse(text);
+			return set != null ? set.entries.stream().flatMap(entry -> entry.tiles.stream()).collect(Collectors.toList())
+				: Strings.isNullOrEmpty(text) ? List.of() : markerMinifier.parse(text);
+		}
+		catch (Exception e)
+		{
+			return List.of();
+		}
+	}
+
 	// Previews the set's tiles and asks before adding it; one with the same title and author is replaced. Then after, either
 	// way (also Marker Sets' Import).
 	public void confirmSetImport(MarkerSet set, String text, Runnable after)
@@ -240,7 +257,11 @@ public class GroundMarkerVariablesSharingManager
 				sendChatMessage(importPoints.size() + importedMessage);
 				onImported.run();
 			})
-			.option("Yes, as a marker set", asSet ? () -> importAsSet(importPoints, chatboxPanelManager::close) : null)
+			.option("Yes, as a marker set", asSet ? () -> importAsSet(importPoints, () ->
+			{
+				chatboxPanelManager.close();
+				onImported.run();
+			}) : null)
 			.no(onCancelled)
 			.onClose(importPreviewManager::clear)
 			.build();

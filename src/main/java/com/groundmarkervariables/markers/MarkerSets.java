@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -290,7 +291,7 @@ public class MarkerSets implements TileSource
 	}
 
 	// One entry per label, same-label markers grouped.
-	static List<MarkerSet.Entry> entriesByLabel(List<GroundMarkerPointData> points)
+	public static List<MarkerSet.Entry> entriesByLabel(List<GroundMarkerPointData> points)
 	{
 		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
 		points.forEach(point -> byLabel.computeIfAbsent(Strings.nullToEmpty(point.getLabel()), label -> new ArrayList<>()).add(point));
@@ -446,6 +447,14 @@ public class MarkerSets implements TileSource
 	// new keys (an untitled entry's key is its position).
 	private void edit(MarkerSet set, Map<MarkerSet.Entry, MarkerSet.Entry> moved)
 	{
+		edit(set, moved, List.of());
+	}
+
+	// As edit(set, moved), then added (new, with no on/off state, at their positions after moved's). Null, changing
+	// nothing but on/off state, if too large.
+	@Nullable
+	private MarkerSet edit(MarkerSet set, Map<MarkerSet.Entry, MarkerSet.Entry> moved, List<MarkerSet.Entry> added)
+	{
 		Map<String, Boolean> before = state.entries.remove(set.key());
 		Map<String, Boolean> after = new HashMap<>();
 		moved.forEach((from, to) ->
@@ -460,7 +469,48 @@ public class MarkerSets implements TileSource
 			state.entries.put(set.key(), after);
 		}
 		configManager.setConfiguration(GROUP, STATE_KEY, gson.toJson(state));
-		edit(set, set.title, set.description, set.author, new ArrayList<>(moved.values()));
+		List<MarkerSet.Entry> entries = new ArrayList<>(moved.values());
+		entries.addAll(added);
+		return edit(set, set.title, set.description, set.author, entries);
+	}
+
+	// markers added as entries, one per label (as entriesByLabel). replace: tiles already in set at their places are
+	// dropped from their entries first (an emptied entry goes); else those markers are skipped. Null, changing nothing, if
+	// too large.
+	@Nullable
+	public MarkerSet paste(MarkerSet set, List<GroundMarkerPointData> markers, boolean replace)
+	{
+		Set<WorldPoint> pasted = markers.stream().map(GroundMarkerPointData::worldPoint).collect(Collectors.toSet());
+		Set<WorldPoint> there = new HashSet<>();
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			List<GroundMarkerPointData> kept = new ArrayList<>();
+			for (GroundMarkerPointData tile : entry.tiles)
+			{
+				there.add(tile.worldPoint());
+				if (!replace || !pasted.contains(tile.worldPoint()))
+				{
+					kept.add(tile);
+				}
+			}
+			if (!kept.isEmpty())
+			{
+				moved.put(entry, new MarkerSet.Entry(entry.title, entry.description, kept, entry.group, entry.enabledByDefault, moved.size()));
+			}
+		}
+		List<MarkerSet.Entry> added = new ArrayList<>();
+		entriesByLabel(replace ? markers : markers.stream().filter(marker -> !there.contains(marker.worldPoint())).collect(Collectors.toList()))
+			.forEach(entry -> added.add(entry.at(moved.size() + added.size())));
+		return edit(set, moved, added);
+	}
+
+	// How many of markers are at a tile already in set.
+	public static long duplicates(MarkerSet set, List<GroundMarkerPointData> markers)
+	{
+		Set<WorldPoint> there = set.entries.stream().flatMap(entry -> entry.tiles.stream()).map(GroundMarkerPointData::worldPoint)
+			.collect(Collectors.toSet());
+		return markers.stream().filter(marker -> there.contains(marker.worldPoint())).count();
 	}
 
 	// An own set changed, stored as its next version, dated today.

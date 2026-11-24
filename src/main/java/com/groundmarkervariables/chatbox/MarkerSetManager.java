@@ -60,6 +60,8 @@ public class MarkerSetManager extends SearchableChatbox
 	// Picking one of the user's own sets (see pick()), not managing them.
 	@Nullable
 	private Consumer<MarkerSet> onPick;
+	// Ground markers are in the clipboard, for your own sets' Edit > Paste; checked each update.
+	private boolean clipboardHasMarkers;
 
 	// A set, one of its entries, or the status line (entry == STATUS).
 	@RequiredArgsConstructor
@@ -173,6 +175,7 @@ public class MarkerSetManager extends SearchableChatbox
 	@Override
 	protected void buildRows(Widget container)
 	{
+		clipboardHasMarkers = !recycleBin && !sharingManager.clipboardMarkers().isEmpty();
 		List<Row> rows = rows();
 		String status = markerSets.status();
 		boolean table = !rows.isEmpty();
@@ -297,6 +300,10 @@ public class MarkerSetManager extends SearchableChatbox
 			Map<String, Runnable> edit = new LinkedHashMap<>();
 			edit.put("Set title", () -> askTitle(set));
 			edit.put("Set description", () -> askDescription(set.description, text -> markerSets.setDescription(set, text)));
+			if (clipboardHasMarkers)
+			{
+				edit.put("Paste", () -> paste(set));
+			}
 			if (name != null && name.equalsIgnoreCase(set.author))
 			{
 				edit.put("Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
@@ -360,17 +367,26 @@ public class MarkerSetManager extends SearchableChatbox
 		{
 			List<Runnable> actions = new ArrayList<>();
 			addAction(clickable, actions, enabled ? "Disable" : "Enable", () -> markerSets.setEnabled(set, entry, !enabled));
-			if (set.kind == MarkerSet.Kind.OWN && !entry.group)
-			{
-				addAction(clickable, actions, "Edit", () -> editTile(set, entry));
-			}
 			addShowOnMap(clickable, actions, set, entry.tiles, new Rectangle(textX, y, textWidth, ROW_HEIGHT));
-			if (set.kind == MarkerSet.Kind.OWN)
+			Runnable copy = () -> copyTiles(entry.tiles, "\"" + entry.name() + "\" in the marker set \"" + set.title + "\"");
+			// Your own: Edit > Label (one tile's: a group's would become that tile), Copy, Set Title, Set Description,
+			// Delete. Others' have just Copy.
+			if (set.kind != MarkerSet.Kind.OWN)
 			{
-				addAction(clickable, actions, "Set title", () -> askTitle(set, entry));
-				addAction(clickable, actions, "Set description", () ->
-					askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
-				addAction(clickable, actions, "Delete", () -> confirmDelete(set, entry));
+				addAction(clickable, actions, "Copy", copy);
+			}
+			else
+			{
+				Map<String, Runnable> edit = new LinkedHashMap<>();
+				if (!entry.group)
+				{
+					edit.put("Label", () -> editTile(set, entry));
+				}
+				edit.put("Copy", copy);
+				edit.put("Set Title", () -> askTitle(set, entry));
+				edit.put("Set Description", () -> askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
+				edit.put("Delete", () -> confirmDelete(set, entry));
+				addSubmenu(clickable, actions, "Edit", edit);
 			}
 		}
 		ChatboxWidgets.hover(label, color);
@@ -402,9 +418,49 @@ public class MarkerSetManager extends SearchableChatbox
 	// Just its tiles, as ground markers: a label with variables goes in "gmv", as written.
 	private void exportTiles(MarkerSet set)
 	{
-		List<GroundMarkerPointData> tiles = tiles(set);
+		copyTiles(tiles(set), "the marker set \"" + set.title + "\"");
+	}
+
+	// The clipboard's ground markers (read again, in case it changed) added to set, an entry per label as Marker Manager's Set.
+	// Any at a tile already in it: asks whether to skip those, replace the set's, or cancel.
+	private void paste(MarkerSet set)
+	{
+		List<GroundMarkerPointData> markers = sharingManager.clipboardMarkers();
+		if (markers.isEmpty())
+		{
+			sendChatMessage("You do not have ground markers copied in your clipboard.");
+			return;
+		}
+		long duplicates = MarkerSets.duplicates(set, markers);
+		if (duplicates == 0)
+		{
+			paste(set, markers, false, 0);
+			return;
+		}
+		new ConfirmChatbox(chatboxPanelManager, duplicates + " of the " + markers.size() + " ground markers are on tiles already in the marker set \""
+				+ Text.escapeJagex(set.title) + "\".")
+			.option("Skip", () -> paste(set, markers, false, duplicates))
+			.option("Replace", () -> paste(set, markers, true, duplicates))
+			.option("Cancel", this::reopen)
+			.build();
+	}
+
+	// replace: the set's tiles where markers go are replaced; else duplicates of markers are skipped.
+	private void paste(MarkerSet set, List<GroundMarkerPointData> markers, boolean replace, long duplicates)
+	{
+		long pasted = replace ? markers.size() : markers.size() - duplicates;
+		sendChatMessage(markerSets.paste(set, markers, replace) == null ? MarkerSets.TOO_LARGE
+			: pasted + (pasted == 1 ? " ground marker was" : " ground markers were") + " pasted into the marker set \"" + set.title + "\""
+				+ (duplicates == 0 ? "." : replace ? ", replacing " + duplicates + "." : ", skipping " + duplicates + "."));
+		reopen();
+	}
+
+	// tiles as ground markers (see exportTiles), from (e.g. "the marker set "TFA"") for the chat message.
+	private void copyTiles(List<GroundMarkerPointData> tiles, String from)
+	{
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.exportGmvPlain(tiles)), null);
-		sendChatMessage(tiles.size() + " ground markers from the marker set \"" + set.title + "\" were copied to your clipboard.");
+		sendChatMessage(tiles.size() + (tiles.size() == 1 ? " ground marker" : " ground markers") + " from " + from
+			+ (tiles.size() == 1 ? " was" : " were") + " copied to your clipboard.");
 	}
 
 	// Your own copy, still by its author until you claim it.
