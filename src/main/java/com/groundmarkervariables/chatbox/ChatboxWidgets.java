@@ -22,6 +22,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 // Widgets for chatbox panels, placed from the container's top and revalidated; set only non-layout properties after.
 // Static, except logo(), which needs the chatboxes it opens.
@@ -37,6 +38,8 @@ public final class ChatboxWidgets
 	// The "_" toggle's smaller font (PLAIN_11), shared by every chatbox; persisted across restarts.
 	private static final String SMALL_FONT_KEY = "advancedEditorSmallFont";
 	private static final Rectangle LOGO_AREA = new Rectangle(4, 2, 24, 24);
+	// The logo's last right-click option.
+	private static final String DISCORD_URL = "https://discord.gg/ehyvCPpdSn";
 	// Where the top row's other content can start, right of the logo.
 	public static final int LOGO_RIGHT = LOGO_AREA.x + LOGO_AREA.width + 4;
 	private static final BufferedImage LOGO = ImageUtil.loadImageResource(ChatboxWidgets.class, "gmv-logo.png");
@@ -95,6 +98,8 @@ public final class ChatboxWidgets
 				chatboxPanelManager.openInput(manager);
 			});
 		}
+		logo.setAction(opens.size(), "Discord");
+		opens.add(() -> LinkBrowser.browse(DISCORD_URL));
 		logo.setOnOpListener((JavaScriptCallback) ev -> opens.get(ev.getOp() - 1).run());
 	}
 
