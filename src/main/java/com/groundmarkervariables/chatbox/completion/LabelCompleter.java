@@ -1,6 +1,7 @@
 package com.groundmarkervariables.chatbox.completion;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelResolver;
@@ -13,6 +14,7 @@ import com.groundmarkervariables.variables.support.NamedColors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import net.runelite.api.gameval.SpriteID;
+import net.runelite.client.callback.ClientThread;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
 // editor; labels() gives it that editor's recent/nearby labels.
@@ -94,23 +97,41 @@ public class LabelCompleter
 		Completion apply(String partial, boolean numeric);
 	}
 
+	// Time per client tick spent working out icons (see work()).
+	private static final long WORK_NANOS = 4_000_000;
+
 	private final GroundMarkerVariablesConfig config;
+	private final ClientThread clientThread;
 	private final Emojis emojis;
 	private final IconNames iconNames;
+	private final NpcImages npcImages;
 	private final LabelResolver labelResolver;
 	private final RecentUsage recent = new RecentUsage();
 	private final List<Rule> rules;
-	// Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime).
+	// Client thread. Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime),
+	// in the background; those still to work out, in order asked.
 	private final Map<String, Optional<Completion.Icon>> icons = new HashMap<>();
+	private final Set<String> pending = new LinkedHashSet<>();
+	// The editor's redraw, once names still loading have (see onNamesLoaded).
+	private Runnable refresh = () -> {};
 
 	@Inject
-	private LabelCompleter(GroundMarkerVariablesConfig config, Emojis emojis, IconNames iconNames, LabelResolver labelResolver)
+	private LabelCompleter(GroundMarkerVariablesConfig config, ClientThread clientThread, Emojis emojis, IconNames iconNames,
+		NpcImages npcImages, LabelResolver labelResolver)
 	{
 		this.config = config;
+		this.clientThread = clientThread;
 		this.emojis = emojis;
 		this.iconNames = iconNames;
+		this.npcImages = npcImages;
 		this.labelResolver = labelResolver;
 		this.rules = rules();
+	}
+
+	// Run when names a completion needed have loaded (they load in the background), so it can be shown again.
+	public void onNamesLoaded(Runnable refresh)
+	{
+		this.refresh = refresh;
 	}
 
 	// The editor's recent and nearby labels (its own lists, kept up to date by it).
@@ -120,8 +141,8 @@ public class LabelCompleter
 		iconNames.refreshNearby();
 	}
 
-	// Client thread. An option's icon (see Completion.Option#icon): the first sprite or item its syntax resolves to.
-	// Cached, except a name not found while IconNames is still loading.
+	// Client thread. An option's icon (see Completion.Option#icon) if it's been worked out; never blocks. Else null, and
+	// it's worked out in the background (see work()); the icon overlay asks each frame, so draws it once it's ready.
 	@Nullable
 	public Completion.Icon icon(String syntax)
 	{
@@ -130,10 +151,64 @@ public class LabelCompleter
 		{
 			return cached.orElse(null);
 		}
+		if (pending.add(syntax) && pending.size() == 1)
+		{
+			clientThread.invoke(this::work);
+		}
+		return null;
+	}
+
+	// Client thread. Works out pending icons, in order, until this tick's time is spent, skipping those whose names
+	// are still loading; true (done) once none are left.
+	private boolean work()
+	{
+		long end = System.nanoTime() + WORK_NANOS;
+		for (Iterator<String> it = pending.iterator(); it.hasNext() && System.nanoTime() < end; )
+		{
+			String syntax = it.next();
+			Optional<Completion.Icon> icon = resolve(syntax);
+			if (icon != null)
+			{
+				icon.ifPresent(this::draw);
+				icons.put(syntax, icon);
+				it.remove();
+			}
+		}
+		return pending.isEmpty();
+	}
+
+	// An NPC's image drawn now, in work()'s time, rather than when the overlay first shows it.
+	private void draw(Completion.Icon icon)
+	{
+		if (icon.kind == Completion.Icon.Kind.NPC || icon.kind == Completion.Icon.Kind.NPC_HEAD)
+		{
+			npcImages.image(Integer.parseInt(icon.id), icon.kind == Completion.Icon.Kind.NPC_HEAD);
+		}
+		icon.parts.forEach(this::draw);
+	}
+
+	// The first sprite, item, NPC, ... syntax resolves to (empty if none); null while names it needs are still
+	// loading, which starts them.
+	@Nullable
+	private Optional<Completion.Icon> resolve(String syntax)
+	{
+		// Args.firstOf's: the first that shows.
+		int fallback = syntax.indexOf(Args.ICON_FALLBACK);
+		if (fallback >= 0)
+		{
+			Optional<Completion.Icon> first = resolve(syntax.substring(0, fallback));
+			return first == null || first.isPresent() ? first : resolve(syntax.substring(fallback + Args.ICON_FALLBACK.length()));
+		}
+
+		if (syntax.startsWith(Args.NPC_ICON_PREFIX))
+		{
+			String name = syntax.substring(Args.NPC_ICON_PREFIX.length());
+			return iconNames.ready(IconNames.Kind.NPC) ? resolve("<npc=" + name + (iconNames.hasHead(name) ? ",head" : "") + ">") : null;
+		}
 
 		if (syntax.startsWith(Args.COLOR_ICON_PREFIX))
 		{
-			return new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(Args.COLOR_ICON_PREFIX.length()));
+			return Optional.of(new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(Args.COLOR_ICON_PREFIX.length())));
 		}
 
 		// A boss: its hiscores icon, else a sprite of that name.
@@ -141,13 +216,17 @@ public class LabelCompleter
 		{
 			String name = syntax.substring(Args.BOSS_ICON_PREFIX.length());
 			Integer sprite = iconNames.bossSprite(name);
-			if (sprite == null)
+			return sprite != null ? Optional.of(new Completion.Icon(Completion.Icon.Kind.SPRITE, String.valueOf(sprite)))
+				: resolve(spriteNamed(name, "Hiscore"));
+		}
+
+		// Names need their kind loaded; a variable may name items (e.g. {charges toxic blowpipe, icon}).
+		for (IconNames.Kind kind : IconNames.Kind.values())
+		{
+			if ((syntax.contains("<" + kind.tag + "=") || (kind == IconNames.Kind.ITEM && syntax.contains("{"))) && !iconNames.ready(kind))
 			{
-				return icon(spriteNamed(name, "Hiscore"));
+				return null;
 			}
-			Completion.Icon icon = new Completion.Icon(Completion.Icon.Kind.SPRITE, String.valueOf(sprite));
-			icons.put(syntax, Optional.of(icon));
-			return icon;
 		}
 
 		String expanded = iconNames.expand(emojis.expand(syntax));
@@ -174,11 +253,7 @@ public class LabelCompleter
 				icon = tagIcon(tag);
 			}
 		}
-		if (icon != null || !expanded.equals(syntax) || !syntax.startsWith("<"))
-		{
-			icons.put(syntax, Optional.ofNullable(icon));
-		}
-		return icon;
+		return Optional.ofNullable(icon);
 	}
 
 	// The icon an ICON_TAG match draws. <npc=ID,head> is its chathead.
@@ -253,6 +328,8 @@ public class LabelCompleter
 	public Completion complete(String text, int cursor)
 	{
 		Completion completion = withVariableIcons(completeToken(text, cursor), text, cursor);
+		// Names it needs may still be loading: shown again once they have.
+		iconNames.whenLoaded(refresh);
 		if (completion == null || completion.preferred < 0)
 		{
 			return completion;
@@ -697,7 +774,7 @@ public class LabelCompleter
 		String closer = closed ? "" : ">";
 		Completion completion = Completion.of(starting, partial.length(), closer, starting.isEmpty() || partial.isEmpty() ? null : starting.get(0))
 			.withContained(contained, partial.length(), closer)
-			.withIcons(name -> "<" + kind.tag + "=" + name + ">");
+			.withIcons(kind == IconNames.Kind.NPC ? Args.NPC_ICON : name -> "<" + kind.tag + "=" + name + ">");
 		// An NPC with a chathead completes without ">", so ",head" can be offered next.
 		if (kind == IconNames.Kind.NPC && !closer.isEmpty())
 		{

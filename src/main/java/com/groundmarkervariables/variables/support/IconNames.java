@@ -17,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -74,6 +75,8 @@ public class IconNames
 	// Spellbook index -> enum of the book's spell objects; their name and icon params.
 	private static final int SPELLBOOKS = 1981;
 	private static final int SPELL_ICON = 597;
+	// Definitions read per client tick by a background build (see loaded()).
+	private static final int BUILD_SLICE = 2000;
 
 	private static final Map<String, Integer> PRAYERS = new LinkedHashMap<>();
 
@@ -137,6 +140,9 @@ public class IconNames
 
 	// Built on the client thread on first use; read from the editor's key thread too.
 	private final Map<Kind, Index> indexes = new ConcurrentHashMap<>();
+	// Kinds being built in the background, and what to run once one is done (see whenLoaded()).
+	private final Set<Kind> building = ConcurrentHashMap.newKeySet();
+	private final Set<Runnable> onLoaded = ConcurrentHashMap.newKeySet();
 	// Lowercase names of nearby NPCs / held items, ranked first by complete().
 	private volatile Set<String> nearbyNpcs = Set.of();
 	private volatile Set<String> heldItems = Set.of();
@@ -264,7 +270,7 @@ public class IconNames
 	// Whether the NPC named name (any case) has a chathead; false while the names are still loading.
 	public boolean hasHead(String name)
 	{
-		Index index = indexes.get(Kind.NPC);
+		Index index = loaded(Kind.NPC);
 		return index != null && index.heads.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
 
@@ -327,7 +333,7 @@ public class IconNames
 	// if none, or while the names are still loading.
 	public List<String> matches(Kind kind, String partial)
 	{
-		Index index = index(kind);
+		Index index = loaded(kind);
 		if (index == null)
 		{
 			return List.of();
@@ -504,61 +510,123 @@ public class IconNames
 		return held;
 	}
 
-	// Built on the client thread; elsewhere, null until a queued build has run.
+	// On the client thread, built now if not yet (saving and drawing labels need it); elsewhere as loaded().
 	@Nullable
 	private Index index(Kind kind)
 	{
-		Index index = indexes.get(kind);
-		if (index != null)
+		Index index = loaded(kind);
+		if (index == null && client.isClientThread())
 		{
-			return index;
+			new Build(kind).step(Integer.MAX_VALUE);
+			index = indexes.get(kind);
 		}
-		if (!client.isClientThread())
+		return index;
+	}
+
+	// Never blocks: the index if built, else null, building it in the background (a slice per client tick).
+	@Nullable
+	private Index loaded(Kind kind)
+	{
+		Index index = indexes.get(kind);
+		if (index == null && building.add(kind))
 		{
-			clientThread.invoke(() -> index(kind));
-			return null;
+			clientThread.invoke(new Build(kind));
+		}
+		return index;
+	}
+
+	// Whether kind's names have loaded; if not, they start loading in the background.
+	public boolean ready(Kind kind)
+	{
+		return loaded(kind) != null;
+	}
+
+	// If names are loading in the background, runs run once, on the client thread, the tick after the next is done.
+	public void whenLoaded(Runnable run)
+	{
+		if (!building.isEmpty())
+		{
+			onLoaded.add(run);
+		}
+	}
+
+	// A kind's index, built in slices on the client thread: in the background, one per tick until done. Every named
+	// NPC / item, keeping the lowest ID per name; or the sprites, at once.
+	@RequiredArgsConstructor
+	private final class Build implements BooleanSupplier
+	{
+		private final Kind kind;
+		private final Map<String, String> names = new HashMap<>();
+		private final Map<String, Integer> ids = new HashMap<>();
+		private final Set<String> heads = new HashSet<>();
+		private int[] fileIds;
+		private int next;
+
+		@Override
+		public boolean getAsBoolean()
+		{
+			return indexes.containsKey(kind) ? done() : step(BUILD_SLICE);
 		}
 
-		Map<String, String> names = new HashMap<>();
-		Map<String, Integer> ids = new HashMap<>();
-		if (kind == Kind.SPRITE)
+		// Up to slice more definitions; true once the index is stored.
+		private boolean step(int slice)
 		{
-			buildSprites(names, ids);
-		}
-		else
-		{
-			buildDefinitions(kind == Kind.NPC, names, ids);
-		}
-		Set<String> heads = new HashSet<>();
-		if (kind == Kind.NPC)
-		{
-			ids.forEach((key, id) ->
+			if (kind == Kind.SPRITE)
 			{
-				NPCComposition npc = client.getNpcDefinition(id);
+				buildSprites(names, ids);
+			}
+			else
+			{
+				if (fileIds == null)
+				{
+					int[] all = client.getIndexConfig().getFileIds(kind == Kind.NPC ? NPC_GROUP : ITEM_GROUP);
+					fileIds = all == null ? new int[0] : all;
+				}
+				for (int end = (int) Math.min(fileIds.length, (long) next + slice); next < end; next++)
+				{
+					add(fileIds[next]);
+				}
+				if (next < fileIds.length)
+				{
+					return false;
+				}
+			}
+			indexes.put(kind, new Index(names, ids, heads));
+			return done();
+		}
+
+		// An NPC's head counts if the ID kept for its name has one.
+		private void add(int id)
+		{
+			NPCComposition npc = kind == Kind.NPC ? client.getNpcDefinition(id) : null;
+			String name = npc == null ? (kind == Kind.NPC ? null : itemName(id)) : npc.getModels() == null ? null : clean(npc.getName());
+			if (name == null)
+			{
+				return;
+			}
+			String key = name.toLowerCase(Locale.ROOT);
+			names.putIfAbsent(key, name);
+			Integer kept = ids.get(key);
+			if (kept == null || id < kept)
+			{
+				ids.put(key, id);
+				heads.remove(key);
 				if (npc != null && npc.getChatheadModels() != null && npc.getChatheadModels().length > 0)
 				{
 					heads.add(key);
 				}
-			});
-		}
-		index = new Index(names, ids, heads);
-		indexes.put(kind, index);
-		return index;
-	}
-
-	// Every named NPC / item, keeping the lowest ID per name.
-	private void buildDefinitions(boolean npc, Map<String, String> names, Map<String, Integer> ids)
-	{
-		int[] fileIds = client.getIndexConfig().getFileIds(npc ? NPC_GROUP : ITEM_GROUP);
-		for (int id : fileIds == null ? new int[0] : fileIds)
-		{
-			String name = npc ? npcName(id) : itemName(id);
-			if (name != null)
-			{
-				String key = name.toLowerCase(Locale.ROOT);
-				names.putIfAbsent(key, name);
-				ids.merge(key, id, Math::min);
 			}
+		}
+
+		private boolean done()
+		{
+			if (building.remove(kind))
+			{
+				// Not mid-way through whatever needed the names now (e.g. drawing a label).
+				onLoaded.forEach(clientThread::invokeLater);
+				onLoaded.clear();
+			}
+			return true;
 		}
 	}
 

@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -36,6 +37,11 @@ public final class Args
 	public static final String BOSS_ICON_PREFIX = "boss:";
 	public static final Function<String, String> BOSS_ICON = name -> BOSS_ICON_PREFIX + BossAliases.resolve(name);
 	public static final Function<String, String> ITEM_ICON = name -> "<item=" + name + ">";
+	// An NPC by name: its chathead if it has one, else the NPC.
+	public static final String NPC_ICON_PREFIX = "npc:";
+	public static final Function<String, String> NPC_ICON = name -> NPC_ICON_PREFIX + name;
+	// Between an icon syntax and its fallback (see firstOf).
+	public static final String ICON_FALLBACK = "\n";
 	// A named color's swatch, "color:RRGGBB"; none if not a color (e.g. an opacity name).
 	public static final String COLOR_ICON_PREFIX = "color:";
 	public static final Function<String, String> COLOR_ICON = name ->
@@ -113,6 +119,13 @@ public final class Args
 	public static Args of(String name)
 	{
 		return new Args(name);
+	}
+
+	// The first of icons that shows, e.g. a boss's hiscores icon, else the NPC's.
+	@SafeVarargs
+	public static Function<String, String> firstOf(Function<String, String>... icons)
+	{
+		return name -> Arrays.stream(icons).map(icon -> icon.apply(name)).filter(Objects::nonNull).collect(Collectors.joining(ICON_FALLBACK));
 	}
 
 	// The skill named, any case, e.g. "attack"; null if none.

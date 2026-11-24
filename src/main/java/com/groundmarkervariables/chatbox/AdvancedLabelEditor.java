@@ -3,6 +3,7 @@ package com.groundmarkervariables.chatbox;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.chatbox.completion.LabelCompleter;
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.label.ConditionalVariable;
 import com.groundmarkervariables.variables.support.NamedColors;
 import java.awt.Color;
@@ -225,6 +226,14 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.configManager = configManager;
 		this.completer = completer;
 		this.iconOverlay = iconOverlay;
+		// Names still loading when suggested: suggested again once they have, if still open.
+		completer.onNamesLoaded(() ->
+		{
+			if (chatboxPanelManager.getCurrentInput() == this)
+			{
+				update();
+			}
+		});
 		fontID(FontID.PLAIN_12);
 		// Unlimited: every line wraps, and update() shows a window of them.
 		lines(0);
@@ -1255,12 +1264,12 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			int x = left + column * columnWidth;
 			// After the icon's space whether or not there's an icon, so names line up.
 			int textX = x + ICON_WIDTH + ICON_GAP;
-			Completion.Icon icon = option.icon == null ? null : completer.icon(option.icon);
-			if (icon != null)
+			if (option.icon != null)
 			{
-				// Empty: SuggestionIconOverlay draws the icon over it, smoothly scaled.
-				addInsertAction(ChatboxWidgets.child(container, WidgetType.GRAPHIC, x, y, ICON_WIDTH, ICON_HEIGHT), option, icon);
-				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT), icon));
+				// Empty: SuggestionIconOverlay draws the icon over it, smoothly scaled, once it's worked out.
+				addInsertAction(ChatboxWidgets.child(container, WidgetType.GRAPHIC, x, y, ICON_WIDTH, ICON_HEIGHT), option);
+				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT),
+					() -> completer.icon(option.icon)));
 			}
 
 			if (option.description != null)
@@ -1272,28 +1281,29 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			int textWidth = x + columnWidth - textX - 2;
 			Widget text = ChatboxWidgets.text(container, Text.escapeJagex(fit(option.label, textWidth)), editorFontId(), color, textX, y,
 				textWidth, ROW_HEIGHT);
-			addInsertAction(text, option, icon);
+			addInsertAction(text, option);
 			ChatboxWidgets.hover(text, color);
 		}
 	}
 
 	// "Insert": completes the token at the cursor with option. Its full name shows on hover. A named item or NPC
 	// also gets "Wiki".
-	private void addInsertAction(Widget widget, Completion.Option option, @Nullable Completion.Icon icon)
+	private void addInsertAction(Widget widget, Completion.Option option)
 	{
 		widget.setHasListener(true);
 		widget.setName(NamedColors.expandColorAliases(option.label));
 		widget.setAction(0, "Insert");
-		boolean named = option.icon != null && (option.icon.startsWith("<item=") || option.icon.startsWith("<npc="));
-		String wikiType = icon == null || !named ? null : icon.kind == Completion.Icon.Kind.ITEM ? "item"
-			: icon.kind == Completion.Icon.Kind.NPC || icon.kind == Completion.Icon.Kind.NPC_HEAD ? "npc" : null;
+		String wikiType = option.icon == null ? null : option.icon.startsWith("<item=") ? "item"
+			: option.icon.startsWith(Args.NPC_ICON_PREFIX) ? "npc" : null;
 		if (wikiType != null)
 		{
 			widget.setAction(1, "Wiki");
 		}
 		widget.setOnOpListener((JavaScriptCallback) ev ->
 		{
-			if (wikiType != null && ev.getOp() == 2)
+			// The ID from its icon, if worked out by now.
+			Completion.Icon icon = wikiType == null ? null : completer.icon(option.icon);
+			if (icon != null && ev.getOp() == 2)
 			{
 				LinkBrowser.browse(WIKI_LOOKUP.newBuilder()
 					.addQueryParameter("type", wikiType)

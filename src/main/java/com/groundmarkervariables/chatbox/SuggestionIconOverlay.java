@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.AccessLevel;
@@ -47,11 +48,17 @@ public class SuggestionIconOverlay extends Overlay
 		private final Widget container;
 		private final Rectangle area;
 		@Nullable
-		private final Completion.Icon icon;
+		private final Supplier<Completion.Icon> icon;
 		@Nullable
 		private final BufferedImage image;
 
 		public Placement(Widget container, Rectangle area, Completion.Icon icon)
+		{
+			this(container, area, () -> icon, null);
+		}
+
+		// An icon asked for each frame, drawn once it's ready (e.g. LabelCompleter#icon, worked out in the background).
+		public Placement(Widget container, Rectangle area, Supplier<Completion.Icon> icon)
 		{
 			this(container, area, icon, null);
 		}
@@ -138,8 +145,9 @@ public class SuggestionIconOverlay extends Overlay
 		for (Placement placement : placements)
 		{
 			Rectangle container = placement.container.isHidden() ? null : placement.container.getBounds();
-			BufferedImage source = container == null || container.isEmpty() ? null
-				: placement.image != null ? placement.image : image(placement.icon);
+			Completion.Icon icon = container == null || container.isEmpty() || placement.icon == null ? null : placement.icon.get();
+			BufferedImage source = placement.image != null && container != null && !container.isEmpty() ? placement.image
+				: icon != null ? image(icon) : null;
 			if (source == null)
 			{
 				continue;
