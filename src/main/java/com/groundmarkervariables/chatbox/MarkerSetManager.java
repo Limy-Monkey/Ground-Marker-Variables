@@ -117,8 +117,10 @@ public class MarkerSetManager extends SearchableChatbox
 	protected void buildTopBar(Widget container, FontTypeFace font, int rightX)
 	{
 		rightX = recycleBinButton(container, rightX, this::update);
-		rightX = nextX(button(container, font, "Import", "Import from clipboard", "", true, rightX,
-			this::importClipboard));
+		// Right-click: check GitHub for built-in set updates now, not waiting for the next check.
+		Widget importButton = button(container, font, "Import", "Import from clipboard", "", true, rightX, this::importClipboard);
+		addAction(importButton, new ArrayList<>(List.of(this::importClipboard)), "Check for updates", () -> markerSets.checkForUpdates(true));
+		rightX = nextX(importButton);
 		if (markerSets.failed())
 		{
 			Rectangle area = new Rectangle(container.getWidth() - rightX - ICON_SIZE + 4, 5 + (LINE_HEIGHT - ICON_SIZE) / 2, ICON_SIZE,

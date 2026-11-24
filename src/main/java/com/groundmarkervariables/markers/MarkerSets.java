@@ -55,7 +55,6 @@ public class MarkerSets implements TileSource
 	private static final String PLUGIN_NAME = "Ground Marker Variables";
 	private static final String SET_PREFIX = "set_";
 	private static final String STATE_KEY = "setState";
-	private static final String CHECKED_KEY = "setsChecked";
 	private static final String BASE_URL = "https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/data/marker-sets/";
 	private static final Duration CHECK_EVERY = Duration.ofHours(6);
 	private static final Duration RETRY_AFTER = Duration.ofMinutes(15);
@@ -105,6 +104,7 @@ public class MarkerSets implements TileSource
 	private volatile List<MarkerSet> sets = List.of();
 	private State state = new State();
 	private volatile Map<Integer, List<SourceMarker>> byRegion = Map.of();
+	// The last successful check, this session only: each client start checks again.
 	private volatile long lastChecked;
 	private final AtomicBoolean checking = new AtomicBoolean();
 	// Shown in the set list while checking.
@@ -162,7 +162,6 @@ public class MarkerSets implements TileSource
 		String json = configManager.getConfiguration(GROUP, STATE_KEY);
 		State read = json == null ? null : gson.fromJson(json, State.class);
 		state = read != null && read.enabled != null && read.entries != null ? read : new State();
-		lastChecked = parseLong(configManager.getConfiguration(GROUP, CHECKED_KEY));
 		rebuild();
 	}
 
@@ -781,7 +780,7 @@ public class MarkerSets implements TileSource
 				configManager.unsetConfiguration(GROUP, SET_PREFIX + set.key());
 			}
 		}
-		configManager.setConfiguration(GROUP, CHECKED_KEY, String.valueOf(System.currentTimeMillis()));
+		lastChecked = System.currentTimeMillis();
 		status = null;
 		checking.set(false);
 		load();
@@ -934,17 +933,5 @@ public class MarkerSets implements TileSource
 	{
 		String slug = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
 		return slug.isEmpty() ? "set" : slug;
-	}
-
-	private static long parseLong(@Nullable String value)
-	{
-		try
-		{
-			return value == null ? 0 : Long.parseLong(value);
-		}
-		catch (NumberFormatException e)
-		{
-			return 0;
-		}
 	}
 }

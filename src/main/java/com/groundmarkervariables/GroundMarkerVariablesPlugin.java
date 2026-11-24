@@ -130,14 +130,11 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	};
 	private static final String CONFIG_MIGRATED_KEY = "groundMarkerConfigMigrated";
 
-	// showCurrent's default changed from true to false — forces existing installs over once.
-	private static final String SHOW_CURRENT_MIGRATED_KEY = "showCurrentDefaultMigrated";
-
 	// Bump alongside runelite-plugin.properties/build.gradle's version to show the message
 	// again on the next update.
-	private static final String NEW_VERSION = "1.4.0";
+	private static final String NEW_VERSION = "2.0";
 	private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
-	private static final String UPDATE_MESSAGE = "<col=008800>Ground Marker Variables v1.4: New variables and extended conditionals - Try {highlightCorners} or {oct 20 - date} until raids 4";
+	private static final String UPDATE_MESSAGE = "<col=008800>Ground Marker Variables v2.0: Label Editor overhaul, marker sets, party overhaul and more";
 
 	@Inject
 	private ChatboxPanelManager chatboxPanelManager;
@@ -298,10 +295,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		{
 			migrateConfigFromCore();
 		}
-		else
-		{
-			migrateShowCurrentDefault();
-		}
 
 		overlayManager.add(tileOverlay);
 		overlayManager.add(labelOverlay);
@@ -348,19 +341,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		}
 
 		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY, "true");
-	}
-
-	// Runs once for existing installs only — fresh installs already get showCurrent's new
-	// (false) default with nothing stored yet.
-	private void migrateShowCurrentDefault()
-	{
-		if (configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, SHOW_CURRENT_MIGRATED_KEY) != null)
-		{
-			return;
-		}
-
-		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, "showCurrent", false);
-		configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, SHOW_CURRENT_MIGRATED_KEY, "true");
 	}
 
 	@Override
