@@ -306,7 +306,7 @@ public class MarkerSetManager extends SearchableChatbox
 	// tiles; with it closed, a notice under labelArea.
 	private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea)
 	{
-		if (tiles.isEmpty() || !mapPins.onAnyMap(tiles.get(0), this::updateIfOpen))
+		if (!mapPins.onAnyMap(tiles, this::updateIfOpen))
 		{
 			return;
 		}

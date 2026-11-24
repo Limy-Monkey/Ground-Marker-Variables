@@ -279,7 +279,7 @@ public class MarkerManager extends SearchableChatbox
 		{
 			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
 		}
-		if (mapPins.onAnyMap(entry.points.get(0), this::updateIfOpen))
+		if (mapPins.onAnyMap(entry.points, this::updateIfOpen))
 		{
 			Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
 			addAction(row, actions, "Show on map", () -> showOnMap(entry, labelArea));

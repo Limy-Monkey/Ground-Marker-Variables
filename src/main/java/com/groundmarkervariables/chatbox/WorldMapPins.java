@@ -85,19 +85,48 @@ public class WorldMapPins
 		return map != null && !map.isHidden();
 	}
 
-	// Moves the open map to the middle of tiles, as its own links do (VarClientID.WORLDMAP_INTERMAPLINK).
+	// Moves the open map, as its own links do (VarClientID.WORLDMAP_INTERMAPLINK), to the middle of tiles on a map (see
+	// onAnyMap), on their most common floor.
 	public void moveTo(List<GroundMarkerPointData> tiles)
 	{
-		int x = (int) tiles.stream().mapToInt(tile -> worldPoint(tile).getX()).average().orElse(0);
-		int y = (int) tiles.stream().mapToInt(tile -> worldPoint(tile).getY()).average().orElse(0);
-		client.setVarcIntValue(VarClientID.WORLDMAP_INTERMAPLINK, coord(new WorldPoint(x, y, tiles.get(0).getZ())));
+		List<WorldPoint> points = new ArrayList<>();
+		Map<Integer, Integer> floors = new HashMap<>();
+		tiles.stream().filter(tile -> Boolean.TRUE.equals(mapped.get(key(tile)))).forEach(tile ->
+		{
+			points.add(worldPoint(tile));
+			floors.merge(tile.getZ(), 1, Integer::sum);
+		});
+		if (points.isEmpty())
+		{
+			return;
+		}
+		int x = (int) points.stream().mapToInt(WorldPoint::getX).average().orElse(0);
+		int y = (int) points.stream().mapToInt(WorldPoint::getY).average().orElse(0);
+		int floor = floors.entrySet().stream().max(Map.Entry.comparingByValue()).get().getKey();
+		client.setVarcIntValue(VarClientID.WORLDMAP_INTERMAPLINK, coord(new WorldPoint(x, y, floor)));
+	}
+
+	// Whether any of tiles' regions is on some world map (see onAnyMap(tile)); checks them all, for moveTo().
+	public boolean onAnyMap(List<GroundMarkerPointData> tiles, Runnable onChecked)
+	{
+		boolean any = false;
+		for (GroundMarkerPointData tile : tiles)
+		{
+			any |= onAnyMap(tile, onChecked);
+		}
+		return any;
+	}
+
+	private static int key(GroundMarkerPointData tile)
+	{
+		return tile.getRegionId() << 2 | tile.getZ();
 	}
 
 	// Whether tile's region is on some world map (not e.g. a raid's rooms). Unknown is false: it's checked a tick later
 	// (it runs clientscripts, and this may be inside one), all at once, then onChecked runs.
 	public boolean onAnyMap(GroundMarkerPointData tile, Runnable onChecked)
 	{
-		int key = tile.getRegionId() << 2 | tile.getZ();
+		int key = key(tile);
 		Boolean known = mapped.get(key);
 		if (known != null)
 		{
