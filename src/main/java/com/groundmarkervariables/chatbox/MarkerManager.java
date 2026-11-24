@@ -1,13 +1,18 @@
 package com.groundmarkervariables.chatbox;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
+import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.variables.support.RegionNames;
+import java.awt.Color;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.image.BufferedImage;
 import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -17,79 +22,93 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
-import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetTextAlignment;
+import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
+import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
+import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import net.runelite.client.util.Text;
 
-// ::manageGroundMarkerVariables -- every saved marker, grouped by area name (current area first),
-// with same-label markers in an area combined into one row. Rows and region headers have
-// checkboxes; the top bar filters to markers with variables, selects all shown, and exports or deletes the selection.
+// ::manageGroundMarkerVariables -- every saved marker in a table: one row per area (a RegionNames name, else its region),
+// label and color, with how many markers share them; current area first, or sorted by a heading. Rows have checkboxes;
+// the top bar filters to markers with variables, selects all shown, and exports or deletes the selection.
 public class MarkerManager extends SearchableChatbox
 {
 	private static final int ACTIVE_COLOR = 0x800000;
 	private static final Pattern HAS_VARIABLE = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
+	// Region, count and color diamond (both unheaded), then label.
+	private static final String[] HEADINGS = {"Region", "", "", "Label"};
+	private static final int LABEL = 3;
+	// The widest value each column but Label (which takes the rest) is sized for: Region the longest area name, and the
+	// diamond's just its room.
+	private static final List<List<String>> SIZED_FOR = List.of(List.of("Sergeant Damien's Training Camp"), List.of("999"),
+		List.of("#"), List.of());
+	private static final int DIAMOND = 10;
+	// The world map's list of maps, and its proc returning a coord's place in one map (-1 if none); unnamed in RuneLite.
+	private static final int WORLDMAP_LIST_ENUM = 1697;
+	private static final int FIND_COORD_IN_MAP_SCRIPT = 1715;
 
 	private final MarkerStorage markerStorage;
 	private final DeletedMarkers deletedMarkers;
 	private final GroundMarkerVariablesSharingManager sharingManager;
 	private final MarkerSets markerSets;
 	private final Provider<MarkerSetManager> markerSetManagerProvider;
+	private final WorldMapPointManager worldMapPointManager;
+	private final GroundMarkerVariablesConfig config;
+	// Show on map's pins: the last row shown's markers, until the next or closing.
+	private final List<WorldMapPoint> pins = new ArrayList<>();
 
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
-	// { } toggle: only rows whose label has a variable (and the areas containing them).
-	private boolean variablesOnly = true;
+	// { } toggle: only rows whose label has a variable. Off at first.
+	private boolean variablesOnly;
+	// The player's area when loaded, listed first.
+	@Nullable
+	private String currentArea;
 
-	// Every marker sharing one RegionNames name, or the unnamed ones of a single region.
-	@RequiredArgsConstructor
-	private static final class Group
-	{
-		private final String key;
-		private final String name;
-		private final Set<Integer> regionIds = new TreeSet<>();
-		private final Map<String, Entry> byLabel = new LinkedHashMap<>();
-	}
-
-	// Every marker in one group sharing the same label ("" for none).
+	// Every marker in one area sharing a label ("" for none) and color.
 	@RequiredArgsConstructor
 	private static final class Entry
 	{
-		private final Group group;
+		// Its RegionNames name, else "Region <id>".
+		private final String area;
+		private final boolean named;
+		private final int regionId;
 		private final String label;
+		@Nullable
+		private final Color color;
 		private final List<GroundMarkerPointData> points = new ArrayList<>();
-	}
-
-	// A group header (entry == null) or one Entry.
-	@RequiredArgsConstructor
-	private static final class Row
-	{
-		private final Group group;
-		private final Entry entry;
+		// On some world map (not e.g. a raid's rooms), so it can be shown on it; found just after loading.
+		private boolean mapped;
 	}
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
 		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread,
 		MarkerSets markerSets, Provider<MarkerSetManager> markerSetManagerProvider, ChatboxWidgets widgets, SuggestionIconOverlay iconOverlay,
-		GroundMarkerVariablesPlugin plugin)
+		GroundMarkerVariablesPlugin plugin, WorldMapPointManager worldMapPointManager, GroundMarkerVariablesConfig config)
 	{
 		super(chatboxPanelManager, clientThread, chatMessageManager, iconOverlay, widgets, client, plugin);
+		this.worldMapPointManager = worldMapPointManager;
+		this.config = config;
 		this.markerSets = markerSets;
 		this.markerSetManagerProvider = markerSetManagerProvider;
 		this.markerStorage = markerStorage;
@@ -97,41 +116,57 @@ public class MarkerManager extends SearchableChatbox
 		this.sharingManager = sharingManager;
 	}
 
-	// Rebuilds the list from storage, clearing the selection.
+	// Rebuilds the list from storage, clearing the selection but keeping the scroll (a new manager starts at the top).
 	public void load()
 	{
 		entries.clear();
 		selected.clear();
-		scrollOffset = 0;
 
-		Map<String, Group> groups = new LinkedHashMap<>();
+		Map<String, Entry> byKey = new LinkedHashMap<>();
 		for (int regionId : markerStorage.storedRegionIds())
 		{
 			// Each marker's own area: one region can hold several.
 			for (GroundMarkerPointData point : markerStorage.getStoredPoints(regionId))
 			{
 				String name = RegionNames.name(WorldPoint.fromRegion(regionId, point.getRegionX(), point.getRegionY(), point.getZ()));
-				Group group = groups.computeIfAbsent(groupKey(name, regionId), k -> new Group(k, name));
-				group.regionIds.add(regionId);
+				String area = name != null ? name : "Region " + regionId;
 				String label = point.getLabel() == null ? "" : point.getLabel();
-				group.byLabel.computeIfAbsent(label, l -> new Entry(group, l)).points.add(point);
+				byKey.computeIfAbsent(area + '\0' + label + '\0' + point.getColor(),
+					key -> new Entry(area, name != null, regionId, label, point.getColor())).points.add(point);
 			}
 		}
-
-		// Current area first, then named areas alphabetically, then unnamed regions by id.
-		String currentGroup = currentGroupKey();
-		List<Group> sorted = new ArrayList<>(groups.values());
-		sorted.sort(Comparator.comparing((Group g) -> !g.key.equals(currentGroup))
-			.thenComparing(g -> g.name == null)
-			.thenComparing(g -> g.name == null ? "" : g.name, String.CASE_INSENSITIVE_ORDER)
-			.thenComparing(g -> g.regionIds.iterator().next()));
-
-		for (Group group : sorted)
+		entries.addAll(byKey.values());
+		// Later: Check if tile is on a map to navigate to
+		clientThread.invokeLater(() ->
 		{
-			List<Entry> groupEntries = new ArrayList<>(group.byLabel.values());
-			groupEntries.sort(Comparator.comparing((Entry e) -> e.label.isEmpty()).thenComparing(e -> e.label, String.CASE_INSENSITIVE_ORDER));
-			entries.addAll(groupEntries);
-		}
+			for (Entry entry : entries)
+			{
+				GroundMarkerPointData first = entry.points.get(0);
+				entry.mapped = onAnyMap(WorldPoint.fromRegion(first.getRegionId(), first.getRegionX(), first.getRegionY(), first.getZ()));
+			}
+			if (chatboxPanelManager.getCurrentInput() == this)
+			{
+				update();
+			}
+		});
+
+		Player player = client.getLocalPlayer();
+		WorldPoint location = player == null ? null : WorldPoint.fromLocalInstance(client, player.getLocalLocation());
+		String name = location == null ? null : RegionNames.name(location);
+		currentArea = location == null ? null : name != null ? name : "Region " + location.getRegionID();
+	}
+
+	// By sortColumn, reversed if descending; then the current area first, named areas alphabetically, unnamed regions by id,
+	// labels alphabetically (none last), then color.
+	private Comparator<Entry> order()
+	{
+		Comparator<Entry> byArea = Comparator.comparing((Entry e) -> !e.area.equals(currentArea)).thenComparing(e -> !e.named)
+			.thenComparing(e -> e.area, String.CASE_INSENSITIVE_ORDER).thenComparingInt(e -> e.regionId);
+		Comparator<Entry> byLabel = Comparator.comparing((Entry e) -> e.label.isEmpty()).thenComparing(e -> e.label, String.CASE_INSENSITIVE_ORDER);
+		Comparator<Entry> byColor = Comparator.comparing(e -> e.color == null ? null : e.color.getRGB(),
+			Comparator.nullsFirst(Comparator.naturalOrder()));
+		Comparator<Entry> byColumn = sortColumn == LABEL ? byLabel : byArea;
+		return (descending ? byColumn.reversed() : byColumn).thenComparing(byArea).thenComparing(byLabel).thenComparing(byColor);
 	}
 
 	@Override
@@ -226,26 +261,10 @@ public class MarkerManager extends SearchableChatbox
 		}
 	}
 
-	private List<Row> rows()
-	{
-		List<Row> rows = new ArrayList<>();
-		Group group = null;
-		for (Entry entry : visibleEntries())
-		{
-			if (entry.group != group)
-			{
-				group = entry.group;
-				rows.add(new Row(group, null));
-			}
-			rows.add(new Row(group, entry));
-		}
-		return rows;
-	}
-
 	@Override
 	protected void buildRows(Widget container)
 	{
-		List<Row> rows = rows();
+		List<Entry> rows = visibleEntries();
 		if (rows.isEmpty())
 		{
 			String none = !query.isEmpty() ? "No ground markers match \"" + Text.escapeJagex(query) + "\"."
@@ -253,75 +272,102 @@ public class MarkerManager extends SearchableChatbox
 			addText(container, none, widgets.fontId(), 0x000000, 6, RESULTS_Y);
 			return;
 		}
+		rows.sort(order());
+		columns(container, HEADINGS, SIZED_FOR, LABEL);
+		table(container, true, rows.size(), (i, y) -> addEntry(container, rows.get(i), y));
+	}
 
-		int visibleRows = VISIBLE_ROWS;
-		int maxOffset = Math.max(0, rows.size() - visibleRows);
-		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
-
-		ChatboxWidgets.scrollCapture(container, RESULTS_Y, visibleRows * ROW_HEIGHT, this::scroll);
-
-		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
-		for (int i = 0; i < visibleCount; i++)
+	// Its checkbox, area, count (right-aligned), color diamond (none for the default color) and label (escaped, so a label's
+	// own <col=> etc. shows as written). The whole row is clicked to select it, or a single marker's to edit it, and grays
+	// while hovered.
+	private void addEntry(Widget container, Entry entry, int y)
+	{
+		boolean checked = selected.contains(entry);
+		checkbox(container, checked, 6, y);
+		Widget area = cell(container, entry.area, 0x000000, 0, y);
+		cell(container, String.valueOf(entry.points.size()), DETAIL_COLOR, 1, y).setXTextAlignment(WidgetTextAlignment.RIGHT);
+		if (entry.color != null)
 		{
-			Row row = rows.get(scrollOffset + i);
-			int y = RESULTS_Y + ROW_HEIGHT * i;
-			boolean header = row.entry == null;
-			List<Entry> rowEntries = header ? groupEntries(row.group) : List.of(row.entry);
-			boolean checked = selected.containsAll(rowEntries);
-			int checkboxX = header ? 6 : 22;
-			Widget checkbox = checkbox(container, checked, checkboxX, y);
-
-			String text;
-			int color;
-			if (header)
-			{
-				int count = markerCount(rowEntries);
-				String markers = count + (count == 1 ? " marker" : " markers");
-				text = row.group.name == null
-					? "Region " + row.group.regionIds.iterator().next() + " (" + markers + ")"
-					: row.group.name + ": " + markers;
-				color = 0x800000;
-			}
-			else if (row.entry.label.isEmpty())
-			{
-				text = "(no label)" + countSuffix(row.entry);
-				color = 0x000000;
-			}
-			else
-			{
-				// Escaped so a label's own <col=> etc. shows as literal text.
-				text = Text.escapeJagex(row.entry.label) + countSuffix(row.entry);
-				color = 0x000000;
-			}
-
-			Widget label = addText(container, text, header ? FontID.QUILL_8 : widgets.fontId(), color, checkboxX + checkbox.getOriginalWidth() + 4, y);
-			// A single marker can also be edited.
-			GroundMarkerPointData single = !header && row.entry.points.size() == 1 ? row.entry.points.get(0) : null;
-			for (Widget clickable : List.of(checkbox, label))
-			{
-				clickable.setHasListener(true);
-				clickable.setAction(0, checked ? "Deselect" : "Select");
-				if (single != null)
-				{
-					clickable.setAction(1, "Edit");
-				}
-				clickable.setOnOpListener((JavaScriptCallback) ev ->
-				{
-					if (ev.getOp() == 2 && single != null)
-					{
-						edit(single);
-					}
-					else
-					{
-						toggle(rowEntries, !checked);
-					}
-				});
-			}
-			ChatboxWidgets.hover(label, color);
+			iconPlacements.add(new SuggestionIconOverlay.Placement(container,
+				new Rectangle(columnX(2), y + (ROW_HEIGHT - DIAMOND) / 2, DIAMOND, DIAMOND), Completion.Icon.diamond(entry.color)));
 		}
+		Widget label = cell(container, entry.label.isEmpty() ? "(no label)" : entry.label, 0x000000, LABEL, y);
 
-		ChatboxWidgets.scrollbar(container, RESULTS_Y, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(),
-			this::scroll);
+		// Over the whole row, on top of its cells.
+		Widget row = ChatboxWidgets.child(container, WidgetType.TEXT, 6, y, columnX(LABEL) + columnWidth(LABEL) - 6, ROW_HEIGHT);
+		List<Runnable> actions = new ArrayList<>();
+		addAction(row, actions, checked ? "Deselect" : "Select", () -> toggle(entry, !checked));
+		if (entry.points.size() == 1)
+		{
+			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
+		}
+		if (entry.mapped)
+		{
+			Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
+			addAction(row, actions, "Show on map", () -> showOnMap(entry, labelArea));
+		}
+		row.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
+		ChatboxWidgets.hover(row, 0x000000, area, label);
+	}
+
+	// Pins entry's markers on the open world map and moves it to them, switching maps (e.g. to Prifddinas) through the map's
+	// own link handling. Else a notice under labelArea that the map is closed.
+	private void showOnMap(Entry entry, Rectangle labelArea)
+	{
+		Widget map = client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER);
+		if (map == null || map.isHidden())
+		{
+			notice(labelArea, "Open the world map first, then choose Show on map again.");
+			return;
+		}
+		clearPins();
+		BufferedImage image = SuggestionIconOverlay.diamond(new Color((entry.color != null ? entry.color : config.markerColor()).getRGB()));
+		List<WorldPoint> points = new ArrayList<>();
+		for (GroundMarkerPointData point : entry.points)
+		{
+			WorldPoint worldPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
+			points.add(worldPoint);
+			WorldMapPoint pin = new WorldMapPoint(worldPoint, image);
+			pin.setTooltip(Text.escapeJagex(entry.label.isEmpty() ? entry.area : entry.label));
+			pins.add(pin);
+			worldMapPointManager.add(pin);
+		}
+		int x = (int) points.stream().mapToInt(WorldPoint::getX).average().orElse(0);
+		int y = (int) points.stream().mapToInt(WorldPoint::getY).average().orElse(0);
+		client.setVarcIntValue(VarClientID.WORLDMAP_INTERMAPLINK, coord(new WorldPoint(x, y, points.get(0).getPlane())));
+	}
+
+	// Whether any world map has point, as the map's own links look: worldmap_findcoordinmap over each map in its list.
+	private boolean onAnyMap(WorldPoint point)
+	{
+		for (int map : client.getEnum(WORLDMAP_LIST_ENUM).getIntVals())
+		{
+			client.runScript(FIND_COORD_IN_MAP_SCRIPT, map, coord(point));
+			if (client.getIntStack()[0] != -1)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// A clientscript coord: plane, x and y packed.
+	private static int coord(WorldPoint point)
+	{
+		return point.getPlane() << 28 | point.getX() << 14 | point.getY();
+	}
+
+	private void clearPins()
+	{
+		pins.forEach(worldMapPointManager::remove);
+		pins.clear();
+	}
+
+	@Override
+	protected void close()
+	{
+		clearPins();
+		super.close();
 	}
 
 	private void edit(GroundMarkerPointData point)
@@ -338,15 +384,15 @@ public class MarkerManager extends SearchableChatbox
 		super.reopen();
 	}
 
-	private void toggle(List<Entry> rowEntries, boolean select)
+	private void toggle(Entry entry, boolean select)
 	{
 		if (select)
 		{
-			selected.addAll(rowEntries);
+			selected.add(entry);
 		}
 		else
 		{
-			rowEntries.forEach(selected::remove);
+			selected.remove(entry);
 		}
 		update();
 	}
@@ -400,13 +446,8 @@ public class MarkerManager extends SearchableChatbox
 		{
 			return false;
 		}
-		if (query.isEmpty())
-		{
-			return true;
-		}
 		String search = query.toLowerCase(Locale.ROOT);
-		String area = entry.group.name != null ? entry.group.name : "Region " + entry.group.regionIds.iterator().next();
-		return area.toLowerCase(Locale.ROOT).contains(search) || entry.label.toLowerCase(Locale.ROOT).contains(search);
+		return entry.area.toLowerCase(Locale.ROOT).contains(search) || entry.label.toLowerCase(Locale.ROOT).contains(search);
 	}
 
 	// plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).
@@ -534,19 +575,6 @@ public class MarkerManager extends SearchableChatbox
 		}, () -> chatboxPanelManager.openInput(this));
 	}
 
-	private List<Entry> groupEntries(Group group)
-	{
-		List<Entry> result = new ArrayList<>();
-		for (Entry entry : group.byLabel.values())
-		{
-			if (shown(entry))
-			{
-				result.add(entry);
-			}
-		}
-		return result;
-	}
-
 	// The selected markers shown: hidden ones stay selected, but aren't copied or deleted.
 	private List<GroundMarkerPointData> selectedPoints()
 	{
@@ -571,25 +599,4 @@ public class MarkerManager extends SearchableChatbox
 		return count;
 	}
 
-	private static String countSuffix(Entry entry)
-	{
-		return entry.points.size() > 1 ? " (x" + entry.points.size() + ")" : "";
-	}
-
-	private static String groupKey(String name, int regionId)
-	{
-		return name != null ? name : "#" + regionId;
-	}
-
-	// The group of the player's tile, or null when not logged in.
-	private String currentGroupKey()
-	{
-		Player player = client.getLocalPlayer();
-		if (player == null)
-		{
-			return null;
-		}
-		WorldPoint location = WorldPoint.fromLocalInstance(client, player.getLocalLocation());
-		return groupKey(RegionNames.name(location), location.getRegionID());
-	}
 }

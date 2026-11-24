@@ -19,12 +19,13 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
-import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
@@ -37,21 +38,15 @@ import net.runelite.client.util.Text;
 // entries, each with its own checkbox. Right-click a set to copy or delete it.
 public class MarkerSetManager extends SearchableChatbox
 {
-	private static final int DETAIL_COLOR = 0x555555;
 	// Left of "_" while the last check failed.
 	private static final String SATELLITE_ANTENNA = "1f4e1";
 	private static final int ERROR_SIZE = 14;
 	private static final String[] HEADINGS = {"Title", "Tiles", "Source", "Author", "Updated"};
-	// Besides its heading and sort arrow, the widest value each column after Title is sized for; longer ones get "...".
-	private static final List<List<String>> SIZED_FOR = List.of(List.of(), List.of("999/999"),
-		List.of("Built-in", "Imported", "Own"), List.of("LimyMonkey12"), List.of());
-	private static final int COLUMN_GAP = 6;
-	private static final int TABLE_X = 6 + ROW_HEIGHT + 4;
-	// Beside the sorted column's heading.
-	private static final String SORTED_UP = "25b2";
-	private static final String SORTED_DOWN = "25bc";
-	private static final int SORT_ARROW_SIZE = 8;
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
+	// The widest value each column after Title (which takes the rest) is sized for: Updated, any month's date.
+	private static final List<List<String>> SIZED_FOR = List.of(List.of(), List.of("999/999"), List.of("Built-in", "Imported", "Own"),
+		List.of("LimyMonkey12"), IntStream.rangeClosed(1, 12).mapToObj(month -> DATE.format(LocalDate.of(2026, month, 28)))
+			.collect(Collectors.toList()));
 	// The row's entry for the status line (a check, a failure, or why the table is empty).
 	private static final MarkerSet.Entry STATUS = new MarkerSet.Entry(null, List.of(), false, true, 0);
 
@@ -64,12 +59,6 @@ public class MarkerSetManager extends SearchableChatbox
 	// Picking one of the user's own sets (see pick()), not managing them.
 	@Nullable
 	private Consumer<MarkerSet> onPick;
-	// The HEADINGS column sets are sorted by (Source at first), then title.
-	private int sortColumn = 2;
-	private boolean descending;
-	// This update's row font, for fitting cells, and each column's width with its gap.
-	private FontTypeFace font;
-	private int[] widths;
 
 	// A set, one of its entries, or the status line (entry == STATUS).
 	@RequiredArgsConstructor
@@ -90,6 +79,8 @@ public class MarkerSetManager extends SearchableChatbox
 		this.markerMinifier = markerMinifier;
 		this.sharingManager = sharingManager;
 		this.markerSets = markerSets;
+		// By Source at first, then title.
+		sortColumn = 2;
 	}
 
 	@Override
@@ -195,30 +186,14 @@ public class MarkerSetManager extends SearchableChatbox
 		{
 			rows.add(new Row(null, STATUS));
 		}
-		font = ChatboxWidgets.font(container, widgets.fontId());
-		widths = columnWidths(container);
-
-		// The headings stay put above the rows, which scroll.
-		int top = RESULTS_Y;
-		int visibleRows = VISIBLE_ROWS;
-		if (table)
+		columns(container, HEADINGS, SIZED_FOR, 0);
+		String shown = status;
+		table(container, table, rows.size(), (i, y) ->
 		{
-			addHeadings(container, top);
-			top += ROW_HEIGHT;
-			visibleRows--;
-		}
-		int maxOffset = Math.max(0, rows.size() - visibleRows);
-		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
-		ChatboxWidgets.scrollCapture(container, top, visibleRows * ROW_HEIGHT, this::scroll);
-
-		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
-		for (int i = 0; i < visibleCount; i++)
-		{
-			Row row = rows.get(scrollOffset + i);
-			int y = top + ROW_HEIGHT * i;
+			Row row = rows.get(i);
 			if (row.entry == STATUS)
 			{
-				addText(container, Text.escapeJagex(status), widgets.fontId(), DETAIL_COLOR, 6, y);
+				addText(container, Text.escapeJagex(shown), widgets.fontId(), DETAIL_COLOR, 6, y);
 			}
 			else if (row.entry == null)
 			{
@@ -228,9 +203,7 @@ public class MarkerSetManager extends SearchableChatbox
 			{
 				addEntry(container, row.set, row.entry, y);
 			}
-		}
-
-		ChatboxWidgets.scrollbar(container, top, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, rows.size(), this::scroll);
+		});
 	}
 
 	// By sortColumn, reversed if descending (unknown dates first going up), then title.
@@ -258,42 +231,10 @@ public class MarkerSetManager extends SearchableChatbox
 		return (descending ? byColumn.reversed() : byColumn).thenComparing(byTitle);
 	}
 
-	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
-	private void addHeadings(Widget container, int y)
-	{
-		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
-		for (int column = 0; column < HEADINGS.length; column++)
-		{
-			int sortBy = column;
-			// The sorted column's arrow takes from its room.
-			String text = fit(headingFont, HEADINGS[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
-			Widget heading = ChatboxWidgets.text(container, text, FontID.QUILL_8, 0x800000, columnX(column), y, columnWidth(column),
-				ROW_HEIGHT);
-			heading.setHasListener(true);
-			heading.setAction(0, column != sortColumn ? "Sort by " + HEADINGS[column] : descending ? "Sort ascending" : "Sort descending");
-			heading.setOnOpListener((JavaScriptCallback) ev -> sortBy(sortBy));
-			ChatboxWidgets.hover(heading, 0x800000);
-			if (column == sortColumn)
-			{
-				Rectangle area = new Rectangle(columnX(column) + headingFont.getTextWidth(text) + 3,
-					y + (ROW_HEIGHT - SORT_ARROW_SIZE) / 2, SORT_ARROW_SIZE, SORT_ARROW_SIZE);
-				iconPlacements.add(new SuggestionIconOverlay.Placement(container, area,
-					Completion.Icon.emoji(descending ? SORTED_DOWN : SORTED_UP)));
-			}
-		}
-	}
-
 	// Tiles in the set's switched-on entries, whether or not the set itself is on.
 	private int enabledTiles(MarkerSet set)
 	{
 		return set.entries.stream().filter(entry -> markerSets.enabled(set, entry)).mapToInt(entry -> entry.tiles.size()).sum();
-	}
-
-	private void sortBy(int column)
-	{
-		descending = column == sortColumn && !descending;
-		sortColumn = column;
-		update();
 	}
 
 	// Title, tiles, source, author and updated; the title cell is the one clicked to expand, copy or delete.
@@ -309,8 +250,7 @@ public class MarkerSetManager extends SearchableChatbox
 		Widget label = null;
 		for (int column = 0; column < cells.length; column++)
 		{
-			Widget cell = ChatboxWidgets.text(container, Text.escapeJagex(fit(cells[column], columnWidth(column))), widgets.fontId(),
-				column == 0 ? 0x000000 : DETAIL_COLOR, columnX(column), y, columnWidth(column), ROW_HEIGHT);
+			Widget cell = cell(container, cells[column], column == 0 ? 0x000000 : DETAIL_COLOR, column, y);
 			label = label == null ? cell : label;
 		}
 		List<Runnable> actions = new ArrayList<>();
@@ -360,14 +300,6 @@ public class MarkerSetManager extends SearchableChatbox
 		ChatboxWidgets.hover(label, 0x000000);
 	}
 
-	// widget's next right-click option.
-	private static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action)
-	{
-		widget.setHasListener(true);
-		widget.setAction(actions.size(), name);
-		actions.add(action);
-	}
-
 	private void addEntry(Widget container, MarkerSet set, MarkerSet.Entry entry, int y)
 	{
 		boolean enabled = markerSets.enabled(set, entry);
@@ -378,8 +310,7 @@ public class MarkerSetManager extends SearchableChatbox
 		int color = markerSets.enabled(set) ? 0x000000 : ChatboxWidgets.DISABLED_COLOR;
 		Widget label = ChatboxWidgets.text(container, Text.escapeJagex(fit(entry.name(), textWidth)), widgets.fontId(), color, textX, y,
 			textWidth, ROW_HEIGHT);
-		ChatboxWidgets.text(container, String.valueOf(entry.tiles.size()), widgets.fontId(), DETAIL_COLOR, columnX(1), y, columnWidth(1),
-			ROW_HEIGHT);
+		cell(container, String.valueOf(entry.tiles.size()), DETAIL_COLOR, 1, y);
 		for (Widget clickable : List.of(checkbox, label))
 		{
 			List<Runnable> actions = new ArrayList<>();
@@ -396,71 +327,6 @@ public class MarkerSetManager extends SearchableChatbox
 			clickable.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		}
 		ChatboxWidgets.hover(label, color);
-	}
-
-	// Columns' left edges: title after the set's check box, then tiles, source, author and updated.
-	private int columnX(int column)
-	{
-		int x = TABLE_X;
-		for (int before = 0; before < column; before++)
-		{
-			x += widths[before];
-		}
-		return x;
-	}
-
-	private int columnWidth(int column)
-	{
-		return widths[column] - COLUMN_GAP;
-	}
-
-	// Each column after Title fits its heading with a sort arrow and SIZED_FOR (and any date, for Updated) in the row
-	// font; Title takes the rest of the row, up to the scrollbar (the last column's gap is its margin).
-	private int[] columnWidths(Widget container)
-	{
-		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
-		int[] columns = new int[HEADINGS.length];
-		int used = 0;
-		for (int column = 1; column < HEADINGS.length; column++)
-		{
-			List<String> values = new ArrayList<>(SIZED_FOR.get(column));
-			if (column == HEADINGS.length - 1)
-			{
-				for (int month = 1; month <= 12; month++)
-				{
-					values.add(DATE.format(LocalDate.of(2026, month, 28)));
-				}
-			}
-			int width = headingFont.getTextWidth(HEADINGS[column]) + 3 + SORT_ARROW_SIZE;
-			for (String value : values)
-			{
-				width = Math.max(width, font.getTextWidth(value));
-			}
-			columns[column] = width + COLUMN_GAP;
-			used += columns[column];
-		}
-		columns[0] = container.getWidth() - ChatboxWidgets.SCROLLBAR_WIDTH - TABLE_X - used;
-		return columns;
-	}
-
-	// text in the row font, cut to fit width with "...".
-	private String fit(String text, int width)
-	{
-		return fit(font, text, width);
-	}
-
-	private static String fit(FontTypeFace font, String text, int width)
-	{
-		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
-		{
-			return text;
-		}
-		String cut = text;
-		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut) + "...") > width)
-		{
-			cut = cut.substring(0, cut.length() - 1);
-		}
-		return cut.trim() + "...";
 	}
 
 	private void toggleExpanded(MarkerSet set)

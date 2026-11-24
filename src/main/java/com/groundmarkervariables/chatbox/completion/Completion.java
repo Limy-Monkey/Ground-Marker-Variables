@@ -1,5 +1,6 @@
 package com.groundmarkervariables.chatbox.completion;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -38,7 +39,7 @@ public final class Completion
 	{
 		public enum Kind
 		{
-			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR, SPLIT
+			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR, DIAMOND, SPLIT
 		}
 
 		public final Kind kind;
@@ -59,6 +60,12 @@ public final class Completion
 		public static Icon emoji(String codepoint)
 		{
 			return new Icon(Kind.EMOJI, codepoint);
+		}
+
+		// A diamond of color, as see-through as it: a tile's color in the Marker Manager. id is its AARRGGBB.
+		public static Icon diamond(Color color)
+		{
+			return new Icon(Kind.DIAMOND, Integer.toHexString(color.getRGB()));
 		}
 	}
 

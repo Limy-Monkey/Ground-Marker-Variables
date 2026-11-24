@@ -8,6 +8,7 @@ import com.groundmarkervariables.variables.support.Emojis;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -29,6 +30,7 @@ import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.components.TooltipComponent;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
@@ -78,6 +80,10 @@ public class SuggestionIconOverlay extends Overlay
 	private final Emojis emojis;
 	private volatile List<Placement> placements = List.of();
 	private volatile List<Tip> tips = List.of();
+	private static final long NOTICE_MS = 3000;
+	@Nullable
+	private volatile Tip notice;
+	private volatile long noticeUntil;
 	// Color swatches by RRGGBB.
 	private static final int SWATCH_SIZE = 12;
 	private static final Color SWATCH_OUTLINE = new Color(0, 0, 0, 160);
@@ -109,11 +115,19 @@ public class SuggestionIconOverlay extends Overlay
 		this.tips = List.copyOf(tips);
 	}
 
+	// A tooltip under notice's area for NOTICE_MS, wherever the mouse is, e.g. why Show on map can't.
+	public void notice(Tip notice)
+	{
+		this.notice = notice;
+		noticeUntil = System.currentTimeMillis() + NOTICE_MS;
+	}
+
 	// The editor closed: nothing to draw, and nothing to keep.
 	public void clear()
 	{
 		placements = List.of();
 		tips = List.of();
+		notice = null;
 		scaled.clear();
 		composed.clear();
 	}
@@ -145,8 +159,23 @@ public class SuggestionIconOverlay extends Overlay
 			clipped.drawImage(image, bounds.x + (bounds.width - image.getWidth()) / 2, bounds.y + (bounds.height - image.getHeight()) / 2, null);
 			clipped.dispose();
 		}
+		showNotice(graphics);
 		showTip();
 		return null;
+	}
+
+	private void showNotice(Graphics2D graphics)
+	{
+		Tip tip = notice;
+		if (tip == null || System.currentTimeMillis() >= noticeUntil || tip.container.isHidden())
+		{
+			return;
+		}
+		Rectangle container = tip.container.getBounds();
+		TooltipComponent tooltip = new TooltipComponent();
+		tooltip.setText(tip.text);
+		tooltip.setPosition(new java.awt.Point(container.x + tip.area.x, container.y + tip.area.y + tip.area.height));
+		tooltip.render(graphics);
 	}
 
 	// The tooltip of the suggestion under the mouse, if it's inside the chatbox.
@@ -212,6 +241,8 @@ public class SuggestionIconOverlay extends Overlay
 				return symbol != null ? symbol : emojis.image(icon.id, null);
 			case COLOR:
 				return swatches.computeIfAbsent(icon.id, SuggestionIconOverlay::swatch);
+			case DIAMOND:
+				return swatches.computeIfAbsent("diamond" + icon.id, key -> diamond(new Color(Integer.parseUnsignedInt(icon.id, 16), true)));
 			default:
 				return spriteManager.getSprite(Integer.parseInt(icon.id), 0);
 		}
@@ -227,6 +258,22 @@ public class SuggestionIconOverlay extends Overlay
 		g.fillOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
 		g.setColor(SWATCH_OUTLINE);
 		g.drawOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
+		g.dispose();
+		return image;
+	}
+
+	// A diamond of color (as see-through as it), outlined in black; also the Marker Manager's map pins.
+	static BufferedImage diamond(Color color)
+	{
+		int half = (SWATCH_SIZE - 1) / 2;
+		Polygon diamond = new Polygon(new int[]{half, 2 * half, half, 0}, new int[]{0, half, 2 * half, half}, 4);
+		BufferedImage image = new BufferedImage(SWATCH_SIZE, SWATCH_SIZE, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = image.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setColor(color);
+		g.fillPolygon(diamond);
+		g.setColor(Color.BLACK);
+		g.drawPolygon(diamond);
 		g.dispose();
 		return image;
 	}

@@ -1,10 +1,13 @@
 package com.groundmarkervariables.chatbox;
 
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
+import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import net.runelite.api.ChatMessageType;
@@ -14,6 +17,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.FontID;
 import net.runelite.api.FontTypeFace;
+import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
@@ -33,8 +37,16 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	protected static final int RESULTS_Y = 30;
 	// Fixed, like AdvancedLabelEditor -- fills the chatbox down to where its own list ends.
 	protected static final int VISIBLE_ROWS = 6;
+	protected static final int DETAIL_COLOR = 0x555555;
+	// Table columns start after the row's check box.
+	protected static final int TABLE_X = 6 + ROW_HEIGHT + 4;
 	private static final int BUTTON_FONT = FontID.PLAIN_11;
 	private static final int TOP_BAR_GAP = 8;
+	private static final int COLUMN_GAP = 6;
+	// Beside the sorted column's heading.
+	private static final String SORTED_UP = "25b2";
+	private static final String SORTED_DOWN = "25bc";
+	private static final int SORT_ARROW_SIZE = 8;
 
 	protected final ChatboxPanelManager chatboxPanelManager;
 	protected final ClientThread clientThread;
@@ -48,6 +60,13 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	protected final List<SuggestionIconOverlay.Tip> tips = new ArrayList<>();
 	protected int scrollOffset;
 	protected volatile String query = "";
+	// The table column the rows are sorted by, and which way; clicking a heading changes them.
+	protected int sortColumn;
+	protected boolean descending;
+	// This update's row font, for fitting cells; the table's headings, and each column's width with its gap.
+	protected FontTypeFace font;
+	private String[] headings;
+	private int[] widths;
 
 	protected SearchableChatbox(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, ChatMessageManager chatMessageManager,
 		SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets, Client client, GroundMarkerVariablesPlugin plugin)
@@ -210,9 +229,146 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		chatboxPanelManager.openInput(this);
 	}
 
+	// Sizes the table's columns: each but flex fits its heading with a sort arrow and sizedFor's values in the row font
+	// (longer ones get "..."); flex takes the rest of the row, up to the scrollbar (the last column's gap is its margin). A
+	// "" heading isn't shown, sized for or sortable.
+	protected void columns(Widget container, String[] headings, List<List<String>> sizedFor, int flex)
+	{
+		this.headings = headings;
+		font = ChatboxWidgets.font(container, widgets.fontId());
+		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
+		widths = new int[headings.length];
+		int used = 0;
+		for (int column = 0; column < headings.length; column++)
+		{
+			if (column != flex)
+			{
+				int width = headings[column].isEmpty() ? 0 : headingFont.getTextWidth(headings[column]) + 3 + SORT_ARROW_SIZE;
+				for (String value : sizedFor.get(column))
+				{
+					width = Math.max(width, font.getTextWidth(value));
+				}
+				widths[column] = width + COLUMN_GAP;
+				used += widths[column];
+			}
+		}
+		widths[flex] = container.getWidth() - ChatboxWidgets.SCROLLBAR_WIDTH - TABLE_X - used;
+	}
+
+	// count rows, scrolling, under the headings (which stay put) if headed; addRow draws row i at y.
+	protected void table(Widget container, boolean headed, int count, BiConsumer<Integer, Integer> addRow)
+	{
+		int top = RESULTS_Y;
+		int visibleRows = VISIBLE_ROWS;
+		if (headed)
+		{
+			addHeadings(container, top);
+			top += ROW_HEIGHT;
+			visibleRows--;
+		}
+		int maxOffset = Math.max(0, count - visibleRows);
+		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+		ChatboxWidgets.scrollCapture(container, top, visibleRows * ROW_HEIGHT, this::scroll);
+		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++)
+		{
+			addRow.accept(scrollOffset + i, top + ROW_HEIGHT * i);
+		}
+		ChatboxWidgets.scrollbar(container, top, visibleRows * ROW_HEIGHT, scrollOffset, maxOffset, visibleRows, count, this::scroll);
+	}
+
+	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
+	private void addHeadings(Widget container, int y)
+	{
+		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
+		for (int column = 0; column < headings.length; column++)
+		{
+			if (headings[column].isEmpty())
+			{
+				continue;
+			}
+			int sortBy = column;
+			// The sorted column's arrow takes from its room.
+			String text = fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
+			Widget heading = ChatboxWidgets.text(container, text, FontID.QUILL_8, 0x800000, columnX(column), y, columnWidth(column),
+				ROW_HEIGHT);
+			heading.setHasListener(true);
+			heading.setAction(0, column != sortColumn ? "Sort by " + headings[column] : descending ? "Sort ascending" : "Sort descending");
+			heading.setOnOpListener((JavaScriptCallback) ev ->
+			{
+				descending = sortBy == sortColumn && !descending;
+				sortColumn = sortBy;
+				update();
+			});
+			ChatboxWidgets.hover(heading, 0x800000);
+			if (column == sortColumn)
+			{
+				Rectangle area = new Rectangle(columnX(column) + headingFont.getTextWidth(text) + 3,
+					y + (ROW_HEIGHT - SORT_ARROW_SIZE) / 2, SORT_ARROW_SIZE, SORT_ARROW_SIZE);
+				iconPlacements.add(new SuggestionIconOverlay.Placement(container, area,
+					Completion.Icon.emoji(descending ? SORTED_DOWN : SORTED_UP)));
+			}
+		}
+	}
+
+	protected int columnX(int column)
+	{
+		int x = TABLE_X;
+		for (int before = 0; before < column; before++)
+		{
+			x += widths[before];
+		}
+		return x;
+	}
+
+	protected int columnWidth(int column)
+	{
+		return widths[column] - COLUMN_GAP;
+	}
+
+	// text in column at y, escaped and cut to fit.
+	protected Widget cell(Widget container, String text, int color, int column, int y)
+	{
+		return ChatboxWidgets.text(container, Text.escapeJagex(fit(text, columnWidth(column))), widgets.fontId(), color, columnX(column), y,
+			columnWidth(column), ROW_HEIGHT);
+	}
+
+	// text in the row font, cut to fit width with "...".
+	protected String fit(String text, int width)
+	{
+		return fit(font, text, width);
+	}
+
+	private static String fit(FontTypeFace font, String text, int width)
+	{
+		if (font.getTextWidth(Text.escapeJagex(text)) <= width)
+		{
+			return text;
+		}
+		String cut = text;
+		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut) + "...") > width)
+		{
+			cut = cut.substring(0, cut.length() - 1);
+		}
+		return cut.trim() + "...";
+	}
+
+	// widget's next right-click option; its op listener runs actions.get(op - 1).
+	protected static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action)
+	{
+		widget.setHasListener(true);
+		widget.setAction(actions.size(), name);
+		actions.add(action);
+	}
+
 	protected static Widget addText(Widget container, String text, int fontId, int color, int x, int y)
 	{
 		return ChatboxWidgets.rowText(container, text, fontId, color, x, y, ROW_HEIGHT, x + ChatboxWidgets.SCROLLBAR_WIDTH + 6);
+	}
+
+	// A tooltip under area (in the chatbox) for a few seconds, e.g. why an action can't be done.
+	protected void notice(Rectangle area, String text)
+	{
+		iconOverlay.notice(new SuggestionIconOverlay.Tip(chatboxPanelManager.getContainerWidget(), area, text));
 	}
 
 	protected void sendChatMessage(String message)

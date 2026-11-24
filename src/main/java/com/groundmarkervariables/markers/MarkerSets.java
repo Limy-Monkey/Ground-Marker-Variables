@@ -450,14 +450,15 @@ public class MarkerSets implements TileSource
 		}
 	}
 
-	// The set's JSON, as parse() reads it, with its stored author history.
+	// The set's JSON, as parse() reads it, with its stored author history; an own set's entries start as they're switched now.
 	public String export(MarkerSet set)
 	{
-		return export(set, history(set));
+		return export(set, history(set), set.kind == MarkerSet.Kind.OWN);
 	}
 
 	// history: earlier authors, oldest first, written only if any. Starts by naming the plugin it's for (not read back).
-	private String export(MarkerSet set, JsonArray history)
+	// current: each entry's on/off now as its default, else the set's own default.
+	private String export(MarkerSet set, JsonArray history, boolean current)
 	{
 		JsonObject json = new JsonObject();
 		json.addProperty("plugin", PLUGIN_NAME);
@@ -480,7 +481,7 @@ public class MarkerSets implements TileSource
 			{
 				entryJson.addProperty("title", entry.title);
 			}
-			if (!entry.enabledByDefault)
+			if (!(current ? enabled(set, entry) : entry.enabledByDefault))
 			{
 				entryJson.addProperty("enabled", false);
 			}
@@ -611,7 +612,7 @@ public class MarkerSets implements TileSource
 
 	private void store(MarkerSet set, JsonArray history)
 	{
-		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), export(set, history));
+		configManager.setConfiguration(GROUP, SET_PREFIX + set.key(), export(set, history, false));
 	}
 
 	// The author history stored for set.

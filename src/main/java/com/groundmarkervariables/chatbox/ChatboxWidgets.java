@@ -3,6 +3,7 @@ package com.groundmarkervariables.chatbox;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
@@ -150,8 +151,14 @@ public final class ChatboxWidgets
 
 	public static void hover(Widget widget, int color)
 	{
-		widget.setOnMouseRepeatListener((JavaScriptCallback) ev -> widget.setTextColor(HOVER_COLOR));
-		widget.setOnMouseLeaveListener((JavaScriptCallback) ev -> widget.setTextColor(color));
+		hover(widget, color, widget);
+	}
+
+	// While over area, texts are HOVER_COLOR, then color again, e.g. a whole table row's.
+	public static void hover(Widget area, int color, Widget... texts)
+	{
+		area.setOnMouseRepeatListener((JavaScriptCallback) ev -> Arrays.stream(texts).forEach(text -> text.setTextColor(HOVER_COLOR)));
+		area.setOnMouseLeaveListener((JavaScriptCallback) ev -> Arrays.stream(texts).forEach(text -> text.setTextColor(color)));
 	}
 
 	// A line across the container, 8px in from each side.
