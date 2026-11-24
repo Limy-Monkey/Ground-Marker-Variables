@@ -224,6 +224,15 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 			}));
 	}
 
+	// Redraws, unless another chatbox has replaced this one, e.g. after something it waited for.
+	protected void updateIfOpen()
+	{
+		if (chatboxPanelManager.getCurrentInput() == this)
+		{
+			update();
+		}
+	}
+
 	protected void reopen()
 	{
 		chatboxPanelManager.openInput(this);

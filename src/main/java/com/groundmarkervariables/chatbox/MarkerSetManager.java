@@ -14,8 +14,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -53,6 +55,8 @@ public class MarkerSetManager extends SearchableChatbox
 	private final MarkerSets markerSets;
 	private final GroundMarkerVariablesSharingManager sharingManager;
 	private final MarkerMinifier markerMinifier;
+	// Show on map's pins: the last set shown, until closing.
+	private final WorldMapPins mapPins;
 
 	// Sets showing their entries, by key.
 	private final Set<String> expanded = new HashSet<>();
@@ -73,9 +77,11 @@ public class MarkerSetManager extends SearchableChatbox
 	@Inject
 	MarkerSetManager(ChatboxPanelManager chatboxPanelManager, ChatMessageManager chatMessageManager, ClientThread clientThread,
 		MarkerSets markerSets, SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets, Client client,
-		GroundMarkerVariablesSharingManager sharingManager, GroundMarkerVariablesPlugin plugin, MarkerMinifier markerMinifier)
+		GroundMarkerVariablesSharingManager sharingManager, GroundMarkerVariablesPlugin plugin, MarkerMinifier markerMinifier,
+		WorldMapPins mapPins)
 	{
 		super(chatboxPanelManager, clientThread, chatMessageManager, iconOverlay, widgets, client, plugin);
+		this.mapPins = mapPins;
 		this.markerMinifier = markerMinifier;
 		this.sharingManager = sharingManager;
 		this.markerSets = markerSets;
@@ -86,13 +92,7 @@ public class MarkerSetManager extends SearchableChatbox
 	@Override
 	protected void open()
 	{
-		markerSets.setListener(() ->
-		{
-			if (chatboxPanelManager.getCurrentInput() == this)
-			{
-				update();
-			}
-		});
+		markerSets.setListener(this::updateIfOpen);
 		markerSets.checkForUpdates(false);
 		update();
 	}
@@ -101,6 +101,7 @@ public class MarkerSetManager extends SearchableChatbox
 	protected void close()
 	{
 		markerSets.setListener(null);
+		mapPins.clear();
 		super.close();
 	}
 
@@ -259,6 +260,7 @@ public class MarkerSetManager extends SearchableChatbox
 			addAction(label, actions, "Choose", () -> onPick.accept(set));
 		}
 		addAction(label, actions, expanded.contains(set.key()) ? "Compact set" : "Expand set", () -> toggleExpanded(set));
+		addShowOnMap(label, actions, set, tiles(set), new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
 		addAction(label, actions, "Copy", () -> copy(set));
 		addAction(label, actions, "Export", () -> exportTiles(set));
 		if (set.kind != MarkerSet.Kind.OWN)
@@ -300,6 +302,35 @@ public class MarkerSetManager extends SearchableChatbox
 		ChatboxWidgets.hover(label, 0x000000);
 	}
 
+	// Show on map, if tiles are on a world map: pins all set's tiles (each named by its entry) and moves the open map to
+	// tiles; with it closed, a notice under labelArea.
+	private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea)
+	{
+		if (tiles.isEmpty() || !mapPins.onAnyMap(tiles.get(0), this::updateIfOpen))
+		{
+			return;
+		}
+		addAction(widget, actions, "Show on map", () ->
+		{
+			if (!mapPins.mapOpen())
+			{
+				notice(labelArea, "Open the world map first, then choose Show on map again.");
+				return;
+			}
+			Map<String, List<GroundMarkerPointData>> byEntry = new LinkedHashMap<>();
+			set.entries.forEach(entry -> byEntry.computeIfAbsent(entry.name(), name -> new ArrayList<>()).addAll(entry.tiles));
+			mapPins.pin(set, byEntry);
+			mapPins.moveTo(tiles);
+		});
+	}
+
+	private static List<GroundMarkerPointData> tiles(MarkerSet set)
+	{
+		List<GroundMarkerPointData> tiles = new ArrayList<>();
+		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+		return tiles;
+	}
+
 	private void addEntry(Widget container, MarkerSet set, MarkerSet.Entry entry, int y)
 	{
 		boolean enabled = markerSets.enabled(set, entry);
@@ -319,6 +350,7 @@ public class MarkerSetManager extends SearchableChatbox
 			{
 				addAction(clickable, actions, "Edit", () -> editTile(set, entry));
 			}
+			addShowOnMap(clickable, actions, set, entry.tiles, new Rectangle(textX, y, textWidth, ROW_HEIGHT));
 			if (set.kind == MarkerSet.Kind.OWN)
 			{
 				addAction(clickable, actions, "Set title", () -> askTitle(set, entry));
@@ -356,8 +388,7 @@ public class MarkerSetManager extends SearchableChatbox
 	// Just its tiles, as ground markers: a label with variables goes in "gmv", as written.
 	private void exportTiles(MarkerSet set)
 	{
-		List<GroundMarkerPointData> tiles = new ArrayList<>();
-		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+		List<GroundMarkerPointData> tiles = tiles(set);
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.exportGmvPlain(tiles)), null);
 		sendChatMessage(tiles.size() + " ground markers from the marker set \"" + set.title + "\" were copied to your clipboard.");
 	}
@@ -387,9 +418,7 @@ public class MarkerSetManager extends SearchableChatbox
 	// the set is deleted.
 	private void confirmDissolve(MarkerSet set)
 	{
-		List<GroundMarkerPointData> tiles = new ArrayList<>();
-		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
-		sharingManager.confirmImport(tiles, " ground markers were restored from the marker set \"" + set.title + "\".", () ->
+		sharingManager.confirmImport(tiles(set)," ground markers were restored from the marker set \"" + set.title + "\".", () ->
 		{
 			markerSets.delete(set);
 			chatboxPanelManager.openInput(this);

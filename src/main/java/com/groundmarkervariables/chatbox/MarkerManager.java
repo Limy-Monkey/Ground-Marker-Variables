@@ -1,6 +1,5 @@
 package com.groundmarkervariables.chatbox;
 
-import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.DeletedMarkers;
@@ -12,10 +11,10 @@ import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.image.BufferedImage;
 import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,8 +33,6 @@ import net.runelite.api.Client;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetTextAlignment;
@@ -43,8 +40,6 @@ import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
-import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
-import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import net.runelite.client.util.Text;
 
 // ::manageGroundMarkerVariables -- every saved marker in a table: one row per area (a RegionNames name, else its region),
@@ -62,19 +57,16 @@ public class MarkerManager extends SearchableChatbox
 	private static final List<List<String>> SIZED_FOR = List.of(List.of("Sergeant Damien's Training Camp"), List.of("999"),
 		List.of("#"), List.of());
 	private static final int DIAMOND = 10;
-	// The world map's list of maps, and its proc returning a coord's place in one map (-1 if none); unnamed in RuneLite.
-	private static final int WORLDMAP_LIST_ENUM = 1697;
-	private static final int FIND_COORD_IN_MAP_SCRIPT = 1715;
 
 	private final MarkerStorage markerStorage;
 	private final DeletedMarkers deletedMarkers;
 	private final GroundMarkerVariablesSharingManager sharingManager;
 	private final MarkerSets markerSets;
 	private final Provider<MarkerSetManager> markerSetManagerProvider;
-	private final WorldMapPointManager worldMapPointManager;
-	private final GroundMarkerVariablesConfig config;
-	// Show on map's pins: the last row shown's markers, until the next or closing.
-	private final List<WorldMapPoint> pins = new ArrayList<>();
+	// Pinned while this is open: the selected rows' markers and the last row Show on map moved to.
+	private final WorldMapPins mapPins;
+	@Nullable
+	private Entry shown;
 
 	private final List<Entry> entries = new ArrayList<>();
 	private final Set<Entry> selected = new HashSet<>();
@@ -96,19 +88,16 @@ public class MarkerManager extends SearchableChatbox
 		@Nullable
 		private final Color color;
 		private final List<GroundMarkerPointData> points = new ArrayList<>();
-		// On some world map (not e.g. a raid's rooms), so it can be shown on it; found just after loading.
-		private boolean mapped;
 	}
 
 	@Inject
 	MarkerManager(ChatboxPanelManager chatboxPanelManager, MarkerStorage markerStorage, ChatMessageManager chatMessageManager,
 		Client client, DeletedMarkers deletedMarkers, GroundMarkerVariablesSharingManager sharingManager, ClientThread clientThread,
 		MarkerSets markerSets, Provider<MarkerSetManager> markerSetManagerProvider, ChatboxWidgets widgets, SuggestionIconOverlay iconOverlay,
-		GroundMarkerVariablesPlugin plugin, WorldMapPointManager worldMapPointManager, GroundMarkerVariablesConfig config)
+		GroundMarkerVariablesPlugin plugin, WorldMapPins mapPins)
 	{
 		super(chatboxPanelManager, clientThread, chatMessageManager, iconOverlay, widgets, client, plugin);
-		this.worldMapPointManager = worldMapPointManager;
-		this.config = config;
+		this.mapPins = mapPins;
 		this.markerSets = markerSets;
 		this.markerSetManagerProvider = markerSetManagerProvider;
 		this.markerStorage = markerStorage;
@@ -121,6 +110,7 @@ public class MarkerManager extends SearchableChatbox
 	{
 		entries.clear();
 		selected.clear();
+		shown = null;
 
 		Map<String, Entry> byKey = new LinkedHashMap<>();
 		for (int regionId : markerStorage.storedRegionIds())
@@ -128,7 +118,7 @@ public class MarkerManager extends SearchableChatbox
 			// Each marker's own area: one region can hold several.
 			for (GroundMarkerPointData point : markerStorage.getStoredPoints(regionId))
 			{
-				String name = RegionNames.name(WorldPoint.fromRegion(regionId, point.getRegionX(), point.getRegionY(), point.getZ()));
+				String name = RegionNames.name(WorldMapPins.worldPoint(point));
 				String area = name != null ? name : "Region " + regionId;
 				String label = point.getLabel() == null ? "" : point.getLabel();
 				byKey.computeIfAbsent(area + '\0' + label + '\0' + point.getColor(),
@@ -136,19 +126,6 @@ public class MarkerManager extends SearchableChatbox
 			}
 		}
 		entries.addAll(byKey.values());
-		// Later: Check if tile is on a map to navigate to
-		clientThread.invokeLater(() ->
-		{
-			for (Entry entry : entries)
-			{
-				GroundMarkerPointData first = entry.points.get(0);
-				entry.mapped = onAnyMap(WorldPoint.fromRegion(first.getRegionId(), first.getRegionX(), first.getRegionY(), first.getZ()));
-			}
-			if (chatboxPanelManager.getCurrentInput() == this)
-			{
-				update();
-			}
-		});
 
 		Player player = client.getLocalPlayer();
 		WorldPoint location = player == null ? null : WorldPoint.fromLocalInstance(client, player.getLocalLocation());
@@ -264,6 +241,7 @@ public class MarkerManager extends SearchableChatbox
 	@Override
 	protected void buildRows(Widget container)
 	{
+		updatePins();
 		List<Entry> rows = visibleEntries();
 		if (rows.isEmpty())
 		{
@@ -301,7 +279,7 @@ public class MarkerManager extends SearchableChatbox
 		{
 			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
 		}
-		if (entry.mapped)
+		if (mapPins.onAnyMap(entry.points.get(0), this::updateIfOpen))
 		{
 			Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
 			addAction(row, actions, "Show on map", () -> showOnMap(entry, labelArea));
@@ -314,66 +292,39 @@ public class MarkerManager extends SearchableChatbox
 	// own link handling. Else a notice under labelArea that the map is closed.
 	private void showOnMap(Entry entry, Rectangle labelArea)
 	{
-		Widget map = client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER);
-		if (map == null || map.isHidden())
+		if (!mapPins.mapOpen())
 		{
 			notice(labelArea, "Open the world map first, then choose Show on map again.");
 			return;
 		}
-		clearPins();
-		BufferedImage image = SuggestionIconOverlay.diamond(new Color((entry.color != null ? entry.color : config.markerColor()).getRGB()));
-		List<WorldPoint> points = new ArrayList<>();
-		for (GroundMarkerPointData point : entry.points)
+		shown = entry;
+		updatePins();
+		mapPins.moveTo(entry.points);
+	}
+
+	private void updatePins()
+	{
+		Set<Entry> rows = new HashSet<>(selected);
+		if (shown != null)
 		{
-			WorldPoint worldPoint = WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ());
-			points.add(worldPoint);
-			WorldMapPoint pin = new WorldMapPoint(worldPoint, image);
-			pin.setTooltip(Text.escapeJagex(entry.label.isEmpty() ? entry.area : entry.label));
-			pins.add(pin);
-			worldMapPointManager.add(pin);
+			rows.add(shown);
 		}
-		int x = (int) points.stream().mapToInt(WorldPoint::getX).average().orElse(0);
-		int y = (int) points.stream().mapToInt(WorldPoint::getY).average().orElse(0);
-		client.setVarcIntValue(VarClientID.WORLDMAP_INTERMAPLINK, coord(new WorldPoint(x, y, points.get(0).getPlane())));
-	}
-
-	// Whether any world map has point, as the map's own links look: worldmap_findcoordinmap over each map in its list.
-	private boolean onAnyMap(WorldPoint point)
-	{
-		for (int map : client.getEnum(WORLDMAP_LIST_ENUM).getIntVals())
-		{
-			client.runScript(FIND_COORD_IN_MAP_SCRIPT, map, coord(point));
-			if (client.getIntStack()[0] != -1)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	// A clientscript coord: plane, x and y packed.
-	private static int coord(WorldPoint point)
-	{
-		return point.getPlane() << 28 | point.getX() << 14 | point.getY();
-	}
-
-	private void clearPins()
-	{
-		pins.forEach(worldMapPointManager::remove);
-		pins.clear();
+		Map<String, List<GroundMarkerPointData>> tiles = new HashMap<>();
+		rows.forEach(entry -> tiles.computeIfAbsent(entry.label.isEmpty() ? entry.area : entry.label, label -> new ArrayList<>())
+			.addAll(entry.points));
+		mapPins.pin(rows, tiles);
 	}
 
 	@Override
 	protected void close()
 	{
-		clearPins();
+		mapPins.clear();
 		super.close();
 	}
 
 	private void edit(GroundMarkerPointData point)
 	{
-		editLabel(point, label -> plugin.saveExpandedLabel(
-			WorldPoint.fromRegion(point.getRegionId(), point.getRegionX(), point.getRegionY(), point.getZ()), label));
+		editLabel(point, label -> plugin.saveExpandedLabel(WorldMapPins.worldPoint(point), label));
 	}
 
 	// Reloaded, e.g. to show an edited label.
@@ -458,22 +409,21 @@ public class MarkerManager extends SearchableChatbox
 		sendChatMessage(points.size() + " ground markers were copied to your clipboard.");
 	}
 
-	// Asks for a title, then whether to keep the markers or move them into the set. The author is the logged-in name, else
-	// anon. onDone returns false: the menu it opens replaces this prompt, which closing would close instead.
+	// Asks for a title, starting as (and blank is) MarkerSets#defaultTitle's, then whether to keep the markers or move them
+	// into the set. The author is the logged-in name, else anon. onDone returns false: the menu it opens replaces this
+	// prompt, which closing would close instead.
 	private void makeSet()
 	{
 		List<Entry> chosen = chosenEntries();
+		String defaultTitle = MarkerSets.defaultTitle(selectedPoints());
 		Player player = client.getLocalPlayer();
 		String author = player != null && player.getName() != null ? player.getName() : MarkerSet.ANON;
 		chatboxPanelManager.openTextInput("Marker set title")
+			.value(defaultTitle)
 			.onDone((Predicate<String>) title ->
 			{
-				if (title.isBlank())
-				{
-					chatboxPanelManager.openInput(this);
-					return false;
-				}
-				keepOrMove(chosen, move -> addToSet(chosen, move, entries -> markerSets.create(title.trim(), author, entries)));
+				String setTitle = title.isBlank() ? defaultTitle : title.trim();
+				keepOrMove(chosen, move -> addToSet(chosen, move, entries -> markerSets.create(setTitle, author, entries)));
 				return false;
 			})
 			.build();
