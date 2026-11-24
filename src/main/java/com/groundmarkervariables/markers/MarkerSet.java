@@ -17,7 +17,9 @@ public final class MarkerSet
 	{
 		BUILT_IN("Built-in", "builtin"),
 		SHARED("Imported", "shared"),
-		OWN("Own", "own");
+		OWN("Own", "own"),
+		// Another plugin's markers, drawn through us and never saved (see ExternalMarkerManager#sets).
+		PLUGIN("Plugin", "plugin");
 
 		public final String title;
 		final String prefix;

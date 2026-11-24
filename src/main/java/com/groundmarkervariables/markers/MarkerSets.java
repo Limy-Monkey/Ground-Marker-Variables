@@ -87,6 +87,7 @@ public class MarkerSets implements TileSource
 	private final LabelResolver labelResolver;
 	private final MetaVariableResolver metaVariableResolver;
 	private final MarkerMinifier markerMinifier;
+	private final ExternalMarkerManager externalMarkerManager;
 
 	private volatile List<MarkerSet> sets = List.of();
 	private State state = new State();
@@ -156,6 +157,14 @@ public class MarkerSets implements TileSource
 		return sets;
 	}
 
+	// For Marker Sets: these, then other plugins' groups (see ExternalMarkerManager#sets).
+	public List<MarkerSet> listed()
+	{
+		List<MarkerSet> listed = new ArrayList<>(sets);
+		listed.addAll(externalMarkerManager.sets());
+		return listed;
+	}
+
 	@Nullable
 	public String status()
 	{
@@ -167,23 +176,32 @@ public class MarkerSets implements TileSource
 		return failed;
 	}
 
+	// Also for other plugins' groups changing.
 	public void setListener(@Nullable Runnable listener)
 	{
 		this.listener = listener;
+		externalMarkerManager.setListener(listener);
 	}
 
+	// A plugin's group's on/off are its hides (see ExternalMarkerManager).
 	public boolean enabled(MarkerSet set)
 	{
-		return state.enabled.contains(set.key());
+		return set.kind == MarkerSet.Kind.PLUGIN ? externalMarkerManager.shown(set.id) : state.enabled.contains(set.key());
 	}
 
 	public boolean enabled(MarkerSet set, MarkerSet.Entry entry)
 	{
-		return state.entries.getOrDefault(set.key(), Map.of()).getOrDefault(entry.key, entry.enabledByDefault);
+		return set.kind == MarkerSet.Kind.PLUGIN ? externalMarkerManager.shown(set.id, entry.tiles)
+			: state.entries.getOrDefault(set.key(), Map.of()).getOrDefault(entry.key, entry.enabledByDefault);
 	}
 
 	public void setEnabled(MarkerSet set, boolean enabled)
 	{
+		if (set.kind == MarkerSet.Kind.PLUGIN)
+		{
+			externalMarkerManager.show(set.id, enabled);
+			return;
+		}
 		if (enabled)
 		{
 			state.enabled.add(set.key());
@@ -197,6 +215,11 @@ public class MarkerSets implements TileSource
 
 	public void setEnabled(MarkerSet set, MarkerSet.Entry entry, boolean enabled)
 	{
+		if (set.kind == MarkerSet.Kind.PLUGIN)
+		{
+			externalMarkerManager.show(set.id, entry.tiles, enabled);
+			return;
+		}
 		Map<String, Boolean> changed = state.entries.computeIfAbsent(set.key(), key -> new HashMap<>());
 		if (enabled == entry.enabledByDefault)
 		{
@@ -246,15 +269,21 @@ public class MarkerSets implements TileSource
 		return create(title, author, entries, new JsonArray());
 	}
 
-	// points as a new set of the user's own, one entry per label (same-label markers grouped); blank title is defaultTitle's.
+	// points as a new set of the user's own, one entry per label; blank title is defaultTitle's.
 	@Nullable
 	public MarkerSet createFrom(String title, String author, List<GroundMarkerPointData> points)
+	{
+		return create(title.isBlank() ? defaultTitle(points) : title.trim(), author, entriesByLabel(points));
+	}
+
+	// One entry per label, same-label markers grouped.
+	static List<MarkerSet.Entry> entriesByLabel(List<GroundMarkerPointData> points)
 	{
 		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
 		points.forEach(point -> byLabel.computeIfAbsent(Strings.nullToEmpty(point.getLabel()), label -> new ArrayList<>()).add(point));
 		List<MarkerSet.Entry> entries = new ArrayList<>();
 		byLabel.values().forEach(tiles -> entries.add(new MarkerSet.Entry(null, tiles, tiles.size() > 1, true, entries.size())));
-		return create(title.isBlank() ? defaultTitle(points) : title.trim(), author, entries);
+		return entries;
 	}
 
 	// The RegionNames name most of points are in, else "Import <date>".
@@ -272,13 +301,11 @@ public class MarkerSets implements TileSource
 		return counts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("Import " + LocalDate.now());
 	}
 
-	// A built-in or imported set copied as the user's own, "<title> (clone)" by author; its author joins its history.
+	// A set copied as the user's own, "<title> (clone)", keeping its author and history until claimed (see claim()).
 	@Nullable
-	public MarkerSet cloneSet(MarkerSet set, String author)
+	public MarkerSet cloneSet(MarkerSet set)
 	{
-		JsonArray history = history(set);
-		history.add(set.author);
-		return create(set.title + " (clone)", author, set.entries, history);
+		return create(set.title + " (clone)", set.author, set.entries, history(set));
 	}
 
 	@Nullable
@@ -313,11 +340,22 @@ public class MarkerSets implements TileSource
 		edit(set, set.title, author, set.entries);
 	}
 
-	// An Unknown set (imported ground markers) claimed by author: "Imported" joins its history.
+	// author takes over an own set: author leaves its history, then its old author joins it ("Imported" for an Unknown set,
+	// nothing for anon).
 	public void claim(MarkerSet set, String author)
 	{
-		JsonArray history = history(set);
-		history.add("Imported");
+		JsonArray history = new JsonArray();
+		for (JsonElement name : history(set))
+		{
+			if (!name.getAsString().equalsIgnoreCase(author))
+			{
+				history.add(name);
+			}
+		}
+		if (!MarkerSet.ANON.equals(set.author))
+		{
+			history.add(MarkerSet.UNKNOWN.equals(set.author) ? "Imported" : set.author);
+		}
 		store(new MarkerSet(set.kind, set.id, set.title, author, set.version + 1, LocalDate.now(), set.entries), history);
 		load();
 	}
@@ -525,7 +563,8 @@ public class MarkerSets implements TileSource
 				{
 					json.addProperty("entryTitle", entry.title);
 				}
-				if (tile == 0 && !(set.kind == MarkerSet.Kind.OWN ? enabled(set, entry) : entry.enabledByDefault))
+				if (tile == 0 && !(set.kind == MarkerSet.Kind.OWN || set.kind == MarkerSet.Kind.PLUGIN ? enabled(set, entry)
+					: entry.enabledByDefault))
 				{
 					json.addProperty("enabled", false);
 				}

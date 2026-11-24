@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,9 @@ public class ExternalMarkerManager implements TileSource
 	// Every group's markers by region.
 	private final Map<Integer, List<SourceMarker>> byRegion = new HashMap<>();
 	private long order;
+	// Marker Sets, while open: told when a group is set or cleared.
+	@Nullable
+	private Runnable listener;
 
 	public void shutDown()
 	{
@@ -91,7 +95,83 @@ public class ExternalMarkerManager implements TileSource
 					.add(new SourceMarker(marker, this, group.priority, group.order, group));
 			}
 		}
+		hidesChanged();
+	}
+
+	void setListener(@Nullable Runnable listener)
+	{
+		this.listener = listener;
+	}
+
+	// Each group as a marker set for Marker Sets: titled by its name, by its plugin, one entry per label.
+	List<MarkerSet> sets()
+	{
+		List<MarkerSet> sets = new ArrayList<>();
+		for (Group group : groups.values())
+		{
+			List<GroundMarkerPointData> points = new ArrayList<>();
+			group.markers.forEach(marker -> points.add(marker.source));
+			sets.add(new MarkerSet(MarkerSet.Kind.PLUGIN, group.name, group.name, group.plugin, 0, null, MarkerSets.entriesByLabel(points)));
+		}
+		return sets;
+	}
+
+	boolean shown(String name)
+	{
+		Group group = groups.get(name);
+		return group != null && !group.hidden;
+	}
+
+	// None of tiles hidden.
+	boolean shown(String name, List<GroundMarkerPointData> tiles)
+	{
+		Group group = groups.get(name);
+		return group != null && tiles.stream().noneMatch(tile -> group.hiddenTiles.contains(stored(tile)));
+	}
+
+	void show(String name, boolean shown)
+	{
+		Group group = groups.get(name);
+		if (group != null)
+		{
+			group.hidden = !shown;
+			hidesChanged();
+		}
+	}
+
+	void show(String name, List<GroundMarkerPointData> tiles, boolean shown)
+	{
+		Group group = groups.get(name);
+		if (group == null)
+		{
+			return;
+		}
+		for (GroundMarkerPointData tile : tiles)
+		{
+			if (shown)
+			{
+				group.hiddenTiles.remove(stored(tile));
+			}
+			else
+			{
+				group.hiddenTiles.add(stored(tile));
+			}
+		}
+		hidesChanged();
+	}
+
+	private void hidesChanged()
+	{
 		renderedTiles.invalidate();
+		if (listener != null)
+		{
+			listener.run();
+		}
+	}
+
+	private static WorldPoint stored(GroundMarkerPointData tile)
+	{
+		return WorldPoint.fromRegion(tile.getRegionId(), tile.getRegionX(), tile.getRegionY(), tile.getZ());
 	}
 
 	@Override

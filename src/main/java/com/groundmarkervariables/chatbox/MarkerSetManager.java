@@ -46,7 +46,7 @@ public class MarkerSetManager extends SearchableChatbox
 	private static final String[] HEADINGS = {"Title", "Tiles", "Source", "Author", "Updated"};
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
 	// The widest value each column after Title (which takes the rest) is sized for: Updated, any month's date.
-	private static final List<List<String>> SIZED_FOR = List.of(List.of(), List.of("999/999"), List.of("Built-in", "Imported", "Own"),
+	private static final List<List<String>> SIZED_FOR = List.of(List.of(), List.of("999/999"), List.of("Built-in", "Imported", "Own", "Plugin"),
 		List.of("LimyMonkey12"), IntStream.rangeClosed(1, 12).mapToObj(month -> DATE.format(LocalDate.of(2026, month, 28)))
 			.collect(Collectors.toList()));
 	// The row's entry for the status line (a check, a failure, or why the table is empty).
@@ -115,7 +115,7 @@ public class MarkerSetManager extends SearchableChatbox
 	@Override
 	protected String title()
 	{
-		return onPick != null ? "Add to which set?" : "Marker Sets (" + markerSets.sets().size() + ")";
+		return onPick != null ? "Add to which set?" : "Marker Sets (" + markerSets.listed().size() + ")";
 	}
 
 	// Import, and the failed update's mark left of it.
@@ -137,7 +137,7 @@ public class MarkerSetManager extends SearchableChatbox
 	private List<Row> rows()
 	{
 		List<Row> rows = new ArrayList<>();
-		List<MarkerSet> sets = new ArrayList<>(markerSets.sets());
+		List<MarkerSet> sets = markerSets.listed();
 		sets.sort(order());
 		for (MarkerSet set : sets)
 		{
@@ -247,7 +247,7 @@ public class MarkerSetManager extends SearchableChatbox
 		checkbox.setOnOpListener((JavaScriptCallback) ev -> markerSets.setEnabled(set, !enabled));
 
 		String[] cells = {set.title, enabledTiles(set) + "/" + set.tileCount(), set.kind.title, set.author,
-			set.updated == null ? "Unknown" : DATE.format(set.updated)};
+			set.updated != null ? DATE.format(set.updated) : set.kind == MarkerSet.Kind.PLUGIN ? "" : "Unknown"};
 		Widget label = null;
 		for (int column = 0; column < cells.length; column++)
 		{
@@ -267,7 +267,8 @@ public class MarkerSetManager extends SearchableChatbox
 		{
 			addAction(label, actions, "Clone", () -> cloneSet(set));
 		}
-		if (set.kind != MarkerSet.Kind.BUILT_IN)
+		// A plugin's group is its to clear.
+		if (set.kind == MarkerSet.Kind.SHARED || set.kind == MarkerSet.Kind.OWN)
 		{
 			addAction(label, actions, "Delete", () -> confirmDelete(set));
 		}
@@ -276,27 +277,16 @@ public class MarkerSetManager extends SearchableChatbox
 			addAction(label, actions, "Set title", () -> askTitle(set));
 			addAction(label, actions, "Dissolve set", () -> confirmDissolve(set));
 		}
-		// Own sets: anon, or claimed by the logged-in name (an Unknown set's history noting it was imported).
+		// Own sets: yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
 		Player player = client.getLocalPlayer();
 		String name = player != null ? player.getName() : null;
-		boolean unknown = MarkerSet.UNKNOWN.equals(set.author);
-		if (set.kind == MarkerSet.Kind.OWN && !MarkerSet.ANON.equals(set.author) && !unknown)
+		if (set.kind == MarkerSet.Kind.OWN && name != null && name.equalsIgnoreCase(set.author))
 		{
 			addAction(label, actions, "Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
 		}
 		else if (set.kind == MarkerSet.Kind.OWN && name != null)
 		{
-			addAction(label, actions, "Claim Authorship", () ->
-			{
-				if (unknown)
-				{
-					markerSets.claim(set, name);
-				}
-				else
-				{
-					markerSets.setAuthor(set, name);
-				}
-			});
+			addAction(label, actions, "Claim Authorship", () -> markerSets.claim(set, name));
 		}
 		label.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		ChatboxWidgets.hover(label, 0x000000);
@@ -393,11 +383,10 @@ public class MarkerSetManager extends SearchableChatbox
 		sendChatMessage(tiles.size() + " ground markers from the marker set \"" + set.title + "\" were copied to your clipboard.");
 	}
 
-	// Your own copy, by the logged-in name (else anon).
+	// Your own copy, still by its author until you claim it.
 	private void cloneSet(MarkerSet set)
 	{
-		Player player = client.getLocalPlayer();
-		MarkerSet clone = markerSets.cloneSet(set, player != null && player.getName() != null ? player.getName() : MarkerSet.ANON);
+		MarkerSet clone = markerSets.cloneSet(set);
 		sendChatMessage(clone == null ? MarkerSets.TOO_LARGE
 			: "The marker set \"" + clone.title + "\" was made from \"" + set.title + "\" by " + set.author + ".");
 	}
