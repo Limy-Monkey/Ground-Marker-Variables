@@ -252,7 +252,7 @@ public class MarkerManager extends SearchableChatbox
 		}
 		rows.sort(order());
 		columns(container, HEADINGS, SIZED_FOR, LABEL);
-		table(container, true, rows.size(), (i, y) -> addEntry(container, rows.get(i), y));
+		table(container, true, rows.size(), (i, y) -> addEntry(container, rows.get(i), y), null);
 	}
 
 	// Its checkbox, area, count (right-aligned), color diamond (none for the default color) and label (escaped, so a label's
@@ -444,7 +444,7 @@ public class MarkerManager extends SearchableChatbox
 			List<GroundMarkerPointData> points = new ArrayList<>();
 			for (Entry entry : chosen)
 			{
-				entries.add(new MarkerSet.Entry(null, entry.points, entry.points.size() > 1, true, entries.size()));
+				entries.add(new MarkerSet.Entry(null, null, entry.points, entry.points.size() > 1, true, entries.size()));
 				points.addAll(entry.points);
 			}
 			MarkerSet set = save.apply(entries);

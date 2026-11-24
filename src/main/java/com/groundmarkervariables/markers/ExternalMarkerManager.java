@@ -111,7 +111,7 @@ public class ExternalMarkerManager implements TileSource
 		{
 			List<GroundMarkerPointData> points = new ArrayList<>();
 			group.markers.forEach(marker -> points.add(marker.source));
-			sets.add(new MarkerSet(MarkerSet.Kind.PLUGIN, group.name, group.name, group.plugin, 0, null, MarkerSets.entriesByLabel(points)));
+			sets.add(new MarkerSet(MarkerSet.Kind.PLUGIN, group.name, group.name, null, group.plugin, 0, null, MarkerSets.entriesByLabel(points)));
 		}
 		return sets;
 	}

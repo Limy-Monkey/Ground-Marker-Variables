@@ -50,7 +50,7 @@ public class MarkerSetManager extends SearchableChatbox
 		List.of("LimyMonkey12"), IntStream.rangeClosed(1, 12).mapToObj(month -> DATE.format(LocalDate.of(2026, month, 28)))
 			.collect(Collectors.toList()));
 	// The row's entry for the status line (a check, a failure, or why the table is empty).
-	private static final MarkerSet.Entry STATUS = new MarkerSet.Entry(null, List.of(), false, true, 0);
+	private static final MarkerSet.Entry STATUS = new MarkerSet.Entry(null, null, List.of(), false, true, 0);
 
 	private final MarkerSets markerSets;
 	private final GroundMarkerVariablesSharingManager sharingManager;
@@ -204,6 +204,16 @@ public class MarkerSetManager extends SearchableChatbox
 			{
 				addEntry(container, row.set, row.entry, y);
 			}
+		}, (i, y) ->
+		{
+			// Scrolled into a set's entries: its row stays on the fixed line, in place of the headings.
+			Row row = rows.get(i);
+			if (row.entry == null || row.entry == STATUS)
+			{
+				return false;
+			}
+			addSet(container, row.set, y);
+			return true;
 		});
 	}
 
@@ -254,6 +264,7 @@ public class MarkerSetManager extends SearchableChatbox
 			Widget cell = cell(container, cells[column], column == 0 ? 0x000000 : DETAIL_COLOR, column, y);
 			label = label == null ? cell : label;
 		}
+		describe(container, set.description, new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
 		List<Runnable> actions = new ArrayList<>();
 		if (onPick != null)
 		{
@@ -261,32 +272,34 @@ public class MarkerSetManager extends SearchableChatbox
 		}
 		addAction(label, actions, expanded.contains(set.key()) ? "Compact set" : "Expand set", () -> toggleExpanded(set));
 		addShowOnMap(label, actions, set, tiles(set), new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
-		addAction(label, actions, "Copy", () -> copy(set));
-		addAction(label, actions, "Export", () -> exportTiles(set));
-		if (set.kind != MarkerSet.Kind.OWN)
-		{
-			addAction(label, actions, "Clone", () -> cloneSet(set));
-		}
-		// A plugin's group is its to clear.
-		if (set.kind == MarkerSet.Kind.SHARED || set.kind == MarkerSet.Kind.OWN)
-		{
-			addAction(label, actions, "Delete", () -> confirmDelete(set));
-		}
+		Map<String, Runnable> manage = new LinkedHashMap<>();
+		manage.put("Copy", () -> copy(set));
+		manage.put("Export", () -> exportTiles(set));
+		manage.put("Clone", () -> cloneSet(set));
+		addSubmenu(label, actions, "Manage", manage);
 		if (set.kind == MarkerSet.Kind.OWN)
 		{
-			addAction(label, actions, "Set title", () -> askTitle(set));
+			// Yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
+			Player player = client.getLocalPlayer();
+			String name = player != null ? player.getName() : null;
+			Map<String, Runnable> edit = new LinkedHashMap<>();
+			edit.put("Set title", () -> askTitle(set));
+			edit.put("Set description", () -> askDescription(set.description, text -> markerSets.setDescription(set, text)));
+			if (name != null && name.equalsIgnoreCase(set.author))
+			{
+				edit.put("Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
+			}
+			else if (name != null)
+			{
+				edit.put("Claim Authorship", () -> markerSets.claim(set, name));
+			}
+			addSubmenu(label, actions, "Edit", edit);
+		}
+		// Last, Dissolve then Delete. A plugin's group is its to clear.
+		if (set.kind == MarkerSet.Kind.SHARED || set.kind == MarkerSet.Kind.OWN)
+		{
 			addAction(label, actions, "Dissolve set", () -> confirmDissolve(set));
-		}
-		// Own sets: yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
-		Player player = client.getLocalPlayer();
-		String name = player != null ? player.getName() : null;
-		if (set.kind == MarkerSet.Kind.OWN && name != null && name.equalsIgnoreCase(set.author))
-		{
-			addAction(label, actions, "Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
-		}
-		else if (set.kind == MarkerSet.Kind.OWN && name != null)
-		{
-			addAction(label, actions, "Claim Authorship", () -> markerSets.claim(set, name));
+			addAction(label, actions, "Delete", () -> confirmDelete(set));
 		}
 		label.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
 		ChatboxWidgets.hover(label, 0x000000);
@@ -329,6 +342,7 @@ public class MarkerSetManager extends SearchableChatbox
 		int color = markerSets.enabled(set) ? 0x000000 : ChatboxWidgets.DISABLED_COLOR;
 		Widget label = ChatboxWidgets.text(container, Text.escapeJagex(fit(entry.name(), textWidth)), widgets.fontId(), color, textX, y,
 			textWidth, ROW_HEIGHT);
+		describe(container, entry.description, new Rectangle(textX, y, textWidth, ROW_HEIGHT));
 		cell(container, String.valueOf(entry.tiles.size()), DETAIL_COLOR, 1, y);
 		for (Widget clickable : List.of(checkbox, label))
 		{
@@ -342,6 +356,8 @@ public class MarkerSetManager extends SearchableChatbox
 			if (set.kind == MarkerSet.Kind.OWN)
 			{
 				addAction(clickable, actions, "Set title", () -> askTitle(set, entry));
+				addAction(clickable, actions, "Set description", () ->
+					askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
 				addAction(clickable, actions, "Delete", () -> confirmDelete(set, entry));
 			}
 			clickable.setOnOpListener((JavaScriptCallback) ev -> actions.get(ev.getOp() - 1).run());
@@ -419,6 +435,32 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// A set needs a title, so blank leaves it as it was.
+	// description, if any, as a tooltip over area: its "\n"s as line breaks, any tags dropped.
+	private void describe(Widget container, @Nullable String description, Rectangle area)
+	{
+		if (description != null)
+		{
+			tips.add(new SuggestionIconOverlay.Tip(container, area, Text.removeTags(description).replace("\\n", "</br>")));
+		}
+	}
+
+	// A set's or entry's description, starting as current; blank for none (see MarkerSet#description for its limits).
+	private void askDescription(@Nullable String current, Consumer<String> save)
+	{
+		chatboxPanelManager.openTextInput("Description (blank for none)")
+			.value(current == null ? "" : current)
+			.onDone((Predicate<String>) text ->
+			{
+				clientThread.invoke(() ->
+				{
+					save.accept(text);
+					chatboxPanelManager.openInput(this);
+				});
+				return false;
+			})
+			.build();
+	}
+
 	private void askTitle(MarkerSet set)
 	{
 		chatboxPanelManager.openTextInput("Marker set title")

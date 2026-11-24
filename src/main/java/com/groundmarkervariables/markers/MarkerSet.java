@@ -1,16 +1,21 @@
 package com.groundmarkervariables.markers;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import javax.annotation.Nullable;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 // A titled set of markers by an author. Its entries are what can be switched on and off: one tile, or a group of tiles.
+@AllArgsConstructor
 public final class MarkerSet
 {
 	public static final String ANON = "anon";
 	// Imported ground markers' author, until claimed.
 	public static final String UNKNOWN = "Unknown";
+	private static final int MAX_DESCRIPTION_LENGTH = 300;
+	private static final int MAX_DESCRIPTION_LINES = 5;
 
 	@RequiredArgsConstructor
 	public enum Kind
@@ -29,6 +34,9 @@ public final class MarkerSet
 	{
 		@Nullable
 		public final String title;
+		// Shown when its name is hovered in Marker Sets (see description()).
+		@Nullable
+		public final String description;
 		public final List<GroundMarkerPointData> tiles;
 		public final boolean group;
 		// On until the user switches it, unless the set says otherwise.
@@ -36,13 +44,21 @@ public final class MarkerSet
 		// For its on/off state: its title, else its position.
 		public final String key;
 
-		public Entry(@Nullable String title, List<GroundMarkerPointData> tiles, boolean group, boolean enabledByDefault, int index)
+		public Entry(@Nullable String title, @Nullable String description, List<GroundMarkerPointData> tiles, boolean group,
+			boolean enabledByDefault, int index)
 		{
 			this.title = title;
+			this.description = description;
 			this.tiles = List.copyOf(tiles);
 			this.group = group;
 			this.enabledByDefault = enabledByDefault;
 			this.key = title != null ? title : "#" + index;
+		}
+
+		// The same entry at index (its key follows it if untitled).
+		public Entry at(int index)
+		{
+			return new Entry(title, description, tiles, group, enabledByDefault, index);
 		}
 
 		// Its title, else its first tile's label's first line.
@@ -67,6 +83,9 @@ public final class MarkerSet
 	// Unique within its kind; config-key safe.
 	public final String id;
 	public final String title;
+	// Shown when its title is hovered in Marker Sets (see description()).
+	@Nullable
+	public final String description;
 	public final String author;
 	public final int version;
 	// When its author last changed it; null if the set doesn't say.
@@ -74,15 +93,18 @@ public final class MarkerSet
 	public final LocalDate updated;
 	public final List<Entry> entries;
 
-	public MarkerSet(Kind kind, String id, String title, String author, int version, @Nullable LocalDate updated, List<Entry> entries)
+	// A description as kept (given to the constructors as one): trimmed, at most MAX_DESCRIPTION_LINES lines (split at "\n", typed or real, kept as a typed
+	// "\n") and MAX_DESCRIPTION_LENGTH characters; null if blank.
+	@Nullable
+	public static String description(@Nullable String text)
 	{
-		this.kind = kind;
-		this.id = id;
-		this.title = title;
-		this.author = author;
-		this.version = version;
-		this.updated = updated;
-		this.entries = List.copyOf(entries);
+		if (text == null || text.isBlank())
+		{
+			return null;
+		}
+		String[] lines = text.trim().split("\\\\n|\n", MAX_DESCRIPTION_LINES + 1);
+		String kept = String.join("\\n", Arrays.asList(lines).subList(0, Math.min(lines.length, MAX_DESCRIPTION_LINES))).trim();
+		return kept.length() > MAX_DESCRIPTION_LENGTH ? kept.substring(0, MAX_DESCRIPTION_LENGTH).trim() : kept;
 	}
 
 	// Where it's stored, and its key in the on/off state.

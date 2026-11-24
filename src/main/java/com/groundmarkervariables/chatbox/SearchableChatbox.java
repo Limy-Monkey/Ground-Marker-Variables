@@ -11,7 +11,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import java.util.function.UnaryOperator;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -272,19 +274,19 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		widths[flex] = container.getWidth() - ChatboxWidgets.SCROLLBAR_WIDTH - TABLE_X - used;
 	}
 
-	// count rows, scrolling, under the headings (which stay put) if headed; addRow draws row i at y.
-	protected void table(Widget container, boolean headed, int count, BiConsumer<Integer, Integer> addRow)
+	// count rows, scrolling, under a fixed line if headed; addRow draws row i at y. The fixed line shows the headings,
+	// unless fixedRow draws something there for the first row shown (e.g. the set it's in) at that y.
+	protected void table(Widget container, boolean headed, int count, BiConsumer<Integer, Integer> addRow,
+		@Nullable BiPredicate<Integer, Integer> fixedRow)
 	{
-		int top = RESULTS_Y;
-		int visibleRows = VISIBLE_ROWS;
-		if (headed)
-		{
-			addHeadings(container, top);
-			top += ROW_HEIGHT;
-			visibleRows--;
-		}
+		int top = headed ? RESULTS_Y + ROW_HEIGHT : RESULTS_Y;
+		int visibleRows = headed ? VISIBLE_ROWS - 1 : VISIBLE_ROWS;
 		int maxOffset = Math.max(0, count - visibleRows);
 		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+		if (headed && (fixedRow == null || count == 0 || !fixedRow.test(scrollOffset, RESULTS_Y)))
+		{
+			addHeadings(container, RESULTS_Y);
+		}
 		ChatboxWidgets.scrollCapture(container, top, visibleRows * ROW_HEIGHT, this::scroll);
 		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++)
 		{
@@ -388,17 +390,19 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// From the plugin's onMenuEntryAdded while this is open: makes an addSubmenu() option's entry its submenu.
 	public void menuEntryAdded(MenuEntry entry)
 	{
-		Map<String, Runnable> choices = entry.getWidget() == null ? null
-			: submenus.getOrDefault(entry.getWidget(), Map.of()).get(Text.removeTags(entry.getOption()));
+		String name = Text.removeTags(entry.getOption());
+		Map<String, Runnable> choices = entry.getWidget() == null ? null : submenus.getOrDefault(entry.getWidget(), Map.of()).get(name);
 		if (choices == null)
 		{
 			return;
 		}
+		// Its word as the target (e.g. "Map"), shown over its choices.
+		entry.setOption("").setTarget(name);
 		Menu submenu = entry.createSubMenu();
 		// Each entry goes above the last, so the first choice is added last.
 		List<String> names = new ArrayList<>(choices.keySet());
 		Collections.reverse(names);
-		names.forEach(name -> submenu.createMenuEntry(-1).setOption(name).setType(MenuAction.RUNELITE).onClick(e -> choices.get(name).run()));
+		names.forEach(choice -> submenu.createMenuEntry(-1).setOption(choice).setType(MenuAction.RUNELITE).onClick(e -> choices.get(choice).run()));
 	}
 
 	protected static Widget addText(Widget container, String text, int fontId, int color, int x, int y)

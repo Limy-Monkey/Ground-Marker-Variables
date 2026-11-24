@@ -266,7 +266,7 @@ public class MarkerSets implements TileSource
 	@Nullable
 	public MarkerSet create(String title, String author, List<MarkerSet.Entry> entries)
 	{
-		return create(title, author, entries, new JsonArray());
+		return create(title, null, author, entries, new JsonArray());
 	}
 
 	// points as a new set of the user's own, one entry per label; blank title is defaultTitle's.
@@ -282,7 +282,7 @@ public class MarkerSets implements TileSource
 		Map<String, List<GroundMarkerPointData>> byLabel = new LinkedHashMap<>();
 		points.forEach(point -> byLabel.computeIfAbsent(Strings.nullToEmpty(point.getLabel()), label -> new ArrayList<>()).add(point));
 		List<MarkerSet.Entry> entries = new ArrayList<>();
-		byLabel.values().forEach(tiles -> entries.add(new MarkerSet.Entry(null, tiles, tiles.size() > 1, true, entries.size())));
+		byLabel.values().forEach(tiles -> entries.add(new MarkerSet.Entry(null, null, tiles, tiles.size() > 1, true, entries.size())));
 		return entries;
 	}
 
@@ -305,11 +305,11 @@ public class MarkerSets implements TileSource
 	@Nullable
 	public MarkerSet cloneSet(MarkerSet set)
 	{
-		return create(set.title + " (clone)", set.author, set.entries, history(set));
+		return create(set.title + " (clone)", set.description, set.author, set.entries, history(set));
 	}
 
 	@Nullable
-	private MarkerSet create(String title, String author, List<MarkerSet.Entry> entries, JsonArray history)
+	private MarkerSet create(String title, @Nullable String description, String author, List<MarkerSet.Entry> entries, JsonArray history)
 	{
 		String id = slug(author + " " + title);
 		Set<String> taken = new HashSet<>();
@@ -319,7 +319,7 @@ public class MarkerSets implements TileSource
 		{
 			unique = id + "_" + n;
 		}
-		MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, author, 1, LocalDate.now(), entries);
+		MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, description, author, 1, LocalDate.now(), entries);
 		return addSet(set, history) ? set : null;
 	}
 
@@ -330,14 +330,32 @@ public class MarkerSets implements TileSource
 		List<MarkerSet.Entry> all = new ArrayList<>(set.entries);
 		for (MarkerSet.Entry entry : entries)
 		{
-			all.add(new MarkerSet.Entry(entry.title, entry.tiles, entry.group, entry.enabledByDefault, all.size()));
+			all.add(entry.at(all.size()));
 		}
-		return edit(set, set.title, set.author, all);
+		return edit(set, set.title, set.description, set.author, all);
 	}
 
 	public void setAuthor(MarkerSet set, String author)
 	{
-		edit(set, set.title, author, set.entries);
+		edit(set, set.title, set.description, author, set.entries);
+	}
+
+	// Blank for none; see MarkerSet#description for its limits.
+	public void setDescription(MarkerSet set, String description)
+	{
+		edit(set, set.title, MarkerSet.description(description), set.author, set.entries);
+	}
+
+	public void setDescription(MarkerSet set, MarkerSet.Entry described, String description)
+	{
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries)
+		{
+			moved.put(entry, entry != described ? entry
+				: new MarkerSet.Entry(entry.title, MarkerSet.description(description), entry.tiles, entry.group, entry.enabledByDefault,
+				moved.size()));
+		}
+		edit(set, moved);
 	}
 
 	// author takes over an own set: author leaves its history, then its old author joins it ("Imported" for an Unknown set,
@@ -356,14 +374,14 @@ public class MarkerSets implements TileSource
 		{
 			history.add(MarkerSet.UNKNOWN.equals(set.author) ? "Imported" : set.author);
 		}
-		store(new MarkerSet(set.kind, set.id, set.title, author, set.version + 1, LocalDate.now(), set.entries), history);
+		store(new MarkerSet(set.kind, set.id, set.title, set.description, author, set.version + 1, LocalDate.now(), set.entries), history);
 		load();
 	}
 
 	// Its id (where it's stored, and its on/off state) stays.
 	public void setTitle(MarkerSet set, String title)
 	{
-		edit(set, title.trim(), set.author, set.entries);
+		edit(set, title.trim(), set.description, set.author, set.entries);
 	}
 
 	// set without removed: later untitled entries move up a position.
@@ -374,7 +392,7 @@ public class MarkerSets implements TileSource
 		{
 			if (entry != removed)
 			{
-				moved.put(entry, new MarkerSet.Entry(entry.title, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
+				moved.put(entry, entry.at(moved.size()));
 			}
 		}
 		edit(set, moved);
@@ -392,7 +410,7 @@ public class MarkerSets implements TileSource
 				return false;
 			}
 			moved.put(entry, entry != retitled ? entry
-				: new MarkerSet.Entry(newTitle, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
+				: new MarkerSet.Entry(newTitle, entry.description, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
 		}
 		edit(set, moved);
 		return true;
@@ -405,8 +423,8 @@ public class MarkerSets implements TileSource
 		for (MarkerSet.Entry entry : set.entries)
 		{
 			GroundMarkerPointData tile = entry.tiles.get(0);
-			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, List.of(tile.withLabel(label.isEmpty() ? null : label)),
-				false, entry.enabledByDefault, moved.size()));
+			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, entry.description,
+				List.of(tile.withLabel(label.isEmpty() ? null : label)), false, entry.enabledByDefault, moved.size()));
 		}
 		edit(set, moved);
 	}
@@ -429,15 +447,15 @@ public class MarkerSets implements TileSource
 			state.entries.put(set.key(), after);
 		}
 		configManager.setConfiguration(GROUP, STATE_KEY, gson.toJson(state));
-		edit(set, set.title, set.author, new ArrayList<>(moved.values()));
+		edit(set, set.title, set.description, set.author, new ArrayList<>(moved.values()));
 	}
 
 	// An own set changed, stored as its next version, dated today.
 	// null, changing nothing, if it would be too large to store.
 	@Nullable
-	private MarkerSet edit(MarkerSet set, String title, String author, List<MarkerSet.Entry> entries)
+	private MarkerSet edit(MarkerSet set, String title, @Nullable String description, String author, List<MarkerSet.Entry> entries)
 	{
-		MarkerSet edited = new MarkerSet(set.kind, set.id, title, author, set.version + 1, LocalDate.now(), entries);
+		MarkerSet edited = new MarkerSet(set.kind, set.id, title, description, author, set.version + 1, LocalDate.now(), entries);
 		if (!store(edited))
 		{
 			return null;
@@ -483,7 +501,7 @@ public class MarkerSets implements TileSource
 			author = author == null ? MarkerSet.ANON : author;
 			int version = json.has("version") ? json.get("version").getAsInt() : 0;
 			String updated = string(json, "updated");
-			return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, author, version,
+			return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, MarkerSet.description(string(json, "description")),author, version,
 				updated == null ? null : LocalDate.parse(updated), entries);
 		}
 		catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException | NewerFormatException e)
@@ -500,7 +518,7 @@ public class MarkerSets implements TileSource
 		return set != null && set.isJsonObject() ? set.getAsJsonObject() : null;
 	}
 
-	// Its tiles by "entry", in order: a title and on/off from each entry's first tile, a group if it has several.
+	// Its tiles by "entry", in order: a title, description and on/off from each entry's first tile, a group if it has several.
 	private List<MarkerSet.Entry> copiedEntries(String text, JsonArray array) throws NewerFormatException
 	{
 		List<GroundMarkerPointData> tiles = markerMinifier.parse(text);
@@ -515,8 +533,9 @@ public class MarkerSets implements TileSource
 			byEntry.computeIfAbsent(entry, key -> new ArrayList<>()).add(tiles.get(i));
 		}
 		List<MarkerSet.Entry> entries = new ArrayList<>();
-		firsts.forEach((entry, first) -> entries.add(new MarkerSet.Entry(string(first, "entryTitle"), byEntry.get(entry),
-			byEntry.get(entry).size() > 1, !first.has("enabled") || first.get("enabled").getAsBoolean(), entries.size())));
+		firsts.forEach((entry, first) -> entries.add(new MarkerSet.Entry(string(first, "entryTitle"),
+			MarkerSet.description(string(first, "entryDescription")), byEntry.get(entry), byEntry.get(entry).size() > 1,
+			!first.has("enabled") || first.get("enabled").getAsBoolean(), entries.size())));
 		return entries;
 	}
 
@@ -533,14 +552,15 @@ public class MarkerSets implements TileSource
 				tiles.add(gson.fromJson(tile, GroundMarkerPointData.class));
 			}
 			boolean enabled = !entry.has("enabled") || entry.get("enabled").getAsBoolean();
-			entries.add(new MarkerSet.Entry(string(entry, "title"), tiles, group, enabled, entries.size()));
+			entries.add(new MarkerSet.Entry(string(entry, "title"), MarkerSet.description(string(entry, "description")), tiles, group,
+				enabled, entries.size()));
 		}
 		return entries;
 	}
 
-	// The set's JSON, as parse() reads it, with its stored author history; an own set's entries start as they're switched now.
-	// Copy's text: core's marker array, so core and Tile Packs can import it, with "entry"/"entryTitle"/"enabled" per tile
-	// and the set's fields in the first tile's "set" for parse(). Own sets use their current on/off; empty sets, the stored form.
+	// Copy's text: core's marker array, so core and Tile Packs can import it, with "entry"/"entryTitle"/"entryDescription"/
+	// "enabled" per tile and the set's fields in the first tile's "set" for parse(). Own sets use their current on/off; empty
+	// sets, the stored form.
 	public String export(MarkerSet set)
 	{
 		List<GroundMarkerPointData> tiles = new ArrayList<>();
@@ -558,9 +578,10 @@ public class MarkerSets implements TileSource
 			{
 				JsonObject json = array.get(index).getAsJsonObject();
 				json.addProperty("entry", entryIndex);
-				if (tile == 0 && entry.title != null)
+				if (tile == 0)
 				{
 					json.addProperty("entryTitle", entry.title);
+					json.addProperty("entryDescription", entry.description);
 				}
 				if (tile == 0 && !(set.kind == MarkerSet.Kind.OWN || set.kind == MarkerSet.Kind.PLUGIN ? enabled(set, entry)
 					: entry.enabledByDefault))
@@ -582,6 +603,7 @@ public class MarkerSets implements TileSource
 		JsonObject json = new JsonObject();
 		json.addProperty("plugin", PLUGIN_NAME);
 		json.addProperty("title", set.title);
+		json.addProperty("description", set.description);
 		json.addProperty("author", set.author);
 		if (history.size() > 0)
 		{
@@ -596,10 +618,8 @@ public class MarkerSets implements TileSource
 		for (MarkerSet.Entry entry : set.entries)
 		{
 			JsonObject entryJson = new JsonObject();
-			if (entry.title != null)
-			{
-				entryJson.addProperty("title", entry.title);
-			}
+			entryJson.addProperty("title", entry.title);
+			entryJson.addProperty("description", entry.description);
 			if (!(current ? enabled(set, entry) : entry.enabledByDefault))
 			{
 				entryJson.addProperty("enabled", false);
@@ -682,7 +702,8 @@ public class MarkerSets implements TileSource
 			{
 				throw new IOException("Not a marker set: " + id);
 			}
-			downloaded.put(new MarkerSet(set.kind, id, set.title, set.author, version, set.updated, set.entries), history(text));
+			downloaded.put(new MarkerSet(set.kind, id, set.title, set.description, set.author, version, set.updated, set.entries),
+				history(text));
 		}
 	}
 
