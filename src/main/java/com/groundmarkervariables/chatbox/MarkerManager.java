@@ -433,7 +433,8 @@ public class MarkerManager extends SearchableChatbox
 
 	private void keepOrMove(List<Entry> chosen, Consumer<Boolean> then)
 	{
-		new ConfirmChatbox(chatboxPanelManager, "Keep these markers as your own too, or move them into the set?")
+		new ConfirmChatbox(chatboxPanelManager, "Keep these markers as your own too, or move them into the set?"
+				+ "<br>Moving deletes them from core Ground Markers if this plugin is off.")
 			.option("Keep them", () -> then.accept(false))
 			.option("Move them", () -> then.accept(true))
 			.option("Cancel", () -> chatboxPanelManager.openInput(this))

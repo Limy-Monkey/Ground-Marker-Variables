@@ -55,7 +55,7 @@ public class WorldMapPins
 	private Runnable afterCheck;
 
 	// The Map submenu's choices for tiles (see SearchableChatbox#addSubmenu). On World Map, if they're on one: runs pin, then moves
-	// the open map to them; with it closed, notice gets why. On RuneLite.net: browsed, there.
+	// the map to them if it's open (else notice says they're pinned). On RuneLite.net: browsed, there.
 	public Map<String, Runnable> mapChoices(List<GroundMarkerPointData> tiles, List<GroundMarkerPointData> browsed, Runnable pin,
 		Consumer<String> notice, Runnable onChecked)
 	{
@@ -64,13 +64,15 @@ public class WorldMapPins
 		{
 			choices.put("On World Map", () ->
 			{
-				if (!mapOpen())
-				{
-					notice.accept("Open the world map first, then choose Map > On World Map again.");
-					return;
-				}
 				pin.run();
-				moveTo(tiles);
+				if (mapOpen())
+				{
+					moveTo(tiles);
+				}
+				else
+				{
+					notice.accept("Pinned: open the world map to see them.");
+				}
 			});
 		}
 		choices.put("On RuneLite.net", () -> browse(browsed));
