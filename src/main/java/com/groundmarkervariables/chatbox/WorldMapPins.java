@@ -45,6 +45,15 @@ public class WorldMapPins
 	private final GroundMarkerVariablesConfig config;
 	private final MarkerMinifier markerMinifier;
 	private final List<WorldMapPoint> pins = new ArrayList<>();
+
+	// Our pins' own class, telling them apart from other world map points.
+	public static final class Pin extends WorldMapPoint
+	{
+		private Pin(WorldPoint worldPoint, BufferedImage image)
+		{
+			super(worldPoint, image);
+		}
+	}
 	// What pinned them, so the same rows aren't pinned again.
 	@Nullable
 	private Object pinnedKey;
@@ -92,7 +101,7 @@ public class WorldMapPins
 		tilesByTooltip.forEach((tooltip, tiles) -> tiles.forEach(tile ->
 		{
 			int rgb = (tile.getColor() != null ? tile.getColor() : config.markerColor()).getRGB() | 0xFF000000;
-			WorldMapPoint pin = new WorldMapPoint(tile.worldPoint(), images.computeIfAbsent(rgb, c -> SuggestionIconOverlay.diamond(new Color(c))));
+			WorldMapPoint pin = new Pin(tile.worldPoint(), images.computeIfAbsent(rgb, c -> SuggestionIconOverlay.diamond(new Color(c))));
 			pin.setTooltip(Text.escapeJagex(tooltip));
 			pins.add(pin);
 			worldMapPointManager.add(pin);

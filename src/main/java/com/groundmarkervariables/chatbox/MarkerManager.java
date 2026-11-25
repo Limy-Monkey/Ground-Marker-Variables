@@ -1,5 +1,6 @@
 package com.groundmarkervariables.chatbox;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
@@ -23,9 +24,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Provider;
+import javax.swing.SwingUtilities;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Player;
@@ -34,6 +37,8 @@ import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
+import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.util.Text;
 
 // ::manageGroundMarkerVariables -- every saved marker in a table: one row per area (a RegionNames name, else its region),
@@ -60,6 +65,8 @@ public class MarkerManager extends SearchableChatbox
 	private final Provider<MarkerSetManager> markerSetManagerProvider;
 	// Pinned while this is open: the selected rows' markers and the last row Show on map moved to.
 	private final WorldMapPins mapPins;
+	private final ColorPickerManager colorPickerManager;
+	private final GroundMarkerVariablesConfig config;
 	@Nullable
 	private Entry shown;
 
@@ -272,9 +279,16 @@ public class MarkerManager extends SearchableChatbox
 		List<Runnable> actions = new ArrayList<>();
 		addAction(row, actions, recycleBin ? "Restore" : checked ? "Deselect" : "Select",
 			recycleBin ? () -> restore(entry) : () -> toggle(entry, !checked));
-		if (entry.points.size() == 1 && !recycleBin)
+		if (!recycleBin)
 		{
-			addAction(row, actions, "Edit", () -> edit(entry.points.get(0)));
+			// Label for one marker; Color for all of the row's.
+			Map<String, Runnable> edit = new LinkedHashMap<>();
+			if (entry.points.size() == 1)
+			{
+				edit.put("Label", () -> edit(entry.points.get(0)));
+			}
+			edit.put("Color", () -> pickColor(entry));
+			addSubmenu(row, actions, "Edit", edit);
 		}
 		Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
 		addSubmenu(row, actions, "Map", mapPins.mapChoices(entry.points, entry.points, () ->
@@ -317,6 +331,30 @@ public class MarkerManager extends SearchableChatbox
 	private void edit(GroundMarkerPointData point)
 	{
 		editLabel(point, label -> plugin.saveExpandedLabel(point.worldPoint(), label));
+	}
+
+	// RuneLite's color picker, starting at the row's color; the picked one goes to every marker in the row.
+	private void pickColor(Entry entry)
+	{
+		Color start = entry.color != null ? entry.color : config.markerColor();
+		SwingUtilities.invokeLater(() ->
+		{
+			RuneliteColorPicker picker = colorPickerManager.create(client, start, "Tile marker color", false);
+			picker.setOnClose(color -> clientThread.invoke(() ->
+			{
+				if (!color.equals(entry.color))
+				{
+					markerStorage.replacePoints(entry.points.stream().map(point -> point.withColor(color)).collect(Collectors.toList()));
+					plugin.loadPoints();
+					// Reloaded, for the row's new color.
+					if (chatboxPanelManager.getCurrentInput() == this)
+					{
+						reopen();
+					}
+				}
+			}));
+			picker.setVisible(true);
+		});
 	}
 
 	// Reloaded, e.g. to show an edited label.
