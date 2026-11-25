@@ -165,27 +165,9 @@ public class BooleanVariable implements LabelVariable
 		return null;
 	}
 
-	// First needle outside any {...}, or -1.
 	private static int topLevelIndex(String text, String needle)
 	{
-		int depth = 0;
-		for (int i = 0; i < text.length(); i++)
-		{
-			char c = text.charAt(i);
-			if (c == '{')
-			{
-				depth++;
-			}
-			else if (c == '}')
-			{
-				depth--;
-			}
-			else if (depth == 0 && text.startsWith(needle, i))
-			{
-				return i;
-			}
-		}
-		return -1;
+		return ConditionalVariable.topLevel(text, 0, needle);
 	}
 
 	private static List<String> splitTopLevel(String text, String separator)

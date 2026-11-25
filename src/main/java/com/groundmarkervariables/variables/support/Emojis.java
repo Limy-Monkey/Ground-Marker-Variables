@@ -114,6 +114,13 @@ public class Emojis
 		return nameMap().keySet();
 	}
 
+	// Where a known :name: (or :name@color:) starting at i ends, or -1.
+	public int endOf(String text, int i)
+	{
+		Matcher matcher = EMOJI.matcher(text).region(i, text.length());
+		return matcher.lookingAt() && names().contains(matcher.group(1)) ? matcher.end() : -1;
+	}
+
 	// tintHex: 6-digit hex to tint with, or null for the emoji's own colors.
 	@Nullable
 	public synchronized BufferedImage image(String codepoint, @Nullable String tintHex)

@@ -109,7 +109,7 @@ public class MarkerMinifier
 
 	// Inside strings: \n and \t escapes and real tabs become the label's \n and \t, a backslash that isn't
 	// a JSON escape (e.g. \s) is kept, and a real line break and the indentation after it are dropped.
-	static String normalizeStrings(String text)
+	public static String normalizeStrings(String text)
 	{
 		StringBuilder out = new StringBuilder(text.length());
 		boolean inString = false;

@@ -34,6 +34,13 @@ public class LabelResolver
 	private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
 	private static final Pattern PARTY_START = Pattern.compile("\\{([\\^&*])?party(?=[\\s}])", Pattern.CASE_INSENSITIVE);
 	private static final Pattern OPERATOR_START = Pattern.compile("^(?:==|!=|<|>|\\|\\||&&|\\?|[+\\-*/]\\s)");
+	// {flag [condition]}...{/flag [condition]} (see extractFlags), a condition on it, what doesn't count as shown, and the flag.
+	private static final String FLAG_TAG_CONDITION = "((?:(?=[\\s=!?&|<>])(?:[^{}]|\\{[^{}]*\\})*)?)";
+	private static final Pattern FLAG_BLOCK = Pattern.compile("\\{flag" + FLAG_TAG_CONDITION + "\\}((?:(?!\\{flag[\\s=!?&|<>}]).)*?)\\{/flag" + FLAG_TAG_CONDITION + "\\}",
+		Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+	private static final Pattern FLAG_CONDITION = Pattern.compile("\\{([\\^&*]?)flag(?=\\s*(?:==|!=|\\?|&&|\\|\\|))", Pattern.CASE_INSENSITIVE);
+	private static final Pattern HIDDEN = Pattern.compile("\\{[^{}]*\\}|</?col[^>]*>|\\\\[snt]|\\s");
+	private static final String FLAG = ":triangular_flag_on_post:";
 	private static final char PLACEHOLDER_START = '';
 	private static final char PLACEHOLDER_END = '';
 
@@ -115,8 +122,9 @@ public class LabelResolver
 		}
 
 		List<String> parties = new ArrayList<>();
-		// {partyCount} first, while its own tokens are still literal.
-		String resolved = extractParties(party.resolveCounts(label, this::resolvePlain), parties);
+		// {partyCount} first, while its own tokens are still literal; then {party} rows (each resolved per member, {flag}s
+		// too), then {flag} blocks, as their conditions need what they show.
+		String resolved = extractFlags(extractParties(party.resolveCounts(label, this::resolvePlain), parties), parties);
 
 		// Runs first, while a branch's own nested token is still literal -- otherwise its
 		// resolved text (e.g. a colon in Rich Text) could corrupt the ?/: split. Also forces
@@ -140,7 +148,7 @@ public class LabelResolver
 		// Metronome stays last, same as today — see the class comment on why.
 		resolved = applyWithMode(metronome, resolved);
 
-		return restoreParties(resolved, parties);
+		return TileMetaGuard.putBack(resolved, parties, PLACEHOLDER_START, PLACEHOLDER_END);
 	}
 
 	// text resolved with Plain Text as the default, e.g. to test a condition.
@@ -205,6 +213,35 @@ public class LabelResolver
 		return out.append(text.substring(i)).toString();
 	}
 
+	// {flag}...{/flag}: its content after a flag if it shows anything, else nothing; a placeholder (as {party}). A tag with a
+	// condition ({flag ? <icon>}, replacing the flag; {/flag ? <icon>}) is on its block; {flag <condition>} elsewhere, on all.
+	private String extractFlags(String text, List<String> parts)
+	{
+		Matcher block = FLAG_BLOCK.matcher(text);
+		StringBuilder out = new StringBuilder();
+		boolean any = false;
+		while (block.find())
+		{
+			String content = resolve(block.group(2));
+			// Shown: anything left without tokens (e.g. {tip=...}), colors, \s \n \t and spaces.
+			String left = content;
+			for (String previous = null; !left.equals(previous); )
+			{
+				previous = left;
+				left = HIDDEN.matcher(left).replaceAll("");
+			}
+			boolean shown = !left.isEmpty();
+			any |= shown;
+			String open = block.group(1);
+			parts.add(!shown ? "" : open.isBlank() ? emojis.expand(FLAG) + content : content);
+			block.appendReplacement(out, Matcher.quoteReplacement((open.isBlank() ? "" : "{" + shown + open + "}") + PLACEHOLDER_START
+				+ (parts.size() - 1) + PLACEHOLDER_END + (block.group(3).isBlank() ? "" : "{" + shown + block.group(3) + "}")));
+		}
+		block.appendTail(out);
+		boolean shown = any;
+		return FLAG_CONDITION.matcher(out).replaceAll(match -> "{" + match.group(1) + shown);
+	}
+
 	// A {party} inside a {party} row is unavailable.
 	private String renderParty(String template, boolean rich)
 	{
@@ -226,15 +263,6 @@ public class LabelResolver
 		{
 			inParty = false;
 		}
-	}
-
-	private static String restoreParties(String text, List<String> parties)
-	{
-		for (int i = 0; i < parties.size(); i++)
-		{
-			text = text.replace(PLACEHOLDER_START + String.valueOf(i) + PLACEHOLDER_END, parties.get(i));
-		}
-		return text;
 	}
 
 	// Matches this variable's token with an optional ^/&/* mode-override prefix right after

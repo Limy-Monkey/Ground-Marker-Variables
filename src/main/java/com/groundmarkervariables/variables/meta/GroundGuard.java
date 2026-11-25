@@ -117,23 +117,6 @@ public final class GroundGuard
 	// needle outside any nested {...}.
 	private static boolean hasTopLevel(String text, String needle)
 	{
-		int depth = 0;
-		for (int i = 0; i < text.length(); i++)
-		{
-			char c = text.charAt(i);
-			if (c == '{')
-			{
-				depth++;
-			}
-			else if (c == '}')
-			{
-				depth--;
-			}
-			else if (depth == 0 && text.startsWith(needle, i))
-			{
-				return true;
-			}
-		}
-		return false;
+		return ConditionalVariable.topLevel(text, 0, needle) >= 0;
 	}
 }

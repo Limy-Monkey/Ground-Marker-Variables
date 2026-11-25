@@ -71,7 +71,7 @@ public class LabelCompleter
 	private static final Pattern COLOR_TAG = Pattern.compile("<col=([0-9a-fA-F]{2,6})>", Pattern.CASE_INSENSITIVE);
 
 	// {/col}, {/align}, ...: diverge from their opening token at the "/".
-	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}", "/hoverOnly}", "/hoverHide}", "/tip}", "/ground}");
+	private static final List<String> CLOSE_ALIASES = List.of("/col}", "/align}", "/b}", "/i}", "/hoverOnly}", "/hoverHide}", "/tip}", "/ground}", "/flag}");
 
 	// "{ground" offers the optional "@<dir>".
 	private static final Pattern GROUND_NAME = Pattern.compile("(?i)^ground$");

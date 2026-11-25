@@ -589,7 +589,8 @@ public class MarkerSets implements TileSource
 	{
 		try
 		{
-			JsonElement element = gson.fromJson(text, JsonElement.class);
+			// Labels may be laid out over lines, as clipboard imports (see MarkerMinifier#normalizeStrings).
+			JsonElement element = gson.fromJson(MarkerMinifier.normalizeStrings(text), JsonElement.class);
 			JsonObject json = element != null && element.isJsonArray() ? copiedSet(element.getAsJsonArray())
 				: element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
 			if (json == null || !element.isJsonArray() && !(json.has("tiles") && json.get("tiles").isJsonArray()))

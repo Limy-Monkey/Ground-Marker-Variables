@@ -271,6 +271,12 @@
     "parameters": [{"name": "@<col>", "description": "Optional: tinted a named color or RRGGBB hex, e.g. :skull@red:"}]},
   "<badge": {"syntax": "<badge>", "description": "A dot over the previous icon's corner", "category": "Icons",
     "parameters": [{"name": "=N", "description": "Optional: a pie of N% left instead"}]},
+  "flag": {"syntax": "{flag}...{/flag}", "description": "Shows :triangular_flag_on_post: then its contents, only if they show any text or icons", "category": "Formatting",
+    "parameters": [
+      {"name": "...", "description": "Anything, e.g. missing-item checks; empty (or only tooltips and spacing), the flag isn't shown"},
+      {"name": "{flag ? <icon>}", "description": "Shown instead of the flag; also {/flag ? <icon>}, after the contents"},
+      {"name": "{flag == false}", "description": "Outside a block: true if no {flag} in the label showed"}],
+    "examples": ["{flag}{hasItem Salve ? : <item=Salve amulet(ei)@0%>}{/flag}", "{flag ? :skull:}{hasFreeze ? : missing freezes}{/flag}"]},
   "split": {"syntax": "{split}...{/split}", "description": "2-4 icons drawn as one, each cut to its half, third or quarter", "category": "Icons",
     "parameters": [{"name": "...", "description": "Icons: <item=>, <sprite=>, <npc=>, <flag=> and :emoji:, including variables' icons. Text inside is dropped, and icons past the 4th are left out"}],
     "examples": ["{split}<sprite=Ice Barrage (Spell)><sprite=Blood Barrage (Spell)>{/split}"]},

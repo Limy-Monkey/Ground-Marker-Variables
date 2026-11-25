@@ -2,6 +2,7 @@ package com.groundmarkervariables.variables.label;
 
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
+import com.groundmarkervariables.variables.support.Emojis;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public class ConditionalVariable implements LabelVariable
 		"\\{([^{}?]+\\?(?:[^{}]|" + NESTED_TOKEN + ")+)\\}");
 
 	private final ConditionEvaluator evaluator;
+	private final Emojis emojis;
 
 	@Override
 	public Pattern pattern()
@@ -89,7 +91,7 @@ public class ConditionalVariable implements LabelVariable
 	private String resolveToken(String token)
 	{
 		String inner = token.substring(1, token.length() - 1);
-		int question = topLevel(inner, 0, '?');
+		int question = topLevel(inner, 0, "?");
 		if (question < 0 || inner.substring(0, question).contains("{"))
 		{
 			return null;
@@ -102,7 +104,7 @@ public class ConditionalVariable implements LabelVariable
 		}
 
 		// No : means an empty else.
-		int colon = topLevel(inner, question + 1, ':');
+		int colon = colon(inner, question + 1);
 		String whenTrue = colon < 0 ? inner.substring(question + 1) : inner.substring(question + 1, colon);
 		String whenFalse = colon < 0 ? "" : inner.substring(colon + 1);
 		String winner = METRONOME_TOKEN_PATTERN.matcher((result ? whenTrue : whenFalse).trim()).replaceAll("ILLEGAL");
@@ -127,25 +129,40 @@ public class ConditionalVariable implements LabelVariable
 		return -1;
 	}
 
-	// First c outside any {...} at or after from. A : between digits (9:00) doesn't count.
-	private static int topLevel(String text, int from, char c)
+	// First needle outside any {...} at or after from, or -1.
+	public static int topLevel(String text, int from, String needle)
 	{
 		int depth = 0;
 		for (int i = from; i < text.length(); i++)
 		{
-			char ch = text.charAt(i);
-			if (ch == '{')
+			char c = text.charAt(i);
+			if (c == '{')
 			{
 				depth++;
 			}
-			else if (ch == '}')
+			else if (c == '}')
 			{
 				depth--;
 			}
-			else if (depth == 0 && ch == c && !(c == ':' && isClockColon(text, i)))
+			else if (depth == 0 && text.startsWith(needle, i))
 			{
 				return i;
 			}
+		}
+		return -1;
+	}
+
+	// The branches' top-level ":". One between digits (9:00) or of a known :emoji: doesn't count.
+	private int colon(String text, int from)
+	{
+		for (int i; (i = topLevel(text, from, ":")) >= 0; )
+		{
+			int emoji = emojis.endOf(text, i);
+			if (emoji < 0 && !isClockColon(text, i))
+			{
+				return i;
+			}
+			from = emoji < 0 ? i + 1 : emoji;
 		}
 		return -1;
 	}

@@ -64,11 +64,7 @@ public final class TileMetaGuard
 		{
 			resolved = pattern.matcher(resolved).replaceAll("");
 		}
-		for (int i = 0; i < tokens.size(); i++)
-		{
-			resolved = resolved.replace(PLACEHOLDER_START + String.valueOf(i) + PLACEHOLDER_END, tokens.get(i));
-		}
-		return resolved;
+		return putBack(resolved, tokens, PLACEHOLDER_START, PLACEHOLDER_END);
 	}
 
 	// True if every token enclosing pos is a condition on {group} alone, with pos in a branch.
@@ -135,23 +131,16 @@ public final class TileMetaGuard
 
 	static int topLevelQuestion(String text)
 	{
-		int depth = 0;
-		for (int i = 0; i < text.length(); i++)
+		return ConditionalVariable.topLevel(text, 0, "?");
+	}
+
+	// Each placeholder (start, its index in parts, end) back to its part; last first, as one may hold an earlier one's.
+	public static String putBack(String text, List<String> parts, char start, char end)
+	{
+		for (int i = parts.size() - 1; i >= 0; i--)
 		{
-			char c = text.charAt(i);
-			if (c == '{')
-			{
-				depth++;
-			}
-			else if (c == '}')
-			{
-				depth--;
-			}
-			else if (depth == 0 && c == '?')
-			{
-				return i;
-			}
+			text = text.replace(start + String.valueOf(i) + end, parts.get(i));
 		}
-		return -1;
+		return text;
 	}
 }
