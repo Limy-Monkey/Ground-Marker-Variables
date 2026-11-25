@@ -1,5 +1,6 @@
 package com.groundmarkervariables.variables.support;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -25,10 +26,18 @@ import net.runelite.api.coords.WorldPoint;
 // See https://github.com/runelite/runelite/blob/master/LICENSE
 //
 // A tile's area name, e.g. "Lumbridge", from region-names.json (the bundled one, or GitHub's newer one): area name -> its
-// whole regions (ids) and bounds within regions ({region, sw, ne, planes}, each optional but region). Tiles in no listed
-// area have no name.
+// whole regions (ids) and bounds within regions ({region, sw, ne, planes}, each optional but region). Its
+// "worldMapLocations" (scripts/build-region-names.py, from the game cache) name the rest, by the world map drawing the
+// tile (see name(point, map)): "maps", each but the surface's name by id; "labels", the surface's [name, x, y].
 @Slf4j
 public final class RegionNames {
+	// The world map list's Gielinor Surface (see WorldMapPins#mapAt).
+	public static final int SURFACE_MAP = 0;
+	private static final String LOCATIONS = "worldMapLocations";
+	// Within this many tiles of a label, its name alone; further, with a direction.
+	private static final int NEAR = 48;
+	private static final String[] DIRECTIONS = {"East", "North-east", "North", "North-west", "West", "South-west", "South", "South-east"};
+
 	// Bounds within a region: a box (inclusive world x/y, any plane) and/or a range of planes.
 	@RequiredArgsConstructor
 	private static final class Bounds {
@@ -51,6 +60,9 @@ public final class RegionNames {
 		private final Map<Integer, String> byRegion = new HashMap<>();
 		// Checked before whole regions, the first containing a tile naming it.
 		private final Map<Integer, List<Bounds>> bounds = new HashMap<>();
+		// worldMapLocations': map id -> name, and the surface's labels.
+		private final Map<Integer, String> maps = new HashMap<>();
+		private final List<Bounds> labels = new ArrayList<>();
 	}
 
 	// The bundled file's, loaded on first use, until update() replaces them.
@@ -72,6 +84,30 @@ public final class RegionNames {
 			}
 		}
 		return names.byRegion.get(point.getRegionID());
+	}
+
+	// As name(point), else by map, the world map drawing it (WorldMapPins#mapAt; null while unknown): another map's name,
+	// e.g. "Brimhaven Dungeon", or on the surface the nearest label's, e.g. "North-east of Varrock".
+	@Nullable
+	public static String name(WorldPoint point, @Nullable Integer map) {
+		String name = name(point);
+		if (name != null) { return name; }
+		if (map == null) { return null; }
+		if (map != SURFACE_MAP) {return names().maps.get(map); }
+		Bounds nearest = null;
+		double distance = Double.MAX_VALUE;
+		for (Bounds label : names().labels) {
+			double d = Math.hypot(point.getX() - label.minX, point.getY() - label.minY);
+			if (d < distance) {
+				nearest = label;
+				distance = d;
+			}
+		}
+		if (nearest == null || distance <= NEAR) {
+			return nearest == null ? null : nearest.name;
+		}
+		double angle = Math.atan2(point.getY() - nearest.minY, point.getX() - nearest.minX);
+		return DIRECTIONS[(int) Math.floorMod(Math.round(angle / (Math.PI / 4)), 8)] + " of " + nearest.name;
 	}
 
 	// A newer region-names.json (see LatestData).
@@ -97,6 +133,18 @@ public final class RegionNames {
 		Names names = new Names();
 		for (Map.Entry<String, JsonElement> area : new JsonParser().parse(reader).getAsJsonObject().entrySet()) {
 			String name = area.getKey();
+			if (name.equals(LOCATIONS)) {
+				JsonObject locations = area.getValue().getAsJsonObject();
+				locations.getAsJsonObject("maps").entrySet().forEach(map -> names.maps.put(Integer.parseInt(map.getKey()), map.getValue().getAsString()));
+				// A label as a point: its name and x, y.
+				for (JsonElement element : locations.getAsJsonArray("labels")) {
+					JsonArray label = element.getAsJsonArray();
+					int x = label.get(1).getAsInt();
+					int y = label.get(2).getAsInt();
+					names.labels.add(new Bounds(label.get(0).getAsString(), x, y, x, y, 0, 0));
+				}
+				continue;
+			}
 			for (JsonElement region : area.getValue().getAsJsonArray()) {
 				if (region.isJsonPrimitive()) {
 					names.byRegion.put(region.getAsInt(), name);

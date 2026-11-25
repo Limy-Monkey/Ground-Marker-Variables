@@ -5,13 +5,16 @@ import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
+import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -54,11 +57,11 @@ public class WorldMapPins {
 	// What pinned them, so the same rows aren't pinned again.
 	@Nullable
 	private Object pinnedKey;
-	// Whether a region's plane is on some world map, by region << 2 | plane; and the regions still to check.
-	private final Map<Integer, Boolean> mapped = new HashMap<>();
-	private final Map<Integer, GroundMarkerPointData> unchecked = new LinkedHashMap<>();
-	@Nullable
-	private Runnable afterCheck;
+	// The world map drawing a region's plane (see mapAt), by region << 2 | plane; the points still to check, and what runs once
+	// they are.
+	private final Map<Integer, Integer> mapped = new HashMap<>();
+	private final Map<Integer, WorldPoint> unchecked = new LinkedHashMap<>();
+	private final Set<Runnable> afterCheck = new LinkedHashSet<>();
 
 	// The Map submenu's choices for tiles (see SearchableChatbox#addSubmenu). On World Map, if they're on one: runs pin, then moves
 	// the map to them if it's open (else notice says they're pinned). On RuneLite.net: browsed, there.
@@ -120,7 +123,7 @@ public class WorldMapPins {
 	private void moveTo(List<GroundMarkerPointData> tiles) {
 		List<WorldPoint> points = new ArrayList<>();
 		Map<Integer, Integer> floors = new HashMap<>();
-		tiles.stream().filter(tile -> Boolean.TRUE.equals(mapped.get(key(tile)))).forEach(tile -> {
+		tiles.stream().filter(tile -> mapped.getOrDefault(key(tile.worldPoint()), -1) >= 0).forEach(tile -> {
 			points.add(tile.worldPoint());
 			floors.merge(tile.getZ(), 1, Integer::sum);
 		});
@@ -142,42 +145,52 @@ public class WorldMapPins {
 		return any;
 	}
 
-	private static int key(GroundMarkerPointData tile) {
-		return tile.getRegionId() << 2 | tile.getZ();
+	private static int key(WorldPoint point) {
+		return point.getRegionID() << 2 | point.getPlane();
 	}
 
-	// Whether tile's region is on some world map (not e.g. a raid's rooms). Unknown is false: it's checked a tick later
-	// (it runs clientscripts, and this may be inside one), all at once, then onChecked runs.
+	// Whether tile's region is on some world map (not e.g. a raid's rooms); unknown is false (see mapAt).
 	private boolean onAnyMap(GroundMarkerPointData tile, Runnable onChecked) {
-		int key = key(tile);
-		Boolean known = mapped.get(key);
-		if (known != null) {
-			return known;
+		Integer map = mapAt(tile.worldPoint(), onChecked);
+		return map != null && map >= 0;
+	}
+
+	// The id of the world map drawing point's region and plane, any other map's before the surface's (RegionNames#SURFACE_MAP),
+	// -1 if none. Null until checked a tick later (it runs clientscripts, and this may be inside one), all at once, then
+	// onChecked runs.
+	@Nullable
+	public Integer mapAt(WorldPoint point, Runnable onChecked) {
+		int key = key(point);
+		Integer map = mapped.get(key);
+		if (map == null) {
+			if (unchecked.isEmpty()) {
+				clientThread.invokeLater(this::check);
+			}
+			unchecked.putIfAbsent(key, point);
+			afterCheck.add(onChecked);
 		}
-		if (unchecked.isEmpty()) {
-			clientThread.invokeLater(this::check);
-		}
-		unchecked.putIfAbsent(key, tile);
-		afterCheck = onChecked;
-		return false;
+		return map;
 	}
 
 	// worldmap_findcoordinmap over each map in its list, for each unchecked region.
 	private void check() {
-		unchecked.forEach((key, tile) -> {
-			mapped.put(key, false);
+		unchecked.forEach((key, point) -> {
+			int found = -1;
 			for (int map : client.getEnum(WORLDMAP_LIST_ENUM).getIntVals()) {
-				client.runScript(FIND_COORD_IN_MAP_SCRIPT, map, coord(tile.worldPoint()));
+				client.runScript(FIND_COORD_IN_MAP_SCRIPT, map, coord(point));
 				if (client.getIntStack()[0] != -1) {
-					mapped.put(key, true);
-					break;
+					found = map;
+					if (map != RegionNames.SURFACE_MAP) {
+						break;
+					}
 				}
 			}
+			mapped.put(key, found);
 		});
 		unchecked.clear();
-		if (afterCheck != null) {
-			afterCheck.run();
-		}
+		List<Runnable> waiting = new ArrayList<>(afterCheck);
+		afterCheck.clear();
+		waiting.forEach(Runnable::run);
 	}
 
 	// A clientscript coord: plane, x and y packed.

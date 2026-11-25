@@ -80,7 +80,7 @@ public class MarkerManager extends SearchableChatbox {
 	// Every marker in one area sharing a label ("" for none) and color.
 	@RequiredArgsConstructor
 	private static final class Entry {
-		// Its RegionNames name, else "Region <id>".
+		// Its RegionNames name, else "Dungeon <id>".
 		private final String area;
 		private final boolean named;
 		private final int regionId;
@@ -109,14 +109,24 @@ public class MarkerManager extends SearchableChatbox {
 
 		Player player = client.getLocalPlayer();
 		WorldPoint location = player == null ? null : WorldPoint.fromLocalInstance(client, player.getLocalLocation());
-		String name = location == null ? null : RegionNames.name(location);
-		currentArea = location == null ? null : name != null ? name : "Region " + location.getRegionID();
+		String name = location == null ? null : areaName(location);
+		currentArea = location == null ? null : name != null ? name : "Dungeon " + location.getRegionID();
+	}
+
+	// RegionNames' name for point, by the world map drawing it once that's known (then this reloads, if still open).
+	@Nullable
+	private String areaName(WorldPoint point) {
+		return RegionNames.name(point, mapPins.mapAt(point, () -> {
+			if (chatboxPanelManager.getCurrentInput() == this) {
+				reopen();
+			}
+		}));
 	}
 
 	// point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart.
-	private static void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row) {
-		String name = RegionNames.name(point.worldPoint());
-		String area = name != null ? name : "Region " + point.getRegionId();
+	private void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row) {
+		String name = areaName(point.worldPoint());
+		String area = name != null ? name : "Dungeon " + point.getRegionId();
 		String label = point.getLabel() == null ? "" : point.getLabel();
 		byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor(),
 			key -> new Entry(area, name != null, point.getRegionId(), label, point.getColor())).points.add(point);
@@ -361,7 +371,7 @@ public class MarkerManager extends SearchableChatbox {
 		return visible;
 	}
 
-	// Passes the { } filter and the search: its area name (or "Region <id>") and label hold its words.
+	// Passes the { } filter and the search: its area name (or "Dungeon <id>") and label hold its words.
 	private boolean shown(Entry entry) {
 		if (variablesOnly && !hasVariable(entry)) {
 			return false;

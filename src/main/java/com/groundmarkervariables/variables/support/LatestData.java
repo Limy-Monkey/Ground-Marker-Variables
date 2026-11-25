@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.support;
 import java.io.IOException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +24,15 @@ public class LatestData {
 
 	private final OkHttpClient okHttpClient;
 	private final IconNames iconNames;
+	// The dev client (./gradlew run) keeps the bundled files, so local changes aren't replaced by GitHub's.
+	@Inject
+	@Named("developerMode")
+	private boolean developerMode;
 
 	public void startUp() {
+		if (developerMode) {
+			return;
+		}
 		fetch("region-names.json", RegionNames::update);
 		fetch("boss-aliases.json", BossAliases::update);
 		fetch("sprite-names.json", iconNames::updateSprites);
