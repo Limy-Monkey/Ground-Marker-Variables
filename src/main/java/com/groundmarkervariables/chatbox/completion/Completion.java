@@ -10,13 +10,11 @@ import lombok.RequiredArgsConstructor;
 
 // What can complete the token at the cursor: every option, and the preferred one (the ghost text and Tab), if any.
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-public final class Completion
-{
+public final class Completion {
 	// One completion: its list label (null for a bare closer), the text it inserts over the replace chars before the
 	// cursor, its icon syntax, and its tooltip description.
 	@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-	public static final class Option
-	{
+	public static final class Option {
 		@Nullable
 		public final String label;
 		public final String insert;
@@ -26,8 +24,7 @@ public final class Completion
 		@Nullable
 		public final String description;
 
-		Option(@Nullable String label, String insert, int replace, @Nullable String icon)
-		{
+		Option(@Nullable String label, String insert, int replace, @Nullable String icon) {
 			this(label, insert, replace, icon, null);
 		}
 	}
@@ -35,10 +32,8 @@ public final class Completion
 	// A resolved icon: a sprite, an item's image, an NPC's, an emoji, a color swatch, or a {split} of parts. id is the
 	// number, for an emoji its hex codepoint, or for a color its RRGGBB.
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-	public static final class Icon
-	{
-		public enum Kind
-		{
+	public static final class Icon {
+		public enum Kind {
 			SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR, DIAMOND, SPLIT
 		}
 
@@ -46,25 +41,21 @@ public final class Completion
 		public final String id;
 		public final List<Icon> parts;
 
-		Icon(Kind kind, String id)
-		{
+		Icon(Kind kind, String id) {
 			this(kind, id, List.of());
 		}
 
-		static Icon split(List<Icon> parts)
-		{
+		static Icon split(List<Icon> parts) {
 			return new Icon(Kind.SPLIT, "", List.copyOf(parts));
 		}
 
 		// An emoji by its hex codepoint, e.g. "26a0", then "@" and a tint's hex if tinted, e.g. "267b@ffffff".
-		public static Icon emoji(String codepoint)
-		{
+		public static Icon emoji(String codepoint) {
 			return new Icon(Kind.EMOJI, codepoint);
 		}
 
 		// A diamond of color, as see-through as it: a tile's color in the Marker Manager. id is its AARRGGBB.
-		public static Icon diamond(Color color)
-		{
+		public static Icon diamond(Color color) {
 			return new Icon(Kind.DIAMOND, Integer.toHexString(color.getRGB()));
 		}
 	}
@@ -77,34 +68,28 @@ public final class Completion
 	public final int preferred;
 
 	// Just a closer, e.g. "}" once a name is exactly typed.
-	static Completion closer(String closer)
-	{
+	static Completion closer(String closer) {
 		return new Completion(List.of(new Option(null, closer, 0, null)), 0);
 	}
 
 	// A single option, labeled.
-	static Completion single(String label, String insert, @Nullable String icon)
-	{
+	static Completion single(String label, String insert, @Nullable String icon) {
 		return new Completion(List.of(new Option(label, insert, 0, icon)), 0);
 	}
 
 	// Each candidate (which starts with the typed partial) completing to the rest of itself, then append.
-	static Completion of(List<String> candidates, int typedLength, String append, @Nullable String preferred)
-	{
+	static Completion of(List<String> candidates, int typedLength, String append, @Nullable String preferred) {
 		List<Option> options = new ArrayList<>(candidates.size());
-		for (String candidate : candidates)
-		{
+		for (String candidate : candidates) {
 			options.add(new Option(candidate, candidate.substring(typedLength) + append, 0, null));
 		}
 		return new Completion(options, preferred == null ? -1 : candidates.indexOf(preferred));
 	}
 
 	// This, then names merely containing the typed partial, which replace it. Listed only, never preferred.
-	Completion withContained(List<String> contained, int typedLength, String append)
-	{
+	Completion withContained(List<String> contained, int typedLength, String append) {
 		List<Option> all = new ArrayList<>(options);
-		for (String name : contained)
-		{
+		for (String name : contained) {
 			all.add(new Option(name, name + append, typedLength, null));
 		}
 		return new Completion(all, preferred);
@@ -112,13 +97,10 @@ public final class Completion
 
 	// arguments' listed options (what can follow a space) first, each after a space, then this; still preferring the
 	// same option. arguments only (no ghost) if this is null.
-	static Completion withArguments(@Nullable Completion completion, Completion arguments)
-	{
+	static Completion withArguments(@Nullable Completion completion, Completion arguments) {
 		List<Option> all = new ArrayList<>();
-		for (Option option : arguments.options)
-		{
-			if (option.label != null)
-			{
+		for (Option option : arguments.options) {
+			if (option.label != null) {
 				all.add(new Option(" " + option.label, " " + option.insert, option.replace, option.icon, option.description));
 			}
 		}
@@ -126,8 +108,7 @@ public final class Completion
 	}
 
 	// first, this, then last; still preferring the same option.
-	Completion around(List<Option> first, List<Option> last)
-	{
+	Completion around(List<Option> first, List<Option> last) {
 		List<Option> all = new ArrayList<>(first);
 		all.addAll(options);
 		all.addAll(last);
@@ -135,11 +116,9 @@ public final class Completion
 	}
 
 	// This, each labeled option given icon(label) as its icon (null for none).
-	Completion withIcons(Function<String, String> icon)
-	{
+	Completion withIcons(Function<String, String> icon) {
 		List<Option> withIcons = new ArrayList<>(options.size());
-		for (Option option : options)
-		{
+		for (Option option : options) {
 			withIcons.add(option.label == null ? option
 				: new Option(option.label, option.insert, option.replace, icon.apply(option.label), option.description));
 		}
@@ -147,11 +126,9 @@ public final class Completion
 	}
 
 	// This, each labeled option given description(label) as its description (null for none).
-	Completion withDescriptions(Function<String, String> description)
-	{
+	Completion withDescriptions(Function<String, String> description) {
 		List<Option> described = new ArrayList<>(options.size());
-		for (Option option : options)
-		{
+		for (Option option : options) {
 			described.add(option.label == null ? option
 				: new Option(option.label, option.insert, option.replace, option.icon, description.apply(option.label)));
 		}
@@ -160,14 +137,12 @@ public final class Completion
 
 	// The ghost text / Tab insertion, or null.
 	@Nullable
-	public String preferredInsert()
-	{
+	public String preferredInsert() {
 		return preferred < 0 ? null : options.get(preferred).insert;
 	}
 
 	// Whether the suggestion list has anything to show.
-	public boolean hasListed()
-	{
+	public boolean hasListed() {
 		return options.stream().anyMatch(option -> option.label != null);
 	}
 }

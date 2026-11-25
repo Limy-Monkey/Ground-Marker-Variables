@@ -38,31 +38,26 @@ import net.runelite.client.util.ImageUtil;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class Emojis
-{
+public class Emojis {
 	// ":name:" or ":name@color:", color a named color or 6-digit hex.
 	private static final Pattern EMOJI = Pattern.compile(":([a-z0-9_!().\\-ñ]+)(?:@([a-z]+|[0-9a-fA-F]{6}))?:");
 	private static final String RESOURCES = "/com/groundmarkervariables/";
 
 	// One set's names (name -> codepoint) and images (codepoint -> PNG bytes, read from its zip on first use).
-	private static final class ImageSet
-	{
+	private static final class ImageSet {
 		private final Map<String, String> names;
 		private final String zip;
 		@Nullable
 		private Map<String, byte[]> pngs;
 
-		private ImageSet(Map<String, String> names, String zip)
-		{
+		private ImageSet(Map<String, String> names, String zip) {
 			this.names = names;
 			this.zip = zip;
 		}
 
 		@Nullable
-		private byte[] png(String codepoint)
-		{
-			if (pngs == null)
-			{
+		private byte[] png(String codepoint) {
+			if (pngs == null) {
 				pngs = loadPngs(zip);
 			}
 			return pngs.get(codepoint);
@@ -80,18 +75,15 @@ public class Emojis
 
 	// ":balloon:" -> "<emoji=1f388>", ":balloon@red:" -> "<emoji=1f388@ff0000>": the overlay's own inline
 	// image tag. Unknown names or colors are left as-is.
-	public String expand(String label)
-	{
-		if (label == null || label.indexOf(':') < 0)
-		{
+	public String expand(String label) {
+		if (label == null || label.indexOf(':') < 0) {
 			return label;
 		}
 
 		Map<String, String> names = nameMap();
 		Matcher matcher = EMOJI.matcher(label);
 		StringBuilder sb = new StringBuilder();
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			String codepoint = names.get(matcher.group(1));
 			String color = matcher.group(2) == null ? "" : colorHex(matcher.group(2));
 			String tag = codepoint == null || color == null ? matcher.group() : "<emoji=" + codepoint + (color.isEmpty() ? "" : "@" + color) + ">";
@@ -103,30 +95,25 @@ public class Emojis
 
 	// Lowercase 6-digit hex, or null if it isn't a color.
 	@Nullable
-	private static String colorHex(String color)
-	{
+	private static String colorHex(String color) {
 		String hex = color.length() == 6 && color.matches("[0-9a-fA-F]{6}") ? color : NamedColors.HEX_BY_NAME.get(color.toLowerCase(Locale.ROOT));
 		return hex == null ? null : hex.toLowerCase(Locale.ROOT);
 	}
 
-	public Set<String> names()
-	{
+	public Set<String> names() {
 		return nameMap().keySet();
 	}
 
 	// Where a known :name: (or :name@color:) starting at i ends, or -1.
-	public int endOf(String text, int i)
-	{
+	public int endOf(String text, int i) {
 		Matcher matcher = EMOJI.matcher(text).region(i, text.length());
 		return matcher.lookingAt() && names().contains(matcher.group(1)) ? matcher.end() : -1;
 	}
 
 	// tintHex: 6-digit hex to tint with, or null for the emoji's own colors.
 	@Nullable
-	public synchronized BufferedImage image(String codepoint, @Nullable String tintHex)
-	{
-		if (tintHex == null)
-		{
+	public synchronized BufferedImage image(String codepoint, @Nullable String tintHex) {
+		if (tintHex == null) {
 			return images.computeIfAbsent(codepoint, this::decode).orElse(null);
 		}
 		BufferedImage image = image(codepoint, null);
@@ -136,18 +123,15 @@ public class Emojis
 
 	// A unicode symbol over a black copy of it, 1/16 of its size down-right; null for an emoji.
 	@Nullable
-	public synchronized BufferedImage shadowed(String codepoint, @Nullable String tintHex)
-	{
+	public synchronized BufferedImage shadowed(String codepoint, @Nullable String tintHex) {
 		BufferedImage image = image(codepoint, tintHex);
-		if (image == null || sets().get(0).png(codepoint) != null)
-		{
+		if (image == null || sets().get(0).png(codepoint) != null) {
 			return null;
 		}
 		return images.computeIfAbsent(codepoint + "@" + tintHex + "/shadowed", key -> Optional.of(withShadow(image))).orElse(null);
 	}
 
-	private static BufferedImage withShadow(BufferedImage image)
-	{
+	private static BufferedImage withShadow(BufferedImage image) {
 		int offset = Math.max(1, image.getHeight() / 16);
 		BufferedImage shadowed = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
 		Graphics2D graphics = shadowed.createGraphics();
@@ -160,18 +144,15 @@ public class Emojis
 	// Keeps the emoji's shading: each pixel is color scaled by its brightness. Pixels at the 80th
 	// percentile of brightness and above get the full color, so small bright details don't leave the
 	// rest dim. Alpha is unchanged.
-	private static BufferedImage tint(BufferedImage image, Color color)
-	{
+	private static BufferedImage tint(BufferedImage image, Color color) {
 		int width = image.getWidth();
 		int height = image.getHeight();
 		int[] brightness = new int[width * height];
 		List<Integer> opaque = new ArrayList<>();
-		for (int i = 0; i < brightness.length; i++)
-		{
+		for (int i = 0; i < brightness.length; i++) {
 			int argb = image.getRGB(i % width, i / width);
 			brightness[i] = (((argb >> 16) & 0xFF) * 299 + ((argb >> 8) & 0xFF) * 587 + (argb & 0xFF) * 114) / 1000;
-			if (argb >>> 24 != 0)
-			{
+			if (argb >>> 24 != 0) {
 				opaque.add(brightness[i]);
 			}
 		}
@@ -179,8 +160,7 @@ public class Emojis
 		int brightest = opaque.isEmpty() ? 1 : Math.max(1, opaque.get(opaque.size() * 4 / 5));
 
 		BufferedImage tinted = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		for (int i = 0; i < brightness.length; i++)
-		{
+		for (int i = 0; i < brightness.length; i++) {
 			int scale = Math.min(255, brightness[i] * 255 / brightest);
 			tinted.setRGB(i % width, i / width, image.getRGB(i % width, i / width) & 0xFF000000
 				| color.getRed() * scale / 255 << 16
@@ -190,13 +170,10 @@ public class Emojis
 		return tinted;
 	}
 
-	private synchronized Map<String, String> nameMap()
-	{
-		if (names == null)
-		{
+	private synchronized Map<String, String> nameMap() {
+		if (names == null) {
 			names = new HashMap<>();
-			for (ImageSet set : sets())
-			{
+			for (ImageSet set : sets()) {
 				names.putAll(set.names);
 			}
 		}
@@ -204,10 +181,8 @@ public class Emojis
 	}
 
 	// RuneLite's emoji names, plus emoji-toolkit shortnames (aliases.json) for the same emojis; then the unicode symbols.
-	private synchronized List<ImageSet> sets()
-	{
-		if (sets == null)
-		{
+	private synchronized List<ImageSet> sets() {
+		if (sets == null) {
 			Map<String, String> emoji = new HashMap<>(readNames("emoji/aliases.json", Index::aliases));
 			emoji.putAll(readNames("emoji/index.json", Index::names));
 			sets = List.of(new ImageSet(emoji, "emoji/assets.zip"), new ImageSet(readNames("unicode/names.json", Index::names), "unicode/images.zip"));
@@ -215,41 +190,30 @@ public class Emojis
 		return sets;
 	}
 
-	private Map<String, String> readNames(String file, Function<Index, Map<String, String>> field)
-	{
+	private Map<String, String> readNames(String file, Function<Index, Map<String, String>> field) {
 		try (InputStream in = Emojis.class.getResourceAsStream(RESOURCES + file);
-			Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8))
-		{
+			Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
 			Index index = gson.fromJson(reader, Index.class);
 			Map<String, String> names = index == null ? null : field.apply(index);
 			return names == null ? Collections.emptyMap() : names;
-		}
-		catch (IOException | RuntimeException e)
-		{
+		} catch (IOException | RuntimeException e) {
 			log.warn("Unable to read emoji {}", file, e);
 			return Collections.emptyMap();
 		}
 	}
 
 	// From whichever set has the codepoint.
-	private Optional<BufferedImage> decode(String codepoint)
-	{
-		for (ImageSet set : sets())
-		{
+	private Optional<BufferedImage> decode(String codepoint) {
+		for (ImageSet set : sets()) {
 			byte[] png = set.png(codepoint);
-			if (png == null)
-			{
+			if (png == null) {
 				continue;
 			}
-			try
-			{
-				synchronized (ImageIO.class)
-				{
+			try {
+				synchronized (ImageIO.class) {
 					return Optional.ofNullable(ImageIO.read(new ByteArrayInputStream(png)));
 				}
-			}
-			catch (IOException e)
-			{
+			} catch (IOException e) {
 				log.debug("Unable to read emoji {}", codepoint, e);
 				return Optional.empty();
 			}
@@ -257,41 +221,32 @@ public class Emojis
 		return Optional.empty();
 	}
 
-	private static Map<String, byte[]> loadPngs(String zipFile)
-	{
+	private static Map<String, byte[]> loadPngs(String zipFile) {
 		Map<String, byte[]> pngs = new HashMap<>();
-		try (ZipInputStream zip = new ZipInputStream(Emojis.class.getResourceAsStream(RESOURCES + zipFile)))
-		{
+		try (ZipInputStream zip = new ZipInputStream(Emojis.class.getResourceAsStream(RESOURCES + zipFile))) {
 			ZipEntry entry;
-			while ((entry = zip.getNextEntry()) != null)
-			{
+			while ((entry = zip.getNextEntry()) != null) {
 				String name = entry.getName();
-				if (name.endsWith(".png"))
-				{
+				if (name.endsWith(".png")) {
 					pngs.put(name.substring(0, name.length() - ".png".length()), zip.readAllBytes());
 				}
 			}
-		}
-		catch (IOException | RuntimeException e)
-		{
+		} catch (IOException | RuntimeException e) {
 			log.warn("Unable to read the emoji images {}", zipFile, e);
 		}
 		return pngs;
 	}
 
 	// The names and aliases files: "names" (index.json, unicode/names.json) or "aliases" (aliases.json).
-	private static final class Index
-	{
+	private static final class Index {
 		Map<String, String> names;
 		Map<String, String> aliases;
 
-		Map<String, String> names()
-		{
+		Map<String, String> names() {
 			return names;
 		}
 
-		Map<String, String> aliases()
-		{
+		Map<String, String> aliases() {
 			return aliases;
 		}
 	}

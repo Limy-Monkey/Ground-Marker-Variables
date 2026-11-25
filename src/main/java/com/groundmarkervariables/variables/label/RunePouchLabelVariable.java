@@ -22,8 +22,7 @@ import net.runelite.client.party.PartyMember;
 // {runePouch} -> the icon of every rune held, in the inventory or rune pouch: items named "... rune", so not
 // rune pouches or Rune gear. Plain: "true" if any.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariable
-{
+public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{runePouch\\}", Pattern.CASE_INSENSITIVE);
 	private static final String RUNE = " rune";
 
@@ -31,49 +30,40 @@ public class RunePouchLabelVariable implements LabelVariable, PartyMemberVariabl
 	private final ItemManager itemManager;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		return client.getLocalPlayer() == null ? null : String.valueOf(!runes(ItemQuantityFinder.findAll(client, itemManager, RUNE)).isEmpty());
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		return client.getLocalPlayer() == null ? null : Icons.items(runes(ItemQuantityFinder.findAll(client, itemManager, RUNE)));
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member)
-	{
+	public String resolvePlain(Matcher matcher, PartyMember member) {
 		return String.valueOf(!runes(ItemQuantityFinder.findAll(member, itemManager, RUNE)).isEmpty());
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher, PartyMember member)
-	{
+	public String resolveRich(Matcher matcher, PartyMember member) {
 		return Icons.items(runes(ItemQuantityFinder.findAll(member, itemManager, RUNE)));
 	}
 
 	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText)
-	{
+	public String resolveRowRich(Matcher matcher, RichText richText) {
 		return resolveRich(matcher);
 	}
 
 	// Each rune's id once, in the order found.
-	private static Set<Integer> runes(List<Match> matches)
-	{
+	private static Set<Integer> runes(List<Match> matches) {
 		Set<Integer> ids = new LinkedHashSet<>();
-		for (Match match : matches)
-		{
-			if (match.name.toLowerCase(Locale.ROOT).endsWith(RUNE))
-			{
+		for (Match match : matches) {
+			if (match.name.toLowerCase(Locale.ROOT).endsWith(RUNE)) {
 				ids.add(match.id);
 			}
 		}

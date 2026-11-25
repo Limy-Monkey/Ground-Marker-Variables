@@ -20,8 +20,7 @@ import net.runelite.client.config.ConfigManager;
 // must share the one tracker instance. Public for the same cross-package-access reason.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class BossKillCountTracker
-{
+public class BossKillCountTracker {
 	private static final String GROUP = "groundMarkerVariablesKc";
 	private static final String CHAT_COMMANDS_GROUP = "killcount";
 
@@ -37,29 +36,23 @@ public class BossKillCountTracker
 
 	private final ConfigManager configManager;
 
-	public void onChatMessage(String message)
-	{
+	public void onChatMessage(String message) {
 		Matcher matcher = KILLCOUNT_PATTERN.matcher(message);
-		if (!matcher.find())
-		{
+		if (!matcher.find()) {
 			return;
 		}
 
 		String boss = matcher.group("boss");
 		int kc;
-		try
-		{
+		try {
 			kc = Integer.parseInt(matcher.group("kc").replace(",", ""));
-		}
-		catch (NumberFormatException e)
-		{
+		} catch (NumberFormatException e) {
 			return;
 		}
 
 		// Neither qualifying word present means this isn't really a kill-count line (e.g. some
 		// unrelated "Your ... is: <number>" message) — same false-positive guard as the source.
-		if (isEmpty(matcher.group("pre")) && isEmpty(matcher.group("post")))
-		{
+		if (isEmpty(matcher.group("pre")) && isEmpty(matcher.group("post"))) {
 			return;
 		}
 
@@ -67,20 +60,17 @@ public class BossKillCountTracker
 		configManager.setRSProfileConfiguration(GROUP, renamedBoss.toLowerCase(Locale.ENGLISH), kc);
 	}
 
-	public Integer getKc(String boss)
-	{
+	public Integer getKc(String boss) {
 		String key = boss.toLowerCase(Locale.ENGLISH);
 		Integer own = configManager.getRSProfileConfiguration(GROUP, key, int.class);
-		if (own != null)
-		{
+		if (own != null) {
 			return own;
 		}
 
 		return configManager.getRSProfileConfiguration(CHAT_COMMANDS_GROUP, key, int.class);
 	}
 
-	private static boolean isEmpty(String value)
-	{
+	private static boolean isEmpty(String value) {
 		return value == null || value.isEmpty();
 	}
 }

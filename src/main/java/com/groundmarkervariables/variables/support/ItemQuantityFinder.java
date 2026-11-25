@@ -24,39 +24,31 @@ import net.runelite.client.party.PartyMember;
 
 // Matching items (id, name, quantity) for {hasItem}/{numItem}/{numDoses}/{showItems}, in inventory, equipment,
 // quiver, then rune pouch order. Each holder's items, and its matches by search, are cached until clearCache().
-public final class ItemQuantityFinder
-{
+public final class ItemQuantityFinder {
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-	public static final class Match
-	{
+	public static final class Match {
 		public final int id;
 		public final String name;
 		public final int quantity;
 	}
 
 	// A holder's items with their lowercase names, and its matches by search.
-	private static final class ItemSearchCache
-	{
+	private static final class ItemSearchCache {
 		private final List<Match> items = new ArrayList<>();
 		private final List<String> lowerNames = new ArrayList<>();
 		private final Map<String, List<Match>> searches = new HashMap<>();
 
-		private void add(int id, int quantity, ItemManager itemManager)
-		{
+		private void add(int id, int quantity, ItemManager itemManager) {
 			String name = itemManager.getItemComposition(id).getName();
 			items.add(new Match(id, name, quantity));
 			lowerNames.add(name.toLowerCase(Locale.ROOT));
 		}
 
-		private List<Match> find(String search)
-		{
-			return searches.computeIfAbsent(search, s ->
-			{
+		private List<Match> find(String search) {
+			return searches.computeIfAbsent(search, s -> {
 				List<Match> matches = new ArrayList<>();
-				for (int i = 0; i < items.size(); i++)
-				{
-					if (lowerNames.get(i).contains(s))
-					{
+				for (int i = 0; i < items.size(); i++) {
+					if (lowerNames.get(i).contains(s)) {
 						matches.add(items.get(i));
 					}
 				}
@@ -81,65 +73,53 @@ public final class ItemQuantityFinder
 		VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_TYPE_5, VarbitID.RUNE_POUCH_TYPE_6
 	};
 
-	private ItemQuantityFinder()
-	{
+	private ItemQuantityFinder() {
 	}
 
 	// Once per tick, so held items are read again.
-	public static void clearCache()
-	{
+	public static void clearCache() {
 		CACHES.clear();
 	}
 
-	public static List<Match> findAll(Client client, ItemManager itemManager, String search)
-	{
+	public static List<Match> findAll(Client client, ItemManager itemManager, String search) {
 		return cache(LOCAL, () -> local(client, itemManager)).find(search);
 	}
 
 	// The same search over a party member's PartyDataService data.
-	public static List<Match> findAll(PartyMember member, ItemManager itemManager, String search)
-	{
+	public static List<Match> findAll(PartyMember member, ItemManager itemManager, String search) {
 		return cache(member.getMemberId(), () -> member(member, itemManager)).find(search);
 	}
 
-	private static ItemSearchCache cache(long holder, Supplier<ItemSearchCache> build)
-	{
+	private static ItemSearchCache cache(long holder, Supplier<ItemSearchCache> build) {
 		ItemSearchCache cache = CACHES.get(holder);
-		if (cache == null)
-		{
+		if (cache == null) {
 			cache = build.get();
 			CACHES.put(holder, cache);
 		}
 		return cache;
 	}
 
-	private static ItemSearchCache local(Client client, ItemManager itemManager)
-	{
+	private static ItemSearchCache local(Client client, ItemManager itemManager) {
 		ItemSearchCache cache = new ItemSearchCache();
 		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
 		addItems(cache, inventory == null ? null : inventory.getItems(), itemManager);
 		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
 		addItems(cache, equipment == null ? null : equipment.getItems(), itemManager);
 
-		if (QuiverAmmo.isAvailable(client, itemManager))
-		{
+		if (QuiverAmmo.isAvailable(client, itemManager)) {
 			int ammoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
 			int amount = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO_AMOUNT);
-			if (ammoId > 0 && amount > 0)
-			{
+			if (ammoId > 0 && amount > 0) {
 				cache.add(ammoId, amount, itemManager);
 			}
 		}
 
-		if (inventory != null && hasRunePouch(inventory))
-		{
+		if (inventory != null && hasRunePouch(inventory)) {
 			EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
-			for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++)
-			{
+			for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++) {
 				int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
 				int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-				if (amount > 0 && runeType != 0)
-				{
+				if (amount > 0 && runeType != 0) {
 					cache.add(runepouchEnum.getIntValue(runeType), amount, itemManager);
 				}
 			}
@@ -147,8 +127,7 @@ public final class ItemQuantityFinder
 		return cache;
 	}
 
-	private static ItemSearchCache member(PartyMember member, ItemManager itemManager)
-	{
+	private static ItemSearchCache member(PartyMember member, ItemManager itemManager) {
 		ItemSearchCache cache = new ItemSearchCache();
 		addItems(cache, member.getInv(), itemManager);
 		addItems(cache, member.getWorn(), itemManager);
@@ -157,36 +136,27 @@ public final class ItemQuantityFinder
 		return cache;
 	}
 
-	private static void addItems(ItemSearchCache cache, Item[] items, ItemManager itemManager)
-	{
-		if (items == null)
-		{
+	private static void addItems(ItemSearchCache cache, Item[] items, ItemManager itemManager) {
+		if (items == null) {
 			return;
 		}
 
-		for (Item item : items)
-		{
+		for (Item item : items) {
 			// Empty slots are Items with id <= 0 (typically -1), not null array elements.
-			if (item != null && item.getId() > 0 && item.getQuantity() > 0)
-			{
+			if (item != null && item.getId() > 0 && item.getQuantity() > 0) {
 				cache.add(item.getId(), item.getQuantity(), itemManager);
 			}
 		}
 	}
 
-	private static boolean hasRunePouch(ItemContainer inventory)
-	{
-		for (Item item : inventory.getItems())
-		{
-			if (item == null)
-			{
+	private static boolean hasRunePouch(ItemContainer inventory) {
+		for (Item item : inventory.getItems()) {
+			if (item == null) {
 				continue;
 			}
 
-			for (int runePouchId : RUNE_POUCH_ITEM_IDS)
-			{
-				if (item.getId() == runePouchId)
-				{
+			for (int runePouchId : RUNE_POUCH_ITEM_IDS) {
+				if (item.getId() == runePouchId) {
 					return true;
 				}
 			}

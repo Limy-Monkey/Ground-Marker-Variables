@@ -21,14 +21,12 @@ import net.runelite.api.gameval.VarbitID;
 // green (>25 ticks), yellow (1-25), or red (0, not active).
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class DivineLabelVariable implements LabelVariable
-{
+public class DivineLabelVariable implements LabelVariable {
 	private static final int YELLOW_THRESHOLD = 25;
 	private static final int REFRESH_TICKS = 25;
 
 	// Per refresh varbit, as last seen while resolving.
-	private static final class RefreshState
-	{
+	private static final class RefreshState {
 		private int lastValue = -1;
 		private int lastSeenTick = -1;
 		private Integer nextRefreshTick;
@@ -36,8 +34,7 @@ public class DivineLabelVariable implements LabelVariable
 
 	private final Map<Integer, RefreshState> refreshStates = new HashMap<>();
 
-	private enum Potion
-	{
+	private enum Potion {
 		ATTACK("Attack", "Divine Super Attack Potion", VarbitID.DIVINEATTACK_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
 		STRENGTH("Strength", "Divine Super Strength Potion", VarbitID.DIVINESTRENGTH_POTION_TIME, VarbitID.DIVINECOMBAT_POTION_TIME),
 		DEFENCE("Defence", "Divine Super Defence Potion", VarbitID.DIVINEDEFENCE_POTION_TIME,
@@ -57,25 +54,20 @@ public class DivineLabelVariable implements LabelVariable
 		private final boolean refreshes;
 		private final int[] varbits;
 
-		Potion(String keyword, String displayName, int... varbits)
-		{
+		Potion(String keyword, String displayName, int... varbits) {
 			this(keyword, displayName, false, varbits);
 		}
 
-		Potion(String keyword, String displayName, boolean refreshes, int... varbits)
-		{
+		Potion(String keyword, String displayName, boolean refreshes, int... varbits) {
 			this.keyword = keyword;
 			this.displayName = displayName;
 			this.refreshes = refreshes;
 			this.varbits = varbits;
 		}
 
-		private static Potion find(String text)
-		{
-			for (Potion potion : values())
-			{
-				if (potion.keyword.equalsIgnoreCase(text))
-				{
+		private static Potion find(String text) {
+			for (Potion potion : values()) {
+				if (potion.keyword.equalsIgnoreCase(text)) {
 					return potion;
 				}
 			}
@@ -90,23 +82,19 @@ public class DivineLabelVariable implements LabelVariable
 	private final Client client;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return ARGS.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return ARGS;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		Potion potion = Potion.find(ARGS.main(matcher));
-		if (potion == null || client.getLocalPlayer() == null)
-		{
+		if (potion == null || client.getLocalPlayer() == null) {
 			return null;
 		}
 
@@ -114,11 +102,9 @@ public class DivineLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		Potion potion = Potion.find(ARGS.main(matcher));
-		if (potion == null || client.getLocalPlayer() == null)
-		{
+		if (potion == null || client.getLocalPlayer() == null) {
 			return null;
 		}
 
@@ -127,11 +113,9 @@ public class DivineLabelVariable implements LabelVariable
 		return RichText.colored(color, potion.displayName);
 	}
 
-	private int ticks(Potion potion)
-	{
+	private int ticks(Potion potion) {
 		int max = 0;
-		for (int varbit : potion.varbits)
-		{
+		for (int varbit : potion.varbits) {
 			max = Math.max(max, potion.refreshes ? refreshTicks(varbit) : client.getVarbitValue(varbit));
 		}
 		return max;
@@ -139,24 +123,17 @@ public class DivineLabelVariable implements LabelVariable
 
 	// Times the next refresh from the tick the varbit was seen changing, like core's Timers & Buffs
 	// overload timer. Until a change has been seen on consecutive ticks, estimates a full period.
-	private int refreshTicks(int varbit)
-	{
+	private int refreshTicks(int varbit) {
 		int value = client.getVarbitValue(varbit);
 		int tick = client.getTickCount();
 		RefreshState state = refreshStates.computeIfAbsent(varbit, v -> new RefreshState());
 
-		if (value <= 0)
-		{
+		if (value <= 0) {
 			state.nextRefreshTick = null;
-		}
-		else if (value != state.lastValue)
-		{
-			if (state.lastSeenTick < tick - 1)
-			{
+		} else if (value != state.lastValue) {
+			if (state.lastSeenTick < tick - 1) {
 				state.nextRefreshTick = null;
-			}
-			else if (state.nextRefreshTick == null || state.nextRefreshTick <= tick)
-			{
+			} else if (state.nextRefreshTick == null || state.nextRefreshTick <= tick) {
 				state.nextRefreshTick = tick + REFRESH_TICKS;
 			}
 		}
@@ -164,8 +141,7 @@ public class DivineLabelVariable implements LabelVariable
 		state.lastValue = value;
 		state.lastSeenTick = tick;
 
-		if (value <= 0)
-		{
+		if (value <= 0) {
 			return 0;
 		}
 

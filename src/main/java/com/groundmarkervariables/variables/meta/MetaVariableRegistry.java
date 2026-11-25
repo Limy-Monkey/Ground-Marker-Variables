@@ -4,19 +4,16 @@ import java.util.List;
 import javax.inject.Inject;
 
 // Every registered MetaVariable -- add a new implementation here as it's built.
-public class MetaVariableRegistry
-{
+public class MetaVariableRegistry {
 	private final List<MetaVariable> variables;
 
 	@Inject
 	private MetaVariableRegistry(TileColMetaVariable tileCol, HighlightMetaVariable highlight, BorderWidthMetaVariable borderWidth,
-		HoverMetaVariable hover, SetGroupMetaVariable setGroup)
-	{
+		HoverMetaVariable hover, SetGroupMetaVariable setGroup) {
 		this.variables = List.of(tileCol, highlight, borderWidth, hover, setGroup);
 	}
 
-	public List<MetaVariable> all()
-	{
+	public List<MetaVariable> all() {
 		return variables;
 	}
 }

@@ -22,13 +22,11 @@ import net.runelite.api.gameval.VarbitID;
 // -> true if a set quick prayer's name contains <name>; Rich Text is its sprite, dimmed if not set.
 // Standard prayer book only.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class QuickPrayersLabelVariable implements LabelVariable
-{
+public class QuickPrayersLabelVariable implements LabelVariable {
 
 	// Prayer book order. Bits of QUICKPRAYER_SELECTED from Quick Prayer Preview (Hydrox6, BSD-2-Clause).
 	@RequiredArgsConstructor
-	private enum Prayer
-	{
+	private enum Prayer {
 		THICK_SKIN(0, "Thick Skin", SpriteID.Prayeron.THICK_SKIN),
 		BURST_OF_STRENGTH(1, "Burst of Strength", SpriteID.Prayeron.BURST_OF_STRENGTH),
 		CLARITY_OF_THOUGHT(2, "Clarity of Thought", SpriteID.Prayeron.CLARITY_OF_THOUGHT),
@@ -78,28 +76,23 @@ public class QuickPrayersLabelVariable implements LabelVariable
 	private final RichText richText;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return ARGS.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return ARGS;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	public String resolvePlain(Matcher matcher) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
 		String name = ARGS.main(matcher);
-		if (name == null)
-		{
+		if (name == null) {
 			return sprites(selected());
 		}
 
@@ -108,23 +101,19 @@ public class QuickPrayersLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	public String resolveRich(Matcher matcher) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
 		String name = ARGS.main(matcher);
-		if (name == null)
-		{
+		if (name == null) {
 			List<Prayer> selected = selected();
 			return "Quick Prayers: " + (selected.isEmpty() ? richText.highlightValue("None") : sprites(selected));
 		}
 
 		Prayer prayer = find(name);
-		if (prayer == null)
-		{
+		if (prayer == null) {
 			return null;
 		}
 
@@ -134,20 +123,16 @@ public class QuickPrayersLabelVariable implements LabelVariable
 
 	// The prayer to check for a named one: Eagle Eye / Mystic Might / Piety mean their replacement once it's
 	// unlocked; Deadeye / Mystic Vigour / Zeal only ever mean themselves, never set while locked.
-	private Prayer asked(Prayer prayer)
-	{
+	private Prayer asked(Prayer prayer) {
 		return prayer == Prayer.DEADEYE || prayer == Prayer.MYSTIC_VIGOUR || prayer == Prayer.ZEAL ? prayer : current(prayer);
 	}
 
 	// The set quick prayers.
-	private List<Prayer> selected()
-	{
+	private List<Prayer> selected() {
 		int bits = client.getVarbitValue(VarbitID.QUICKPRAYER_SELECTED);
 		List<Prayer> selected = new ArrayList<>();
-		for (Prayer prayer : Prayer.values())
-		{
-			if ((bits & (1 << prayer.bit)) != 0 && current(prayer) == prayer)
-			{
+		for (Prayer prayer : Prayer.values()) {
+			if ((bits & (1 << prayer.bit)) != 0 && current(prayer) == prayer) {
 				selected.add(prayer);
 			}
 		}
@@ -155,10 +140,8 @@ public class QuickPrayersLabelVariable implements LabelVariable
 	}
 
 	// Deadeye / Mystic Vigour / Zeal replace Eagle Eye / Mystic Might / Piety, sharing their bit, once unlocked.
-	private Prayer current(Prayer prayer)
-	{
-		switch (prayer)
-		{
+	private Prayer current(Prayer prayer) {
+		switch (prayer) {
 			case EAGLE_EYE:
 			case DEADEYE:
 				return client.getVarbitValue(VarbitID.PRAYER_DEADEYE_UNLOCKED) == 1 ? Prayer.DEADEYE : Prayer.EAGLE_EYE;
@@ -174,21 +157,17 @@ public class QuickPrayersLabelVariable implements LabelVariable
 	}
 
 	// The first prayer whose name contains name, ignoring case.
-	private static Prayer find(String name)
-	{
+	private static Prayer find(String name) {
 		String search = name.trim().toLowerCase(Locale.ROOT);
-		for (Prayer prayer : Prayer.values())
-		{
-			if (prayer.name.toLowerCase(Locale.ROOT).contains(search))
-			{
+		for (Prayer prayer : Prayer.values()) {
+			if (prayer.name.toLowerCase(Locale.ROOT).contains(search)) {
 				return prayer;
 			}
 		}
 		return null;
 	}
 
-	private static String sprites(List<Prayer> prayers)
-	{
+	private static String sprites(List<Prayer> prayers) {
 		return prayers.stream().map(prayer -> Icons.sprite(prayer.spriteId)).collect(Collectors.joining(" "));
 	}
 }

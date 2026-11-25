@@ -49,8 +49,7 @@ import net.runelite.client.util.ColorUtil;
 // every currently loaded marker; recipients get "Import ... from <user>" for PendingPartyShare.TTL.
 @Slf4j
 @Singleton
-public class GroundMarkerPartySharingManager
-{
+public class GroundMarkerPartySharingManager {
 	private static final int WIDGET_FIXED = InterfaceID.Orbs.WORLDMAP;
 	private static final int WIDGET_RESIZABLE = InterfaceID.OrbsNomap.WORLDMAP;
 
@@ -80,8 +79,7 @@ public class GroundMarkerPartySharingManager
 	@Inject
 	private GroundMarkerPartySharingManager(Client client, ChatboxPanelManager chatboxPanelManager, ChatMessageManager chatMessageManager,
 		EventBus eventBus, ScheduledExecutorService executor, ImportPreviewManager importPreviewManager,
-		GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient, Gson gson)
-	{
+		GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient, Gson gson) {
 		this.gson = gson;
 		this.client = client;
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -94,42 +92,31 @@ public class GroundMarkerPartySharingManager
 		this.wsClient = wsClient;
 	}
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 		registerMessage(GMVCompressedMarkerShare.class);
 		registerMessage(GMVGroundMarkerPartyShare.class);
 	}
 
-	private void registerMessage(Class<? extends PartyMemberMessage> message)
-	{
-		try
-		{
+	private void registerMessage(Class<? extends PartyMemberMessage> message) {
+		try {
 			wsClient.registerMessage(message);
-		}
-		catch (IllegalArgumentException e)
-		{
+		} catch (IllegalArgumentException e) {
 			log.warn("Party marker sharing unavailable due to a message type collision with another plugin", e);
 		}
 	}
 
-	private void unregisterMessage(Class<? extends PartyMemberMessage> message)
-	{
-		try
-		{
+	private void unregisterMessage(Class<? extends PartyMemberMessage> message) {
+		try {
 			wsClient.unregisterMessage(message);
-		}
-		catch (IllegalArgumentException e)
-		{
+		} catch (IllegalArgumentException e) {
 			// Never registered successfully.
 		}
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
-		if (badgeClearTask != null)
-		{
+		if (badgeClearTask != null) {
 			badgeClearTask.cancel(false);
 		}
 
@@ -141,28 +128,22 @@ public class GroundMarkerPartySharingManager
 	}
 
 	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
-	{
-		if (client.isWidgetSelected() || event.getType() != MenuAction.CC_OP.getId())
-		{
+	public void onMenuEntryAdded(MenuEntryAdded event) {
+		if (client.isWidgetSelected() || event.getType() != MenuAction.CC_OP.getId()) {
 			return;
 		}
 
 		int widgetId = event.getActionParam1();
-		if (widgetId != WIDGET_FIXED && widgetId != WIDGET_RESIZABLE)
-		{
+		if (widgetId != WIDGET_FIXED && widgetId != WIDGET_RESIZABLE) {
 			return;
 		}
 
-		if (!partyService.isInParty())
-		{
+		if (!partyService.isInParty()) {
 			return;
 		}
 
-		for (MenuEntry entry : client.getMenuEntries())
-		{
-			if ("Party".equals(entry.getOption()) && TARGET.equals(entry.getTarget()))
-			{
+		for (MenuEntry entry : client.getMenuEntries()) {
+			if ("Party".equals(entry.getOption()) && TARGET.equals(entry.getTarget())) {
 				return;
 			}
 		}
@@ -180,8 +161,7 @@ public class GroundMarkerPartySharingManager
 
 		List<PendingPartyShare> pending = new ArrayList<>(pendingShares.values());
 		pending.sort(Comparator.comparing((PendingPartyShare p) -> p.receivedAt).reversed());
-		for (PendingPartyShare share : pending)
-		{
+		for (PendingPartyShare share : pending) {
 			submenu.createMenuEntry(-1)
 				.setOption("Import " + share.markers.size() + " markers from " + share.senderName)
 				.setType(MenuAction.RUNELITE)
@@ -189,11 +169,9 @@ public class GroundMarkerPartySharingManager
 		}
 	}
 
-	private void promptShare()
-	{
+	private void promptShare() {
 		List<GroundMarkerPointData> activePoints = sharingManager.activePoints();
-		if (activePoints.isEmpty())
-		{
+		if (activePoints.isEmpty()) {
 			sendChatMessage("You have no ground markers to share.");
 			return;
 		}
@@ -203,34 +181,26 @@ public class GroundMarkerPartySharingManager
 			.build();
 	}
 
-	private void share(List<GroundMarkerPointData> points)
-	{
+	private void share(List<GroundMarkerPointData> points) {
 		byte[] compressed = MarkerCompression.compress(gson.toJson(points));
 		partyService.send(new GMVCompressedMarkerShare(MarkerCompression.VERSION, Base64.getEncoder().withoutPadding().encodeToString(compressed)));
 		sendChatMessage(points.size() + " ground markers were shared with your party.");
 	}
 
 	@Subscribe
-	public void onGMVCompressedMarkerShare(GMVCompressedMarkerShare share)
-	{
-		if (isOwn(share))
-		{
+	public void onGMVCompressedMarkerShare(GMVCompressedMarkerShare share) {
+		if (isOwn(share)) {
 			return;
 		}
 
 		List<GroundMarkerPointData> points;
-		try
-		{
+		try {
 			String json = MarkerCompression.decompress(Base64.getDecoder().decode(share.getData()), share.getVersion());
 			points = gson.fromJson(json, new TypeToken<List<GroundMarkerPointData>>(){}.getType());
-		}
-		catch (NewerFormatException e)
-		{
+		} catch (NewerFormatException e) {
 			sendChatMessage(senderName(share) + " shared ground markers from a newer version of Ground Marker Variables. Update the plugin to import them.");
 			return;
-		}
-		catch (IllegalArgumentException | JsonSyntaxException e)
-		{
+		} catch (IllegalArgumentException | JsonSyntaxException e) {
 			log.debug("Damaged party marker share", e);
 			return;
 		}
@@ -238,16 +208,13 @@ public class GroundMarkerPartySharingManager
 	}
 
 	@Subscribe
-	public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share)
-	{
-		if (isOwn(share))
-		{
+	public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share) {
+		if (isOwn(share)) {
 			return;
 		}
 
 		List<GroundMarkerPointData> points = new ArrayList<>();
-		for (GMVGroundMarkerPartyShare.SharedMarker marker : share.getMarkers())
-		{
+		for (GMVGroundMarkerPartyShare.SharedMarker marker : share.getMarkers()) {
 			WorldPoint point = marker.getPoint();
 			Color color = marker.getColorRgb() == null ? null : new Color(marker.getColorRgb(), true);
 			points.add(new GroundMarkerPointData(point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, marker.getLabel()));
@@ -255,24 +222,20 @@ public class GroundMarkerPartySharingManager
 		addPending(share, points);
 	}
 
-	private boolean isOwn(PartyMemberMessage message)
-	{
+	private boolean isOwn(PartyMemberMessage message) {
 		PartyMember local = partyService.getLocalMember();
 		return local != null && message.getMemberId() == local.getMemberId();
 	}
 
-	private String senderName(PartyMemberMessage message)
-	{
+	private String senderName(PartyMemberMessage message) {
 		PartyMember sender = partyService.getMemberById(message.getMemberId());
 		return sender != null ? sender.getDisplayName() : "Unknown";
 	}
 
 	// Replaces any pending share from the same sender. The scheduled removal is keyed to this exact
 	// instance, so a stale timer from a replaced share can never remove the one that replaced it.
-	private void addPending(PartyMemberMessage share, List<GroundMarkerPointData> points)
-	{
-		if (points == null || points.isEmpty())
-		{
+	private void addPending(PartyMemberMessage share, List<GroundMarkerPointData> points) {
+		if (points == null || points.isEmpty()) {
 			return;
 		}
 
@@ -283,8 +246,7 @@ public class GroundMarkerPartySharingManager
 		showBadge();
 	}
 
-	private void promptImport(PendingPartyShare pending)
-	{
+	private void promptImport(PendingPartyShare pending) {
 		List<GroundMarkerPointData> points = pending.markers;
 		List<GroundMarkerPointData> nonOverlapping = sharingManager.nonOverlapping(points);
 		importPreviewManager.show(nonOverlapping);
@@ -295,8 +257,7 @@ public class GroundMarkerPartySharingManager
 			.build();
 	}
 
-	private void doImport(PendingPartyShare pending, List<GroundMarkerPointData> points)
-	{
+	private void doImport(PendingPartyShare pending, List<GroundMarkerPointData> points) {
 		sharingManager.importGroundMarkers(points);
 		sendChatMessage(points.size() + " ground markers were imported from " + pending.senderName + ".");
 		pendingShares.remove(pending.senderMemberId, pending);
@@ -304,28 +265,23 @@ public class GroundMarkerPartySharingManager
 
 	// Cancels any still-pending clear from an earlier badge before scheduling this one, so an
 	// old timer can never null out a newer receipt.
-	private void showBadge()
-	{
+	private void showBadge() {
 		lastReceivedAt = Instant.now();
-		if (badgeClearTask != null)
-		{
+		if (badgeClearTask != null) {
 			badgeClearTask.cancel(false);
 		}
 		badgeClearTask = executor.schedule(() -> lastReceivedAt = null, BADGE_VISIBLE_DURATION.toMillis(), TimeUnit.MILLISECONDS);
 	}
 
 	// 100% for the first 2s, linearly down to 0% over the next 3s, null (hidden) after that.
-	float badgeOpacity(Instant now)
-	{
+	float badgeOpacity(Instant now) {
 		Instant receivedAt = lastReceivedAt;
-		if (receivedAt == null)
-		{
+		if (receivedAt == null) {
 			return 0f;
 		}
 
 		Duration age = Duration.between(receivedAt, now);
-		if (age.compareTo(BADGE_FULL_OPACITY_DURATION) <= 0)
-		{
+		if (age.compareTo(BADGE_FULL_OPACITY_DURATION) <= 0) {
 			return 1f;
 		}
 
@@ -333,8 +289,7 @@ public class GroundMarkerPartySharingManager
 		return 1f - (float) intoFade.toMillis() / BADGE_FADE_DURATION.toMillis();
 	}
 
-	private void sendChatMessage(String message)
-	{
+	private void sendChatMessage(String message) {
 		chatMessageManager.queue(QueuedMessage.builder()
 			.type(ChatMessageType.CONSOLE)
 			.runeLiteFormattedMessage(message)

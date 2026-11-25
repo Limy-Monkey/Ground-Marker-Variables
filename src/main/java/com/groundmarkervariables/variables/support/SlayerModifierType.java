@@ -5,8 +5,7 @@ import lombok.RequiredArgsConstructor;
 // VarbitID.SLAYER_MODIFIER_ID -> display name. Not exposed anywhere in RuneLite itself (only
 // ever compared to 2, unnamed) -- these names/IDs are reverse-engineered from observation.
 @RequiredArgsConstructor
-public enum SlayerModifierType
-{
+public enum SlayerModifierType {
 	SLAYER_POINTS(1, "Slayer Points"),
 	TASK_QUANTITY(2, "Task Quantity"),
 	CLUE_SCROLL_RATE(3, "Clue Scroll Rate"),
@@ -16,17 +15,13 @@ public enum SlayerModifierType
 	private final int id;
 	private final String displayName;
 
-	public String displayName()
-	{
+	public String displayName() {
 		return displayName;
 	}
 
-	public static SlayerModifierType fromId(int id)
-	{
-		for (SlayerModifierType type : values())
-		{
-			if (type.id == id)
-			{
+	public static SlayerModifierType fromId(int id) {
+		for (SlayerModifierType type : values()) {
+			if (type.id == id) {
 				return type;
 			}
 		}

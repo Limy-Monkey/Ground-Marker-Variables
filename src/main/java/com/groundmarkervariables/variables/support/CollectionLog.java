@@ -16,8 +16,7 @@ import net.runelite.client.callback.ClientThread;
 // Every collection log page and item, from the client's own cache. Built on first use (client thread only).
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class CollectionLog
-{
+public class CollectionLog {
 	private static final int TABS_ENUM = 2102;
 	private static final int TAB_PAGES_PARAM = 683;
 	private static final int PAGE_NAME_PARAM = 689;
@@ -33,10 +32,8 @@ public class CollectionLog
 	private List<String> pageNames;
 
 	// Every page's name, in the log's order. Off the client thread before the first build: empty, the build queued.
-	public List<String> pageNames()
-	{
-		if (items == null && !client.isClientThread())
-		{
+	public List<String> pageNames() {
+		if (items == null && !client.isClientThread()) {
 			clientThread.invoke(this::load);
 			return List.of();
 		}
@@ -45,50 +42,41 @@ public class CollectionLog
 	}
 
 	// The page names, and BossAliases short names for them: {log}'s and addLog='s suggestions.
-	public Set<String> pageSuggestions()
-	{
+	public Set<String> pageSuggestions() {
 		List<String> names = pageNames();
 		Set<String> all = new LinkedHashSet<>(names);
 		all.addAll(BossAliases.aliasesOf(names));
 		return all;
 	}
 
-	public boolean contains(int itemId)
-	{
+	public boolean contains(int itemId) {
 		load();
 		return items.contains(itemId);
 	}
 
-	public boolean isPet(int itemId)
-	{
+	public boolean isPet(int itemId) {
 		load();
 		return pets.contains(itemId);
 	}
 
-	private void load()
-	{
-		if (items != null)
-		{
+	private void load() {
+		if (items != null) {
 			return;
 		}
 
 		Set<Integer> allItems = new HashSet<>();
 		Set<Integer> allPets = new HashSet<>();
 		List<String> names = new ArrayList<>();
-		for (int tabStruct : client.getEnum(TABS_ENUM).getIntVals())
-		{
+		for (int tabStruct : client.getEnum(TABS_ENUM).getIntVals()) {
 			int pagesEnum = client.getStructComposition(tabStruct).getIntValue(TAB_PAGES_PARAM);
-			for (int pageStruct : client.getEnum(pagesEnum).getIntVals())
-			{
+			for (int pageStruct : client.getEnum(pagesEnum).getIntVals()) {
 				StructComposition page = client.getStructComposition(pageStruct);
 				String name = page.getStringValue(PAGE_NAME_PARAM);
 				names.add(name);
 				boolean petsPage = ALL_PETS_PAGE.equals(name);
-				for (int itemId : client.getEnum(page.getIntValue(PAGE_ITEMS_PARAM)).getIntVals())
-				{
+				for (int itemId : client.getEnum(page.getIntValue(PAGE_ITEMS_PARAM)).getIntVals()) {
 					allItems.add(itemId);
-					if (petsPage)
-					{
+					if (petsPage) {
 						allPets.add(itemId);
 					}
 				}

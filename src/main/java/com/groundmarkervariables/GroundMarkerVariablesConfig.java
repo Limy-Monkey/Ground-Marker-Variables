@@ -10,8 +10,7 @@ import net.runelite.client.config.Keybind;
 import net.runelite.client.config.Range;
 
 @ConfigGroup(GroundMarkerVariablesConfig.GROUP)
-public interface GroundMarkerVariablesConfig extends Config
-{
+public interface GroundMarkerVariablesConfig extends Config {
 	String GROUP = "groundMarkerVariables";
 
 	// Recreates core Ground Markers' own config, since this plugin fully replaces it (see the
@@ -33,8 +32,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Width of the marked tile border.",
 			section = groundMarkersSection
 	)
-	default double borderWidth()
-	{
+	default double borderWidth() {
 		return 2;
 	}
 
@@ -45,8 +43,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Configures whether marked tiles should be drawn on minimap.",
 			section = groundMarkersSection
 	)
-	default boolean drawTileOnMinimap()
-	{
+	default boolean drawTileOnMinimap() {
 		return false;
 	}
 
@@ -60,8 +57,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Opacity of the tile fill color.",
 			section = groundMarkersSection
 	)
-	default int fillOpacity()
-	{
+	default int fillOpacity() {
 		return 50;
 	}
 
@@ -72,8 +68,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
 			section = groundMarkersSection
 	)
-	default boolean showImportExport()
-	{
+	default boolean showImportExport() {
 		return true;
 	}
 
@@ -85,8 +80,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "The default color for marked tiles.",
 			section = groundMarkersSection
 	)
-	default Color markerColor()
-	{
+	default Color markerColor() {
 		return Color.YELLOW;
 	}
 
@@ -97,8 +91,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Save {variable} labels separately",
 			section = groundMarkersSection
 	)
-	default boolean smartSave()
-	{
+	default boolean smartSave() {
 		return true;
 	}
 
@@ -117,8 +110,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
 			section = metronomeSection
 	)
-	default Keybind resetMetronomeHotkey()
-	{
+	default Keybind resetMetronomeHotkey() {
 		return Keybind.NOT_SET;
 	}
 
@@ -129,8 +121,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
 			section = metronomeSection
 	)
-	default boolean countDown()
-	{
+	default boolean countDown() {
 		return false;
 	}
 
@@ -141,8 +132,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Color {metronome} on its final tick before it repeats.",
 			section = metronomeSection
 	)
-	default boolean highlightFinalTick()
-	{
+	default boolean highlightFinalTick() {
 		return false;
 	}
 
@@ -153,8 +143,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
 			section = metronomeSection
 	)
-	default Color finalTickColor()
-	{
+	default Color finalTickColor() {
 		return Color.CYAN;
 	}
 
@@ -173,8 +162,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Sync {metronome} to a party member's tick count.<br>They must be on the same world as you.",
 			section = partySyncSection
 	)
-	default boolean enablePartySync()
-	{
+	default boolean enablePartySync() {
 		return false;
 	}
 
@@ -185,8 +173,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
 			section = partySyncSection
 	)
-	default String syncTarget()
-	{
+	default String syncTarget() {
 		return "";
 	}
 
@@ -197,8 +184,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Show markers shared by party members.",
 			section = partySyncSection
 	)
-	default boolean showPingedTiles()
-	{
+	default boolean showPingedTiles() {
 		return true;
 	}
 
@@ -209,8 +195,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Add Share Marker to a marker's Shift right-click menu while in a party.",
 			section = partySyncSection
 	)
-	default boolean shareMarkerOption()
-	{
+	default boolean shareMarkerOption() {
 		return false;
 	}
 
@@ -230,8 +215,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			section = richTextSection,
 			hidden = true
 	)
-	default boolean richTextByDefault()
-	{
+	default boolean richTextByDefault() {
 		return true;
 	}
 
@@ -242,8 +226,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Highlight the value of the relevant variable in Rich Text mode.",
 			section = richTextSection
 	)
-	default boolean highlightValue()
-	{
+	default boolean highlightValue() {
 		return true;
 	}
 
@@ -254,8 +237,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Color used to highlight variable values when Highlight Value is on.",
 			section = richTextSection
 	)
-	default Color highlightColor()
-	{
+	default Color highlightColor() {
 		return new Color(0xFFC3A0);
 	}
 
@@ -266,8 +248,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
 			section = richTextSection
 	)
-	default Color booleanTrueColor()
-	{
+	default Color booleanTrueColor() {
 		return Color.GREEN;
 	}
 
@@ -278,8 +259,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
 			section = richTextSection
 	)
-	default Color booleanFalseColor()
-	{
+	default Color booleanFalseColor() {
 		return Color.RED;
 	}
 
@@ -290,8 +270,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
 			section = richTextSection
 	)
-	default boolean invertAutoRetaliate()
-	{
+	default boolean invertAutoRetaliate() {
 		return true;
 	}
 
@@ -302,8 +281,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Draw a soft glow behind items and sprites",
 			section = richTextSection
 	)
-	default boolean iconBackground()
-	{
+	default boolean iconBackground() {
 		return true;
 	}
 
@@ -314,8 +292,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Controls whether everything rendered on {ground} has depth: items and npcs as models, the rest lifted over its shadow",
 			section = richTextSection
 	)
-	default boolean parallaxIcons()
-	{
+	default boolean parallaxIcons() {
 		return true;
 	}
 
@@ -334,8 +311,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
 			section = advancedEditorSection
 	)
-	default boolean useAdvancedLabelEditor()
-	{
+	default boolean useAdvancedLabelEditor() {
 		return true;
 	}
 
@@ -346,8 +322,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
 			section = advancedEditorSection
 	)
-	default boolean showCurrent()
-	{
+	default boolean showCurrent() {
 		return false;
 	}
 
@@ -358,8 +333,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
 			section = advancedEditorSection
 	)
-	default boolean showRecent()
-	{
+	default boolean showRecent() {
 		return true;
 	}
 
@@ -370,8 +344,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
 			section = advancedEditorSection
 	)
-	default boolean showNearby()
-	{
+	default boolean showNearby() {
 		return true;
 	}
 
@@ -382,8 +355,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
 			section = advancedEditorSection
 	)
-	default boolean autocomplete()
-	{
+	default boolean autocomplete() {
 		return true;
 	}
 
@@ -394,8 +366,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Once a label is edited, list every way to complete what's being typed, with icons, below the Advanced Label Editor.",
 			section = advancedEditorSection
 	)
-	default boolean showSuggestions()
-	{
+	default boolean showSuggestions() {
 		return true;
 	}
 
@@ -406,8 +377,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "Hovering an icon in the Suggestions shows its ID, e.g. Item: Id 4151",
 			section = advancedEditorSection
 	)
-	default boolean showIconIds()
-	{
+	default boolean showIconIds() {
 		return false;
 	}
 
@@ -437,8 +407,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			description = "",
 			section = variablesSection
 	)
-	default void variableHelp2()
-	{
+	default void variableHelp2() {
 	}
 
 	@ConfigItem(
@@ -447,8 +416,7 @@ public interface GroundMarkerVariablesConfig extends Config
 			name = "Label unmarked tiles",
 			description = "Show option to mark and label a tile together all at once."
 	)
-	default boolean labelUnmarkedTiles()
-	{
+	default boolean labelUnmarkedTiles() {
 		return false;
 	}
 }

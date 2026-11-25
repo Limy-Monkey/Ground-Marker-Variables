@@ -43,8 +43,7 @@ import net.runelite.client.util.QuantityFormatter;
 // MathVariable operands; .party() ones also resolve for other members in {party} rows.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ArgVariables
-{
+public class ArgVariables {
 	// Chat Commands' own personal best data, read-only.
 	private static final String PERSONAL_BEST_GROUP = "personalbest";
 	private static final Pattern DOSE_COUNT = Pattern.compile("\\((\\d+)\\)");
@@ -83,8 +82,7 @@ public class ArgVariables
 	private final List<ArgVariable> all = define();
 
 	// Built before the fields above are set: they're only read when a lambda runs.
-	private List<ArgVariable> define()
-	{
+	private List<ArgVariable> define() {
 		return List.of(
 			number("kc", boss -> Objects.requireNonNullElse(killCounts.getKc(BossAliases.resolve(boss)), 0),
 				(boss, v) -> richText.labeled(BossAliases.resolve(boss) + " kc", v))
@@ -137,82 +135,67 @@ public class ArgVariables
 		);
 	}
 
-	public List<ArgVariable> all()
-	{
+	public List<ArgVariable> all() {
 		return all;
 	}
 
-	public List<ArgVariable> numeric()
-	{
+	public List<ArgVariable> numeric() {
 		return all.stream().filter(ArgVariable::numeric).collect(Collectors.toList());
 	}
 
-	private static ArgVariable number(String name, Function<String, Object> value, BiFunction<String, String, String> rich)
-	{
+	private static ArgVariable number(String name, Function<String, Object> value, BiFunction<String, String, String> rich) {
 		return new ArgVariable(name, true, value, rich);
 	}
 
-	private static ArgVariable text(String name, Function<String, Object> value, BiFunction<String, String, String> rich)
-	{
+	private static ArgVariable text(String name, Function<String, Object> value, BiFunction<String, String, String> rich) {
 		return new ArgVariable(name, false, value, rich);
 	}
 
-	private boolean loggedIn()
-	{
+	private boolean loggedIn() {
 		return client.getLocalPlayer() != null;
 	}
 
 	// A skill's real level, or combat / total level; null logged out.
 	@Nullable
-	private Integer level(String name)
-	{
-		if (!loggedIn())
-		{
+	private Integer level(String name) {
+		if (!loggedIn()) {
 			return null;
 		}
-		if ("combat".equalsIgnoreCase(name))
-		{
+		if ("combat".equalsIgnoreCase(name)) {
 			return client.getLocalPlayer().getCombatLevel();
 		}
-		if ("total".equalsIgnoreCase(name))
-		{
+		if ("total".equalsIgnoreCase(name)) {
 			return client.getTotalLevel();
 		}
 		Skill skill = Args.skill(name);
 		return skill == null ? null : client.getRealSkillLevel(skill);
 	}
 
-	private static String skillLabel(String name)
-	{
+	private static String skillLabel(String name) {
 		return "combat".equalsIgnoreCase(name) ? "Combat" : "total".equalsIgnoreCase(name) ? "Total" : Args.skill(name).getName();
 	}
 
 	// A member's base / boosted level in a skill; null until they've sent it (a base of 0), and for combat / total.
 	@Nullable
-	private static Integer statBase(String name, PartyMember member)
-	{
+	private static Integer statBase(String name, PartyMember member) {
 		Skill skill = Args.skill(name);
 		return skill == null || member.getStatBase(skill) <= 0 ? null : member.getStatBase(skill);
 	}
 
 	@Nullable
-	private static Integer statBoost(String name, PartyMember member)
-	{
+	private static Integer statBoost(String name, PartyMember member) {
 		return statBase(name, member) == null ? null : member.getStatBoost(Args.skill(name));
 	}
 
 	@Nullable
-	private String highlighted(@Nullable Object value)
-	{
+	private String highlighted(@Nullable Object value) {
 		return value == null ? null : richText.highlightValue(String.valueOf(value));
 	}
 
 	// The XP needed for a level 1-126, else the skill's XP (logged in); null otherwise.
 	@Nullable
-	private Object xp(String name)
-	{
-		if (name.matches("\\d{1,3}"))
-		{
+	private Object xp(String name) {
+		if (name.matches("\\d{1,3}")) {
 			int level = Integer.parseInt(name);
 			return level >= 1 && level <= LEVEL_XP.length ? LEVEL_XP[level - 1] : null;
 		}
@@ -221,12 +204,10 @@ public class ArgVariables
 	}
 
 	// For a skill, also its level and hiscores rank (dots while unavailable: loading or unranked).
-	private String xpRich(String name, String xp)
-	{
+	private String xpRich(String name, String xp) {
 		String formatted = richText.highlightValue(String.format("%,d", Long.parseLong(xp)));
 		Skill skill = Args.skill(name);
-		if (skill == null)
-		{
+		if (skill == null) {
 			return formatted;
 		}
 		Long rank = hiscores.rank(HiscoreSkill.valueOf(skill.name()));
@@ -235,35 +216,29 @@ public class ArgVariables
 			+ " | Experience: " + formatted + " | Rank: " + rankText;
 	}
 
-	private boolean xpTrackerRunning()
-	{
+	private boolean xpTrackerRunning() {
 		return pluginManager.getPlugins().stream()
 			.anyMatch(plugin -> plugin.getClass() == XpTrackerPlugin.class && pluginManager.isPluginActive(plugin));
 	}
 
 	// Every item's name, carried ones first (see IconNames#matches).
-	private List<String> itemNames()
-	{
+	private List<String> itemNames() {
 		return iconNames.matches(IconNames.Kind.ITEM, "");
 	}
 
 	// Each dosed item once, without its "(N)" (e.g. "Prayer potion"), carried ones first; noting its highest dose's name
 	// for its icon.
-	private List<String> doseNames()
-	{
+	private List<String> doseNames() {
 		Map<String, String> highest = new LinkedHashMap<>();
 		Map<String, Integer> doses = new HashMap<>();
-		for (String name : itemNames())
-		{
+		for (String name : itemNames()) {
 			Matcher dose = DOSE_NAME.matcher(name);
-			if (!dose.find())
-			{
+			if (!dose.find()) {
 				continue;
 			}
 			String base = name.substring(0, dose.start()).trim();
 			int count = Integer.parseInt(dose.group(1));
-			if (count > doses.getOrDefault(base, 0))
-			{
+			if (count > doses.getOrDefault(base, 0)) {
 				doses.put(base, count);
 				highest.put(base, name);
 			}
@@ -274,19 +249,16 @@ public class ArgVariables
 
 	// From the hiscores: null while loading, and for bosses not on them.
 	@Nullable
-	private Integer memberKc(String boss, PartyMember member)
-	{
+	private Integer memberKc(String boss, PartyMember member) {
 		HiscoreSkill skill = BossHiscoreSkill.find(BossAliases.resolve(boss));
 		String name = member.getDisplayName();
 		return skill == null || name == null || name.isEmpty() ? null : hiscores.kc(name, skill);
 	}
 
 	// Mirrors ChatCommandsPlugin#secondsToTimeString so this matches !pb's own format.
-	private String pb(String boss)
-	{
+	private String pb(String boss) {
 		Double seconds = configManager.getRSProfileConfiguration(PERSONAL_BEST_GROUP, BossAliases.resolve(boss).toLowerCase(Locale.ENGLISH), double.class);
-		if (seconds == null)
-		{
+		if (seconds == null) {
 			return "None";
 		}
 		int hours = (int) (Math.floor(seconds) / 3600);
@@ -297,8 +269,7 @@ public class ArgVariables
 	}
 
 	@Nullable
-	private Long itemPrice(String item)
-	{
+	private Long itemPrice(String item) {
 		String name = iconNames.itemNamed(item);
 		Integer id = name == null ? null : iconNames.id(IconNames.Kind.ITEM, name);
 		return id == null ? null : itemManager.getItemPrice(id);
@@ -306,14 +277,11 @@ public class ArgVariables
 
 	// Ours when member is null.
 	// The held matches of each of typed's comma-separated names (only {hasItem} allows several), in order.
-	private List<ItemQuantityFinder.Match> items(String typed, @Nullable PartyMember member)
-	{
+	private List<ItemQuantityFinder.Match> items(String typed, @Nullable PartyMember member) {
 		List<ItemQuantityFinder.Match> matches = new ArrayList<>();
-		for (String name : typed.split(","))
-		{
+		for (String name : typed.split(",")) {
 			String search = name.trim().toLowerCase(Locale.ROOT);
-			if (!search.isEmpty())
-			{
+			if (!search.isEmpty()) {
 				matches.addAll(member == null ? ItemQuantityFinder.findAll(client, itemManager, search) : ItemQuantityFinder.findAll(member, itemManager, search));
 			}
 		}
@@ -322,10 +290,8 @@ public class ArgVariables
 
 	// The first held match's name colored true, else typed colored false.
 	@Nullable
-	private String heldItem(String typed, @Nullable PartyMember member)
-	{
-		if (member == null && !loggedIn())
-		{
+	private String heldItem(String typed, @Nullable PartyMember member) {
+		if (member == null && !loggedIn()) {
 			return null;
 		}
 		List<ItemQuantityFinder.Match> matches = items(typed, member);
@@ -333,26 +299,20 @@ public class ArgVariables
 	}
 
 	// Doses by the "(N)" in each name; items without one aren't counted.
-	private static int quantity(List<ItemQuantityFinder.Match> matches, boolean doses)
-	{
+	private static int quantity(List<ItemQuantityFinder.Match> matches, boolean doses) {
 		int total = 0;
-		for (ItemQuantityFinder.Match match : matches)
-		{
+		for (ItemQuantityFinder.Match match : matches) {
 			Matcher dose = DOSE_COUNT.matcher(match.name);
-			if (!doses)
-			{
+			if (!doses) {
 				total += match.quantity;
-			}
-			else if (dose.find())
-			{
+			} else if (dose.find()) {
 				total += match.quantity * Integer.parseInt(dose.group(1));
 			}
 		}
 		return total;
 	}
 
-	private static String stack(String quantity)
-	{
+	private static String stack(String quantity) {
 		return QuantityFormatter.quantityToStackSize(Long.parseLong(quantity));
 	}
 }

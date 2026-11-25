@@ -23,10 +23,8 @@ import net.runelite.client.party.PartyMember;
 // Shared "how many of X does the player actually have available" logic for any variable
 // that needs to reason about spell reagents (SpellVariables). Rune pouch decoding mirrors gearscape's own
 // RunePouchItem/buildRunePouch.
-public final class RuneCounter
-{
-	private RuneCounter()
-	{
+public final class RuneCounter {
+	private RuneCounter() {
 	}
 
 	private static final long LOCAL = Long.MIN_VALUE;
@@ -101,13 +99,10 @@ public final class RuneCounter
 	private static final Map<Integer, Set<Integer>> WEAPON_SOURCES = bySource(INFINITE_RUNE_WEAPONS);
 	private static final Map<Integer, Set<Integer>> OFFHAND_SOURCES = bySource(INFINITE_RUNE_OFFHANDS);
 
-	private static Map<Integer, int[]> buildSubstitutesByRune()
-	{
+	private static Map<Integer, int[]> buildSubstitutesByRune() {
 		Map<Integer, List<Integer>> byRune = new HashMap<>();
-		COMBO_RUNE_COMPONENTS.forEach((combo, components) ->
-		{
-			for (int component : components)
-			{
+		COMBO_RUNE_COMPONENTS.forEach((combo, components) -> {
+			for (int component : components) {
 				byRune.computeIfAbsent(component, k -> new ArrayList<>()).add(combo);
 			}
 		});
@@ -118,35 +113,28 @@ public final class RuneCounter
 	}
 
 	// Once per tick, so held runes are counted again.
-	public static void clearCache()
-	{
+	public static void clearCache() {
 		HAS_RUNES.clear();
 	}
 
 	// runes: rune id -> amount.
-	public static boolean hasRunes(Client client, Map<Integer, Integer> runes)
-	{
+	public static boolean hasRunes(Client client, Map<Integer, Integer> runes) {
 		return HAS_RUNES.computeIfAbsent(LOCAL, k -> new HashMap<>()).computeIfAbsent(runes,
 			r -> hasRunes(r, items(client, InventoryID.INVENTORY), items(client, InventoryID.EQUIPMENT), rune -> count(client, rune)));
 	}
 
 	// The same, from a party member's PartyDataService inventory, gear and rune pouch.
-	public static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes)
-	{
+	public static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes) {
 		return HAS_RUNES.computeIfAbsent(member.getMemberId(), k -> new HashMap<>()).computeIfAbsent(runes,
 			r -> hasRunes(r, member.getInv(), member.getWorn(), rune -> count(member, rune)));
 	}
 
 	// With some choice of weapon and offhand, worn or in the inventory to equip instead. Each one
 	// worn can be an infinite source.
-	private static boolean hasRunes(Map<Integer, Integer> runes, @Nullable Item[] inventory, @Nullable Item[] worn, ToIntFunction<Integer> count)
-	{
-		for (int weapon : choices(worn, EquipmentInventorySlot.WEAPON, inventory, WEAPON_SOURCES))
-		{
-			for (int offhand : choices(worn, EquipmentInventorySlot.SHIELD, inventory, OFFHAND_SOURCES))
-			{
-				if (hasRunes(runes, count, WEAPON_SOURCES.get(weapon), OFFHAND_SOURCES.get(offhand)))
-				{
+	private static boolean hasRunes(Map<Integer, Integer> runes, @Nullable Item[] inventory, @Nullable Item[] worn, ToIntFunction<Integer> count) {
+		for (int weapon : choices(worn, EquipmentInventorySlot.WEAPON, inventory, WEAPON_SOURCES)) {
+			for (int offhand : choices(worn, EquipmentInventorySlot.SHIELD, inventory, OFFHAND_SOURCES)) {
+				if (hasRunes(runes, count, WEAPON_SOURCES.get(weapon), OFFHAND_SOURCES.get(offhand))) {
 					return true;
 				}
 			}
@@ -155,14 +143,11 @@ public final class RuneCounter
 	}
 
 	private static boolean hasRunes(Map<Integer, Integer> runes, ToIntFunction<Integer> count, @Nullable Set<Integer> weaponRunes,
-		@Nullable Set<Integer> offhandRunes)
-	{
-		for (Map.Entry<Integer, Integer> rune : runes.entrySet())
-		{
+		@Nullable Set<Integer> offhandRunes) {
+		for (Map.Entry<Integer, Integer> rune : runes.entrySet()) {
 			int runeId = rune.getKey();
 			boolean infinite = weaponRunes != null && weaponRunes.contains(runeId) || offhandRunes != null && offhandRunes.contains(runeId);
-			if (!infinite && count.applyAsInt(runeId) < rune.getValue() && !hasSubstitute(count, runeId))
-			{
+			if (!infinite && count.applyAsInt(runeId) < rune.getValue() && !hasSubstitute(count, runeId)) {
 				return false;
 			}
 		}
@@ -171,17 +156,13 @@ public final class RuneCounter
 
 	// The worn item in slot (-1 if none), plus each source in the inventory.
 	private static Set<Integer> choices(@Nullable Item[] worn, EquipmentInventorySlot slot, @Nullable Item[] inventory,
-		Map<Integer, Set<Integer>> sources)
-	{
+		Map<Integer, Set<Integer>> sources) {
 		Set<Integer> choices = new LinkedHashSet<>();
 		Item wornItem = worn == null || slot.getSlotIdx() >= worn.length ? null : worn[slot.getSlotIdx()];
 		choices.add(wornItem == null ? -1 : wornItem.getId());
-		if (inventory != null)
-		{
-			for (Item item : inventory)
-			{
-				if (item != null && sources.containsKey(item.getId()))
-				{
+		if (inventory != null) {
+			for (Item item : inventory) {
+				if (item != null && sources.containsKey(item.getId())) {
 					choices.add(item.getId());
 				}
 			}
@@ -190,56 +171,44 @@ public final class RuneCounter
 	}
 
 	@Nullable
-	private static Item[] items(Client client, InventoryID inventoryId)
-	{
+	private static Item[] items(Client client, InventoryID inventoryId) {
 		ItemContainer container = client.getItemContainer(inventoryId);
 		return container == null ? null : container.getItems();
 	}
 
 	// Item id -> the runes it's an infinite source of.
-	private static Map<Integer, Set<Integer>> bySource(Map<Integer, int[]> sourcesByRune)
-	{
+	private static Map<Integer, Set<Integer>> bySource(Map<Integer, int[]> sourcesByRune) {
 		Map<Integer, Set<Integer>> bySource = new HashMap<>();
-		sourcesByRune.forEach((rune, items) ->
-		{
-			for (int item : items)
-			{
+		sourcesByRune.forEach((rune, items) -> {
+			for (int item : items) {
 				bySource.computeIfAbsent(item, k -> new HashSet<>()).add(rune);
 			}
 		});
 		return bySource;
 	}
 
-	private static int count(PartyMember member, int runeId)
-	{
+	private static int count(PartyMember member, int runeId) {
 		Item[] inventory = member.getInv();
 		return itemCount(inventory, runeId) + (hasRunePouch(inventory) ? itemCount(member.getRunepouch(), runeId) : 0);
 	}
 
-	public static int itemCount(@Nullable Item[] items, int itemId)
-	{
-		if (items == null)
-		{
+	public static int itemCount(@Nullable Item[] items, int itemId) {
+		if (items == null) {
 			return 0;
 		}
 
 		int total = 0;
-		for (Item item : items)
-		{
-			if (item != null && item.getId() == itemId)
-			{
+		for (Item item : items) {
+			if (item != null && item.getId() == itemId) {
 				total += item.getQuantity();
 			}
 		}
 		return total;
 	}
 
-	private static boolean hasRunePouch(@Nullable Item[] inventory)
-	{
-		for (int variant : RUNE_POUCH_VARIANTS)
-		{
-			if (itemCount(inventory, variant) > 0)
-			{
+	private static boolean hasRunePouch(@Nullable Item[] inventory) {
+		for (int variant : RUNE_POUCH_VARIANTS) {
+			if (itemCount(inventory, variant) > 0) {
 				return true;
 			}
 		}
@@ -247,18 +216,14 @@ public final class RuneCounter
 	}
 
 	// Any quantity of a combo rune covering runeId counts as satisfying it.
-	private static boolean hasSubstitute(ToIntFunction<Integer> count, int runeId)
-	{
+	private static boolean hasSubstitute(ToIntFunction<Integer> count, int runeId) {
 		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
-		if (substitutes == null)
-		{
+		if (substitutes == null) {
 			return false;
 		}
 
-		for (int substitute : substitutes)
-		{
-			if (count.applyAsInt(substitute) > 0)
-			{
+		for (int substitute : substitutes) {
+			if (count.applyAsInt(substitute) > 0) {
 				return true;
 			}
 		}
@@ -267,24 +232,19 @@ public final class RuneCounter
 	}
 
 	// Total quantity of a rune available: inventory + rune pouch contents
-	static int count(Client client, int runeId)
-	{
+	static int count(Client client, int runeId) {
 		return itemCount(client, InventoryID.INVENTORY, runeId) + runePouchCount(client, runeId);
 	}
 
-	public static int itemCount(Client client, InventoryID inventoryId, int itemId)
-	{
+	public static int itemCount(Client client, InventoryID inventoryId, int itemId) {
 		ItemContainer container = client.getItemContainer(inventoryId);
-		if (container == null)
-		{
+		if (container == null) {
 			return 0;
 		}
 
 		int total = 0;
-		for (Item item : container.getItems())
-		{
-			if (item != null && item.getId() == itemId)
-			{
+		for (Item item : container.getItems()) {
+			if (item != null && item.getId() == itemId) {
 				total += item.getQuantity();
 			}
 		}
@@ -292,26 +252,21 @@ public final class RuneCounter
 		return total;
 	}
 
-	private static int runePouchCount(Client client, int runeId)
-	{
-		if (!containsRunePouch(client))
-		{
+	private static int runePouchCount(Client client, int runeId) {
+		if (!containsRunePouch(client)) {
 			return 0;
 		}
 
 		EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
 		int total = 0;
-		for (int i = 0; i < RUNE_POUCH_TYPE_VARBITS.length; i++)
-		{
+		for (int i = 0; i < RUNE_POUCH_TYPE_VARBITS.length; i++) {
 			int quantity = client.getVarbitValue(RUNE_POUCH_QUANTITY_VARBITS[i]);
 			int runeIndex = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-			if (runeIndex == 0 || quantity <= 0)
-			{
+			if (runeIndex == 0 || quantity <= 0) {
 				continue;
 			}
 
-			if (runepouchEnum.getIntValue(runeIndex) == runeId)
-			{
+			if (runepouchEnum.getIntValue(runeIndex) == runeId) {
 				total += quantity;
 			}
 		}
@@ -319,25 +274,19 @@ public final class RuneCounter
 		return total;
 	}
 
-	private static boolean containsRunePouch(Client client)
-	{
+	private static boolean containsRunePouch(Client client) {
 		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-		if (inventory == null)
-		{
+		if (inventory == null) {
 			return false;
 		}
 
-		for (Item item : inventory.getItems())
-		{
-			if (item == null)
-			{
+		for (Item item : inventory.getItems()) {
+			if (item == null) {
 				continue;
 			}
 
-			for (int variant : RUNE_POUCH_VARIANTS)
-			{
-				if (item.getId() == variant)
-				{
+			for (int variant : RUNE_POUCH_VARIANTS) {
+				if (item.getId() == variant) {
 					return true;
 				}
 			}

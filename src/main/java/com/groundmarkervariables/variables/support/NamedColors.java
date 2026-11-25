@@ -19,8 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 // Color names usable as <col=NAME>, e.g. <col=red> -> <col=FF0000>: named-colors.json, plus highlight and limy.
 @Slf4j
-public final class NamedColors
-{
+public final class NamedColors {
 	private static final String LIMY = "limy";
 	// The Highlight Color config option's color; see setHighlight.
 	private static final String HIGHLIGHT = "highlight";
@@ -40,23 +39,17 @@ public final class NamedColors
 			+ "|\\{/col\\}",
 		Pattern.CASE_INSENSITIVE);
 
-	private NamedColors()
-	{
+	private NamedColors() {
 	}
 
 	// named-colors.json's colors in its order, then limy.
-	private static Map<String, String> createHexByName()
-	{
+	private static Map<String, String> createHexByName() {
 		Map<String, String> colors = new LinkedHashMap<>();
-		try (Reader reader = new InputStreamReader(NamedColors.class.getResourceAsStream("named-colors.json"), StandardCharsets.UTF_8))
-		{
-			for (Map.Entry<String, JsonElement> color : new JsonParser().parse(reader).getAsJsonObject().getAsJsonObject("colors").entrySet())
-			{
+		try (Reader reader = new InputStreamReader(NamedColors.class.getResourceAsStream("named-colors.json"), StandardCharsets.UTF_8)) {
+			for (Map.Entry<String, JsonElement> color : new JsonParser().parse(reader).getAsJsonObject().getAsJsonObject("colors").entrySet()) {
 				colors.put(color.getKey().toLowerCase(Locale.ROOT), color.getValue().getAsString());
 			}
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e) {
 			log.warn("Couldn't load named colors", e);
 		}
 		colors.put(HIGHLIGHT, "FFC3A0");
@@ -65,13 +58,11 @@ public final class NamedColors
 	}
 
 	// highlight's color, from the Highlight Color config option.
-	public static void setHighlight(Color color)
-	{
+	public static void setHighlight(Color color) {
 		COLORS.put(HIGHLIGHT, String.format("%06X", color.getRGB() & 0xFFFFFF));
 	}
 
-	private static Map<String, Integer> createOpacityByName()
-	{
+	private static Map<String, Integer> createOpacityByName() {
 		Map<String, Integer> opacities = new LinkedHashMap<>();
 		opacities.put("invis", 0);
 		opacities.put("translucent", 50);
@@ -81,18 +72,15 @@ public final class NamedColors
 	}
 
 	// <col=NAME>/{col=HEX|NAME} become <col=HEX>; {/col} becomes </col> (still unresolved).
-	public static String expandColorAliases(String text)
-	{
+	public static String expandColorAliases(String text) {
 		Matcher matcher = COLOR_ALIAS_PATTERN.matcher(text);
-		if (!matcher.find())
-		{
+		if (!matcher.find()) {
 			return text;
 		}
 
 		StringBuilder result = new StringBuilder();
 		matcher.reset();
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			String value = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
 			String replacement = value == null ? "</col>" : "<col=" + HEX_BY_NAME.getOrDefault(value.toLowerCase(), value) + ">";
 			matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));

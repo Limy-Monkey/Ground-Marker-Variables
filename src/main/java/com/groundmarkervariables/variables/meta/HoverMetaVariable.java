@@ -10,35 +10,29 @@ import com.groundmarkervariables.variables.support.NamedColors;
 
 // {hover} or {hover=<color>@N%} -- while the mouse is over this label, it's drawn above other labels
 // on a background of <color> (hex or named) at N% opacity.
-public class HoverMetaVariable implements MetaVariable
-{
+public class HoverMetaVariable implements MetaVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{hover(?:=#?(\\w+)@(\\d{1,3})%)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Color DEFAULT_BACKGROUND = new Color(0, 0, 0, 150);
 
 	@Inject
-	private HoverMetaVariable()
-	{
+	private HoverMetaVariable() {
 	}
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	@Override
-	public void apply(Matcher matcher, MetaState state)
-	{
-		if (matcher.group(1) == null)
-		{
+	public void apply(Matcher matcher, MetaState state) {
+		if (matcher.group(1) == null) {
 			state.setHoverBackground(DEFAULT_BACKGROUND);
 			return;
 		}
 
 		String value = matcher.group(1);
 		String hex = value.matches("[0-9a-fA-F]{6}") ? value : NamedColors.HEX_BY_NAME.get(value.toLowerCase(Locale.ROOT));
-		if (hex == null)
-		{
+		if (hex == null) {
 			return;
 		}
 

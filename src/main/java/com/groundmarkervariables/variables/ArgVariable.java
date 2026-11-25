@@ -12,8 +12,7 @@ import net.runelite.client.party.PartyMember;
 // A one-argument LabelVariable defined inline (see ArgVariables): {name <arg>}, arg trimmed and ending before any of
 // {}?:<>=!, (so a trailing comparator isn't part of it). Plain is value(arg)'s text, unavailable while null; Rich is
 // rich(arg, Plain), which may itself be null.
-public class ArgVariable implements LabelVariable
-{
+public class ArgVariable implements LabelVariable {
 	private final String name;
 	private Pattern pattern;
 	private final boolean numeric;
@@ -25,14 +24,12 @@ public class ArgVariable implements LabelVariable
 	private boolean joined;
 
 	// name: e.g. "kc". numeric: usable in MathVariable.
-	public ArgVariable(String name, boolean numeric, Function<String, Object> value, BiFunction<String, String, String> rich)
-	{
+	public ArgVariable(String name, boolean numeric, Function<String, Object> value, BiFunction<String, String, String> rich) {
 		this(name, Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!,]+?)\\s*\\}", Pattern.CASE_INSENSITIVE), numeric, value, rich, null, false);
 	}
 
 	private ArgVariable(String name, Pattern pattern, boolean numeric, Function<String, Object> value, BiFunction<String, String, String> rich,
-		@Nullable Args args, boolean joined)
-	{
+		@Nullable Args args, boolean joined) {
 		this.name = name;
 		this.pattern = pattern;
 		this.numeric = numeric;
@@ -42,37 +39,31 @@ public class ArgVariable implements LabelVariable
 		this.joined = joined;
 	}
 
-	public boolean numeric()
-	{
+	public boolean numeric() {
 		return numeric;
 	}
 
 	// arg is one word right after the name, e.g. {lvl_attack}.
-	public ArgVariable joined()
-	{
+	public ArgVariable joined() {
 		joined = true;
 		pattern = Pattern.compile("\\{" + name + "(\\w+?)\\}", Pattern.CASE_INSENSITIVE);
-		if (args != null)
-		{
+		if (args != null) {
 			args.joined();
 		}
 		return this;
 	}
 
 	// arg may be a comma-separated list, e.g. {hasItem salve, blowpipe}, each part suggested as arg is (after suggest()).
-	public ArgVariable listed()
-	{
+	public ArgVariable listed() {
 		pattern = Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
 		args.extras(main -> args.mainNames(), args::mainIcon);
 		return this;
 	}
 
 	// Autocomplete suggests arg from names, each with icon's syntax if any.
-	public ArgVariable suggest(Supplier<Collection<String>> names, @Nullable Function<String, String> icon)
-	{
+	public ArgVariable suggest(Supplier<Collection<String>> names, @Nullable Function<String, String> icon) {
 		args = Args.of(name).main(names, icon == null ? value -> null : icon);
-		if (joined)
-		{
+		if (joined) {
 			args.joined();
 		}
 		return this;
@@ -80,60 +71,51 @@ public class ArgVariable implements LabelVariable
 
 	@Nullable
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return args;
 	}
 
 	// Also in {party} rows: member's value and Rich Text there, and row(arg, Plain) for our own row.
 	public ArgVariable party(BiFunction<String, PartyMember, Object> member, BiFunction<String, PartyMember, String> memberRich,
-		BiFunction<String, String, String> row)
-	{
+		BiFunction<String, String, String> row) {
 		return new Party(this, member, memberRich, row);
 	}
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return pattern;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		String arg = arg(matcher);
 		return arg == null ? null : text(value.apply(arg));
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		String plain = resolvePlain(matcher);
 		return plain == null ? null : rich.apply(arg(matcher), plain);
 	}
 
 	@Nullable
-	private static String arg(Matcher matcher)
-	{
+	private static String arg(Matcher matcher) {
 		String arg = matcher.group(1).trim();
 		return arg.isEmpty() ? null : arg;
 	}
 
 	@Nullable
-	private static String text(@Nullable Object value)
-	{
+	private static String text(@Nullable Object value) {
 		return value == null ? null : String.valueOf(value);
 	}
 
-	private static final class Party extends ArgVariable implements PartyMemberVariable
-	{
+	private static final class Party extends ArgVariable implements PartyMemberVariable {
 		private final BiFunction<String, PartyMember, Object> member;
 		private final BiFunction<String, PartyMember, String> memberRich;
 		private final BiFunction<String, String, String> row;
 
 		private Party(ArgVariable from, BiFunction<String, PartyMember, Object> member, BiFunction<String, PartyMember, String> memberRich,
-			BiFunction<String, String, String> row)
-		{
+			BiFunction<String, String, String> row) {
 			super(from.name, from.pattern, from.numeric, from.value, from.rich, from.args, from.joined);
 			this.member = member;
 			this.memberRich = memberRich;
@@ -141,22 +123,19 @@ public class ArgVariable implements LabelVariable
 		}
 
 		@Override
-		public String resolvePlain(Matcher matcher, PartyMember member)
-		{
+		public String resolvePlain(Matcher matcher, PartyMember member) {
 			String arg = arg(matcher);
 			return arg == null ? null : text(this.member.apply(arg, member));
 		}
 
 		@Override
-		public String resolveRich(Matcher matcher, PartyMember member)
-		{
+		public String resolveRich(Matcher matcher, PartyMember member) {
 			String arg = arg(matcher);
 			return arg == null ? null : memberRich.apply(arg, member);
 		}
 
 		@Override
-		public String resolveRowRich(Matcher matcher, RichText richText)
-		{
+		public String resolveRowRich(Matcher matcher, RichText richText) {
 			String plain = resolvePlain(matcher);
 			return plain == null ? null : row.apply(arg(matcher), plain);
 		}

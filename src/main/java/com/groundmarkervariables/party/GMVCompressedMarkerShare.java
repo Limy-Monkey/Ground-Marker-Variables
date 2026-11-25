@@ -9,8 +9,7 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class GMVCompressedMarkerShare extends PartyMemberMessage
-{
+public class GMVCompressedMarkerShare extends PartyMemberMessage {
 	private int version;
 	private String data;
 }

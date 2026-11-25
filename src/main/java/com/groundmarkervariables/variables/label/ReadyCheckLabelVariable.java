@@ -25,8 +25,7 @@ import net.runelite.client.party.PartyMember;
 // boost a super combat potion. Plain: ready / potting / potted / not ready / away / none. Over 99 tiles from this tile,
 // or on another plane, it's :telescope: instead, plain "far".
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable
-{
+public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
 	private static final int FAR_DISTANCE = 99;
 	private static final DateTimeFormatter AWAY_TIME = DateTimeFormatter.ofPattern("h:mm");
@@ -37,45 +36,38 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 	private final Emojis emojis;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	// The status is looked up even when far, since that marks this tile as seen (see ReadyCheckTracker).
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		Status status = tracker.localStatus();
 		return isFar(localLocation()) ? "far" : plain(status);
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		Status status = tracker.localStatus();
 		return isFar(localLocation()) ? farIcon() : rich(status);
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member)
-	{
+	public String resolvePlain(Matcher matcher, PartyMember member) {
 		Status status = tracker.status(member.getDisplayName());
 		return isFar(member) ? "far" : plain(status);
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher, PartyMember member)
-	{
+	public String resolveRich(Matcher matcher, PartyMember member) {
 		Status status = tracker.status(member.getDisplayName());
 		return isFar(member) ? farIcon() : rich(status);
 	}
 
 	// Going far clears their status, so it isn't still there when they come back.
-	private boolean isFar(PartyMember member)
-	{
-		if (!isFar(member.getCoord()))
-		{
+	private boolean isFar(PartyMember member) {
+		if (!isFar(member.getCoord())) {
 			return false;
 		}
 
@@ -84,38 +76,31 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 	}
 
 	// False without a player location or a tile being resolved.
-	private boolean isFar(@Nullable WorldPoint player)
-	{
+	private boolean isFar(@Nullable WorldPoint player) {
 		WorldPoint tile = resolvingTile.tile;
 		return player != null && tile != null && (player.getPlane() != tile.getPlane() || player.distanceTo(tile) > FAR_DISTANCE);
 	}
 
 	@Nullable
-	private WorldPoint localLocation()
-	{
+	private WorldPoint localLocation() {
 		return client.getLocalPlayer() == null ? null : client.getLocalPlayer().getWorldLocation();
 	}
 
-	private String farIcon()
-	{
+	private String farIcon() {
 		return emojis.expand("{tip=Not nearby}:telescope@lightgray:{/tip}");
 	}
 
 	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText)
-	{
+	public String resolveRowRich(Matcher matcher, RichText richText) {
 		return resolveRich(matcher);
 	}
 
-	private static String plain(Status status)
-	{
-		if (status == null)
-		{
+	private static String plain(Status status) {
+		if (status == null) {
 			return "none";
 		}
 
-		switch (status.kind)
-		{
+		switch (status.kind) {
 			case READY:
 				return "ready";
 			case POTTING:
@@ -129,15 +114,12 @@ public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariab
 		}
 	}
 
-	private String rich(Status status)
-	{
-		if (status == null)
-		{
+	private String rich(Status status) {
+		if (status == null) {
 			return "";
 		}
 
-		switch (status.kind)
-		{
+		switch (status.kind) {
 			case READY:
 				return RichText.colored(Color.GREEN, "R");
 			case POTTING:

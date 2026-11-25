@@ -24,8 +24,7 @@ import net.runelite.client.util.QuantityFormatter;
 // and/or literal numbers (e.g. "5", "1.5k"). Parens override the usual * / before + -
 // precedence. Not usable with {metronomeN}. Also supports "<date literal> - date" (or
 // reversed) as a day-count countdown, since {date}'s own Plain Text isn't a number.
-public class MathVariable implements LabelVariable
-{
+public class MathVariable implements LabelVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+?(?:\\s[+\\-*/]\\s[^{}]+?)+)\\}");
 	private static final Pattern OPERATOR = Pattern.compile("\\s([+\\-*/])\\s");
 	private static final String DATE_VARIABLE = "date";
@@ -37,53 +36,42 @@ public class MathVariable implements LabelVariable
 	private final PartyMemberContext memberContext;
 
 	@Inject
-	private MathVariable(NumericVariableRegistry registry, RichText richText, PartyMemberContext memberContext)
-	{
+	private MathVariable(NumericVariableRegistry registry, RichText richText, PartyMemberContext memberContext) {
 		this.memberContext = memberContext;
 		this.numericVariables = registry.all();
 		this.richText = richText;
 	}
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
-		try
-		{
+	public String resolvePlain(Matcher matcher) {
+		try {
 			Long minutes = evaluateTimeCountdown(matcher.group(1));
-			if (minutes != null)
-			{
+			if (minutes != null) {
 				return formatMinutes(minutes, false);
 			}
 
 			Long days = evaluateDateCountdown(matcher.group(1));
-			if (days != null)
-			{
+			if (days != null) {
 				return String.valueOf(days);
 			}
 
 			Double value = evaluate(matcher.group(1));
 			return value == null ? null : formatPlain(value);
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			return "NaN";
 		}
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
-		try
-		{
+	public String resolveRich(Matcher matcher) {
+		try {
 			Long minutes = evaluateTimeCountdown(matcher.group(1));
-			if (minutes != null)
-			{
+			if (minutes != null) {
 				return richText.highlightValue(formatMinutes(minutes, true));
 			}
 
@@ -92,16 +80,13 @@ public class MathVariable implements LabelVariable
 			// "day(s)" only applies to a bare date pair -- once anything's chained after it
 			// (a second operator), fall through to the normal plain-number formatting below.
 			Matcher opMatcher = OPERATOR.matcher(matcher.group(1));
-			if (days != null && opMatcher.find() && !opMatcher.find())
-			{
+			if (days != null && opMatcher.find() && !opMatcher.find()) {
 				return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
 			}
 
 			Double value = days != null ? Double.valueOf(days) : evaluate(matcher.group(1));
 			return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			return "NaN";
 		}
 	}
@@ -110,11 +95,9 @@ public class MathVariable implements LabelVariable
 	// as the first two operands -- date math only applies at the very start of a chain (or,
 	// via evaluateInner(), the very start of a parenthesized group). Whatever follows (e.g.
 	// "+ 2") is handled by the normal evaluate().
-	private Long evaluateDateCountdown(String expression)
-	{
+	private Long evaluateDateCountdown(String expression) {
 		Matcher opMatcher = OPERATOR.matcher(expression);
-		if (!opMatcher.find() || !"-".equals(opMatcher.group(1)))
-		{
+		if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
 			return null;
 		}
 
@@ -123,27 +106,22 @@ public class MathVariable implements LabelVariable
 
 		String second;
 		String remainder;
-		if (opMatcher.find())
-		{
+		if (opMatcher.find()) {
 			second = expression.substring(secondStart, opMatcher.start()).trim();
 			remainder = expression.substring(opMatcher.start());
-		}
-		else
-		{
+		} else {
 			second = expression.substring(secondStart).trim();
 			remainder = "";
 		}
 
 		LocalDate firstDate = dateValueOf(first);
 		LocalDate secondDate = dateValueOf(second);
-		if (firstDate == null || secondDate == null)
-		{
+		if (firstDate == null || secondDate == null) {
 			return null;
 		}
 
 		long dayCount = ChronoUnit.DAYS.between(secondDate, firstDate);
-		if (remainder.isEmpty())
-		{
+		if (remainder.isEmpty()) {
 			return dayCount;
 		}
 
@@ -153,25 +131,21 @@ public class MathVariable implements LabelVariable
 
 	// "<a> - <b>" in minutes, between times (wrapping past midnight) or date times. Date pairs are
 	// left to evaluateDateCountdown.
-	private static Long evaluateTimeCountdown(String expression)
-	{
+	private static Long evaluateTimeCountdown(String expression) {
 		Matcher opMatcher = OPERATOR.matcher(expression);
-		if (!opMatcher.find() || !"-".equals(opMatcher.group(1)))
-		{
+		if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
 			return null;
 		}
 
 		String first = expression.substring(0, opMatcher.start()).trim();
 		String second = expression.substring(opMatcher.end()).trim();
-		if (opMatcher.find() || dateValueOf(first) != null && dateValueOf(second) != null)
-		{
+		if (opMatcher.find() || dateValueOf(first) != null && dateValueOf(second) != null) {
 			return null;
 		}
 
 		Integer toMinute = minuteOfDay(first);
 		Integer fromMinute = minuteOfDay(second);
-		if (toMinute != null && fromMinute != null)
-		{
+		if (toMinute != null && fromMinute != null) {
 			return (long) Math.floorMod(toMinute - fromMinute, 24 * 60);
 		}
 
@@ -181,21 +155,17 @@ public class MathVariable implements LabelVariable
 	}
 
 	// "now", "<date>" (midnight) or "<date> <time>", e.g. "oct 30 7am".
-	private static LocalDateTime dateTimeValueOf(String text)
-	{
-		if (NOW_VARIABLE.equalsIgnoreCase(text))
-		{
+	private static LocalDateTime dateTimeValueOf(String text) {
+		if (NOW_VARIABLE.equalsIgnoreCase(text)) {
 			return LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
 		}
 
 		String[] words = text.split("\\s+");
-		for (int split = words.length; split > 0; split--)
-		{
+		for (int split = words.length; split > 0; split--) {
 			LocalDate date = DateLiteralParser.parse(String.join(" ", Arrays.copyOfRange(words, 0, split)));
 			String timeText = String.join(" ", Arrays.copyOfRange(words, split, words.length));
 			Integer minute = timeText.isEmpty() ? Integer.valueOf(0) : minuteOfDay(timeText);
-			if (date != null && minute != null)
-			{
+			if (date != null && minute != null) {
 				return date.atStartOfDay().plusMinutes(minute);
 			}
 		}
@@ -203,8 +173,7 @@ public class MathVariable implements LabelVariable
 	}
 
 	// h:mm, negative in the past. Rich splits off days, e.g. "3 days 3:12".
-	private static String formatMinutes(long minutes, boolean rich)
-	{
+	private static String formatMinutes(long minutes, boolean rich) {
 		long abs = Math.abs(minutes);
 		long days = rich ? abs / (24 * 60) : 0;
 		long rest = abs - days * 24 * 60;
@@ -213,15 +182,12 @@ public class MathVariable implements LabelVariable
 	}
 
 	// "time"/"now" is the current time. Bare numbers stay numbers, so {5 - 3} is still 2.
-	private static Integer minuteOfDay(String text)
-	{
-		if (TIME_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text))
-		{
+	private static Integer minuteOfDay(String text) {
+		if (TIME_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text)) {
 			return LocalTime.now().toSecondOfDay() / 60;
 		}
 
-		if (ConditionEvaluator.tryParseNumber(text) != null)
-		{
+		if (ConditionEvaluator.tryParseNumber(text) != null) {
 			return null;
 		}
 
@@ -230,32 +196,26 @@ public class MathVariable implements LabelVariable
 	}
 
 	// "date"/"now" means today; otherwise must parse as a date literal.
-	private static LocalDate dateValueOf(String text)
-	{
+	private static LocalDate dateValueOf(String text) {
 		return DATE_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text) ? LocalDate.now() : DateLiteralParser.parse(text);
 	}
 
 	// Reduces the innermost "(...)" first, then moves outwards. Paren is always space padded.
-	private Double evaluate(String expression)
-	{
+	private Double evaluate(String expression) {
 		String reduced = expression;
-		while (reduced.contains("("))
-		{
+		while (reduced.contains("(")) {
 			int close = reduced.indexOf(')');
-			if (close < 0)
-			{
+			if (close < 0) {
 				return null;
 			}
 
 			int open = reduced.lastIndexOf('(', close);
-			if (open < 0)
-			{
+			if (open < 0) {
 				return null;
 			}
 
 			Double inner = evaluateInner(reduced.substring(open + 1, close));
-			if (inner == null)
-			{
+			if (inner == null) {
 				return null;
 			}
 
@@ -266,26 +226,22 @@ public class MathVariable implements LabelVariable
 	}
 
 	// A paren group's own content may itself start with a date pairing.
-	private Double evaluateInner(String text)
-	{
+	private Double evaluateInner(String text) {
 		Long days = evaluateDateCountdown(text);
 		return days != null ? Double.valueOf(days) : evaluateFlat(text);
 	}
 
 	// Splits on whitespace-padded operators, resolves every operand, then applies standard
 	// precedence (* and / before + and -) left to right within each pass.
-	private Double evaluateFlat(String expression)
-	{
+	private Double evaluateFlat(String expression) {
 		List<Double> operands = new ArrayList<>();
 		List<Character> operators = new ArrayList<>();
 
 		Matcher opMatcher = OPERATOR.matcher(expression);
 		int last = 0;
-		while (opMatcher.find())
-		{
+		while (opMatcher.find()) {
 			Double operand = resolveOperand(expression.substring(last, opMatcher.start()));
-			if (operand == null)
-			{
+			if (operand == null) {
 				return null;
 			}
 			operands.add(operand);
@@ -294,25 +250,21 @@ public class MathVariable implements LabelVariable
 		}
 
 		Double finalOperand = resolveOperand(expression.substring(last));
-		if (finalOperand == null)
-		{
+		if (finalOperand == null) {
 			return null;
 		}
 		operands.add(finalOperand);
 
-		for (int i = 0; i < operators.size(); )
-		{
+		for (int i = 0; i < operators.size(); ) {
 			char op = operators.get(i);
-			if (op != '*' && op != '/')
-			{
+			if (op != '*' && op != '/') {
 				i++;
 				continue;
 			}
 
 			double left = operands.get(i);
 			double right = operands.get(i + 1);
-			if (op == '/' && right == 0)
-			{
+			if (op == '/' && right == 0) {
 				return null;
 			}
 
@@ -322,8 +274,7 @@ public class MathVariable implements LabelVariable
 		}
 
 		double total = operands.get(0);
-		for (int i = 0; i < operators.size(); i++)
-		{
+		for (int i = 0; i < operators.size(); i++) {
 			total = operators.get(i) == '+' ? total + operands.get(i + 1) : total - operands.get(i + 1);
 		}
 
@@ -331,20 +282,16 @@ public class MathVariable implements LabelVariable
 	}
 
 	// A literal number (plain or "1.5k"-style), or another variable's own Plain Text value.
-	private Double resolveOperand(String text)
-	{
+	private Double resolveOperand(String text) {
 		text = text.trim();
 		Double literal = ConditionEvaluator.tryParseNumber(text);
-		if (literal != null)
-		{
+		if (literal != null) {
 			return literal;
 		}
 
-		for (LabelVariable variable : numericVariables)
-		{
+		for (LabelVariable variable : numericVariables) {
 			Matcher wrapped = variable.pattern().matcher("{" + text + "}");
-			if (wrapped.matches())
-			{
+			if (wrapped.matches()) {
 				String resolved = memberContext.resolve(variable, wrapped, false);
 				return resolved == null ? null : ConditionEvaluator.tryParseNumber(resolved);
 			}
@@ -353,8 +300,7 @@ public class MathVariable implements LabelVariable
 		return null;
 	}
 
-	static String formatPlain(double value)
-	{
+	static String formatPlain(double value) {
 		return value == Math.rint(value) && !Double.isInfinite(value)
 			? String.valueOf((long) value)
 			: String.valueOf(value);

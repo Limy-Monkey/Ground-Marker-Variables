@@ -28,8 +28,7 @@ import net.runelite.client.party.PartyMember;
 // Quiver isn't a real equipment slot, so its live ammo type comes from a varp instead.
 // {equip_<slot> icon} is the item's icon, or nothing if empty.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
-{
+public class EquipLabelVariable implements LabelVariable, PartyMemberVariable {
 	// Suggesting each slot, with its icon.
 	private static final Args ARGS = Args.of("equip_").joined()
 		.main(() -> List.of("helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver"),
@@ -63,35 +62,29 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	private final RichText richText;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return ARGS.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return ARGS;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		return client.getLocalPlayer() == null ? null : name(localItemId(slot(matcher)));
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	public String resolveRich(Matcher matcher) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
 		String slot = slot(matcher);
 		int itemId = localItemId(slot);
-		if (isIcon(matcher))
-		{
+		if (isIcon(matcher)) {
 			return icon(itemId);
 		}
 
@@ -100,17 +93,14 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member)
-	{
+	public String resolvePlain(Matcher matcher, PartyMember member) {
 		return name(memberItemId(slot(matcher), member));
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher, PartyMember member)
-	{
+	public String resolveRich(Matcher matcher, PartyMember member) {
 		int itemId = memberItemId(slot(matcher), member);
-		if (isIcon(matcher))
-		{
+		if (isIcon(matcher)) {
 			return icon(itemId);
 		}
 
@@ -119,51 +109,41 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 	}
 
 	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText)
-	{
+	public String resolveRowRich(Matcher matcher, RichText richText) {
 		return isIcon(matcher) ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
 	}
 
-	private static boolean isIcon(Matcher matcher)
-	{
+	private static boolean isIcon(Matcher matcher) {
 		return ARGS.options(matcher).flag("icon");
 	}
 
-	private static String slot(Matcher matcher)
-	{
+	private static String slot(Matcher matcher) {
 		return ARGS.main(matcher).toLowerCase(Locale.ENGLISH);
 	}
 
 	// Null for an unknown slot.
-	private String name(int itemId)
-	{
-		if (itemId == UNKNOWN)
-		{
+	private String name(int itemId) {
+		if (itemId == UNKNOWN) {
 			return null;
 		}
 		return itemId <= 0 ? EMPTY : itemManager.getItemComposition(itemId).getName();
 	}
 
-	private static String icon(int itemId)
-	{
-		if (itemId == UNKNOWN)
-		{
+	private static String icon(int itemId) {
+		if (itemId == UNKNOWN) {
 			return null;
 		}
 		return itemId <= 0 ? "" : Icons.item(itemId);
 	}
 
 	// <= 0 when empty, UNKNOWN for an unknown slot.
-	private int localItemId(String slot)
-	{
-		if (QUIVER.equals(slot))
-		{
+	private int localItemId(String slot) {
+		if (QUIVER.equals(slot)) {
 			return QuiverAmmo.isAvailable(client, itemManager) ? client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO) : -1;
 		}
 
 		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null)
-		{
+		if (equipmentSlot == null) {
 			return UNKNOWN;
 		}
 
@@ -172,16 +152,13 @@ public class EquipLabelVariable implements LabelVariable, PartyMemberVariable
 		return item == null ? -1 : item.getId();
 	}
 
-	private static int memberItemId(String slot, PartyMember member)
-	{
-		if (QUIVER.equals(slot))
-		{
+	private static int memberItemId(String slot, PartyMember member) {
+		if (QUIVER.equals(slot)) {
 			return member.getQuiver() == null ? -1 : member.getQuiver().getId();
 		}
 
 		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null)
-		{
+		if (equipmentSlot == null) {
 			return UNKNOWN;
 		}
 

@@ -33,8 +33,7 @@ import net.runelite.api.coords.LocalPoint;
 // the game camera every frame, Gouraud shaded, textures scrolling as in game.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class GroundModelRenderer
-{
+public class GroundModelRenderer {
 	// Space around the model inside the tile, in local units.
 	private static final int MARGIN = 8;
 	// Shares of the model's depth over and under the ground.
@@ -62,8 +61,7 @@ public class GroundModelRenderer
 	// The model laid flat: each vertex's offset from the tile center and height, in local units, and per face to draw
 	// (back to front) its color, three corner colors, and texture (-1 none) with corner u/v (0..1) and darkening.
 	@RequiredArgsConstructor
-	private static final class Flat
-	{
+	private static final class Flat {
 		private final int[] east;
 		private final int[] north;
 		private final int[] height;
@@ -80,15 +78,13 @@ public class GroundModelRenderer
 	}
 
 	// E.g. with Parallax icons turned off.
-	public void clear()
-	{
+	public void clear() {
 		flats.clear();
 		buffer = null;
 		bufferPixels = null;
 	}
 
-	void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float opacity)
-	{
+	void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float opacity) {
 		draw(graphics, center, plane, model, model.getVerticesX(), model.getVerticesY(), model.getVerticesZ(), opacity, 0, 1, 0, () -> {});
 	}
 
@@ -96,11 +92,9 @@ public class GroundModelRenderer
 	// and moved offsetNorth local units north, in a frame turned facing degrees clockwise so the model's top faces that
 	// way. onGround runs once, between the faces under the ground and those over it.
 	public void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float[] x, float[] y, float[] z, float opacity,
-		int facing, double scale, double offsetNorth, Runnable onGround)
-	{
+		int facing, double scale, double offsetNorth, Runnable onGround) {
 		Flat flat = flats.computeIfAbsent(model, m -> layFlat(m, x, y, z));
-		if (flat == null)
-		{
+		if (flat == null) {
 			onGround.run();
 			return;
 		}
@@ -111,14 +105,12 @@ public class GroundModelRenderer
 		boolean[] visible = new boolean[vertexCount];
 		double angle = Math.toRadians(facing);
 		double sin = Math.sin(angle), cos = Math.cos(angle);
-		for (int i = 0; i < vertexCount; i++)
-		{
+		for (int i = 0; i < vertexCount; i++) {
 			double east = flat.east[i] * scale, north = flat.north[i] * scale + offsetNorth;
 			LocalPoint point = new LocalPoint(center.getX() + (int) Math.round(east * cos + north * sin),
 				center.getY() + (int) Math.round(-east * sin + north * cos), center.getWorldView());
 			Point p = Perspective.localToCanvas(client, point, plane, (int) Math.round(flat.height[i] * scale));
-			if (p != null)
-			{
+			if (p != null) {
 				visible[i] = true;
 				sx[i] = p.getX();
 				sy[i] = p.getY();
@@ -127,8 +119,7 @@ public class GroundModelRenderer
 
 		Polygon tile = Perspective.getCanvasTilePoly(client, center);
 		Rectangle bounds = tile == null ? null : bounds(sx, sy, visible);
-		if (bounds == null)
-		{
+		if (bounds == null) {
 			onGround.run();
 			return;
 		}
@@ -140,13 +131,10 @@ public class GroundModelRenderer
 
 	// The visible vertices' screen area, on the canvas; null if none.
 	@Nullable
-	private Rectangle bounds(int[] sx, int[] sy, boolean[] visible)
-	{
+	private Rectangle bounds(int[] sx, int[] sy, boolean[] visible) {
 		int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-		for (int i = 0; i < sx.length; i++)
-		{
-			if (visible[i])
-			{
+		for (int i = 0; i < sx.length; i++) {
+			if (visible[i]) {
 				minX = Math.min(minX, sx[i]);
 				minY = Math.min(minY, sy[i]);
 				maxX = Math.max(maxX, sx[i]);
@@ -161,8 +149,7 @@ public class GroundModelRenderer
 	// The faces with a corner under the ground, or the rest, shaded into the buffer at samples times the size, then drawn
 	// once (clipped to clip if any), scaled down so edges come out smooth.
 	private void drawPass(Graphics2D graphics, Flat flat, int[] sx, int[] sy, boolean[] visible, Rectangle bounds, int samples,
-		boolean underground, @Nullable Shape clip, float opacity)
-	{
+		boolean underground, @Nullable Shape clip, float opacity) {
 		int width = bounds.width * samples, height = bounds.height * samples;
 		int[] pixels = buffer(width, height);
 		int stride = buffer.getWidth();
@@ -170,27 +157,22 @@ public class GroundModelRenderer
 		Polygon triangle = new Polygon(new int[3], new int[3], 3);
 		Graphics2D textured = null;
 		boolean drawn = false;
-		for (int i = 0; i < flat.faces.length; i++)
-		{
+		for (int i = 0; i < flat.faces.length; i++) {
 			int f = flat.faces[i];
 			int a = flat.f1[f], b = flat.f2[f], c = flat.f3[f];
 			if (!visible[a] || !visible[b] || !visible[c]
-				|| (flat.height[a] < 0 || flat.height[b] < 0 || flat.height[c] < 0) != underground)
-			{
+				|| (flat.height[a] < 0 || flat.height[b] < 0 || flat.height[c] < 0) != underground) {
 				continue;
 			}
 			// Back faces are culled, as in game.
-			if ((sx[a] - sx[b]) * (sy[c] - sy[b]) - (sy[a] - sy[b]) * (sx[c] - sx[b]) <= 0)
-			{
+			if ((sx[a] - sx[b]) * (sy[c] - sy[b]) - (sy[a] - sy[b]) * (sx[c] - sx[b]) <= 0) {
 				continue;
 			}
 			drawn = true;
 
-			if (flat.textures[i] >= 0)
-			{
+			if (flat.textures[i] >= 0) {
 				// Through Java2D, into the same buffer in screen coordinates, so faces stay in order.
-				if (textured == null)
-				{
+				if (textured == null) {
 					textured = buffer.createGraphics();
 					textured.scale(samples, samples);
 					textured.translate(-bounds.x, -bounds.y);
@@ -203,8 +185,7 @@ public class GroundModelRenderer
 				triangle.ypoints[2] = sy[c];
 				triangle.invalidate();
 				// The texture's average color if the texture can't be drawn.
-				if (!drawTextured(textured, flat, i, triangle, cycle))
-				{
+				if (!drawTextured(textured, flat, i, triangle, cycle)) {
 					textured.setColor(flat.colors[i]);
 					textured.fill(grown(triangle));
 				}
@@ -216,26 +197,21 @@ public class GroundModelRenderer
 				(sx[c] - bounds.x) * samples, (sy[c] - bounds.y) * samples,
 				flat.corners[i * 3], flat.corners[i * 3 + 1], flat.corners[i * 3 + 2], flat.colors[i].getAlpha());
 		}
-		if (textured != null)
-		{
+		if (textured != null) {
 			textured.dispose();
 		}
-		if (!drawn)
-		{
+		if (!drawn) {
 			return;
 		}
 
 		Graphics2D g = (Graphics2D) graphics.create();
-		if (clip != null)
-		{
+		if (clip != null) {
 			g.clip(clip);
 		}
-		if (opacity < 1f)
-		{
+		if (opacity < 1f) {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
 		}
-		if (samples > 1)
-		{
+		if (samples > 1) {
 			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 		}
 		g.drawImage(buffer, bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height, 0, 0, width, height, null);
@@ -243,17 +219,14 @@ public class GroundModelRenderer
 	}
 
 	// The shared buffer's pixels, grown if needed and cleared over width x height.
-	private int[] buffer(int width, int height)
-	{
-		if (buffer == null || buffer.getWidth() < width || buffer.getHeight() < height)
-		{
+	private int[] buffer(int width, int height) {
+		if (buffer == null || buffer.getWidth() < width || buffer.getHeight() < height) {
 			buffer = new BufferedImage(Math.max(width, buffer == null ? 0 : buffer.getWidth()),
 				Math.max(height, buffer == null ? 0 : buffer.getHeight()), BufferedImage.TYPE_INT_ARGB_PRE);
 			bufferPixels = ((DataBufferInt) buffer.getRaster().getDataBuffer()).getData();
 		}
 		int stride = buffer.getWidth();
-		for (int row = 0; row < height; row++)
-		{
+		for (int row = 0; row < height; row++) {
 			Arrays.fill(bufferPixels, row * stride, row * stride + width, 0);
 		}
 		return bufferPixels;
@@ -262,11 +235,9 @@ public class GroundModelRenderer
 	// A triangle's corner colors (0xRRGGBB) blended across it, as the game shades models, over the pixels whose centers
 	// it covers; alpha over what's there. Premultiplied pixels.
 	private static void fillGouraud(int[] pixels, int stride, int width, int height, double ax, double ay, double bx, double by,
-		double cx, double cy, int ca, int cb, int cc, int alpha)
-	{
+		double cx, double cy, int ca, int cb, int cc, int alpha) {
 		double area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-		if (Math.abs(area) < 1e-9)
-		{
+		if (Math.abs(area) < 1e-9) {
 			return;
 		}
 		double inv = 1 / area;
@@ -286,8 +257,7 @@ public class GroundModelRenderer
 		double db = ba * dwa + bb * dwb + bc * dwc;
 		int inverse = 255 - alpha;
 		double[] starts = new double[3], steps = {dwa, dwb, dwc};
-		for (int y = minY; y <= maxY; y++)
-		{
+		for (int y = minY; y <= maxY; y++) {
 			// Weights at this row's first pixel center (x = 0).
 			double py = y + 0.5;
 			double wa = ((bx - 0.5) * (cy - py) - (by - py) * (cx - 0.5)) * inv;
@@ -299,25 +269,18 @@ public class GroundModelRenderer
 			starts[0] = wa;
 			starts[1] = wb;
 			starts[2] = wc;
-			for (int k = 0; k < 3; k++)
-			{
+			for (int k = 0; k < 3; k++) {
 				double edge = (-EDGE - starts[k]) / steps[k];
-				if (steps[k] > 0)
-				{
+				if (steps[k] > 0) {
 					lo = Math.max(lo, edge);
-				}
-				else if (steps[k] < 0)
-				{
+				} else if (steps[k] < 0) {
 					hi = Math.min(hi, edge);
-				}
-				else if (starts[k] < -EDGE)
-				{
+				} else if (starts[k] < -EDGE) {
 					hi = lo - 1;
 				}
 			}
 			int start = (int) Math.ceil(lo), end = (int) Math.floor(hi);
-			if (start > end)
-			{
+			if (start > end) {
 				continue;
 			}
 
@@ -325,11 +288,9 @@ public class GroundModelRenderer
 			double g = ga * (wa + dwa * start) + gb * (wb + dwb * start) + gc * (wc + dwc * start);
 			double b = ba * (wa + dwa * start) + bb * (wb + dwb * start) + bc * (wc + dwc * start);
 			int index = y * stride + start;
-			for (int x = start; x <= end; x++, index++, r += dr, g += dg, b += db)
-			{
+			for (int x = start; x <= end; x++, index++, r += dr, g += dg, b += db) {
 				int red = clamp(r), green = clamp(g), blue = clamp(b);
-				if (alpha == 255)
-				{
+				if (alpha == 255) {
 					pixels[index] = 0xFF000000 | red << 16 | green << 8 | blue;
 					continue;
 				}
@@ -343,18 +304,15 @@ public class GroundModelRenderer
 	}
 
 	// Rounded into 0..255.
-	private static int clamp(double value)
-	{
+	private static int clamp(double value) {
 		int rounded = (int) (value + 0.5);
 		return rounded < 0 ? 0 : Math.min(rounded, 255);
 	}
 
 	// The face's texture, scrolled to this game cycle and darkened by its lighting. False if it can't be drawn.
-	private boolean drawTextured(Graphics2D graphics, Flat flat, int i, Polygon triangle, int cycle)
-	{
+	private boolean drawTextured(Graphics2D graphics, Flat flat, int i, Polygon triangle, int cycle) {
 		ModelColors.TextureFill fill = modelColors.textureFill(flat.textures[i]);
-		if (fill == null)
-		{
+		if (fill == null) {
 			return false;
 		}
 
@@ -364,20 +322,16 @@ public class GroundModelRenderer
 		double ub = flat.u[i * 3 + 1] * fill.size + offsetU, vb = flat.v[i * 3 + 1] * fill.size + offsetV;
 		double uc = flat.u[i * 3 + 2] * fill.size + offsetU, vc = flat.v[i * 3 + 2] * fill.size + offsetV;
 		AffineTransform toScreen = triangleTransform(ua, va, ub, vb, uc, vc, triangle);
-		if (toScreen == null)
-		{
+		if (toScreen == null) {
 			return false;
 		}
 
 		// Texture and lighting fill the same grown shape, so lighting never covers a neighbour.
 		Shape screen = grown(triangle);
 		Shape texture;
-		try
-		{
+		try {
 			texture = toScreen.createInverse().createTransformedShape(screen);
-		}
-		catch (NoninvertibleTransformException e)
-		{
+		} catch (NoninvertibleTransformException e) {
 			return false;
 		}
 
@@ -387,8 +341,7 @@ public class GroundModelRenderer
 		g.fill(texture);
 		g.dispose();
 
-		if (flat.shade[i] > 0)
-		{
+		if (flat.shade[i] > 0) {
 			graphics.setColor(new Color(0, 0, 0, Math.round(flat.shade[i] * 255)));
 			graphics.fill(screen);
 		}
@@ -396,22 +349,17 @@ public class GroundModelRenderer
 	}
 
 	// Grown GROW px out from its centroid.
-	private static Shape grown(Polygon triangle)
-	{
+	private static Shape grown(Polygon triangle) {
 		double mx = (triangle.xpoints[0] + triangle.xpoints[1] + triangle.xpoints[2]) / 3.0;
 		double my = (triangle.ypoints[0] + triangle.ypoints[1] + triangle.ypoints[2]) / 3.0;
 		Path2D.Double path = new Path2D.Double();
-		for (int i = 0; i < 3; i++)
-		{
+		for (int i = 0; i < 3; i++) {
 			double dx = triangle.xpoints[i] - mx, dy = triangle.ypoints[i] - my;
 			double length = Math.max(1e-6, Math.hypot(dx, dy));
 			double x = triangle.xpoints[i] + dx / length * GROW, y = triangle.ypoints[i] + dy / length * GROW;
-			if (i == 0)
-			{
+			if (i == 0) {
 				path.moveTo(x, y);
-			}
-			else
-			{
+			} else {
 				path.lineTo(x, y);
 			}
 		}
@@ -421,12 +369,10 @@ public class GroundModelRenderer
 
 	// Maps the texture triangle onto the screen triangle, or null if degenerate.
 	@Nullable
-	private static AffineTransform triangleTransform(double ua, double va, double ub, double vb, double uc, double vc, Polygon screen)
-	{
+	private static AffineTransform triangleTransform(double ua, double va, double ub, double vb, double uc, double vc, Polygon screen) {
 		double ux = ub - ua, uy = vb - va, vx = uc - ua, vy = vc - va;
 		double det = ux * vy - uy * vx;
-		if (Math.abs(det) < 1e-9)
-		{
+		if (Math.abs(det) < 1e-9) {
 			return null;
 		}
 		double i00 = vy / det, i01 = -vx / det, i10 = -uy / det, i11 = ux / det;
@@ -441,8 +387,7 @@ public class GroundModelRenderer
 
 	// Laid face up: x stays east, up (-y) becomes north, the front (-z) faces the sky.
 	@Nullable
-	private Flat layFlat(Model model, float[] vx, float[] vy, float[] vz)
-	{
+	private Flat layFlat(Model model, float[] vx, float[] vy, float[] vz) {
 		int vertexCount = model.getVerticesCount();
 		int faceCount = model.getFaceCount();
 		int[] f1 = model.getFaceIndices1(), f2 = model.getFaceIndices2(), f3 = model.getFaceIndices3();
@@ -454,15 +399,12 @@ public class GroundModelRenderer
 		float minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, minUp = Float.MAX_VALUE, maxUp = -Float.MAX_VALUE;
 		float minFront = Float.MAX_VALUE, maxFront = -Float.MAX_VALUE;
 		List<Integer> visible = new ArrayList<>();
-		for (int f = 0; f < faceCount; f++)
-		{
-			if (faceColors[f] == null)
-			{
+		for (int f = 0; f < faceCount; f++) {
+			if (faceColors[f] == null) {
 				continue;
 			}
 			visible.add(f);
-			for (int v : new int[]{f1[f], f2[f], f3[f]})
-			{
+			for (int v : new int[]{f1[f], f2[f], f3[f]}) {
 				minX = Math.min(minX, vx[v]);
 				maxX = Math.max(maxX, vx[v]);
 				minUp = Math.min(minUp, -vy[v]);
@@ -471,8 +413,7 @@ public class GroundModelRenderer
 				maxFront = Math.max(maxFront, -vz[v]);
 			}
 		}
-		if (maxX <= minX || maxUp <= minUp)
-		{
+		if (maxX <= minX || maxUp <= minUp) {
 			return null;
 		}
 
@@ -489,18 +430,15 @@ public class GroundModelRenderer
 		int[] textures = new int[count];
 		float[] u = new float[count * 3], v = new float[count * 3], shade = new float[count];
 		float[] uv = new float[6];
-		for (int i = 0; i < count; i++)
-		{
+		for (int i = 0; i < count; i++) {
 			int f = visible.get(i);
 			faces[i] = f;
 			colors[i] = faceColors[f];
 			System.arraycopy(faceCorners, f * 3, corners, i * 3, 3);
 			textures[i] = -1;
-			if (faceTextures != null && faceTextures[f] != -1 && textureUvs(model, f, uv))
-			{
+			if (faceTextures != null && faceTextures[f] != -1 && textureUvs(model, f, uv)) {
 				textures[i] = faceTextures[f];
-				for (int corner = 0; corner < 3; corner++)
-				{
+				for (int corner = 0; corner < 3; corner++) {
 					u[i * 3 + corner] = uv[corner * 2];
 					v[i * 3 + corner] = uv[corner * 2 + 1];
 				}
@@ -513,8 +451,7 @@ public class GroundModelRenderer
 		double depthScale = scale * (ABOVE + BELOW);
 		double ground = maxFront - (maxFront - minFront) * ABOVE / (ABOVE + BELOW);
 		int[] east = new int[vertexCount], north = new int[vertexCount], height = new int[vertexCount];
-		for (int i = 0; i < vertexCount; i++)
-		{
+		for (int i = 0; i < vertexCount; i++) {
 			east[i] = (int) Math.round((vx[i] - centerX) * scale);
 			north[i] = (int) Math.round((-vy[i] - centerUp) * scale);
 			height[i] = (int) Math.round((-vz[i] - ground) * depthScale);
@@ -524,14 +461,12 @@ public class GroundModelRenderer
 
 	// The face's corner u/v into uv, mapped as the game does from its texture triangle P, M, N (its own corners, or one
 	// from the model's texture faces). From the unturned vertices. False if degenerate.
-	private static boolean textureUvs(Model model, int face, float[] uv)
-	{
+	private static boolean textureUvs(Model model, int face, float[] uv) {
 		float[] x = model.getVerticesX(), y = model.getVerticesY(), z = model.getVerticesZ();
 		int a = model.getFaceIndices1()[face], b = model.getFaceIndices2()[face], c = model.getFaceIndices3()[face];
 		byte[] textureFaces = model.getTextureFaces();
 		int p = a, m = b, n = c;
-		if (textureFaces != null && textureFaces[face] != -1)
-		{
+		if (textureFaces != null && textureFaces[face] != -1) {
 			int t = textureFaces[face] & 0xFF;
 			p = model.getTexIndices1()[t];
 			m = model.getTexIndices2()[t];
@@ -547,14 +482,12 @@ public class GroundModelRenderer
 		float uScale = ux * pmx + uy * pmy + uz * pmz;
 		float wx = pmy * nz - pmz * ny, wy = pmz * nx - pmx * nz, wz = pmx * ny - pmy * nx;
 		float vScale = wx * pnx + wy * pny + wz * pnz;
-		if (uScale == 0 || vScale == 0)
-		{
+		if (uScale == 0 || vScale == 0) {
 			return false;
 		}
 
 		int[] corners = {a, b, c};
-		for (int i = 0; i < 3; i++)
-		{
+		for (int i = 0; i < 3; i++) {
 			float dx = x[corners[i]] - x[p], dy = y[corners[i]] - y[p], dz = z[corners[i]] - z[p];
 			uv[i * 2] = (ux * dx + uy * dy + uz * dz) / uScale;
 			uv[i * 2 + 1] = (wx * dx + wy * dy + wz * dz) / vScale;

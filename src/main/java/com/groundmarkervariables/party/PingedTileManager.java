@@ -41,8 +41,7 @@ import net.runelite.client.party.WSClient;
 // others as a temporary, fading marker (a TileSource) with its own "Save"/"Hide" right-click options.
 @Slf4j
 @Singleton
-public class PingedTileManager implements TileSource
-{
+public class PingedTileManager implements TileSource {
 	// By stored (region) point. Arrives on WSClient's own thread, not the client/AWT thread render()/menus run on.
 	private final Map<WorldPoint, PingedTile> pingedTiles = new ConcurrentHashMap<>();
 
@@ -66,8 +65,7 @@ public class PingedTileManager implements TileSource
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
 		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, RenderedTiles renderedTiles)
-	{
+		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, RenderedTiles renderedTiles) {
 		this.renderedTiles = renderedTiles;
 		this.client = client;
 		this.clientThread = clientThread;
@@ -82,30 +80,22 @@ public class PingedTileManager implements TileSource
 		this.wsClient = wsClient;
 	}
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 
-		try
-		{
+		try {
 			wsClient.registerMessage(GMVPingedTileShare.class);
-		}
-		catch (IllegalArgumentException e)
-		{
+		} catch (IllegalArgumentException e) {
 			log.warn("Pinged tile sharing unavailable due to a message type collision with another plugin", e);
 		}
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 
-		try
-		{
+		try {
 			wsClient.unregisterMessage(GMVPingedTileShare.class);
-		}
-		catch (IllegalArgumentException e)
-		{
+		} catch (IllegalArgumentException e) {
 			// Never registered successfully.
 		}
 
@@ -116,20 +106,16 @@ public class PingedTileManager implements TileSource
 
 	// Blocks are scoped to the current party session.
 	@Subscribe
-	public void onPartyChanged(PartyChanged event)
-	{
-		if (event.getPartyId() == null)
-		{
+	public void onPartyChanged(PartyChanged event) {
+		if (event.getPartyId() == null) {
 			hiddenOnceSenderIds.clear();
 			blockedSenderIds.clear();
 		}
 	}
 
 	// The marker at point, from its shift+right-click "Share Marker" (see GroundMarkerVariablesPlugin).
-	public void share(WorldPoint point, GroundMarkerPointData marker)
-	{
-		if (!partyService.isInParty())
-		{
+	public void share(WorldPoint point, GroundMarkerPointData marker) {
+		if (!partyService.isInParty()) {
 			return;
 		}
 
@@ -140,21 +126,17 @@ public class PingedTileManager implements TileSource
 
 	// Displays a tile shared by another party member, unless we already have it marked.
 	@Subscribe
-	public void onGMVPingedTileShare(GMVPingedTileShare share)
-	{
-		if (!config.showPingedTiles())
-		{
+	public void onGMVPingedTileShare(GMVPingedTileShare share) {
+		if (!config.showPingedTiles()) {
 			return;
 		}
 
-		if (blockedSenderIds.contains(share.getMemberId()))
-		{
+		if (blockedSenderIds.contains(share.getMemberId())) {
 			return;
 		}
 
 		WorldPoint point = share.getPoint();
-		if (markerStorage.findStoredPoint(point) != null)
-		{
+		if (markerStorage.findStoredPoint(point) != null) {
 			return;
 		}
 
@@ -163,8 +145,7 @@ public class PingedTileManager implements TileSource
 		Color color = share.getColorRgb() == null ? null : new Color(share.getColorRgb(), true);
 
 		// Resolving the label needs the client thread; this handler runs on WSClient's own.
-		clientThread.invoke(() ->
-		{
+		clientThread.invoke(() -> {
 			GroundMarkerPointData transientPoint = new GroundMarkerPointData(
 				point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, share.getLabel());
 			CachedMarker marker = new CachedMarker(transientPoint, labelResolver, metaVariableResolver);
@@ -174,10 +155,8 @@ public class PingedTileManager implements TileSource
 
 			// Keyed to this exact instance, so a stale timer can never remove a later ping that
 			// landed on the same tile.
-			executor.schedule(() -> clientThread.invoke(() ->
-			{
-				if (pingedTiles.remove(point, pinged))
-				{
+			executor.schedule(() -> clientThread.invoke(() -> {
+				if (pingedTiles.remove(point, pinged)) {
 					renderedTiles.invalidate();
 				}
 			}), PingedTile.TTL.getSeconds(), TimeUnit.SECONDS);
@@ -186,13 +165,10 @@ public class PingedTileManager implements TileSource
 
 	// Below saved markers; newer pings win ties.
 	@Override
-	public Collection<SourceMarker> markers(int regionId)
-	{
+	public Collection<SourceMarker> markers(int regionId) {
 		List<SourceMarker> markers = new ArrayList<>();
-		for (PingedTile tile : pingedTiles.values())
-		{
-			if (tile.marker.source.getRegionId() == regionId)
-			{
+		for (PingedTile tile : pingedTiles.values()) {
+			if (tile.marker.source.getRegionId() == regionId) {
 				markers.add(new SourceMarker(tile.marker, this, RenderedTiles.PINGED_PRIORITY, tile.receivedAt.toEpochMilli(), tile));
 			}
 		}
@@ -200,38 +176,32 @@ public class PingedTileManager implements TileSource
 	}
 
 	@Override
-	public float opacity(SourceMarker marker, Instant now)
-	{
+	public float opacity(SourceMarker marker, Instant now) {
 		return ((PingedTile) marker.owner).opacity(now);
 	}
 
 	// Independent of GroundMarkerVariablesPlugin's own shift-gated Mark/Unmark/Label/Color --
 	// Save/Hide apply to a temp-cached ping, not a persisted marker, and aren't shift-gated.
 	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
-	{
+	public void onMenuEntryAdded(MenuEntryAdded event) {
 		MenuAction menuAction = event.getMenuEntry().getType();
-		if (menuAction != MenuAction.WALK && menuAction != MenuAction.SET_HEADING)
-		{
+		if (menuAction != MenuAction.WALK && menuAction != MenuAction.SET_HEADING) {
 			return;
 		}
 
 		WorldView wv = client.getWorldView(event.getMenuEntry().getWorldViewId());
-		if (wv == null)
-		{
+		if (wv == null) {
 			return;
 		}
 
 		Tile selectedSceneTile = wv.getSelectedSceneTile();
-		if (selectedSceneTile == null)
-		{
+		if (selectedSceneTile == null) {
 			return;
 		}
 
 		WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, selectedSceneTile.getLocalLocation());
 		PingedTile pinged = pingedTiles.get(worldPoint);
-		if (pinged == null)
-		{
+		if (pinged == null) {
 			return;
 		}
 
@@ -249,26 +219,21 @@ public class PingedTileManager implements TileSource
 	}
 
 	// A second hide from the same sender blocks them for the rest of this party session.
-	private void hide(WorldPoint worldPoint, PingedTile pinged)
-	{
+	private void hide(WorldPoint worldPoint, PingedTile pinged) {
 		pingedTiles.remove(worldPoint);
 		renderedTiles.invalidate();
 
 		long senderId = pinged.senderMemberId;
-		if (hiddenOnceSenderIds.remove(senderId))
-		{
+		if (hiddenOnceSenderIds.remove(senderId)) {
 			blockedSenderIds.add(senderId);
 			sendChatMessage("Ground Marker Variables: " + pinged.senderName + " blocked. Turn off Show Pinged Tiles to disable this feature.");
-		}
-		else
-		{
+		} else {
 			hiddenOnceSenderIds.add(senderId);
 			sendChatMessage("Ground Marker Variables: Marker hidden from " + pinged.senderName + ". Hide one more to block them for this party session.");
 		}
 	}
 
-	private void save(WorldPoint worldPoint, PingedTile pinged)
-	{
+	private void save(WorldPoint worldPoint, PingedTile pinged) {
 		GroundMarkerPointData point = new GroundMarkerPointData(worldPoint.getRegionID(), worldPoint.getRegionX(), worldPoint.getRegionY(),
 			worldPoint.getPlane(), pinged.marker.source.getColor(), pinged.marker.source.getLabel());
 		markerStorage.addPoints(List.of(point));
@@ -278,8 +243,7 @@ public class PingedTileManager implements TileSource
 		sendChatMessage("Ground Marker saved from " + pinged.senderName + ".");
 	}
 
-	private void sendChatMessage(String message)
-	{
+	private void sendChatMessage(String message) {
 		plugin.sendChatMessage(message);
 	}
 }

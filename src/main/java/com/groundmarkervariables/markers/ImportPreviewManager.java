@@ -17,8 +17,7 @@ import javax.inject.Singleton;
 // everything else -- cleared via the chatbox input's own onClose, which fires on every dismissal path.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ImportPreviewManager implements TileSource
-{
+public class ImportPreviewManager implements TileSource {
 	private static final float OPACITY = 0.5f;
 
 	private final RenderedTiles renderedTiles;
@@ -28,11 +27,9 @@ public class ImportPreviewManager implements TileSource
 	// Replaced whole, so a concurrent read never sees a partly built map.
 	private volatile Map<Integer, List<SourceMarker>> byRegion = Collections.emptyMap();
 
-	public void show(Collection<GroundMarkerPointData> points)
-	{
+	public void show(Collection<GroundMarkerPointData> points) {
 		Map<Integer, List<SourceMarker>> markers = new HashMap<>();
-		for (GroundMarkerPointData point : points)
-		{
+		for (GroundMarkerPointData point : points) {
 			CachedMarker marker = new CachedMarker(point, labelResolver, metaVariableResolver);
 			markers.computeIfAbsent(point.getRegionId(), r -> new ArrayList<>())
 				.add(new SourceMarker(marker, this, RenderedTiles.PREVIEW_PRIORITY, 0, null));
@@ -41,21 +38,18 @@ public class ImportPreviewManager implements TileSource
 		renderedTiles.invalidate();
 	}
 
-	public void clear()
-	{
+	public void clear() {
 		byRegion = Collections.emptyMap();
 		renderedTiles.invalidate();
 	}
 
 	@Override
-	public Collection<SourceMarker> markers(int regionId)
-	{
+	public Collection<SourceMarker> markers(int regionId) {
 		return byRegion.getOrDefault(regionId, Collections.emptyList());
 	}
 
 	@Override
-	public float opacity(SourceMarker marker, Instant now)
-	{
+	public float opacity(SourceMarker marker, Instant now) {
 		return OPACITY;
 	}
 }

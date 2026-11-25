@@ -96,8 +96,7 @@ import net.runelite.client.events.PluginMessage;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class PluginMessageHandler
-{
+public class PluginMessageHandler {
 	static final String NAMESPACE = "ground-marker-variables";
 	static final String RESOLVE_EVENT = "Resolve";
 	static final String SET_MARKERS_EVENT = "SetMarkers";
@@ -111,37 +110,30 @@ public class PluginMessageHandler
 	private final MarkerMinifier markerMinifier;
 	private final ExternalMarkerManager externalMarkerManager;
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 	}
 
 	@Subscribe
-	public void onPluginMessage(PluginMessage event)
-	{
-		if (!NAMESPACE.equals(event.getNamespace()))
-		{
+	public void onPluginMessage(PluginMessage event) {
+		if (!NAMESPACE.equals(event.getNamespace())) {
 			return;
 		}
-		if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName()))
-		{
+		if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName())) {
 			onMarkers(event.getName(), event.getData());
 			return;
 		}
-		if (!RESOLVE_EVENT.equals(event.getName()))
-		{
+		if (!RESOLVE_EVENT.equals(event.getName())) {
 			return;
 		}
 
 		Object text = event.getData().get("text");
 		Map<String, Object> reply = reply(event.getData());
-		if (!(text instanceof String) || reply == null)
-		{
+		if (!(text instanceof String) || reply == null) {
 			return;
 		}
 
@@ -149,19 +141,16 @@ public class PluginMessageHandler
 	}
 
 	// Parsed and answered here, on the sender's thread; applied on the client thread.
-	private void onMarkers(String name, Map<String, Object> data)
-	{
+	private void onMarkers(String name, Map<String, Object> data) {
 		Map<String, Object> reply = reply(data);
 		Object plugin = data.get("plugin");
 		Object group = data.get("group");
-		if (!(plugin instanceof String) || !(group instanceof String))
-		{
+		if (!(plugin instanceof String) || !(group instanceof String)) {
 			reject(reply, name, "\"plugin\" and \"group\" must be strings", null);
 			return;
 		}
 
-		if (CLEAR_MARKERS_EVENT.equals(name))
-		{
+		if (CLEAR_MARKERS_EVENT.equals(name)) {
 			clientThread.invoke(() -> externalMarkerManager.clear((String) group));
 			fill(reply, Map.of("ok", true));
 			return;
@@ -169,26 +158,21 @@ public class PluginMessageHandler
 
 		Object priority = data.get("priority");
 		Object markers = data.get("markers");
-		if (!(markers instanceof String) || (priority != null && !(priority instanceof Number)))
-		{
+		if (!(markers instanceof String) || (priority != null && !(priority instanceof Number))) {
 			reject(reply, name, "\"markers\" must be a JSON string and \"priority\" a number", null);
 			return;
 		}
 
 		List<GroundMarkerPointData> points;
-		try
-		{
+		try {
 			points = markerMinifier.parse((String) markers);
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e) {
 			reject(reply, name, "unreadable markers JSON", e);
 			return;
 		}
 
 		String error = null;
-		if (points.size() > ExternalMarkerManager.MAX_MARKERS)
-		{
+		if (points.size() > ExternalMarkerManager.MAX_MARKERS) {
 			error = "only the first " + ExternalMarkerManager.MAX_MARKERS + " of " + points.size() + " markers are used";
 			log.warn("SetMarkers from {}: {}", plugin, error);
 			points = points.subList(0, ExternalMarkerManager.MAX_MARKERS);
@@ -200,34 +184,27 @@ public class PluginMessageHandler
 		fill(reply, error == null ? Map.of("ok", true, "count", parsed.size()) : Map.of("ok", true, "count", parsed.size(), "error", error));
 	}
 
-	private static void reject(Map<String, Object> reply, String name, String error, Exception e)
-	{
+	private static void reject(Map<String, Object> reply, String name, String error, Exception e) {
 		log.warn("Ignoring {}: {}", name, error, e);
 		fill(reply, Map.of("ok", false, "error", error));
 	}
 
 	// The caller's mutable map under "reply", or null.
 	@SuppressWarnings("unchecked")
-	private static Map<String, Object> reply(Map<String, Object> data)
-	{
+	private static Map<String, Object> reply(Map<String, Object> data) {
 		Object reply = data.get("reply");
 		return reply instanceof Map ? (Map<String, Object>) reply : null;
 	}
 
 	// Fills the caller's reply, if they passed one, with values and the API version.
-	private static void fill(Map<String, Object> reply, Map<String, Object> values)
-	{
-		if (reply == null)
-		{
+	private static void fill(Map<String, Object> reply, Map<String, Object> values) {
+		if (reply == null) {
 			return;
 		}
-		try
-		{
+		try {
 			reply.putAll(values);
 			reply.put("version", API_VERSION);
-		}
-		catch (UnsupportedOperationException | ClassCastException e)
-		{
+		} catch (UnsupportedOperationException | ClassCastException e) {
 			log.warn("Couldn't fill a PluginMessage reply: it must be a mutable Map<String, Object>", e);
 		}
 	}

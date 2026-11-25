@@ -22,8 +22,7 @@ import net.runelite.client.eventbus.Subscribe;
 // only current inside the kingdom, so elsewhere it's the last snapshot minus a fixed daily decay.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class MiscellaniaTracker
-{
+public class MiscellaniaTracker {
 	public static final int MAX_APPROVAL = 127;
 	private static final Set<Integer> KINGDOM_REGIONS = Set.of(10044, 10300);
 	private static final float DAILY_DECAY = 0.025f;
@@ -40,21 +39,17 @@ public class MiscellaniaTracker
 	private final ConfigManager configManager;
 	private final EventBus eventBus;
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		if (event.getVarbitId() != VarbitID.MISC_APPROVAL && event.getVarbitId() != VarbitID.MISC_COFFERS)
-		{
+	public void onVarbitChanged(VarbitChanged event) {
+		if (event.getVarbitId() != VarbitID.MISC_APPROVAL && event.getVarbitId() != VarbitID.MISC_COFFERS) {
 			return;
 		}
 
@@ -62,8 +57,7 @@ public class MiscellaniaTracker
 		int coffer = client.getVarbitValue(VarbitID.MISC_COFFERS);
 		if (client.getVarpValue(VarPlayerID.MISC_QUEST) > 0
 			&& (inKingdom() || coffer > 0 && approval > 0)
-			&& (stored(APPROVAL_KEY) != approval || stored(COFFER_KEY) != coffer))
-		{
+			&& (stored(APPROVAL_KEY) != approval || stored(COFFER_KEY) != coffer)) {
 			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.now());
 			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY, approval);
 			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, COFFER_KEY, coffer);
@@ -72,20 +66,17 @@ public class MiscellaniaTracker
 
 	// Client thread only (quest state check). Uses core's Kingdom plugin snapshot instead of ours
 	// when it's more recent.
-	public int approval()
-	{
+	public int approval() {
 		Instant lastChanged = configManager.getRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.class);
 		int approval = stored(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY);
 
 		Instant coreLastChanged = configManager.getRSProfileConfiguration(CORE_GROUP, CORE_LAST_CHANGED_KEY, Instant.class);
-		if (coreLastChanged != null && (lastChanged == null || coreLastChanged.isAfter(lastChanged)))
-		{
+		if (coreLastChanged != null && (lastChanged == null || coreLastChanged.isAfter(lastChanged))) {
 			lastChanged = coreLastChanged;
 			approval = stored(CORE_GROUP, CORE_APPROVAL_KEY);
 		}
 
-		if (inKingdom() || lastChanged == null)
-		{
+		if (inKingdom() || lastChanged == null) {
 			return client.getVarbitValue(VarbitID.MISC_APPROVAL);
 		}
 
@@ -94,19 +85,16 @@ public class MiscellaniaTracker
 		return Math.max(0, approval - (int) (days * decay * MAX_APPROVAL));
 	}
 
-	private int stored(String key)
-	{
+	private int stored(String key) {
 		return stored(GroundMarkerVariablesConfig.GROUP, key);
 	}
 
-	private int stored(String group, String key)
-	{
+	private int stored(String group, String key) {
 		Integer value = configManager.getRSProfileConfiguration(group, key, int.class);
 		return value == null ? 0 : value;
 	}
 
-	private boolean inKingdom()
-	{
+	private boolean inKingdom() {
 		return client.getLocalPlayer() != null && KINGDOM_REGIONS.contains(client.getLocalPlayer().getWorldLocation().getRegionID());
 	}
 }

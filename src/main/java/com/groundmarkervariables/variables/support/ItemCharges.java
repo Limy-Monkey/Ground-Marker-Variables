@@ -24,8 +24,7 @@ import net.runelite.client.plugins.PluginManager;
 // Names are their config keys made readable: "toxic_blowpipe" / "dodgyNecklace" -> "Toxic blowpipe" / "Dodgy necklace".
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ItemCharges
-{
+public class ItemCharges {
 	public static final int UNLIMITED_CHARGES = -2;
 
 	// Improved: global (not per account), one integer per item; -1 unknown, -2 unlimited.
@@ -58,39 +57,29 @@ public class ItemCharges
 	private final PluginManager pluginManager;
 
 	// Every item either plugin has known charges saved for (not -1), alphabetically; core's where both have one.
-	public List<String> names()
-	{
+	public List<String> names() {
 		Map<String, String> byNormalized = new LinkedHashMap<>();
-		if (active(CORE_PLUGIN))
-		{
+		if (active(CORE_PLUGIN)) {
 			String profile = configManager.getRSProfileKey();
-			for (String coreKey : profile == null ? List.<String>of() : configManager.getRSProfileConfigurationKeys(CORE_GROUP, profile, ""))
-			{
-				if (parse(configManager.getConfiguration(CORE_GROUP, profile, coreKey)) == null)
-				{
+			for (String coreKey : profile == null ? List.<String>of() : configManager.getRSProfileConfigurationKeys(CORE_GROUP, profile, "")) {
+				if (parse(configManager.getConfiguration(CORE_GROUP, profile, coreKey)) == null) {
 					continue;
 				}
 				String name = readable(coreKey.replaceAll("([a-z0-9])([A-Z])", "$1 $2"));
 				byNormalized.putIfAbsent(normalized(name), name);
 			}
 		}
-		if (active(IMPROVED_PLUGIN))
-		{
+		if (active(IMPROVED_PLUGIN)) {
 			String prefix = IMPROVED_GROUP + ".";
-			for (String key : configManager.getConfigurationKeys(prefix))
-			{
+			for (String key : configManager.getConfigurationKeys(prefix)) {
 				String improvedKey = key.substring(prefix.length());
-				if (improvedKey.endsWith(IMPROVED_STORAGE))
-				{
+				if (improvedKey.endsWith(IMPROVED_STORAGE)) {
 					improvedKey = improvedKey.substring(0, improvedKey.length() - IMPROVED_STORAGE.length());
 				}
-				if (isImprovedCharges(improvedKey) && improvedCharges(improvedKey) != null)
-				{
+				if (isImprovedCharges(improvedKey) && improvedCharges(improvedKey) != null) {
 					String shown = improvedKey;
-					for (String setPrefix : IMPROVED_SET_PREFIXES)
-					{
-						if (shown.startsWith(setPrefix))
-						{
+					for (String setPrefix : IMPROVED_SET_PREFIXES) {
+						if (shown.startsWith(setPrefix)) {
 							shown = shown.substring(setPrefix.length());
 						}
 					}
@@ -106,32 +95,25 @@ public class ItemCharges
 
 	// name's charges (any case, spacing and apostrophes), UNLIMITED_CHARGES for unlimited; null if unknown or neither plugin is on.
 	@Nullable
-	public Integer charges(String name)
-	{
+	public Integer charges(String name) {
 		String[] words = words(name);
-		if (words[0].isEmpty())
-		{
+		if (words[0].isEmpty()) {
 			return null;
 		}
 		// Core first: it's per account.
 		Integer charges = null;
-		if (active(CORE_PLUGIN))
-		{
+		if (active(CORE_PLUGIN)) {
 			StringBuilder coreKey = new StringBuilder(words[0]);
-			for (int i = 1; i < words.length; i++)
-			{
+			for (int i = 1; i < words.length; i++) {
 				coreKey.append(Character.toUpperCase(words[i].charAt(0))).append(words[i].substring(1));
 			}
 			charges = parse(configManager.getRSProfileConfiguration(CORE_GROUP, coreKey.toString()));
 		}
-		if (charges == null && active(IMPROVED_PLUGIN))
-		{
+		if (charges == null && active(IMPROVED_PLUGIN)) {
 			String improvedKey = String.join("_", words);
-			if (isImprovedCharges(improvedKey))
-			{
+			if (isImprovedCharges(improvedKey)) {
 				charges = improvedCharges(improvedKey);
-				for (int i = 0; charges == null && i < IMPROVED_SET_PREFIXES.size(); i++)
-				{
+				for (int i = 0; charges == null && i < IMPROVED_SET_PREFIXES.size(); i++) {
 					charges = improvedCharges(IMPROVED_SET_PREFIXES.get(i) + improvedKey);
 				}
 			}
@@ -142,8 +124,7 @@ public class ItemCharges
 	// Client thread. The charges of only the named items (any case and apostrophes) inside Improved's container
 	// name, by its usual rule; null if it isn't one.
 	@Nullable
-	public Integer charges(String name, List<String> only)
-	{
+	public Integer charges(String name, List<String> only) {
 		String key = storageKey(name);
 		Map<Integer, Integer> items = key == null ? null : storedItems(name, only);
 		return items == null ? null : combine(key, items.values());
@@ -152,22 +133,17 @@ public class ItemCharges
 	// Client thread (to name them). What Improved's container name holds, item ID -> quantity: everything in its
 	// order, or only the named items in the order named. Null if it isn't one.
 	@Nullable
-	public Map<Integer, Integer> storedItems(String name, List<String> only)
-	{
+	public Map<Integer, Integer> storedItems(String name, List<String> only) {
 		String key = storageKey(name);
 		Map<Integer, Integer> stored = key == null ? null : stored(key);
-		if (stored == null || only.isEmpty())
-		{
+		if (stored == null || only.isEmpty()) {
 			return stored;
 		}
 		Map<Integer, Integer> named = new LinkedHashMap<>();
-		for (String wanted : only)
-		{
-			stored.forEach((id, quantity) ->
-			{
+		for (String wanted : only) {
+			stored.forEach((id, quantity) -> {
 				String item = itemName(id);
-				if (item != null && loose(item).equals(loose(wanted)))
-				{
+				if (item != null && loose(item).equals(loose(wanted))) {
 					named.put(id, quantity);
 				}
 			});
@@ -178,21 +154,16 @@ public class ItemCharges
 	// The names of what Improved's container name holds; empty if it isn't one. Null off the client thread, where
 	// items can't be named.
 	@Nullable
-	public List<String> storedNames(String name)
-	{
-		if (!client.isClientThread())
-		{
+	public List<String> storedNames(String name) {
+		if (!client.isClientThread()) {
 			return null;
 		}
 		List<String> names = new ArrayList<>();
 		Map<Integer, Integer> stored = storedItems(name, List.of());
-		if (stored != null)
-		{
-			for (int id : stored.keySet())
-			{
+		if (stored != null) {
+			for (int id : stored.keySet()) {
 				String item = itemName(id);
-				if (item != null)
-				{
+				if (item != null) {
 					names.add(item);
 				}
 			}
@@ -202,11 +173,9 @@ public class ItemCharges
 
 	// An Improved item's own charges, else those of what it holds; null if neither is known.
 	@Nullable
-	private Integer improvedCharges(String key)
-	{
+	private Integer improvedCharges(String key) {
 		Integer charges = parse(configManager.getConfiguration(IMPROVED_GROUP, key));
-		if (charges != null)
-		{
+		if (charges != null) {
 			return charges;
 		}
 		Map<Integer, Integer> stored = stored(key);
@@ -214,13 +183,11 @@ public class ItemCharges
 	}
 
 	// key's quantities as one number: the smallest (IMPROVED_SMALLEST), largest ("individual") or total; 0 if none.
-	private int combine(String key, Collection<Integer> quantities)
-	{
+	private int combine(String key, Collection<Integer> quantities) {
 		boolean individual = IMPROVED_DISPLAY_INDIVIDUAL.equals(configManager.getConfiguration(IMPROVED_GROUP, key + IMPROVED_DISPLAY));
 		boolean smallest = IMPROVED_SMALLEST.contains(key);
 		Integer result = null;
-		for (int quantity : quantities)
-		{
+		for (int quantity : quantities) {
 			result = result == null ? quantity
 				: smallest ? Math.min(result, quantity) : individual ? Math.max(result, quantity) : result + quantity;
 		}
@@ -229,25 +196,20 @@ public class ItemCharges
 
 	// Improved's key for name with a container saved (with or without a set's prefix), or null.
 	@Nullable
-	private String storageKey(String name)
-	{
+	private String storageKey(String name) {
 		String[] words = words(name);
-		if (words[0].isEmpty() || !active(IMPROVED_PLUGIN))
-		{
+		if (words[0].isEmpty() || !active(IMPROVED_PLUGIN)) {
 			return null;
 		}
 		String key = String.join("_", words);
-		if (!isImprovedCharges(key))
-		{
+		if (!isImprovedCharges(key)) {
 			return null;
 		}
 		List<String> candidates = new ArrayList<>();
 		candidates.add(key);
 		IMPROVED_SET_PREFIXES.forEach(prefix -> candidates.add(prefix + key));
-		for (String candidate : candidates)
-		{
-			if (configManager.getConfiguration(IMPROVED_GROUP, candidate + IMPROVED_STORAGE) != null)
-			{
+		for (String candidate : candidates) {
+			if (configManager.getConfiguration(IMPROVED_GROUP, candidate + IMPROVED_STORAGE) != null) {
 				return candidate;
 			}
 		}
@@ -256,35 +218,27 @@ public class ItemCharges
 
 	// key's container, item ID -> quantity (none below 0), in Improved's order; null if none saved.
 	@Nullable
-	private Map<Integer, Integer> stored(String key)
-	{
+	private Map<Integer, Integer> stored(String key) {
 		String storage = configManager.getConfiguration(IMPROVED_GROUP, key + IMPROVED_STORAGE);
-		if (storage == null)
-		{
+		if (storage == null) {
 			return null;
 		}
-		try
-		{
+		try {
 			Map<Integer, Integer> items = new LinkedHashMap<>();
-			for (JsonElement element : new JsonParser().parse(storage).getAsJsonArray())
-			{
+			for (JsonElement element : new JsonParser().parse(storage).getAsJsonArray()) {
 				JsonObject item = element.getAsJsonObject();
 				items.merge(item.get("itemId").getAsInt(), Math.max(0, item.get("quantity").getAsInt()), Integer::sum);
 			}
 			return items;
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			return null;
 		}
 	}
 
 	// An item's name; null off the client thread.
 	@Nullable
-	private String itemName(int id)
-	{
-		if (!client.isClientThread())
-		{
+	private String itemName(int id) {
+		if (!client.isClientThread()) {
 			return null;
 		}
 		ItemComposition item = client.getItemDefinition(id);
@@ -292,60 +246,48 @@ public class ItemCharges
 	}
 
 	// name as shown: words single-spaced, only the first capitalized.
-	public static String readable(String name)
-	{
+	public static String readable(String name) {
 		String words = name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
 		return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
 	}
 
 	// The keys have no apostrophes: "Alchemist's amulet" -> alchemists, amulet.
-	private static String[] words(String name)
-	{
+	private static String[] words(String name) {
 		return name.trim().toLowerCase(Locale.ROOT).replace("'", "").split("\\s+");
 	}
 
-	private static String loose(String name)
-	{
+	private static String loose(String name) {
 		return name.trim().toLowerCase(Locale.ROOT).replace("'", "");
 	}
 
-	private static boolean isImprovedCharges(String key)
-	{
+	private static boolean isImprovedCharges(String key) {
 		return !IMPROVED_SETTINGS.contains(key) && !IMPROVED_BLOCKED.contains(key) && IMPROVED_SUFFIXES.stream().noneMatch(key::endsWith)
 			&& IMPROVED_SETTING_PREFIXES.stream().noneMatch(key::startsWith);
 	}
 
 	// A saved charge count, or null if none or unknown.
 	@Nullable
-	private static Integer parse(@Nullable String value)
-	{
-		if (value == null)
-		{
+	private static Integer parse(@Nullable String value) {
+		if (value == null) {
 			return null;
 		}
-		try
-		{
+		try {
 			int charges = Integer.parseInt(value.trim());
 			return charges == UNKNOWN_CHARGES || charges < UNLIMITED_CHARGES ? null : charges;
-		}
-		catch (NumberFormatException e)
-		{
+		} catch (NumberFormatException e) {
 			return null;
 		}
 	}
 
-	private static String normalized(String name)
-	{
+	private static String normalized(String name) {
 		return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
 	}
 
-	public boolean improvedActive()
-	{
+	public boolean improvedActive() {
 		return active(IMPROVED_PLUGIN);
 	}
 
-	private boolean active(String pluginClass)
-	{
+	private boolean active(String pluginClass) {
 		return pluginManager.getPlugins().stream()
 			.anyMatch(plugin -> plugin.getClass().getName().equals(pluginClass) && pluginManager.isPluginActive(plugin));
 	}

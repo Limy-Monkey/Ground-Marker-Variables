@@ -11,7 +11,6 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class GMVPartyValues extends PartyMemberMessage
-{
+public class GMVPartyValues extends PartyMemberMessage {
 	private Map<String, String> values;
 }

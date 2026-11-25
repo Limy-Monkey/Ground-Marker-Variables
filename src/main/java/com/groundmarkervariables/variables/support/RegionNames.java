@@ -28,12 +28,10 @@ import net.runelite.api.coords.WorldPoint;
 // whole regions (ids) and bounds within regions ({region, sw, ne, planes}, each optional but region). Tiles in no listed
 // area have no name.
 @Slf4j
-public final class RegionNames
-{
+public final class RegionNames {
 	// Bounds within a region: a box (inclusive world x/y, any plane) and/or a range of planes.
 	@RequiredArgsConstructor
-	private static final class Bounds
-	{
+	private static final class Bounds {
 		private final String name;
 		private final int minX;
 		private final int minY;
@@ -42,15 +40,13 @@ public final class RegionNames
 		private final int minPlane;
 		private final int maxPlane;
 
-		private boolean contains(WorldPoint point)
-		{
+		private boolean contains(WorldPoint point) {
 			return point.getX() >= minX && point.getX() <= maxX && point.getY() >= minY && point.getY() <= maxY
 				&& point.getPlane() >= minPlane && point.getPlane() <= maxPlane;
 		}
 	}
 
-	private static final class Names
-	{
+	private static final class Names {
 		// Whole regions; a region listed twice takes the later name.
 		private final Map<Integer, String> byRegion = new HashMap<>();
 		// Checked before whole regions, the first containing a tile naming it.
@@ -61,21 +57,16 @@ public final class RegionNames
 	@Nullable
 	private static volatile Names names;
 
-	private RegionNames()
-	{
+	private RegionNames() {
 	}
 
 	@Nullable
-	public static String name(WorldPoint point)
-	{
+	public static String name(WorldPoint point) {
 		Names names = names();
 		List<Bounds> boundsList = names.bounds.get(point.getRegionID());
-		if (boundsList != null)
-		{
-			for (Bounds bounds : boundsList)
-			{
-				if (bounds.contains(point))
-				{
+		if (boundsList != null) {
+			for (Bounds bounds : boundsList) {
+				if (bounds.contains(point)) {
 					return bounds.name;
 				}
 			}
@@ -84,22 +75,16 @@ public final class RegionNames
 	}
 
 	// A newer region-names.json (see LatestData).
-	public static void update(String json)
-	{
+	public static void update(String json) {
 		names = parse(new StringReader(json));
 	}
 
-	private static Names names()
-	{
+	private static Names names() {
 		Names loaded = names;
-		if (loaded == null)
-		{
-			try (Reader reader = new InputStreamReader(RegionNames.class.getResourceAsStream("region-names.json"), StandardCharsets.UTF_8))
-			{
+		if (loaded == null) {
+			try (Reader reader = new InputStreamReader(RegionNames.class.getResourceAsStream("region-names.json"), StandardCharsets.UTF_8)) {
 				loaded = parse(reader);
-			}
-			catch (Exception e)
-			{
+			} catch (Exception e) {
 				log.warn("Couldn't load region names", e);
 				loaded = new Names();
 			}
@@ -108,16 +93,12 @@ public final class RegionNames
 		return loaded;
 	}
 
-	private static Names parse(Reader reader)
-	{
+	private static Names parse(Reader reader) {
 		Names names = new Names();
-		for (Map.Entry<String, JsonElement> area : new JsonParser().parse(reader).getAsJsonObject().entrySet())
-		{
+		for (Map.Entry<String, JsonElement> area : new JsonParser().parse(reader).getAsJsonObject().entrySet()) {
 			String name = area.getKey();
-			for (JsonElement region : area.getValue().getAsJsonArray())
-			{
-				if (region.isJsonPrimitive())
-				{
+			for (JsonElement region : area.getValue().getAsJsonArray()) {
+				if (region.isJsonPrimitive()) {
 					names.byRegion.put(region.getAsInt(), name);
 					continue;
 				}
@@ -137,10 +118,8 @@ public final class RegionNames
 	}
 
 	// bounds' two-number field, or first/second if it has none.
-	private static int[] pair(JsonObject bounds, String field, int first, int second)
-	{
-		if (!bounds.has(field))
-		{
+	private static int[] pair(JsonObject bounds, String field, int first, int second) {
+		if (!bounds.has(field)) {
 			return new int[]{first, second};
 		}
 		return new int[]{bounds.getAsJsonArray(field).get(0).getAsInt(), bounds.getAsJsonArray(field).get(1).getAsInt()};

@@ -12,15 +12,13 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class GMVGroundMarkerPartyShare extends PartyMemberMessage
-{
+public class GMVGroundMarkerPartyShare extends PartyMemberMessage {
 	private List<SharedMarker> markers;
 
 	@Getter
 	@NoArgsConstructor
 	@AllArgsConstructor
-	public static class SharedMarker
-	{
+	public static class SharedMarker {
 		private WorldPoint point;
 		private Integer colorRgb;
 		private String label;

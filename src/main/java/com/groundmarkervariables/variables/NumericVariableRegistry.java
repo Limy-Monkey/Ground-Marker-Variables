@@ -11,8 +11,7 @@ import javax.inject.Inject;
 // The variables usable as a MathVariable operand -- the ones whose Plain Text is always a
 // plain number. Separate from VariableRegistry so MathVariable avoids depending on
 // ConditionEvaluator (circular -- see ConditionEvaluator's own comment).
-public class NumericVariableRegistry
-{
+public class NumericVariableRegistry {
 	// LabelCompleter's autocomplete name/prefix for each variable above.
 	public static final Set<String> NAMES = Set.of(
 		"kc", "loot", "lootSession", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
@@ -22,8 +21,7 @@ public class NumericVariableRegistry
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private NumericVariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args)
-	{
+	private NumericVariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args) {
 		// SimpleVariables' and ArgVariables' number() variables.
 		List<LabelVariable> variables = new ArrayList<>(simple.numeric());
 		variables.addAll(args.numeric());
@@ -32,15 +30,13 @@ public class NumericVariableRegistry
 			LootLabelVariable.LootSession.class,
 			LogLabelVariable.class,
 			ChargesLabelVariable.class,
-			PartyLabelVariable.class))
-		{
+			PartyLabelVariable.class)) {
 			variables.add(injector.getInstance(type));
 		}
 		this.variables = List.copyOf(variables);
 	}
 
-	public List<LabelVariable> all()
-	{
+	public List<LabelVariable> all() {
 		return variables;
 	}
 }

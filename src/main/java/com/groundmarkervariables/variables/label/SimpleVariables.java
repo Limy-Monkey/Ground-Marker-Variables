@@ -44,8 +44,7 @@ import net.runelite.client.plugins.slayer.SlayerPluginService;
 // operands; .party() ones also resolve for other members in {party} rows.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class SimpleVariables
-{
+public class SimpleVariables {
 	private static final String[] CA_TIER_NAMES = {"Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"};
 	private static final int[] CA_TIER_THRESHOLDS = {
 		VarbitID.CA_THRESHOLD_EASY, VarbitID.CA_THRESHOLD_MEDIUM, VarbitID.CA_THRESHOLD_HARD,
@@ -79,8 +78,7 @@ public class SimpleVariables
 	private final List<SimpleVariable> all = define();
 
 	// Built before the fields above are set: they're only read when a lambda runs.
-	private List<SimpleVariable> define()
-	{
+	private List<SimpleVariable> define() {
 		Supplier<Object> partyNum = () -> memberContext.rowNumber() > 0 ? memberContext.rowNumber() : null;
 		return List.of(
 			text("rsn", () -> loggedIn() ? client.getLocalPlayer().getName() : null, v -> labeled("RSN", v))
@@ -136,25 +134,20 @@ public class SimpleVariables
 		);
 	}
 
-	public List<SimpleVariable> all()
-	{
+	public List<SimpleVariable> all() {
 		return all;
 	}
 
-	public List<SimpleVariable> numeric()
-	{
+	public List<SimpleVariable> numeric() {
 		return all.stream().filter(SimpleVariable::numeric).collect(Collectors.toList());
 	}
 
 	// Count of tier thresholds the player's points have reached, 0-6.
-	public int combatAchievementTier()
-	{
+	public int combatAchievementTier() {
 		int points = client.getVarbitValue(VarbitID.CA_POINTS);
 		int tier = 0;
-		for (int threshold : CA_TIER_THRESHOLDS)
-		{
-			if (points < client.getVarbitValue(threshold))
-			{
+		for (int threshold : CA_TIER_THRESHOLDS) {
+			if (points < client.getVarbitValue(threshold)) {
 				break;
 			}
 			tier++;
@@ -162,99 +155,82 @@ public class SimpleVariables
 		return tier;
 	}
 
-	private static SimpleVariable number(String names, Supplier<Object> value, UnaryOperator<String> rich)
-	{
+	private static SimpleVariable number(String names, Supplier<Object> value, UnaryOperator<String> rich) {
 		return new SimpleVariable(names, true, value, rich);
 	}
 
-	private static SimpleVariable text(String names, Supplier<Object> value, UnaryOperator<String> rich)
-	{
+	private static SimpleVariable text(String names, Supplier<Object> value, UnaryOperator<String> rich) {
 		return new SimpleVariable(names, false, value, rich);
 	}
 
-	private String labeled(String label, String value)
-	{
+	private String labeled(String label, String value) {
 		return richText.labeled(label, value);
 	}
 
-	private String highlight(String value)
-	{
+	private String highlight(String value) {
 		return richText.highlightValue(value);
 	}
 
-	private boolean loggedIn()
-	{
+	private boolean loggedIn() {
 		return client.getLocalPlayer() != null;
 	}
 
 	@Nullable
-	private String memberSpellbook(PartyMember member)
-	{
+	private String memberSpellbook(PartyMember member) {
 		return partyDataSharing.value(member.getMemberId(), PartyValue.SPELLBOOK);
 	}
 
 	@Nullable
-	private static String spellbookIcon(@Nullable String name)
-	{
+	private static String spellbookIcon(@Nullable String name) {
 		int index = name == null ? -1 : Spellbooks.NAMES.indexOf(name);
 		return index < 0 ? null : Icons.sprite(SPELLBOOK_ICONS[index]);
 	}
 
 	@Nullable
-	private Item[] items(int containerId)
-	{
+	private Item[] items(int containerId) {
 		ItemContainer container = client.getItemContainer(containerId);
 		return container == null ? null : container.getItems();
 	}
 
 	// <= 0 when unarmed.
-	private static int weaponId(@Nullable Item[] worn)
-	{
+	private static int weaponId(@Nullable Item[] worn) {
 		int slot = EquipmentInventorySlot.WEAPON.getSlotIdx();
 		Item weapon = worn == null || slot >= worn.length ? null : worn[slot];
 		return weapon == null ? -1 : weapon.getId();
 	}
 
-	private String weaponName(int itemId)
-	{
+	private String weaponName(int itemId) {
 		return itemId <= 0 ? "Unarmed" : itemManager.getItemComposition(itemId).getName();
 	}
 
-	private static String weaponIcon(int itemId)
-	{
+	private static String weaponIcon(int itemId) {
 		return itemId <= 0 ? "" : Icons.item(itemId);
 	}
 
-	private boolean slayerPluginRunning()
-	{
+	private boolean slayerPluginRunning() {
 		return pluginManager.getPlugins().stream()
 			.anyMatch(plugin -> plugin.getClass() == SlayerPlugin.class && pluginManager.isPluginActive(plugin));
 	}
 
 	// getInitialAmount() already includes a count-type Mortimer modifier, so it isn't added again; other modifier
 	// kinds share its varbits, so any nonzero value is shown.
-	private String slayerTaskSummary()
-	{
-		if (!slayerPluginRunning())
-		{
+	private String slayerTaskSummary() {
+		if (!slayerPluginRunning()) {
 			return "Enable Slayer Plugin";
 		}
 		String task = slayerPluginService.getTask();
-		if (task == null)
-		{
+		if (task == null) {
 			return "Slayer Task: " + highlight("None");
 		}
 
 		StringBuilder result = new StringBuilder("Slayer Task: ").append(highlight(task))
 			.append(" (").append(slayerPluginService.getRemainingAmount()).append(" / ").append(slayerPluginService.getInitialAmount()).append(")");
 		String location = slayerPluginService.getTaskLocation();
-		if (location != null && !location.isEmpty())
-		{
+		if (location != null && !location.isEmpty()) {
 			result.append(" Location: ").append(highlight(location));
 		}
 		int modifier = client.getVarbitValue(VarbitID.SLAYER_MODIFIER_VALUE);
-		if (client.getVarbitValue(VarbitID.SLAYER_MASTER) == MORTIMER_SLAYER_MASTER && modifier != 0)
-		{
+		if (client.getVarbitValue(VarbitID.SLAYER_MASTER) == MORTIMER_SLAYER_MASTER && modifier != 0) {
 			int signed = client.getVarbitValue(VarbitID.SLAYER_MODIFIER_NEGATIVE) == 1 ? -modifier : modifier;
 			SlayerModifierType type = SlayerModifierType.fromId(client.getVarbitValue(VarbitID.SLAYER_MODIFIER_ID));
 			result.append(" Modifier: ").append(highlight((signed > 0 ? "+" : "") + signed + (type == null ? "" : " " + type.displayName())));
@@ -263,16 +239,13 @@ public class SimpleVariables
 	}
 
 	// Raw varbits, as core's SlayerPlugin reads them; that plugin needn't be on.
-	private String slayerSummary()
-	{
+	private String slayerSummary() {
 		return "You've completed " + highlight(slayerStreak() + " tasks") + " in a row and currently have a total of "
 			+ highlight(client.getVarbitValue(VarbitID.SLAYER_POINTS) + " points") + ".";
 	}
 
-	private int slayerStreak()
-	{
-		switch (client.getVarbitValue(VarbitID.SLAYER_MASTER))
-		{
+	private int slayerStreak() {
+		switch (client.getVarbitValue(VarbitID.SLAYER_MASTER)) {
 			case KRYSTILIA_SLAYER_MASTER:
 				return client.getVarbitValue(VarbitID.SLAYER_WILDERNESS_TASKS_COMPLETED);
 			case MORTIMER_SLAYER_MASTER:
@@ -283,13 +256,11 @@ public class SimpleVariables
 	}
 
 	// No container yet is an empty inventory.
-	private static int freeSlots(@Nullable Item[] items)
-	{
+	private static int freeSlots(@Nullable Item[] items) {
 		return items == null ? INVENTORY_SIZE : Math.max(0, INVENTORY_SIZE - (int) Arrays.stream(items).filter(item -> item.getId() != -1).count());
 	}
 
-	private static String date()
-	{
+	private static String date() {
 		LocalDate today = LocalDate.now();
 		int day = today.getDayOfMonth();
 		String suffix = day >= 11 && day <= 13 ? "th" : day % 10 == 1 ? "st" : day % 10 == 2 ? "nd" : day % 10 == 3 ? "rd" : "th";

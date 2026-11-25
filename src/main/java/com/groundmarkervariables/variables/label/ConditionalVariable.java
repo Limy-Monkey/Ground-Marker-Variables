@@ -17,8 +17,7 @@ import lombok.RequiredArgsConstructor;
 // {a ? {b ? X : Y} : Z}. Base variables in the winning branch resolve in LabelResolver's later
 // passes; metronome is neutralized here, a metavariable left for MetaVariableResolver.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ConditionalVariable implements LabelVariable
-{
+public class ConditionalVariable implements LabelVariable {
 	private static final String METRONOME_TOKEN =
 		"(?i:\\{(?:metronome|m)[+-]?\\d+(?:_\\d+)?\\})";
 	private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
@@ -32,52 +31,42 @@ public class ConditionalVariable implements LabelVariable
 	private final Emojis emojis;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	// No Rich/Plain distinction of its own -- output is whichever branch's literal text won.
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		return resolveConditional(matcher);
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		return resolveConditional(matcher);
 	}
 
-	private String resolveConditional(Matcher matcher)
-	{
+	private String resolveConditional(Matcher matcher) {
 		return resolveToken(matcher.group());
 	}
 
 	// Resolves each top-level {...} conditional in text. Other tokens are left as-is.
-	public String resolveAll(String text)
-	{
+	public String resolveAll(String text) {
 		StringBuilder out = new StringBuilder();
 		int i = 0;
-		while (i < text.length())
-		{
+		while (i < text.length()) {
 			int open = text.indexOf('{', i);
 			int close = open < 0 ? -1 : matchingBrace(text, open);
-			if (close < 0)
-			{
+			if (close < 0) {
 				out.append(text, i, text.length());
 				break;
 			}
 
 			String token = text.substring(open, close + 1);
 			String resolved;
-			try
-			{
+			try {
 				resolved = resolveToken(token);
-			}
-			catch (RuntimeException e)
-			{
+			} catch (RuntimeException e) {
 				resolved = "ERROR";
 			}
 			out.append(text, i, open).append(resolved == null ? token : resolved);
@@ -88,18 +77,15 @@ public class ConditionalVariable implements LabelVariable
 
 	// Null if token isn't a resolvable conditional. Only the winning branch's own nested
 	// conditionals are resolved.
-	private String resolveToken(String token)
-	{
+	private String resolveToken(String token) {
 		String inner = token.substring(1, token.length() - 1);
 		int question = topLevel(inner, 0, "?");
-		if (question < 0 || inner.substring(0, question).contains("{"))
-		{
+		if (question < 0 || inner.substring(0, question).contains("{")) {
 			return null;
 		}
 
 		Boolean result = evaluate(inner.substring(0, question));
-		if (result == null)
-		{
+		if (result == null) {
 			return null;
 		}
 
@@ -111,18 +97,13 @@ public class ConditionalVariable implements LabelVariable
 		return resolveAll(winner);
 	}
 
-	public static int matchingBrace(String text, int open)
-	{
+	public static int matchingBrace(String text, int open) {
 		int depth = 0;
-		for (int i = open; i < text.length(); i++)
-		{
+		for (int i = open; i < text.length(); i++) {
 			char c = text.charAt(i);
-			if (c == '{')
-			{
+			if (c == '{') {
 				depth++;
-			}
-			else if (c == '}' && --depth == 0)
-			{
+			} else if (c == '}' && --depth == 0) {
 				return i;
 			}
 		}
@@ -130,22 +111,15 @@ public class ConditionalVariable implements LabelVariable
 	}
 
 	// First needle outside any {...} at or after from, or -1.
-	public static int topLevel(String text, int from, String needle)
-	{
+	public static int topLevel(String text, int from, String needle) {
 		int depth = 0;
-		for (int i = from; i < text.length(); i++)
-		{
+		for (int i = from; i < text.length(); i++) {
 			char c = text.charAt(i);
-			if (c == '{')
-			{
+			if (c == '{') {
 				depth++;
-			}
-			else if (c == '}')
-			{
+			} else if (c == '}') {
 				depth--;
-			}
-			else if (depth == 0 && text.startsWith(needle, i))
-			{
+			} else if (depth == 0 && text.startsWith(needle, i)) {
 				return i;
 			}
 		}
@@ -153,13 +127,10 @@ public class ConditionalVariable implements LabelVariable
 	}
 
 	// The branches' top-level ":". One between digits (9:00) or of a known :emoji: doesn't count.
-	private int colon(String text, int from)
-	{
-		for (int i; (i = topLevel(text, from, ":")) >= 0; )
-		{
+	private int colon(String text, int from) {
+		for (int i; (i = topLevel(text, from, ":")) >= 0; ) {
 			int emoji = emojis.endOf(text, i);
-			if (emoji < 0 && !isClockColon(text, i))
-			{
+			if (emoji < 0 && !isClockColon(text, i)) {
 				return i;
 			}
 			from = emoji < 0 ? i + 1 : emoji;
@@ -167,33 +138,25 @@ public class ConditionalVariable implements LabelVariable
 		return -1;
 	}
 
-	private static boolean isClockColon(String text, int i)
-	{
+	private static boolean isClockColon(String text, int i) {
 		return i > 0 && i + 1 < text.length() && Character.isDigit(text.charAt(i - 1)) && Character.isDigit(text.charAt(i + 1));
 	}
 
 	// Splits on top-level (paren-depth 0) && / ||, then collapses && pairs before || pairs --
 	// same flat two-pass shape as MathVariable's own * / before + -.
-	private Boolean evaluate(String text)
-	{
+	private Boolean evaluate(String text) {
 		List<Boolean> values = new ArrayList<>();
 		List<String> operators = new ArrayList<>();
 
 		int depth = 0;
 		int last = 0;
-		for (int i = 0; i < text.length(); i++)
-		{
+		for (int i = 0; i < text.length(); i++) {
 			char c = text.charAt(i);
-			if (c == '(')
-			{
+			if (c == '(') {
 				depth++;
-			}
-			else if (c == ')')
-			{
+			} else if (c == ')') {
 				depth--;
-			}
-			else if (depth == 0 && (text.startsWith("&&", i) || text.startsWith("||", i)))
-			{
+			} else if (depth == 0 && (text.startsWith("&&", i) || text.startsWith("||", i))) {
 				values.add(evaluateFactor(text.substring(last, i)));
 				operators.add(text.substring(i, i + 2));
 				i++;
@@ -202,10 +165,8 @@ public class ConditionalVariable implements LabelVariable
 		}
 		values.add(evaluateFactor(text.substring(last)));
 
-		for (int i = 0; i < operators.size(); )
-		{
-			if (!"&&".equals(operators.get(i)))
-			{
+		for (int i = 0; i < operators.size(); ) {
+			if (!"&&".equals(operators.get(i))) {
 				i++;
 				continue;
 			}
@@ -216,8 +177,7 @@ public class ConditionalVariable implements LabelVariable
 		}
 
 		Boolean result = values.get(0);
-		for (Boolean value : values.subList(1, values.size()))
-		{
+		for (Boolean value : values.subList(1, values.size())) {
 			result = or(result, value);
 		}
 		return result;
@@ -226,11 +186,9 @@ public class ConditionalVariable implements LabelVariable
 	// A factor fully wrapped in one matching paren pair recurses; otherwise it's a leaf. A
 	// leaf's own <expr>/<value> may still contain balanced parens of its own (e.g. a
 	// MathVariable expression) -- those are left untouched for ConditionEvaluator to resolve.
-	private Boolean evaluateFactor(String text)
-	{
+	private Boolean evaluateFactor(String text) {
 		String trimmed = text.trim();
-		if (isFullyWrapped(trimmed))
-		{
+		if (isFullyWrapped(trimmed)) {
 			return evaluate(trimmed.substring(1, trimmed.length() - 1));
 		}
 
@@ -238,25 +196,18 @@ public class ConditionalVariable implements LabelVariable
 		return leaf.matches() ? evaluator.evaluateCondition(leaf.group(1), leaf.group(2), leaf.group(3)) : null;
 	}
 
-	private static boolean isFullyWrapped(String text)
-	{
-		if (text.length() < 2 || text.charAt(0) != '(' || text.charAt(text.length() - 1) != ')')
-		{
+	private static boolean isFullyWrapped(String text) {
+		if (text.length() < 2 || text.charAt(0) != '(' || text.charAt(text.length() - 1) != ')') {
 			return false;
 		}
 
 		int depth = 0;
-		for (int i = 0; i < text.length(); i++)
-		{
-			if (text.charAt(i) == '(')
-			{
+		for (int i = 0; i < text.length(); i++) {
+			if (text.charAt(i) == '(') {
 				depth++;
-			}
-			else if (text.charAt(i) == ')')
-			{
+			} else if (text.charAt(i) == ')') {
 				depth--;
-				if (depth == 0 && i != text.length() - 1)
-				{
+				if (depth == 0 && i != text.length() - 1) {
 					return false;
 				}
 			}
@@ -266,10 +217,8 @@ public class ConditionalVariable implements LabelVariable
 
 	// Three-valued AND: false wins regardless of the other side (even if unresolvable);
 	// otherwise null propagates unless both sides are known true.
-	private static Boolean and(Boolean a, Boolean b)
-	{
-		if (Boolean.FALSE.equals(a) || Boolean.FALSE.equals(b))
-		{
+	private static Boolean and(Boolean a, Boolean b) {
+		if (Boolean.FALSE.equals(a) || Boolean.FALSE.equals(b)) {
 			return Boolean.FALSE;
 		}
 
@@ -278,10 +227,8 @@ public class ConditionalVariable implements LabelVariable
 
 	// Three-valued OR: true wins regardless of the other side; otherwise null propagates
 	// unless both sides are known false.
-	private static Boolean or(Boolean a, Boolean b)
-	{
-		if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b))
-		{
+	private static Boolean or(Boolean a, Boolean b) {
+		if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b)) {
 			return Boolean.TRUE;
 		}
 

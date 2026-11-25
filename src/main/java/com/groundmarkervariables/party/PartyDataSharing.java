@@ -34,8 +34,7 @@ import net.runelite.client.plugins.Plugin;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class PartyDataSharing
-{
+public class PartyDataSharing {
 	private final Client client;
 	private final ClientThread clientThread;
 	private final EventBus eventBus;
@@ -56,38 +55,31 @@ public class PartyDataSharing
 	// Arrive on WSClient's thread.
 	private final Map<Long, Map<PartyValue, String>> memberValues = new ConcurrentHashMap<>();
 
-	public void startUp(Plugin plugin)
-	{
+	public void startUp(Plugin plugin) {
 		this.plugin = plugin;
 		partyDataService.subscribe(plugin, PartyDataType.values());
 		partyDataService.subscribe(plugin, Skill.values());
 
-		try
-		{
+		try {
 			wsClient.registerMessage(GMVPartyValues.class);
 			registered = true;
-		}
-		catch (IllegalArgumentException e)
-		{
+		} catch (IllegalArgumentException e) {
 			log.warn("Party value sharing unavailable due to a message type collision with another plugin", e);
 		}
 		eventBus.register(this);
 
 		// Others only send core data on change, so ask for it all now.
-		if (partyService.isInParty())
-		{
+		if (partyService.isInParty()) {
 			clientThread.invokeLater(() -> partyService.send(new UserSync()));
 		}
 		republishValues = true;
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 		partyDataService.unsubscribe(plugin, PartyDataType.values());
 		partyDataService.unsubscribe(plugin, Skill.values());
-		if (registered)
-		{
+		if (registered) {
 			wsClient.unregisterMessage(GMVPartyValues.class);
 			registered = false;
 		}
@@ -97,53 +89,43 @@ public class PartyDataSharing
 
 	// A member's shared value, or null if they haven't sent it.
 	@Nullable
-	public String value(long memberId, PartyValue value)
-	{
+	public String value(long memberId, PartyValue value) {
 		Map<PartyValue, String> values = memberValues.get(memberId);
 		return values == null ? null : values.get(value);
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
-	{
-		if (registered && partyService.isInParty())
-		{
+	public void onGameTick(GameTick event) {
+		if (registered && partyService.isInParty()) {
 			publishValues();
 		}
 	}
 
 	// Our values, when they change.
-	private void publishValues()
-	{
+	private void publishValues() {
 		boolean all = republishValues;
 		republishValues = false;
 		Map<String, String> changed = new HashMap<>();
-		for (PartyValue value : PartyValue.values())
-		{
+		for (PartyValue value : PartyValue.values()) {
 			String current = localValue(value);
-			if (current != null && (all || !current.equals(publishedValues.get(value))))
-			{
+			if (current != null && (all || !current.equals(publishedValues.get(value)))) {
 				changed.put(value.name(), current);
 				publishedValues.put(value, current);
 			}
 		}
 
-		if (!changed.isEmpty())
-		{
+		if (!changed.isEmpty()) {
 			partyService.send(new GMVPartyValues(changed));
 		}
 	}
 
 	@Nullable
-	private String localValue(PartyValue value)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	private String localValue(PartyValue value) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
-		switch (value)
-		{
+		switch (value) {
 			case SPELLBOOK:
 				return Spellbooks.name(client);
 			case METRONOME_RESET:
@@ -156,31 +138,24 @@ public class PartyDataSharing
 	}
 
 	@Subscribe
-	public void onGMVPartyValues(GMVPartyValues event)
-	{
-		if (isOwn(event.getMemberId()) || event.getValues() == null)
-		{
+	public void onGMVPartyValues(GMVPartyValues event) {
+		if (isOwn(event.getMemberId()) || event.getValues() == null) {
 			return;
 		}
 
 		Map<PartyValue, String> values = memberValues.computeIfAbsent(event.getMemberId(), id -> new ConcurrentHashMap<>());
-		event.getValues().forEach((name, text) ->
-		{
+		event.getValues().forEach((name, text) -> {
 			PartyValue value = find(name);
-			if (value != null && text != null)
-			{
+			if (value != null && text != null) {
 				values.put(value, text);
 			}
 		});
 	}
 
 	@Nullable
-	private static PartyValue find(String name)
-	{
-		for (PartyValue value : PartyValue.values())
-		{
-			if (value.name().equals(name))
-			{
+	private static PartyValue find(String name) {
+		for (PartyValue value : PartyValue.values()) {
+			if (value.name().equals(name)) {
 				return value;
 			}
 		}
@@ -189,30 +164,25 @@ public class PartyDataSharing
 
 	// Someone joined or started up: they need our values.
 	@Subscribe
-	public void onUserSync(UserSync event)
-	{
-		if (!isOwn(event.getMemberId()))
-		{
+	public void onUserSync(UserSync event) {
+		if (!isOwn(event.getMemberId())) {
 			republishValues = true;
 		}
 	}
 
 	@Subscribe
-	public void onUserPart(UserPart event)
-	{
+	public void onUserPart(UserPart event) {
 		memberValues.remove(event.getMemberId());
 	}
 
 	@Subscribe
-	public void onPartyChanged(PartyChanged event)
-	{
+	public void onPartyChanged(PartyChanged event) {
 		memberValues.clear();
 		publishedValues.clear();
 		republishValues = true;
 	}
 
-	private boolean isOwn(long memberId)
-	{
+	private boolean isOwn(long memberId) {
 		PartyMember local = partyService.getLocalMember();
 		return local != null && memberId == local.getMemberId();
 	}

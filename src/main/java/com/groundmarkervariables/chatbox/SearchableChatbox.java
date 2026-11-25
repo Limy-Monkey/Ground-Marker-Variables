@@ -35,8 +35,7 @@ import net.runelite.client.util.Text;
 
 // A chatbox list (the Marker Manager, Marker Sets): the logo, title and typed search, then "x", "_" and the subclass's
 // buttons right to left, then its rows. Escape clears the search, then closes; Backspace removes a character from it.
-public abstract class SearchableChatbox extends ChatboxInput implements KeyListener
-{
+public abstract class SearchableChatbox extends ChatboxInput implements KeyListener {
 	protected static final int LINE_HEIGHT = 20;
 	protected static final int ROW_HEIGHT = 16;
 	protected static final int RESULTS_Y = 30;
@@ -98,8 +97,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	protected abstract void buildRows(Widget container);
 
-	protected void update()
-	{
+	protected void update() {
 		leaveEmptyBin();
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
@@ -120,66 +118,51 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	}
 
 	@Override
-	protected void close()
-	{
+	protected void close() {
 		iconOverlay.clear();
 	}
 
 	@Override
-	public void keyPressed(KeyEvent ev)
-	{
-		if (!chatboxPanelManager.shouldTakeInput())
-		{
+	public void keyPressed(KeyEvent ev) {
+		if (!chatboxPanelManager.shouldTakeInput()) {
 			return;
 		}
-		if (ev.getKeyCode() == KeyEvent.VK_ESCAPE)
-		{
+		if (ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
 			ev.consume();
-			if (query.isEmpty())
-			{
+			if (query.isEmpty()) {
 				chatboxPanelManager.close();
-			}
-			else
-			{
+			} else {
 				search(query -> "");
 			}
-		}
-		else if (ev.getKeyCode() == KeyEvent.VK_BACK_SPACE && !query.isEmpty())
-		{
+		} else if (ev.getKeyCode() == KeyEvent.VK_BACK_SPACE && !query.isEmpty()) {
 			ev.consume();
 			search(query -> query.isEmpty() ? query : query.substring(0, query.length() - 1));
 		}
 	}
 
 	@Override
-	public void keyTyped(KeyEvent ev)
-	{
+	public void keyTyped(KeyEvent ev) {
 		char c = ev.getKeyChar();
-		if (chatboxPanelManager.shouldTakeInput() && !Character.isISOControl(c) && !ev.isControlDown() && !ev.isAltDown())
-		{
+		if (chatboxPanelManager.shouldTakeInput() && !Character.isISOControl(c) && !ev.isControlDown() && !ev.isAltDown()) {
 			ev.consume();
 			search(query -> query + c);
 		}
 	}
 
 	@Override
-	public void keyReleased(KeyEvent ev)
-	{
+	public void keyReleased(KeyEvent ev) {
 	}
 
 	// Keys arrive on the AWT thread; the search changes, and widgets are built, on the client thread.
-	private void search(UnaryOperator<String> change)
-	{
-		clientThread.invoke(() ->
-		{
+	private void search(UnaryOperator<String> change) {
+		clientThread.invoke(() -> {
 			query = change.apply(query);
 			scrollOffset = 0;
 			update();
 		});
 	}
 
-	protected void scroll(int direction)
-	{
+	protected void scroll(int direction) {
 		scrollOffset += direction;
 		update();
 	}
@@ -187,36 +170,30 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// Every chatbox's top bar starts at its right with "x" (Close) and "_" (Toggle font size, then redraw), in font (of
 	// BUTTON_FONT). Returns the x for the next button.
 	static int closeAndFontButtons(Widget container, FontTypeFace font, ChatboxPanelManager chatboxPanelManager, ChatboxWidgets widgets,
-		Runnable redraw)
-	{
+		Runnable redraw) {
 		int rightX = nextX(button(container, font, "x", "Close", "", true, TOP_BAR_GAP, chatboxPanelManager::close));
-		return nextX(button(container, font, "_", "Toggle font size", "", true, rightX, () ->
-		{
+		return nextX(button(container, font, "_", "Toggle font size", "", true, rightX, () -> {
 			widgets.toggleFontSize();
 			redraw.run();
 		}));
 	}
 
 	// Out of the recycling bin once it's empty, e.g. after restoring its last.
-	protected void leaveEmptyBin()
-	{
+	protected void leaveEmptyBin() {
 		recycleBin &= recycled() > 0;
 	}
 
 	// While the recycling bin has something: its :recycle@white: at rightX, opening it (recycleBin) or going back; then
 	// shown runs. Returns the x for the next button.
-	protected int recycleBinButton(Widget container, int rightX, Runnable shown)
-	{
-		if (recycled() == 0)
-		{
+	protected int recycleBinButton(Widget container, int rightX, Runnable shown) {
+		if (recycled() == 0) {
 			return rightX;
 		}
 		Rectangle area = new Rectangle(container.getWidth() - rightX - RECYCLE_SIZE, 5 + (LINE_HEIGHT - RECYCLE_SIZE) / 2, RECYCLE_SIZE,
 			RECYCLE_SIZE);
 		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(RECYCLE)));
 		Widget bin = ChatboxWidgets.child(container, WidgetType.GRAPHIC, area.x, area.y, area.width, area.height);
-		addAction(bin, new ArrayList<>(), recycleBin ? "Back" : "Open recycling bin", () ->
-		{
+		addAction(bin, new ArrayList<>(), recycleBin ? "Back" : "Open recycling bin", () -> {
 			recycleBin = !recycleBin;
 			scrollOffset = 0;
 			shown.run();
@@ -227,16 +204,13 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// Deleting from the recycling bin permanently: until it's been there 30 minutes (minutesLeft, see
 	// RecyclingBin#minutesLeft), a notice under area of how long is left; then, once what (escaped, e.g. "this ground
 	// marker") is confirmed, delete.
-	protected void confirmPurge(long minutesLeft, Rectangle area, String what, Runnable delete)
-	{
-		if (minutesLeft > 0)
-		{
+	protected void confirmPurge(long minutesLeft, Rectangle area, String what, Runnable delete) {
+		if (minutesLeft > 0) {
 			notice(area, "You must wait " + minutesLeft + (minutesLeft == 1 ? " minute" : " minutes") + " before deleting this permanently.");
 			return;
 		}
 		new ConfirmChatbox(chatboxPanelManager, "Delete " + what + " permanently? It can't be restored.")
-			.yes(() ->
-			{
+			.yes(() -> {
 				delete.run();
 				reopen();
 			})
@@ -245,19 +219,16 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	}
 
 	// The x for the next button to the left of button.
-	protected static int nextX(Widget button)
-	{
+	protected static int nextX(Widget button) {
 		return button.getOriginalX() + button.getOriginalWidth() + TOP_BAR_GAP;
 	}
 
 	// A top bar button rightX from the right; target is its menu target while enabled.
 	protected static Widget button(Widget container, FontTypeFace font, String text, String action, String target, boolean enabled,
-		int rightX, Runnable onClick)
-	{
+		int rightX, Runnable onClick) {
 		Widget button = ChatboxWidgets.button(container, text, BUTTON_FONT, rightX, 5, font.getTextWidth(text) + 4, LINE_HEIGHT, action,
 			enabled ? onClick : null);
-		if (enabled)
-		{
+		if (enabled) {
 			button.setName(target);
 		}
 		return button;
@@ -265,8 +236,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	// The Settings menu's round check box (empty, or ticked green), at its own size (a smaller widget crops its bottom-right), centered in the row at y.
 	// In the recycling bin, crossed instead.
-	protected Widget checkbox(Widget container, boolean checked, int x, int y)
-	{
+	protected Widget checkbox(Widget container, boolean checked, int x, int y) {
 		int spriteId = recycleBin ? RECYCLED_CHECKBOX : checked ? SpriteID.OptionsRadioButtons.CHECK_GREEN : SpriteID.OptionsRadioButtons.EMPTY;
 		SpritePixels[] sprites = client.getSprites(client.getIndexSprites(), spriteId, 0);
 		int width = sprites == null ? ROW_HEIGHT : sprites[0].getMaxWidth();
@@ -279,49 +249,39 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	// The Advanced Label Editor on tile's label, given to save. Closing it comes back here (see reopen()), unless it opened
 	// another chatbox (which leaves a current input).
-	protected void editLabel(GroundMarkerPointData tile, Consumer<String> save)
-	{
+	protected void editLabel(GroundMarkerPointData tile, Consumer<String> save) {
 		plugin.editLabel(tile.worldPoint(), tile.getLabel(),
-			tile.getColor(), save, () -> clientThread.invokeLater(() ->
-			{
-				if (chatboxPanelManager.getCurrentInput() == null)
-				{
+			tile.getColor(), save, () -> clientThread.invokeLater(() -> {
+				if (chatboxPanelManager.getCurrentInput() == null) {
 					reopen();
 				}
 			}));
 	}
 
 	// Redraws, unless another chatbox has replaced this one, e.g. after something it waited for.
-	protected void updateIfOpen()
-	{
-		if (chatboxPanelManager.getCurrentInput() == this)
-		{
+	protected void updateIfOpen() {
+		if (chatboxPanelManager.getCurrentInput() == this) {
 			update();
 		}
 	}
 
-	protected void reopen()
-	{
+	protected void reopen() {
 		chatboxPanelManager.openInput(this);
 	}
 
 	// Sizes the table's columns: each but flex fits its heading with a sort arrow and sizedFor's values in the row font
 	// (longer ones get ".."); flex takes the rest of the row, up to the scrollbar (the last column's gap is its margin). A
 	// "" heading isn't shown, sized for or sortable.
-	protected void columns(Widget container, String[] headings, List<List<String>> sizedFor, int flex)
-	{
+	protected void columns(Widget container, String[] headings, List<List<String>> sizedFor, int flex) {
 		this.headings = headings;
 		font = ChatboxWidgets.font(container, widgets.fontId());
 		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
 		widths = new int[headings.length];
 		int used = 0;
-		for (int column = 0; column < headings.length; column++)
-		{
-			if (column != flex)
-			{
+		for (int column = 0; column < headings.length; column++) {
+			if (column != flex) {
 				int width = headings[column].isEmpty() ? 0 : headingFont.getTextWidth(headings[column]) + 3 + SORT_ARROW_SIZE;
-				for (String value : sizedFor.get(column))
-				{
+				for (String value : sizedFor.get(column)) {
 					width = Math.max(width, font.getTextWidth(value));
 				}
 				widths[column] = width + COLUMN_GAP;
@@ -334,30 +294,24 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// count rows, scrolling, under a fixed line if headed; addRow draws row i at y. The fixed line shows the headings,
 	// unless fixedRow draws something there for the first row shown (e.g. the set it's in) at that y.
 	protected void table(Widget container, boolean headed, int count, BiConsumer<Integer, Integer> addRow,
-		@Nullable BiPredicate<Integer, Integer> fixedRow)
-	{
+		@Nullable BiPredicate<Integer, Integer> fixedRow) {
 		int top = headed ? RESULTS_Y + ROW_HEIGHT : RESULTS_Y;
 		int visibleRows = headed ? VISIBLE_ROWS - 1 : VISIBLE_ROWS;
 		scrollOffset = ChatboxWidgets.scrollList(container, top, ROW_HEIGHT, visibleRows, count, Math.max(0, count - visibleRows), scrollOffset,
 			this::scroll);
-		if (headed && (fixedRow == null || count == 0 || !fixedRow.test(scrollOffset, RESULTS_Y)))
-		{
+		if (headed && (fixedRow == null || count == 0 || !fixedRow.test(scrollOffset, RESULTS_Y))) {
 			addHeadings(container, RESULTS_Y);
 		}
-		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++)
-		{
+		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++) {
 			addRow.accept(scrollOffset + i, top + ROW_HEIGHT * i);
 		}
 	}
 
 	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
-	private void addHeadings(Widget container, int y)
-	{
+	private void addHeadings(Widget container, int y) {
 		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
-		for (int column = 0; column < headings.length; column++)
-		{
-			if (headings[column].isEmpty())
-			{
+		for (int column = 0; column < headings.length; column++) {
+			if (headings[column].isEmpty()) {
 				continue;
 			}
 			int sortBy = column;
@@ -367,15 +321,13 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 				ROW_HEIGHT);
 			heading.setHasListener(true);
 			heading.setAction(0, column != sortColumn ? "Sort by " + headings[column] : descending ? "Sort ascending" : "Sort descending");
-			heading.setOnOpListener((JavaScriptCallback) ev ->
-			{
+			heading.setOnOpListener((JavaScriptCallback) ev -> {
 				descending = sortBy == sortColumn && !descending;
 				sortColumn = sortBy;
 				update();
 			});
 			ChatboxWidgets.hover(heading, 0x800000);
-			if (column == sortColumn)
-			{
+			if (column == sortColumn) {
 				Rectangle area = new Rectangle(columnX(column) + headingFont.getTextWidth(text) + 3,
 					y + (ROW_HEIGHT - SORT_ARROW_SIZE) / 2, SORT_ARROW_SIZE, SORT_ARROW_SIZE);
 				iconPlacements.add(new SuggestionIconOverlay.Placement(container, area,
@@ -384,37 +336,31 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		}
 	}
 
-	protected int columnX(int column)
-	{
+	protected int columnX(int column) {
 		int x = TABLE_X;
-		for (int before = 0; before < column; before++)
-		{
+		for (int before = 0; before < column; before++) {
 			x += widths[before];
 		}
 		return x;
 	}
 
-	protected int columnWidth(int column)
-	{
+	protected int columnWidth(int column) {
 		return widths[column] - COLUMN_GAP;
 	}
 
 	// text in column at y, escaped and cut to fit.
-	protected Widget cell(Widget container, String text, int color, int column, int y)
-	{
+	protected Widget cell(Widget container, String text, int color, int column, int y) {
 		return ChatboxWidgets.text(container, Text.escapeJagex(fit(text, columnWidth(column))), widgets.fontId(), color, columnX(column), y,
 			columnWidth(column), ROW_HEIGHT);
 	}
 
 	// text in the row font, cut to fit width with "..".
-	protected String fit(String text, int width)
-	{
+	protected String fit(String text, int width) {
 		return ChatboxWidgets.fit(font, text, width);
 	}
 
 	// widget's next right-click option, of actions (one list per widget), each run by its option.
-	static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action)
-	{
+	static void addAction(Widget widget, List<Runnable> actions, String name, Runnable action) {
 		widget.setHasListener(true);
 		widget.setAction(actions.size(), name);
 		actions.add(action);
@@ -423,19 +369,16 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	// widget's next right-click option, opening a submenu of choices (in order, e.g. Map > On World Map); itself does
 	// nothing. See menuEntryAdded().
-	protected void addSubmenu(Widget widget, List<Runnable> actions, String name, Map<String, Runnable> choices)
-	{
+	protected void addSubmenu(Widget widget, List<Runnable> actions, String name, Map<String, Runnable> choices) {
 		addAction(widget, actions, name, () -> { });
 		submenus.computeIfAbsent(widget, key -> new HashMap<>()).put(name, choices);
 	}
 
 	// From the plugin's onMenuEntryAdded while this is open: makes an addSubmenu() option's entry its submenu.
-	public void menuEntryAdded(MenuEntry entry)
-	{
+	public void menuEntryAdded(MenuEntry entry) {
 		String name = Text.removeTags(entry.getOption());
 		Map<String, Runnable> choices = entry.getWidget() == null ? null : submenus.getOrDefault(entry.getWidget(), Map.of()).get(name);
-		if (choices == null)
-		{
+		if (choices == null) {
 			return;
 		}
 		// Its word as the target (e.g. "Map"), shown over its choices.
@@ -447,19 +390,16 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		names.forEach(choice -> submenu.createMenuEntry(-1).setOption(choice).setType(MenuAction.RUNELITE).onClick(e -> choices.get(choice).run()));
 	}
 
-	protected static Widget addText(Widget container, String text, int fontId, int color, int x, int y)
-	{
+	protected static Widget addText(Widget container, String text, int fontId, int color, int x, int y) {
 		return ChatboxWidgets.rowText(container, text, fontId, color, x, y, ROW_HEIGHT, x + ChatboxWidgets.SCROLLBAR_WIDTH + 6);
 	}
 
 	// A tooltip under area (in the chatbox) for a few seconds, e.g. why an action can't be done.
-	protected void notice(Rectangle area, String text)
-	{
+	protected void notice(Rectangle area, String text) {
 		iconOverlay.notice(new SuggestionIconOverlay.Tip(chatboxPanelManager.getContainerWidget(), area, text));
 	}
 
-	protected void sendChatMessage(String message)
-	{
+	protected void sendChatMessage(String message) {
 		plugin.sendChatMessage(message);
 	}
 }

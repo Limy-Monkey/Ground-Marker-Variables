@@ -24,8 +24,7 @@ import net.runelite.client.party.PartyMember;
 // icon is the spell's sprite with a <badge>, a pie of the time left if known, or dimmed when not active. In
 // {party} rows, other members only have vengeance.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
-{
+public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable {
 	// Suggested, each with its icon; "venge" and "mark" are also accepted.
 	private static final Args ARGS = Args.of("active")
 		.main(() -> List.of("vengeance", "thrall", "deathCharge", "shadowVeil", "markOfDarkness"), effect -> "{active " + effect + " icon}")
@@ -47,30 +46,25 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 	private final RichText richText;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return ARGS.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return ARGS;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		Effect effect = effect(matcher);
 		return client.getLocalPlayer() == null || effect == null ? null : String.valueOf(tracker.active(effect));
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		Effect effect = effect(matcher);
-		if (client.getLocalPlayer() == null || effect == null)
-		{
+		if (client.getLocalPlayer() == null || effect == null) {
 			return null;
 		}
 
@@ -80,32 +74,26 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 
 	// Other members: only vengeance, from core's PartyDataService.
 	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member)
-	{
+	public String resolvePlain(Matcher matcher, PartyMember member) {
 		return effect(matcher) == Effect.VENGEANCE ? String.valueOf(member.isVengeanceActive()) : null;
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher, PartyMember member)
-	{
+	public String resolveRich(Matcher matcher, PartyMember member) {
 		return effect(matcher) == Effect.VENGEANCE ? rich(matcher, Effect.VENGEANCE, member.isVengeanceActive(), null) : null;
 	}
 
 	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText)
-	{
+	public String resolveRowRich(Matcher matcher, RichText richText) {
 		return resolveRich(matcher);
 	}
 
 	// The name colored by active, or with icon its sprite: dimmed, or with a <badge> of percent left.
-	private String rich(Matcher matcher, Effect effect, boolean active, @Nullable Integer percent)
-	{
-		if (!ARGS.options(matcher).flag("icon"))
-		{
+	private String rich(Matcher matcher, Effect effect, boolean active, @Nullable Integer percent) {
+		if (!ARGS.options(matcher).flag("icon")) {
 			return richText.booleanColored(active, NAMES.get(effect));
 		}
-		if (!active)
-		{
+		if (!active) {
 			return Icons.sprite(SPRITES.get(effect), false);
 		}
 		return Icons.sprite(SPRITES.get(effect)) + (percent == null ? "<badge>" : "<badge=" + percent + ">");
@@ -113,8 +101,7 @@ public class ActiveLabelVariable implements LabelVariable, PartyMemberVariable
 
 	// Null if not one of EFFECTS.
 	@Nullable
-	private static Effect effect(Matcher matcher)
-	{
+	private static Effect effect(Matcher matcher) {
 		String effect = ARGS.main(matcher);
 		return effect == null ? null : EFFECTS.get(effect.toLowerCase(Locale.ROOT));
 	}

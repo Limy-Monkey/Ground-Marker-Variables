@@ -15,16 +15,13 @@ import net.runelite.api.coords.WorldPoint;
 // worldview, since the player's position isn't meaningful for a world entity's (e.g. a ship's) own.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class MarkerCulling
-{
+public class MarkerCulling {
 	private final Client client;
 
 	// True if tile is within distance of the player or the camera's focal point, or culling doesn't apply.
-	public boolean inRange(WorldPoint tile, int distance)
-	{
+	public boolean inRange(WorldPoint tile, int distance) {
 		Player player = client.getLocalPlayer();
-		if (player == null || !player.getWorldView().isTopLevel() || tile.distanceTo(player.getWorldLocation()) < distance)
-		{
+		if (player == null || !player.getWorldView().isTopLevel() || tile.distanceTo(player.getWorldLocation()) < distance) {
 			return true;
 		}
 
@@ -34,11 +31,9 @@ public class MarkerCulling
 
 	// Null if it's outside the scene.
 	@Nullable
-	private WorldPoint cameraFocus()
-	{
+	private WorldPoint cameraFocus() {
 		WorldView wv = client.getTopLevelWorldView();
-		if (wv == null)
-		{
+		if (wv == null) {
 			return null;
 		}
 

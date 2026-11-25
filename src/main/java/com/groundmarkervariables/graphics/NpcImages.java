@@ -25,8 +25,7 @@ import net.runelite.api.NPCComposition;
 // (GroundModelRenderer). Client thread only; cached per NPC.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class NpcImages
-{
+public class NpcImages {
 	private static final int SIZE = 64;
 	// Drawn this many times larger, then scaled down, which smooths the edges.
 	private static final int SUPERSAMPLE = 4;
@@ -43,12 +42,10 @@ public class NpcImages
 	private final Map<Model, float[][]> turnedVertices = new IdentityHashMap<>();
 
 	@Nullable
-	public BufferedImage image(int npcId, boolean head)
-	{
+	public BufferedImage image(int npcId, boolean head) {
 		String key = npcId + (head ? ",head" : "");
 		Optional<BufferedImage> cached = images.get(key);
-		if (cached != null)
-		{
+		if (cached != null) {
 			return cached.orElse(null);
 		}
 
@@ -61,12 +58,10 @@ public class NpcImages
 
 	// Lit and recolored as the NPC is.
 	@Nullable
-	public Model model(int npcId, boolean head)
-	{
+	public Model model(int npcId, boolean head) {
 		String key = npcId + (head ? ",head" : "");
 		Optional<Model> cached = models.get(key);
-		if (cached != null)
-		{
+		if (cached != null) {
 			return cached.orElse(null);
 		}
 
@@ -76,26 +71,21 @@ public class NpcImages
 	}
 
 	@Nullable
-	private Model build(int npcId, boolean head)
-	{
+	private Model build(int npcId, boolean head) {
 		NPCComposition npc = client.getNpcDefinition(npcId);
-		if (npc == null)
-		{
+		if (npc == null) {
 			return null;
 		}
 
 		int[] modelIds = head ? npc.getChatheadModels() : npc.getModels();
-		if (modelIds == null || modelIds.length == 0)
-		{
+		if (modelIds == null || modelIds.length == 0) {
 			return null;
 		}
 
 		List<ModelData> parts = new ArrayList<>();
-		for (int id : modelIds)
-		{
+		for (int id : modelIds) {
 			ModelData part = client.loadModelData(id);
-			if (part == null)
-			{
+			if (part == null) {
 				return null;
 			}
 			parts.add(part);
@@ -105,10 +95,8 @@ public class NpcImages
 		ModelData merged = client.mergeModels(parts.toArray(new ModelData[0])).cloneColors();
 		short[] from = npc.getColorToReplace();
 		short[] to = npc.getColorToReplaceWith();
-		if (from != null && to != null)
-		{
-			for (int i = 0; i < Math.min(from.length, to.length); i++)
-			{
+		if (from != null && to != null) {
+			for (int i = 0; i < Math.min(from.length, to.length); i++) {
 				merged.recolor(from[i], to[i]);
 			}
 		}
@@ -118,20 +106,17 @@ public class NpcImages
 
 	// Vertices turned to the image's three-quarter view, {x right, y down, z away}; shared with {ground}.
 	@Nullable
-	public float[][] turned(int npcId, boolean head)
-	{
+	public float[][] turned(int npcId, boolean head) {
 		Model model = model(npcId, head);
 		return model == null ? null : turnedVertices.computeIfAbsent(model, m -> turn(m, head ? HEAD_YAW : BODY_YAW, head ? HEAD_PITCH : BODY_PITCH));
 	}
 
-	private static float[][] turn(Model model, double yaw, double pitch)
-	{
+	private static float[][] turn(Model model, double yaw, double pitch) {
 		int vertexCount = model.getVerticesCount();
 		float[] vx = model.getVerticesX(), vy = model.getVerticesY(), vz = model.getVerticesZ();
 		float[] x = new float[vertexCount], y = new float[vertexCount], z = new float[vertexCount];
 		double cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw), cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch);
-		for (int i = 0; i < vertexCount; i++)
-		{
+		for (int i = 0; i < vertexCount; i++) {
 			double turnedX = vx[i] * cosYaw - vz[i] * sinYaw;
 			double turnedZ = vx[i] * sinYaw + vz[i] * cosYaw;
 			x[i] = (float) turnedX;
@@ -143,8 +128,7 @@ public class NpcImages
 
 	// Orthographic: x right, y down (as the model's own y), viewed from the south looking north.
 	@Nullable
-	private BufferedImage draw(Model model, float[][] turned)
-	{
+	private BufferedImage draw(Model model, float[][] turned) {
 		Color[] colors = modelColors.faceColors(model);
 		float[] sx = turned[0], sy = turned[1], depth = turned[2];
 
@@ -154,30 +138,25 @@ public class NpcImages
 		// Visible faces, and the bounds they cover.
 		List<Integer> faces = new ArrayList<>();
 		double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-		for (int f = 0; f < faceCount; f++)
-		{
-			if (colors[f] == null)
-			{
+		for (int f = 0; f < faceCount; f++) {
+			if (colors[f] == null) {
 				continue;
 			}
 			faces.add(f);
-			for (int v : new int[]{f1[f], f2[f], f3[f]})
-			{
+			for (int v : new int[]{f1[f], f2[f], f3[f]}) {
 				minX = Math.min(minX, sx[v]);
 				maxX = Math.max(maxX, sx[v]);
 				minY = Math.min(minY, sy[v]);
 				maxY = Math.max(maxY, sy[v]);
 			}
 		}
-		if (faces.isEmpty() || maxX <= minX || maxY <= minY)
-		{
+		if (faces.isEmpty() || maxX <= minX || maxY <= minY) {
 			return null;
 		}
 
 		// Farthest first; each priority level a little nearer (see GroundModelRenderer.PRIORITY_STEP).
 		double minDepth = Double.MAX_VALUE, maxDepth = -Double.MAX_VALUE;
-		for (float d : depth)
-		{
+		for (float d : depth) {
 			minDepth = Math.min(minDepth, d);
 			maxDepth = Math.max(maxDepth, d);
 		}
@@ -193,8 +172,7 @@ public class NpcImages
 
 		BufferedImage canvas = new BufferedImage(big, big, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D g = canvas.createGraphics();
-		for (int f : faces)
-		{
+		for (int f : faces) {
 			int a = f1[f], b = f2[f], c = f3[f];
 			Polygon triangle = new Polygon(
 				new int[]{(int) Math.round(sx[a] * scale + offsetX), (int) Math.round(sx[b] * scale + offsetX), (int) Math.round(sx[c] * scale + offsetX)},

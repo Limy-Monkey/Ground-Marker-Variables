@@ -29,8 +29,7 @@ import javax.inject.Inject;
 //
 // MetronomeLabelVariable is listed separately too, deliberately LAST (after conditional)
 // Per Plugin Hub review, metronomes inside of conditionals are too risky for abuse.
-public class LabelResolver
-{
+public class LabelResolver {
 	private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
 	private static final Pattern PARTY_START = Pattern.compile("\\{([\\^&*])?party(?=[\\s}])", Pattern.CASE_INSENSITIVE);
 	private static final Pattern OPERATOR_START = Pattern.compile("^(?:==|!=|<|>|\\|\\||&&|\\?|[+\\-*/]\\s)");
@@ -62,8 +61,7 @@ public class LabelResolver
 	@Inject
 	private LabelResolver(VariableRegistry registry, MathVariable math, BooleanVariable booleanVariable, ConditionalVariable conditional,
 						  MetronomeLabelVariable metronome, GroundMarkerVariablesConfig config, Emojis emojis, PartyMemberContext memberContext,
-						  PartyLabelVariable party)
-	{
+						  PartyLabelVariable party) {
 		this.memberContext = memberContext;
 		this.party = party;
 		this.baseVariables = registry.all();
@@ -76,29 +74,24 @@ public class LabelResolver
 	}
 
 	// The VariableRegistry variables, e.g. for their args().
-	public List<LabelVariable> variables()
-	{
+	public List<LabelVariable> variables() {
 		return baseVariables;
 	}
 
 	// A marker's own raw label: {col=} and :emoji: aliases expand first, so neither is mistaken
 	// for {variable} / {cond ? a : b} syntax.
-	public String resolveMarker(String label)
-	{
+	public String resolveMarker(String label) {
 		return resolveMarker(prepareMarker(label));
 	}
 
-	public String resolveMarker(PreparedLabel prepared)
-	{
+	public String resolveMarker(PreparedLabel prepared) {
 		return prepared.getGuarded() == null ? null : TileMetaGuard.restore(resolve(prepared.getGuarded()), prepared.getTileMeta());
 	}
 
 	// The work before resolving that depends only on the label, so a marker can keep it.
-	public PreparedLabel prepareMarker(String label)
-	{
+	public PreparedLabel prepareMarker(String label) {
 		String expanded = emojis.expand(label == null ? null : NamedColors.expandColorAliases(label));
-		if (expanded == null)
-		{
+		if (expanded == null) {
 			return new PreparedLabel(null, List.of());
 		}
 
@@ -108,16 +101,13 @@ public class LabelResolver
 	}
 
 	// text, braced, is a variable or math token.
-	private boolean isVariable(String text)
-	{
+	private boolean isVariable(String text) {
 		String token = "{" + text + "}";
 		return math.pattern().matcher(token).matches() || baseVariables.stream().anyMatch(variable -> variable.pattern().matcher(token).matches());
 	}
 
-	public String resolve(String label)
-	{
-		if (label == null || !HAS_VARIABLE.matcher(label).matches())
-		{
+	public String resolve(String label) {
+		if (label == null || !HAS_VARIABLE.matcher(label).matches()) {
 			return label;
 		}
 
@@ -140,8 +130,7 @@ public class LabelResolver
 		resolved = applyWithMode(booleanVariable, resolved, true);
 
 		resolved = applyWithMode(math, resolved, true);
-		for (LabelVariable variable : baseVariables)
-		{
+		for (LabelVariable variable : baseVariables) {
 			resolved = applyWithMode(variable, resolved);
 		}
 
@@ -152,43 +141,34 @@ public class LabelResolver
 	}
 
 	// text resolved with Plain Text as the default, e.g. to test a condition.
-	public String resolvePlain(String text)
-	{
+	public String resolvePlain(String text) {
 		boolean previous = plainByDefault;
 		plainByDefault = true;
-		try
-		{
+		try {
 			return resolve(text);
-		}
-		finally
-		{
+		} finally {
 			plainByDefault = previous;
 		}
 	}
 
-	private boolean richByDefault()
-	{
+	private boolean richByDefault() {
 		return !plainByDefault && config.richTextByDefault();
 	}
 
 	// Renders each {party <template>} (which may nest tokens) and leaves a placeholder, so the passes
 	// above leave its rows alone. A template starting with an operator is a comparison instead.
-	private String extractParties(String text, List<String> parties)
-	{
+	private String extractParties(String text, List<String> parties) {
 		Matcher start = PARTY_START.matcher(text);
 		StringBuilder out = new StringBuilder();
 		int i = 0;
-		while (start.find(i))
-		{
+		while (start.find(i)) {
 			int close = ConditionalVariable.matchingBrace(text, start.start());
-			if (close < 0)
-			{
+			if (close < 0) {
 				break;
 			}
 
 			String template = text.substring(start.end(), close).trim();
-			if (OPERATOR_START.matcher(template).find())
-			{
+			if (OPERATOR_START.matcher(template).find()) {
 				out.append(text, i, start.end());
 				i = start.end();
 				continue;
@@ -197,12 +177,9 @@ public class LabelResolver
 			Character prefixChar = start.group(1) == null ? null : start.group(1).charAt(0);
 			boolean rich = TextMode.forPrefix(prefixChar, richByDefault()) == TextMode.RICH;
 			String value;
-			try
-			{
+			try {
 				value = renderParty(template, rich);
-			}
-			catch (RuntimeException e)
-			{
+			} catch (RuntimeException e) {
 				value = "ERROR";
 			}
 
@@ -215,18 +192,15 @@ public class LabelResolver
 
 	// {flag}...{/flag}: its content after a flag if it shows anything, else nothing; a placeholder (as {party}). A tag with a
 	// condition ({flag ? <icon>}, replacing the flag; {/flag ? <icon>}) is on its block; {flag <condition>} elsewhere, on all.
-	private String extractFlags(String text, List<String> parts)
-	{
+	private String extractFlags(String text, List<String> parts) {
 		Matcher block = FLAG_BLOCK.matcher(text);
 		StringBuilder out = new StringBuilder();
 		boolean any = false;
-		while (block.find())
-		{
+		while (block.find()) {
 			String content = resolve(block.group(2));
 			// Shown: anything left without tokens (e.g. {tip=...}), colors, \s \n \t and spaces.
 			String left = content;
-			for (String previous = null; !left.equals(previous); )
-			{
+			for (String previous = null; !left.equals(previous); ) {
 				previous = left;
 				left = HIDDEN.matcher(left).replaceAll("");
 			}
@@ -243,24 +217,18 @@ public class LabelResolver
 	}
 
 	// A {party} inside a {party} row is unavailable.
-	private String renderParty(String template, boolean rich)
-	{
-		if (inParty)
-		{
+	private String renderParty(String template, boolean rich) {
+		if (inParty) {
 			return memberContext.unavailable(rich);
 		}
-		if (!rich)
-		{
+		if (!rich) {
 			return String.valueOf(party.size());
 		}
 
 		inParty = true;
-		try
-		{
+		try {
 			return party.render(template, this::resolve);
-		}
-		finally
-		{
+		} finally {
 			inParty = false;
 		}
 	}
@@ -268,19 +236,16 @@ public class LabelResolver
 	// Matches this variable's token with an optional ^/&/* mode-override prefix right after
 	// its opening brace, then re-matches the variable's own untouched pattern against the
 	// prefix-stripped text so resolve() sees the exact match shape it always has.
-	private String applyWithMode(LabelVariable variable, String text)
-	{
+	private String applyWithMode(LabelVariable variable, String text) {
 		return applyWithMode(variable, text, false);
 	}
 
 	// composite: math/comparisons, whose own operands get the party-member check instead.
-	private String applyWithMode(LabelVariable variable, String text, boolean composite)
-	{
+	private String applyWithMode(LabelVariable variable, String text, boolean composite) {
 		Pattern prefixed = prefixedPatterns.computeIfAbsent(variable, LabelResolver::withOptionalModePrefix);
 		Matcher matcher = prefixed.matcher(text);
 		StringBuilder replaced = new StringBuilder();
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			Character prefixChar = matcher.group(1) == null ? null : matcher.group(1).charAt(0);
 			TextMode mode = TextMode.forPrefix(prefixChar, richByDefault());
 
@@ -288,21 +253,16 @@ public class LabelResolver
 			Matcher bareMatcher = variable.pattern().matcher(bareToken);
 			boolean matched = bareMatcher.matches();
 			String value;
-			try
-			{
+			try {
 				// A token that can't resolve (e.g. a party member's data is missing) shows nothing.
 				value = matched ? resolveFor(variable, bareMatcher, mode, composite) : null;
-				if (value == null && matched)
-				{
+				if (value == null && matched) {
 					value = "";
 				}
-			}
-			catch (RuntimeException e)
-			{
+			} catch (RuntimeException e) {
 				value = "";
 			}
-			if (value != null)
-			{
+			if (value != null) {
 				matcher.appendReplacement(replaced, Matcher.quoteReplacement(value));
 			}
 		}
@@ -310,16 +270,14 @@ public class LabelResolver
 		return replaced.toString();
 	}
 
-	private String resolveFor(LabelVariable variable, Matcher matcher, TextMode mode, boolean composite)
-	{
+	private String resolveFor(LabelVariable variable, Matcher matcher, TextMode mode, boolean composite) {
 		return composite ? variable.resolve(matcher, mode) : memberContext.resolve(variable, matcher, mode == TextMode.RICH);
 	}
 
 	// Every LabelVariable pattern starts with the literal "\{" -- inserting the optional
 	// prefix group right after it leaves the rest of the pattern, and its group numbering,
 	// untouched.
-	private static Pattern withOptionalModePrefix(LabelVariable variable)
-	{
+	private static Pattern withOptionalModePrefix(LabelVariable variable) {
 		String source = variable.pattern().pattern();
 		return Pattern.compile("\\{(?:([\\^&*]))?" + source.substring(2), variable.pattern().flags());
 	}

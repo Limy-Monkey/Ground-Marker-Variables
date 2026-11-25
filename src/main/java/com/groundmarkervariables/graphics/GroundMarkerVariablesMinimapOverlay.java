@@ -25,15 +25,13 @@ import net.runelite.client.util.ColorUtil;
 
 // Mirrors core's GroundMarkerMinimapOverlay — draws every drawn marker's outline (see RenderedTiles) on the minimap,
 // gated by the "Draw tiles on minimap" config item.
-public class GroundMarkerVariablesMinimapOverlay extends Overlay
-{
+public class GroundMarkerVariablesMinimapOverlay extends Overlay {
 	private final Client client;
 	private final GroundMarkerVariablesConfig config;
 	private final RenderedTiles renderedTiles;
 
 	@Inject
-	private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesConfig config, RenderedTiles renderedTiles)
-	{
+	private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesConfig config, RenderedTiles renderedTiles) {
 		this.client = client;
 		this.config = config;
 		this.renderedTiles = renderedTiles;
@@ -43,10 +41,8 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay
 	}
 
 	@Override
-	public Dimension render(Graphics2D graphics)
-	{
-		if (!config.drawTileOnMinimap())
-		{
+	public Dimension render(Graphics2D graphics) {
+		if (!config.drawTileOnMinimap()) {
 			return null;
 		}
 
@@ -56,31 +52,25 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay
 		return null;
 	}
 
-	private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity)
-	{
-		if (worldPoint.getPlane() != wv.getPlane())
-		{
+	private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity) {
+		if (worldPoint.getPlane() != wv.getPlane()) {
 			return;
 		}
 
 		MetaState metaState = marker.getMetaState();
 		Color color = marker.tileColor(config.markerColor());
-		if (metaState.getTileOpacity() != null)
-		{
+		if (metaState.getTileOpacity() != null) {
 			color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
 		}
-		if (opacity < 1f)
-		{
+		if (opacity < 1f) {
 			color = ColorUtil.colorWithAlpha(color, Math.round(color.getAlpha() * opacity));
 		}
 		drawOnMinimap(graphics, wv, worldPoint, color);
 	}
 
-	private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color)
-	{
+	private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color) {
 		LocalPoint lp = LocalPoint.fromWorld(wv, point);
-		if (lp == null)
-		{
+		if (lp == null) {
 			return;
 		}
 
@@ -92,8 +82,7 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay
 		Point mp3 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
 		Point mp4 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y, wv.getId()));
 
-		if (mp1 == null || mp2 == null || mp3 == null || mp4 == null)
-		{
+		if (mp1 == null || mp2 == null || mp3 == null || mp4 == null) {
 			return;
 		}
 

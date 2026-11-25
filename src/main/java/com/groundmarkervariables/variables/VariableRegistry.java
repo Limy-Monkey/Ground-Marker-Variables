@@ -16,13 +16,11 @@ import javax.inject.Inject;
 // excluded from conditional support entirely (both as <expr> and inside A/B branches).
 //
 // A new variable: a line in SimpleVariables if it takes no arguments, else its class here.
-public class VariableRegistry
-{
+public class VariableRegistry {
 	private final List<LabelVariable> variables;
 
 	@Inject
-	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args, SpellVariables spells)
-	{
+	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args, SpellVariables spells) {
 		// The variables defined inline in SimpleVariables, ArgVariables and SpellVariables.
 		List<LabelVariable> variables = new ArrayList<>(simple.all());
 		variables.addAll(args.all());
@@ -45,15 +43,13 @@ public class VariableRegistry
 			DivineLabelVariable.class,
 			WorldInfoLabelVariable.class,
 			ActiveLabelVariable.class,
-			QuickPrayersLabelVariable.class))
-		{
+			QuickPrayersLabelVariable.class)) {
 			variables.add(injector.getInstance(type));
 		}
 		this.variables = List.copyOf(variables);
 	}
 
-	public List<LabelVariable> all()
-	{
+	public List<LabelVariable> all() {
 		return variables;
 	}
 }

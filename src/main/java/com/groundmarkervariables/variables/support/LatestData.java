@@ -17,44 +17,34 @@ import okhttp3.Response;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class LatestData
-{
+public class LatestData {
 	private static final String BASE_URL =
 		"https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/src/main/resources/com/groundmarkervariables/variables/support/";
 
 	private final OkHttpClient okHttpClient;
 	private final IconNames iconNames;
 
-	public void startUp()
-	{
+	public void startUp() {
 		fetch("region-names.json", RegionNames::update);
 		fetch("boss-aliases.json", BossAliases::update);
 		fetch("sprite-names.json", iconNames::updateSprites);
 	}
 
-	private void fetch(String file, Consumer<String> update)
-	{
-		okHttpClient.newCall(new Request.Builder().url(BASE_URL + file).build()).enqueue(new Callback()
-		{
+	private void fetch(String file, Consumer<String> update) {
+		okHttpClient.newCall(new Request.Builder().url(BASE_URL + file).build()).enqueue(new Callback() {
 			@Override
-			public void onFailure(Call call, IOException e)
-			{
+			public void onFailure(Call call, IOException e) {
 				log.debug("Couldn't fetch the latest {}", file, e);
 			}
 
 			// A damaged file is ignored.
 			@Override
-			public void onResponse(Call call, Response response)
-			{
-				try (response)
-				{
-					if (response.isSuccessful())
-					{
+			public void onResponse(Call call, Response response) {
+				try (response) {
+					if (response.isSuccessful()) {
 						update.accept(response.body().string());
 					}
-				}
-				catch (Exception e)
-				{
+				} catch (Exception e) {
 					log.warn("Couldn't read the latest {}", file, e);
 				}
 			}

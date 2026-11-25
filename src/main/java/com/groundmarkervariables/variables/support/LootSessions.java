@@ -13,30 +13,25 @@ import net.runelite.client.config.ConfigManager;
 // closes), and what's been added since.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class LootSessions
-{
+public class LootSessions {
 	private final ConfigManager configManager;
 	// Account + monster (BossAliases-resolved, lower case) -> its record at the session's start.
 	private final Map<String, LootTrackerRecords.Record> starts = new ConcurrentHashMap<>();
 
 	// current minus monster's session start, saved now if it has none. A cleared Loot Tracker starts it again.
-	public LootTrackerRecords.Record since(String monster, LootTrackerRecords.Record current)
-	{
+	public LootTrackerRecords.Record since(String monster, LootTrackerRecords.Record current) {
 		String key = key(monster);
 		LootTrackerRecords.Record saved = starts.get(key);
-		if (saved == null || current.kills < saved.kills)
-		{
+		if (saved == null || current.kills < saved.kills) {
 			starts.put(key, current);
 			saved = current;
 		}
 		LootTrackerRecords.Record start = saved;
 
 		Map<Integer, Integer> added = new LinkedHashMap<>();
-		current.quantities.forEach((id, quantity) ->
-		{
+		current.quantities.forEach((id, quantity) -> {
 			int more = quantity - start.quantities.getOrDefault(id, 0);
-			if (more > 0)
-			{
+			if (more > 0) {
 				added.put(id, more);
 			}
 		});
@@ -45,13 +40,11 @@ public class LootSessions
 	}
 
 	// Starts monster's session again from now (on its next use).
-	public void reset(String monster)
-	{
+	public void reset(String monster) {
 		starts.remove(key(monster));
 	}
 
-	private String key(String monster)
-	{
+	private String key(String monster) {
 		return configManager.getRSProfileKey() + ":" + BossAliases.resolve(monster.trim()).toLowerCase(Locale.ROOT);
 	}
 }

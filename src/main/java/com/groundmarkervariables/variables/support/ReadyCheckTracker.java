@@ -24,13 +24,10 @@ import net.runelite.client.util.Text;
 // while a {readyCheck} tile is nearby, and reset once none is, e.g. on leaving a raid lobby.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ReadyCheckTracker
-{
+public class ReadyCheckTracker {
 	// A status and when it was set.
-	public static final class Status
-	{
-		public enum Kind
-		{
+	public static final class Status {
+		public enum Kind {
 			READY,
 			POTTING,
 			POTTED,
@@ -41,8 +38,7 @@ public class ReadyCheckTracker
 		public final Kind kind;
 		public final LocalTime time;
 
-		private Status(Kind kind)
-		{
+		private Status(Kind kind) {
 			this.kind = kind;
 			this.time = LocalTime.now();
 		}
@@ -70,13 +66,11 @@ public class ReadyCheckTracker
 	// Last tick's boosted levels in POT_SKILLS order, -1 if not known yet.
 	private final Map<String, int[]> lastBoosts = new HashMap<>();
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 		statuses.clear();
 		lastBoosts.clear();
@@ -85,33 +79,27 @@ public class ReadyCheckTracker
 	}
 
 	@Nullable
-	public Status status(@Nullable String name)
-	{
+	public Status status(@Nullable String name) {
 		seenThisTick |= collecting;
 		return name == null ? null : statuses.get(standardize(name));
 	}
 
-	public void clear(@Nullable String name)
-	{
-		if (name != null)
-		{
+	public void clear(@Nullable String name) {
+		if (name != null) {
 			statuses.remove(standardize(name));
 		}
 	}
 
 	@Nullable
-	public Status localStatus()
-	{
+	public Status localStatus() {
 		return client.getLocalPlayer() == null ? null : status(client.getLocalPlayer().getName());
 	}
 	// After the plugin's own onGameTick, which resolves the nearby tiles.
 	@Subscribe(priority = -1)
-	public void onGameTick(GameTick event)
-	{
+	public void onGameTick(GameTick event) {
 		active = seenThisTick;
 		seenThisTick = false;
-		if (!active)
-		{
+		if (!active) {
 			statuses.clear();
 			lastBoosts.clear();
 			return;
@@ -121,13 +109,10 @@ public class ReadyCheckTracker
 	}
 
 	// A boost that rose since last tick and is above base means they just potted.
-	private void checkBoosts()
-	{
+	private void checkBoosts() {
 		PartyMember localMember = partyService.getLocalMember();
-		for (PartyMember member : partyService.getMembers())
-		{
-			if (member.getDisplayName() == null)
-			{
+		for (PartyMember member : partyService.getMembers()) {
+			if (member.getDisplayName() == null) {
 				continue;
 			}
 
@@ -136,8 +121,7 @@ public class ReadyCheckTracker
 			int[] last = lastBoosts.get(name);
 			int[] boosts = new int[POT_SKILLS.length];
 			boolean potted = false;
-			for (int i = 0; i < POT_SKILLS.length; i++)
-			{
+			for (int i = 0; i < POT_SKILLS.length; i++) {
 				Skill skill = POT_SKILLS[i];
 				int base = local ? client.getRealSkillLevel(skill) : member.getStatBase(skill);
 				int boost = local ? client.getBoostedSkillLevel(skill) : member.getStatBoost(skill);
@@ -146,24 +130,20 @@ public class ReadyCheckTracker
 			}
 
 			lastBoosts.put(name, boosts);
-			if (potted)
-			{
+			if (potted) {
 				statuses.put(name, new Status(Status.Kind.POTTED));
 			}
 		}
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
-	{
-		if (!active || !isPlayerChat(event.getType()) || event.getName() == null)
-		{
+	public void onChatMessage(ChatMessage event) {
+		if (!active || !isPlayerChat(event.getType()) || event.getName() == null) {
 			return;
 		}
 
 		String name = standardize(event.getName());
-		if (!isPartyMember(name))
-		{
+		if (!isPartyMember(name)) {
 			return;
 		}
 
@@ -173,28 +153,23 @@ public class ReadyCheckTracker
 			: NOT_READY.matcher(message).matches() ? Status.Kind.NOT_READY
 			: AWAY.matcher(message).find() ? Status.Kind.AWAY
 			: null;
-		if (kind != null)
-		{
+		if (kind != null) {
 			statuses.put(name, new Status(kind));
 		}
 	}
 
 	@Subscribe
-	public void onPartyChanged(PartyChanged event)
-	{
+	public void onPartyChanged(PartyChanged event) {
 		statuses.clear();
 		lastBoosts.clear();
 	}
 
-	private boolean isPartyMember(String name)
-	{
+	private boolean isPartyMember(String name) {
 		return partyService.getMembers().stream().anyMatch(member -> name.equals(standardize(member.getDisplayName())));
 	}
 
-	private static boolean isPlayerChat(ChatMessageType type)
-	{
-		switch (type)
-		{
+	private static boolean isPlayerChat(ChatMessageType type) {
+		switch (type) {
 			case PUBLICCHAT:
 			case MODCHAT:
 			case PRIVATECHAT:
@@ -210,8 +185,7 @@ public class ReadyCheckTracker
 	}
 
 	// Party names can arrive with underscores in place of spaces.
-	private static String standardize(String name)
-	{
+	private static String standardize(String name) {
 		return Text.standardize(Text.removeTags(name).replace('_', ' '));
 	}
 }

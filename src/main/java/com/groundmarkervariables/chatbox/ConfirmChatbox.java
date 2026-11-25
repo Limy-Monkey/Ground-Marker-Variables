@@ -17,8 +17,7 @@ import net.runelite.client.input.KeyListener;
 // Esc cancels. A choice can have more on right-click, e.g. "Yes, overwrite existing". A lone choice gets a "No" that does
 // nothing.
 @RequiredArgsConstructor
-public class ConfirmChatbox extends ChatboxInput implements KeyListener
-{
+public class ConfirmChatbox extends ChatboxInput implements KeyListener {
 	private static final int TITLE_COLOR = 0x800000;
 	private static final int LINE_HEIGHT = 15;
 	private static final int MARGIN = 8;
@@ -32,8 +31,7 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 	private Runnable onClose;
 
 	@RequiredArgsConstructor
-	private static final class Choice
-	{
+	private static final class Choice {
 		private final String text;
 		private final Runnable action;
 		// Right-click only.
@@ -41,54 +39,44 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 	}
 
 	// None if action is null.
-	public ConfirmChatbox option(String text, @Nullable Runnable action)
-	{
-		if (action != null)
-		{
+	public ConfirmChatbox option(String text, @Nullable Runnable action) {
+		if (action != null) {
 			choices.add(new Choice(text, action));
 		}
 		return this;
 	}
 
-	public ConfirmChatbox yes(Runnable action)
-	{
+	public ConfirmChatbox yes(Runnable action) {
 		return option("Yes", action);
 	}
 
-	public ConfirmChatbox no(Runnable action)
-	{
+	public ConfirmChatbox no(Runnable action) {
 		return option("No", action);
 	}
 
 	// Another way to pick the last choice, on right-click; none if action is null.
-	public ConfirmChatbox or(String text, @Nullable Runnable action)
-	{
-		if (action != null)
-		{
+	public ConfirmChatbox or(String text, @Nullable Runnable action) {
+		if (action != null) {
 			choices.get(choices.size() - 1).more.add(new Choice(text, action));
 		}
 		return this;
 	}
 
 	// However it closes; before a choice's action runs.
-	public ConfirmChatbox onClose(Runnable onClose)
-	{
+	public ConfirmChatbox onClose(Runnable onClose) {
 		this.onClose = onClose;
 		return this;
 	}
 
-	public void build()
-	{
-		if (choices.size() == 1)
-		{
+	public void build() {
+		if (choices.size() == 1) {
 			no(() -> { });
 		}
 		chatboxPanelManager.openInput(this);
 	}
 
 	@Override
-	protected void open()
-	{
+	protected void open() {
 		Widget container = chatboxPanelManager.getContainerWidget();
 		FontTypeFace font = ChatboxWidgets.font(container, FontID.QUILL_8);
 		List<String> lines = ChatboxWidgets.wrap(font, title, container.getWidth() - 4 * MARGIN);
@@ -101,12 +89,10 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 		int space = container.getHeight() - y - MARGIN;
 		int step = Math.min(space / choices.size(), MAX_STEP);
 		y += (space - step * choices.size()) / 2;
-		for (Choice choice : choices)
-		{
+		for (Choice choice : choices) {
 			Widget option = ChatboxWidgets.centeredText(container, choice.text, FontID.QUILL_8, 0, y, OPTION_HEIGHT);
 			option.setAction(0, "Continue");
-			for (int i = 0; i < choice.more.size(); i++)
-			{
+			for (int i = 0; i < choice.more.size(); i++) {
 				option.setAction(i + 1, choice.more.get(i).text);
 			}
 			// Op 1 is "Continue", op 2 the first of more.
@@ -118,53 +104,42 @@ public class ConfirmChatbox extends ChatboxInput implements KeyListener
 	}
 
 	// As RuneLite's menu: closes, then runs the choice.
-	private void pick(Choice choice)
-	{
+	private void pick(Choice choice) {
 		chatboxPanelManager.getContainerWidget().setOnKeyListener((Object[]) null);
 		chatboxPanelManager.close();
 		choice.action.run();
 	}
 
 	@Override
-	protected void close()
-	{
-		if (onClose != null)
-		{
+	protected void close() {
+		if (onClose != null) {
 			onClose.run();
 		}
 	}
 
 	@Override
-	public void keyTyped(KeyEvent e)
-	{
-		if (!chatboxPanelManager.shouldTakeInput())
-		{
+	public void keyTyped(KeyEvent e) {
+		if (!chatboxPanelManager.shouldTakeInput()) {
 			return;
 		}
 		int n = e.getKeyChar() - '1';
-		if (e.getKeyChar() == KeyEvent.VK_ESCAPE)
-		{
+		if (e.getKeyChar() == KeyEvent.VK_ESCAPE) {
 			chatboxPanelManager.close();
 			e.consume();
-		}
-		else if (n >= 0 && n < choices.size())
-		{
+		} else if (n >= 0 && n < choices.size()) {
 			pick(choices.get(n));
 			e.consume();
 		}
 	}
 
 	@Override
-	public void keyPressed(KeyEvent e)
-	{
-		if (chatboxPanelManager.shouldTakeInput() && e.getKeyCode() == KeyEvent.VK_ESCAPE)
-		{
+	public void keyPressed(KeyEvent e) {
+		if (chatboxPanelManager.shouldTakeInput() && e.getKeyCode() == KeyEvent.VK_ESCAPE) {
 			e.consume();
 		}
 	}
 
 	@Override
-	public void keyReleased(KeyEvent e)
-	{
+	public void keyReleased(KeyEvent e) {
 	}
 }

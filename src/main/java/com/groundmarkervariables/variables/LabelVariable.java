@@ -7,8 +7,7 @@ import javax.annotation.Nullable;
 // A {token} substitution ground marker labels can use, e.g. {rsn} or {metronome5}. A regex
 // rather than a literal string because some variables carry their own parameters (the "5"
 // in {metronome5}) that resolve() needs to read back out of the match via capture groups.
-public interface LabelVariable
-{
+public interface LabelVariable {
 	// Matches every occurrence of this variable in a label, e.g. Pattern.compile("\\{rsn\\}").
 	Pattern pattern();
 
@@ -21,15 +20,13 @@ public interface LabelVariable
 
 	// LabelResolver's dispatch point when it doesn't already know which one it wants; call
 	// resolvePlain/resolveRich directly when it does (see ConditionalVariable, always Plain).
-	default String resolve(Matcher matcher, TextMode mode)
-	{
+	default String resolve(Matcher matcher, TextMode mode) {
 		return mode == TextMode.RICH ? resolveRich(matcher) : resolvePlain(matcher);
 	}
 
 	// Its declared arguments, which autocomplete then follows; null if its pattern is its own.
 	@Nullable
-	default Args args()
-	{
+	default Args args() {
 		return null;
 	}
 }

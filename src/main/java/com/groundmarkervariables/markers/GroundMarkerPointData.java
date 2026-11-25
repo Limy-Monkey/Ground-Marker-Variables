@@ -11,8 +11,7 @@ import net.runelite.api.coords.WorldPoint;
 // rather than importing theirs because net.runelite.client.plugins.groundmarkers
 // .GroundMarkerPoint is package-private.
 @Value
-public class GroundMarkerPointData
-{
+public class GroundMarkerPointData {
 	int regionId;
 	int regionX;
 	int regionY;
@@ -24,8 +23,7 @@ public class GroundMarkerPointData
 	@With
 	String label;
 
-	public WorldPoint worldPoint()
-	{
+	public WorldPoint worldPoint() {
 		return WorldPoint.fromRegion(regionId, regionX, regionY, z);
 	}
 }

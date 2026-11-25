@@ -15,21 +15,17 @@ import net.runelite.client.hiscore.HiscoreSkill;
 // The local player's own hiscore rank for a skill/boss, via HiscoreManager's own async cache --
 // null means unavailable (still loading, or genuinely unranked; its API can't tell those apart).
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class HiscoreRankLookup
-{
+public class HiscoreRankLookup {
 	private final Client client;
 	private final HiscoreManager hiscoreManager;
 
-	public Long rank(HiscoreSkill skill)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	public Long rank(HiscoreSkill skill) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
 		HiscoreResult result = hiscoreManager.lookupAsync(client.getLocalPlayer().getName(), localEndpoint());
-		if (result == null)
-		{
+		if (result == null) {
 			return null;
 		}
 
@@ -38,11 +34,9 @@ public class HiscoreRankLookup
 	}
 
 	// Another player's boss kc, on our world type's hiscores; 0 if unranked, null while loading.
-	public Integer kc(String player, HiscoreSkill skill)
-	{
+	public Integer kc(String player, HiscoreSkill skill) {
 		HiscoreResult result = hiscoreManager.lookupAsync(player, HiscoreEndpoint.fromWorldTypes(client.getWorldType()));
-		if (result == null)
-		{
+		if (result == null) {
 			return null;
 		}
 
@@ -50,17 +44,14 @@ public class HiscoreRankLookup
 	}
 
 	// Mirrors ChatCommandsPlugin's own local-player-only endpoint detection.
-	private HiscoreEndpoint localEndpoint()
-	{
+	private HiscoreEndpoint localEndpoint() {
 		EnumSet<WorldType> worldType = client.getWorldType();
 		HiscoreEndpoint endpoint = HiscoreEndpoint.fromWorldTypes(worldType);
-		if (endpoint != HiscoreEndpoint.NORMAL)
-		{
+		if (endpoint != HiscoreEndpoint.NORMAL) {
 			return endpoint;
 		}
 
-		switch (client.getVarbitValue(VarbitID.IRONMAN))
-		{
+		switch (client.getVarbitValue(VarbitID.IRONMAN)) {
 			case 1:
 				return HiscoreEndpoint.IRONMAN;
 			case 2:

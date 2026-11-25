@@ -19,8 +19,7 @@ import net.runelite.client.hiscore.HiscoreSkill;
 // same as {kc}). Kc comes from the existing BossKillCountTracker; rank from HiscoreRankLookup,
 // shown as animated dots while unavailable (still loading, or genuinely unranked).
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class RankLabelVariable implements LabelVariable
-{
+public class RankLabelVariable implements LabelVariable {
 	// Suggesting only the bosses on the hiscores.
 	private static final Args ARGS = Args.of("rank").main(() -> BossAliases.suggestions(true), Args.BOSS_ICON);
 
@@ -30,23 +29,19 @@ public class RankLabelVariable implements LabelVariable
 	private final RichText richText;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return ARGS.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return ARGS;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		HiscoreSkill skill = findSkill(matcher);
-		if (skill == null)
-		{
+		if (skill == null) {
 			return null;
 		}
 
@@ -55,11 +50,9 @@ public class RankLabelVariable implements LabelVariable
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		HiscoreSkill skill = findSkill(matcher);
-		if (skill == null)
-		{
+		if (skill == null) {
 			return null;
 		}
 
@@ -71,10 +64,8 @@ public class RankLabelVariable implements LabelVariable
 		return canonicalBoss + ": " + richText.highlightValue(String.valueOf(kc == null ? 0 : kc)) + " Rank: " + rankText;
 	}
 
-	private HiscoreSkill findSkill(Matcher matcher)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	private HiscoreSkill findSkill(Matcher matcher) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 

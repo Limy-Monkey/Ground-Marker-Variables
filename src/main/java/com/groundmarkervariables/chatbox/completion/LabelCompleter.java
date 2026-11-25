@@ -33,8 +33,7 @@ import net.runelite.client.callback.ClientThread;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
 // editor; labels() gives it that editor's recent/nearby labels.
-public class LabelCompleter
-{
+public class LabelCompleter {
 	// The variable names (VariableCatalog.NAMES) that fit after a math operator.
 	private static final List<String> NUMERIC_VARIABLE_NAMES = VariableCatalog.NAMES.stream()
 		.filter(NumericVariableRegistry.NAMES::contains).collect(Collectors.toList());
@@ -92,8 +91,7 @@ public class LabelCompleter
 	private static final Completion NONE = new Completion(List.of(), -1);
 
 	// A completion rule for the text after "{": null if it doesn't apply (the next is tried), else its result.
-	private interface Rule
-	{
+	private interface Rule {
 		@Nullable
 		Completion apply(String partial, boolean numeric);
 	}
@@ -118,8 +116,7 @@ public class LabelCompleter
 
 	@Inject
 	private LabelCompleter(GroundMarkerVariablesConfig config, ClientThread clientThread, Emojis emojis, IconNames iconNames,
-		NpcImages npcImages, LabelResolver labelResolver)
-	{
+		NpcImages npcImages, LabelResolver labelResolver) {
 		this.config = config;
 		this.clientThread = clientThread;
 		this.emojis = emojis;
@@ -130,14 +127,12 @@ public class LabelCompleter
 	}
 
 	// Run when names a completion needed have loaded (they load in the background), so it can be shown again.
-	public void onNamesLoaded(Runnable refresh)
-	{
+	public void onNamesLoaded(Runnable refresh) {
 		this.refresh = refresh;
 	}
 
 	// The editor's recent and nearby labels (its own lists, kept up to date by it).
-	public void labels(List<String> recentLabels, List<String> nearbyLabels)
-	{
+	public void labels(List<String> recentLabels, List<String> nearbyLabels) {
 		recent.set(recentLabels, nearbyLabels);
 		iconNames.refreshNearby();
 	}
@@ -145,15 +140,12 @@ public class LabelCompleter
 	// Client thread. An option's icon (see Completion.Option#icon) if it's been worked out; never blocks. Else null, and
 	// it's worked out in the background (see work()); the icon overlay asks each frame, so draws it once it's ready.
 	@Nullable
-	public Completion.Icon icon(String syntax)
-	{
+	public Completion.Icon icon(String syntax) {
 		Optional<Completion.Icon> cached = icons.get(syntax);
-		if (cached != null)
-		{
+		if (cached != null) {
 			return cached.orElse(null);
 		}
-		if (pending.add(syntax) && pending.size() == 1)
-		{
+		if (pending.add(syntax) && pending.size() == 1) {
 			clientThread.invoke(this::work);
 		}
 		return null;
@@ -161,15 +153,12 @@ public class LabelCompleter
 
 	// Client thread. Works out pending icons, in order, until this tick's time is spent, skipping those whose names
 	// are still loading; true (done) once none are left.
-	private boolean work()
-	{
+	private boolean work() {
 		long end = System.nanoTime() + WORK_NANOS;
-		for (Iterator<String> it = pending.iterator(); it.hasNext() && System.nanoTime() < end; )
-		{
+		for (Iterator<String> it = pending.iterator(); it.hasNext() && System.nanoTime() < end; ) {
 			String syntax = it.next();
 			Optional<Completion.Icon> icon = resolve(syntax);
-			if (icon != null)
-			{
+			if (icon != null) {
 				icon.ifPresent(this::draw);
 				icons.put(syntax, icon);
 				it.remove();
@@ -179,10 +168,8 @@ public class LabelCompleter
 	}
 
 	// An NPC's image drawn now, in work()'s time, rather than when the overlay first shows it.
-	private void draw(Completion.Icon icon)
-	{
-		if (icon.kind == Completion.Icon.Kind.NPC || icon.kind == Completion.Icon.Kind.NPC_HEAD)
-		{
+	private void draw(Completion.Icon icon) {
+		if (icon.kind == Completion.Icon.Kind.NPC || icon.kind == Completion.Icon.Kind.NPC_HEAD) {
 			npcImages.image(Integer.parseInt(icon.id), icon.kind == Completion.Icon.Kind.NPC_HEAD);
 		}
 		icon.parts.forEach(this::draw);
@@ -191,30 +178,25 @@ public class LabelCompleter
 	// The first sprite, item, NPC, ... syntax resolves to (empty if none); null while names it needs are still
 	// loading, which starts them.
 	@Nullable
-	private Optional<Completion.Icon> resolve(String syntax)
-	{
+	private Optional<Completion.Icon> resolve(String syntax) {
 		// Args.firstOf's: the first that shows.
 		int fallback = syntax.indexOf(Args.ICON_FALLBACK);
-		if (fallback >= 0)
-		{
+		if (fallback >= 0) {
 			Optional<Completion.Icon> first = resolve(syntax.substring(0, fallback));
 			return first == null || first.isPresent() ? first : resolve(syntax.substring(fallback + Args.ICON_FALLBACK.length()));
 		}
 
-		if (syntax.startsWith(Args.NPC_ICON_PREFIX))
-		{
+		if (syntax.startsWith(Args.NPC_ICON_PREFIX)) {
 			String name = syntax.substring(Args.NPC_ICON_PREFIX.length());
 			return iconNames.ready(IconNames.Kind.NPC) ? resolve("<npc=" + name + (iconNames.hasHead(name) ? ",head" : "") + ">") : null;
 		}
 
-		if (syntax.startsWith(Args.COLOR_ICON_PREFIX))
-		{
+		if (syntax.startsWith(Args.COLOR_ICON_PREFIX)) {
 			return Optional.of(new Completion.Icon(Completion.Icon.Kind.COLOR, syntax.substring(Args.COLOR_ICON_PREFIX.length())));
 		}
 
 		// A boss: its hiscores icon, else a sprite of that name.
-		if (syntax.startsWith(Args.BOSS_ICON_PREFIX))
-		{
+		if (syntax.startsWith(Args.BOSS_ICON_PREFIX)) {
 			String name = syntax.substring(Args.BOSS_ICON_PREFIX.length());
 			Integer sprite = iconNames.bossSprite(name);
 			return sprite != null ? Optional.of(new Completion.Icon(Completion.Icon.Kind.SPRITE, String.valueOf(sprite)))
@@ -222,10 +204,8 @@ public class LabelCompleter
 		}
 
 		// Names need their kind loaded; a variable may name items (e.g. {charges toxic blowpipe, icon}).
-		for (IconNames.Kind kind : IconNames.Kind.values())
-		{
-			if ((syntax.contains("<" + kind.tag + "=") || (kind == IconNames.Kind.ITEM && syntax.contains("{"))) && !iconNames.ready(kind))
-			{
+		for (IconNames.Kind kind : IconNames.Kind.values()) {
+			if ((syntax.contains("<" + kind.tag + "=") || (kind == IconNames.Kind.ITEM && syntax.contains("{"))) && !iconNames.ready(kind)) {
 				return null;
 			}
 		}
@@ -234,23 +214,18 @@ public class LabelCompleter
 		String resolved = labelResolver.resolve(expanded);
 		Matcher tag = ICON_TAG.matcher(resolved);
 		Completion.Icon icon = null;
-		if (tag.find())
-		{
+		if (tag.find()) {
 			// Inside {split}...{/split}: its icons as one.
 			int splitOpen = resolved.lastIndexOf(SPLIT_OPEN, tag.start());
 			int splitClose = splitOpen < 0 ? -1 : resolved.indexOf(SPLIT_CLOSE, splitOpen);
-			if (splitClose > tag.start())
-			{
+			if (splitClose > tag.start()) {
 				List<Completion.Icon> parts = new ArrayList<>();
-				do
-				{
+				do {
 					parts.add(tagIcon(tag));
 				}
 				while (parts.size() < SplitIcons.MAX_PARTS && tag.find() && tag.start() < splitClose);
 				icon = parts.size() == 1 ? parts.get(0) : Completion.Icon.split(parts);
-			}
-			else
-			{
+			} else {
 				icon = tagIcon(tag);
 			}
 		}
@@ -258,33 +233,28 @@ public class LabelCompleter
 	}
 
 	// The icon an ICON_TAG match draws. <npc=ID,head> is its chathead.
-	private static Completion.Icon tagIcon(Matcher tag)
-	{
+	private static Completion.Icon tagIcon(Matcher tag) {
 		String kind = tag.group(1) != null ? tag.group(1) + (tag.group(3) != null ? "_head" : "") : tag.group(4);
 		return new Completion.Icon(Completion.Icon.Kind.valueOf(kind.toUpperCase(Locale.ROOT)), tag.group(1) != null ? tag.group(2) : tag.group(5));
 	}
 
 	// completion with icon(label) as each option's icon syntax.
 	@Nullable
-	private static Completion withIcons(@Nullable Completion completion, Function<String, String> icon)
-	{
+	private static Completion withIcons(@Nullable Completion completion, Function<String, String> icon) {
 		return completion == null ? null : completion.withIcons(icon);
 	}
 
 	// A named sprite tag, for IconNames to expand.
 	// A sprite by its IconNames name, "Name (Category)", e.g. "Piety (Prayer)".
-	private static String spriteNamed(String name, String category)
-	{
+	private static String spriteNamed(String name, String category) {
 		return "<sprite=" + name + " (" + category + ")>";
 	}
 
 	// The freely typed parameters, "name: description", of the variable whose arguments are being typed at cursor,
 	// e.g. "{showOneItem " -> "<a>, <b>, ...: Parts of item names, ...". Empty if none.
-	public List<String> parameterHints(String text, int cursor)
-	{
+	public List<String> parameterHints(String text, int cursor) {
 		String token = token(text, cursor);
-		if (token == null)
-		{
+		if (token == null) {
 			return List.of();
 		}
 		// Not a variable with args()'s option words: those are suggested instead.
@@ -296,27 +266,23 @@ public class LabelCompleter
 
 	// The variable's own line when the token at cursor is exactly its name, e.g. "{rsn" -> "{rsn}: Display name".
 	@Nullable
-	public String variableSummary(String text, int cursor)
-	{
+	public String variableSummary(String text, int cursor) {
 		String token = token(text, cursor);
 		return token == null ? null : VariableCatalog.summary(token);
 	}
 
 	// The line of the parameter whose required value is being typed at cursor, e.g. "{ground@" -> "@<dir>: ...".
 	@Nullable
-	public String valueHint(String text, int cursor)
-	{
+	public String valueHint(String text, int cursor) {
 		String token = token(text, cursor);
 		return token == null ? null : VariableCatalog.valueHint(token);
 	}
 
 	// What's typed at cursor after the open "{" (and any ^&* prefix or operator), or null outside one.
 	@Nullable
-	private static String token(String text, int cursor)
-	{
+	private static String token(String text, int cursor) {
 		String partial = afterOpen(text.substring(0, cursor));
-		if (partial == null)
-		{
+		if (partial == null) {
 			return null;
 		}
 		int boundaryEnd = Math.max(lastMatchEnd(MATH_OPERATOR_BOUNDARY, partial), lastMatchEnd(CONDITION_BOUNDARY, partial));
@@ -326,19 +292,16 @@ public class LabelCompleter
 	// What completes the token ending at cursor in text, or null. A ghosted "}" is listed first, its tooltip the
 	// variable it closes.
 	@Nullable
-	public Completion complete(String text, int cursor)
-	{
+	public Completion complete(String text, int cursor) {
 		Completion completion = withVariableIcons(completeToken(text, cursor), text, cursor);
 		// Names it needs may still be loading: shown again once they have.
 		iconNames.whenLoaded(refresh);
-		if (completion == null || completion.preferred < 0)
-		{
+		if (completion == null || completion.preferred < 0) {
 			return completion;
 		}
 		Completion.Option ghost = completion.options.get(completion.preferred);
 		int open = unclosedOpen(text.substring(0, cursor));
-		if (ghost.label != null || !ghost.insert.equals("}") || open < 0)
-		{
+		if (ghost.label != null || !ghost.insert.equals("}") || open < 0) {
 			return completion;
 		}
 		List<Completion.Option> options = new ArrayList<>();
@@ -350,18 +313,14 @@ public class LabelCompleter
 	// Each "icon" option without an icon given the icon its variable would show once completed, e.g. "{hasSurge icon}"
 	// or "{charges toxic blowpipe, icon}" (resolved once, see icon()).
 	@Nullable
-	private static Completion withVariableIcons(@Nullable Completion completion, String text, int cursor)
-	{
+	private static Completion withVariableIcons(@Nullable Completion completion, String text, int cursor) {
 		int open = completion == null ? -1 : unclosedOpen(text.substring(0, cursor));
-		if (open < 0)
-		{
+		if (open < 0) {
 			return completion;
 		}
 		List<Completion.Option> options = new ArrayList<>(completion.options.size());
-		for (Completion.Option option : completion.options)
-		{
-			if (option.label == null || option.icon != null || !option.label.replaceFirst("^[\\s,]+", "").equalsIgnoreCase(ICON))
-			{
+		for (Completion.Option option : completion.options) {
+			if (option.label == null || option.icon != null || !option.label.replaceFirst("^[\\s,]+", "").equalsIgnoreCase(ICON)) {
 				options.add(option);
 				continue;
 			}
@@ -374,11 +333,9 @@ public class LabelCompleter
 
 	// What's typed after the last "{" in before if it's open, without a {^var} / {&var} / {*var} Rich/Plain prefix; else null.
 	@Nullable
-	private static String afterOpen(String before)
-	{
+	private static String afterOpen(String before) {
 		int open = before.lastIndexOf('{');
-		if (open < 0 || before.indexOf('}', open) >= 0)
-		{
+		if (open < 0 || before.indexOf('}', open) >= 0) {
 			return null;
 		}
 		String partial = before.substring(open + 1);
@@ -386,18 +343,13 @@ public class LabelCompleter
 	}
 
 	// The innermost "{" in before still open (nested pairs skipped), or -1.
-	private static int unclosedOpen(String before)
-	{
+	private static int unclosedOpen(String before) {
 		int depth = 0;
-		for (int i = before.length() - 1; i >= 0; i--)
-		{
+		for (int i = before.length() - 1; i >= 0; i--) {
 			char c = before.charAt(i);
-			if (c == '}')
-			{
+			if (c == '}') {
 				depth++;
-			}
-			else if (c == '{' && depth-- == 0)
-			{
+			} else if (c == '{' && depth-- == 0) {
 				return i;
 			}
 		}
@@ -406,59 +358,49 @@ public class LabelCompleter
 
 	// complete() before its "}" row. Not mid-word: completing there would run into what follows.
 	@Nullable
-	private Completion completeToken(String text, int cursor)
-	{
-		if (!config.autocomplete() || (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor))))
-		{
+	private Completion completeToken(String text, int cursor) {
+		if (!config.autocomplete() || (cursor < text.length() && Character.isLetterOrDigit(text.charAt(cursor)))) {
 			return null;
 		}
 
 		String before = text.substring(0, cursor);
 		Matcher iconName = ICON_NAME_PARTIAL.matcher(before);
-		if (iconName.find())
-		{
+		if (iconName.find()) {
 			IconNames.Kind kind = IconNames.Kind.valueOf(iconName.group(1).toUpperCase(Locale.ROOT));
 			return completeIconName(kind, iconName.group(2), text.startsWith(">", cursor));
 		}
 
 		Matcher iconTag = ICON_TAG_PARTIAL.matcher(before);
-		if (iconTag.find())
-		{
+		if (iconTag.find()) {
 			Completion tag = match(iconTag.group(1), ICON_TAGS, "{", "", null, true);
-			if (tag != null && tag.preferred >= 0)
-			{
+			if (tag != null && tag.preferred >= 0) {
 				return tag;
 			}
 		}
 
 		Matcher emojiColor = EMOJI_COLOR_PARTIAL.matcher(before);
-		if (emojiColor.find() && emojis.names().contains(emojiColor.group(1)))
-		{
+		if (emojiColor.find() && emojis.names().contains(emojiColor.group(1))) {
 			String name = emojiColor.group(1);
 			return withIcons(match(emojiColor.group(2), NamedColors.SUGGESTED, ":" + name + "@", ":", ":", true),
 				Args.COLOR_ICON);
 		}
 
 		Matcher emoji = EMOJI_PARTIAL.matcher(before);
-		if (emoji.find())
-		{
+		if (emoji.find()) {
 			return completeEmoji(emoji.group(1));
 		}
 
 		String partial = afterOpen(before);
-		if (partial == null)
-		{
+		if (partial == null) {
 			// Right after a nested variable inside one still open, e.g. "{party {rsn}": close the outer one.
 			return before.endsWith("}") && unclosedOpen(before) >= 0 && !text.startsWith("}", cursor) ? Completion.closer("}") : null;
 		}
-		if (partial.isEmpty())
-		{
+		if (partial.isEmpty()) {
 			return variableNames("", false);
 		}
 
 		Matcher spellbook = SPELLBOOK_CONDITION.matcher(partial);
-		if (spellbook.find())
-		{
+		if (spellbook.find()) {
 			return withIcons(match(spellbook.group(2), SPELLBOOK_NAMES, partial.substring(spellbook.start(), spellbook.start(2)), "", "}", true),
 				name -> "<sprite=" + SPELLBOOK_SPRITES.get(name) + ">");
 		}
@@ -469,11 +411,9 @@ public class LabelCompleter
 		int conditionEnd = lastMatchEnd(CONDITION_BOUNDARY, partial);
 		boolean numeric = mathEnd > conditionEnd;
 		int boundaryEnd = Math.max(mathEnd, conditionEnd);
-		if (boundaryEnd >= 0)
-		{
+		if (boundaryEnd >= 0) {
 			partial = partial.substring(boundaryEnd).trim();
-			if (partial.isEmpty())
-			{
+			if (partial.isEmpty()) {
 				return variableNames("", numeric);
 			}
 		}
@@ -482,11 +422,9 @@ public class LabelCompleter
 		// A full variable name or word lists what can follow it after a space first (e.g. "{spellbook" -> " icon"); not
 		// while a word is still being completed (e.g. "{hasSurge a" -> "air"), only merely contained.
 		if (Character.isLetterOrDigit(partial.charAt(partial.length() - 1))
-			&& (completion == null || completion.options.stream().noneMatch(option -> option.label != null && option.replace == 0)))
-		{
+			&& (completion == null || completion.options.stream().noneMatch(option -> option.label != null && option.replace == 0))) {
 			Completion arguments = afterBrace(partial + " ", numeric);
-			if (arguments != null && arguments.hasListed())
-			{
+			if (arguments != null && arguments.hasListed()) {
 				return Completion.withArguments(completion, arguments);
 			}
 		}
@@ -495,13 +433,10 @@ public class LabelCompleter
 
 	// The first applicable rule's completion for the text after "{" (and any operator), else variable names.
 	@Nullable
-	private Completion afterBrace(String partial, boolean numeric)
-	{
-		for (Rule rule : rules)
-		{
+	private Completion afterBrace(String partial, boolean numeric) {
+		for (Rule rule : rules) {
 			Completion completion = rule.apply(partial, numeric);
-			if (completion != null)
-			{
+			if (completion != null) {
 				return completion == NONE ? null : completion;
 			}
 		}
@@ -509,16 +444,13 @@ public class LabelCompleter
 	}
 
 	// The rules for the text after "{" (and any operator), first applicable wins.
-	private List<Rule> rules()
-	{
+	private List<Rule> rules() {
 		List<Rule> list = new ArrayList<>();
 		list.add((partial, numeric) -> numeric || partial.charAt(0) != '/' ? null : orNone(match(partial, CLOSE_ALIASES, "{", "", null, true)));
 		list.add(pattern(PARTY, m -> null));
-		for (LabelVariable variable : labelResolver.variables())
-		{
+		for (LabelVariable variable : labelResolver.variables()) {
 			Args args = variable.args();
-			if (args != null)
-			{
+			if (args != null) {
 				list.add(argsRule(args));
 			}
 		}
@@ -531,11 +463,9 @@ public class LabelCompleter
 	}
 
 	// A variable with args(): applies once its name is followed by a space or comma; after a math operator only if numeric.
-	private Rule argsRule(Args args)
-	{
+	private Rule argsRule(Args args) {
 		boolean inMath = NumericVariableRegistry.NAMES.contains(args.name());
-		return (partial, numeric) ->
-		{
+		return (partial, numeric) -> {
 			int start = argsStart(args, partial);
 			return (numeric && !inMath) || start < 0 ? null : orNone(completeArgs(args, partial.substring(start)));
 		};
@@ -543,19 +473,14 @@ public class LabelCompleter
 
 	// Where args' arguments begin in text: right after one of its names if joined, else after it and a space (or at a
 	// comma); -1 if not its.
-	private static int argsStart(Args args, String text)
-	{
-		for (String name : args.names())
-		{
-			if (args.isJoined() && text.regionMatches(true, 0, name, 0, name.length()))
-			{
+	private static int argsStart(Args args, String text) {
+		for (String name : args.names()) {
+			if (args.isJoined() && text.regionMatches(true, 0, name, 0, name.length())) {
 				return name.length();
 			}
-			if (text.length() > name.length() && text.regionMatches(true, 0, name, 0, name.length()))
-			{
+			if (text.length() > name.length() && text.regionMatches(true, 0, name, 0, name.length())) {
 				char next = text.charAt(name.length());
-				if (next == ' ' || next == ',')
-				{
+				if (next == ' ' || next == ',') {
 					return name.length() + (next == ' ' ? 1 : 0);
 				}
 			}
@@ -564,12 +489,9 @@ public class LabelCompleter
 	}
 
 	// Applies to text pattern matches entirely, never after a math operator.
-	private static Rule pattern(Pattern pattern, Function<Matcher, Completion> complete)
-	{
-		return (partial, numeric) ->
-		{
-			if (numeric)
-			{
+	private static Rule pattern(Pattern pattern, Function<Matcher, Completion> complete) {
+		return (partial, numeric) -> {
+			if (numeric) {
 				return null;
 			}
 			Matcher matcher = pattern.matcher(partial);
@@ -577,16 +499,14 @@ public class LabelCompleter
 		};
 	}
 
-	private static Completion orNone(@Nullable Completion completion)
-	{
+	private static Completion orNone(@Nullable Completion completion) {
 		return completion == null ? NONE : completion;
 	}
 
 	// The variable names partial starts (numeric ones only after a math operator); every one with no ghost if empty.
 	// Each with its icon and description.
 	@Nullable
-	private Completion variableNames(String partial, boolean numeric)
-	{
+	private Completion variableNames(String partial, boolean numeric) {
 		// One needing an argument isn't closed with "}"; one with an icon option shows what "{<name> icon}" does.
 		boolean needsMore = VariableCatalog.REQUIRING_ARGUMENT.stream().anyMatch(partial::equalsIgnoreCase);
 		Completion names = withIcons(match(partial, numeric ? NUMERIC_VARIABLE_NAMES : VariableCatalog.NAMES, "{", "", needsMore ? null : "}", false),
@@ -595,29 +515,21 @@ public class LabelCompleter
 	}
 
 	// The longer names starting with partial (any case), those only containing it, and the one equal to it, if any.
-	private static final class Matches
-	{
+	private static final class Matches {
 		private final List<String> names = new ArrayList<>();
 		private final List<String> contained = new ArrayList<>();
 		@Nullable
 		private String exact;
 	}
 
-	private static Matches matches(String partial, Iterable<String> names)
-	{
+	private static Matches matches(String partial, Iterable<String> names) {
 		Matches matches = new Matches();
-		for (String name : names)
-		{
-			if (name.length() > partial.length() && name.regionMatches(true, 0, partial, 0, partial.length()))
-			{
+		for (String name : names) {
+			if (name.length() > partial.length() && name.regionMatches(true, 0, partial, 0, partial.length())) {
 				matches.names.add(name);
-			}
-			else if (name.equalsIgnoreCase(partial))
-			{
+			} else if (name.equalsIgnoreCase(partial)) {
 				matches.exact = name;
-			}
-			else if (!partial.isEmpty() && ChatboxWidgets.hasWords(name, partial))
-			{
+			} else if (!partial.isEmpty() && ChatboxWidgets.hasWords(name, partial)) {
 				matches.contained.add(name);
 			}
 		}
@@ -629,31 +541,22 @@ public class LabelCompleter
 	// lists every name, preferring one only if ghostWhenEmpty. Names only containing partial are listed after.
 	@Nullable
 	private Completion match(String partial, Iterable<String> names, String tokenPrefix, String append, @Nullable String exactCloser,
-		boolean ghostWhenEmpty)
-	{
+		boolean ghostWhenEmpty) {
 		return complete(matches(partial, names), partial, tokenPrefix, append, exactCloser, ghostWhenEmpty);
 	}
 
 	@Nullable
 	private Completion complete(Matches matches, String partial, String tokenPrefix, String append, @Nullable String exactCloser,
-		boolean ghostWhenEmpty)
-	{
+		boolean ghostWhenEmpty) {
 		Completion starting;
-		if (!matches.names.isEmpty())
-		{
+		if (!matches.names.isEmpty()) {
 			String preferred = partial.isEmpty() && !ghostWhenEmpty ? null : recent.pick(matches.names, tokenPrefix);
 			starting = Completion.of(matches.names, partial.length(), append, preferred);
-		}
-		else if (matches.exact != null && exactCloser != null)
-		{
+		} else if (matches.exact != null && exactCloser != null) {
 			starting = Completion.closer(exactCloser);
-		}
-		else if (!matches.contained.isEmpty())
-		{
+		} else if (!matches.contained.isEmpty()) {
 			starting = new Completion(List.of(), -1);
-		}
-		else
-		{
+		} else {
 			return null;
 		}
 		return starting.withContained(matches.contained, partial.length(), append);
@@ -661,10 +564,8 @@ public class LabelCompleter
 
 	// An option after a full name: options listed in order, the first that fits preferred; "}" once one is complete.
 	@Nullable
-	private static Completion completeOption(String word, List<String> options, boolean complete)
-	{
-		if (complete)
-		{
+	private static Completion completeOption(String word, List<String> options, boolean complete) {
+		if (complete) {
 			return Completion.closer("}");
 		}
 		List<String> fitting = matches(word, options).names;
@@ -677,13 +578,11 @@ public class LabelCompleter
 	// once one is given and a comma or option follows, the options (and after a comma, extras) not given yet; "}" once
 	// one is complete. A full main argument alone also lists them (see withOptions).
 	@Nullable
-	private Completion completeArgs(Args args, String partial)
-	{
+	private Completion completeArgs(Args args, String partial) {
 		String prefix = args.name() + (args.isJoined() ? "" : " ");
 		String catalog = args.catalogName();
 		Matcher value = args.valueTyped(partial);
-		if (value != null)
-		{
+		if (value != null) {
 			String word = value.group(2);
 			String main = args.hasMain() ? args.withoutTrailingOptions(value.group(1)).trim() : null;
 			return withIcons(match(value.group(3).replaceFirst("^\\s+", ""), args.values(word, main), "{" + prefix + word, "", "}", true),
@@ -700,8 +599,7 @@ public class LabelCompleter
 		// With extras, anything before a comma counts.
 		boolean mainGiven = main == null || names.stream().anyMatch(main::equalsIgnoreCase)
 			|| (args.hasExtras() && !main.isEmpty() && partial.lastIndexOf(',') >= head.length());
-		if (mainGiven && (main == null || !word.isEmpty() || !given.isBlank()))
-		{
+		if (mainGiven && (main == null || !word.isEmpty() || !given.isBlank())) {
 			List<String> unused = args.unusedWords(given, main);
 			// An extra may have spaces: all of what follows the comma.
 			int comma = partial.lastIndexOf(',');
@@ -709,8 +607,7 @@ public class LabelCompleter
 				? match(partial.substring(comma + 1).replaceFirst("^\\s+", ""), unused, "{" + prefix, "", "}", false)
 				: completeOption(word, unused, args.isComplete(word));
 			option = described(withIcons(option, args::wordIcon), catalog);
-			if (option != null || main == null)
-			{
+			if (option != null || main == null) {
 				return option;
 			}
 		}
@@ -722,24 +619,20 @@ public class LabelCompleter
 	// A full main argument typed (any case) also offers each of its options and extras first, after ", " (", items=");
 	// Tab still does what it did.
 	@Nullable
-	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, Args args)
-	{
+	private static Completion withOptions(@Nullable Completion completion, String partial, Set<String> names, Args args) {
 		String main = partial.trim();
-		if (names.stream().noneMatch(main::equalsIgnoreCase))
-		{
+		if (names.stream().noneMatch(main::equalsIgnoreCase)) {
 			return completion;
 		}
 		// After a space, just the word: {equip_helm icon}.
 		String separator = partial.endsWith(" ") ? "" : ", ";
 		List<String> words = args.unusedWords("", main);
 		List<Completion.Option> options = new ArrayList<>();
-		for (String word : words)
-		{
+		for (String word : words) {
 			options.add(new Completion.Option(separator + word, separator + word, 0, args.wordIcon(word),
 				VariableCatalog.completionDescription(args.catalogName(), word)));
 		}
-		if (completion == null)
-		{
+		if (completion == null) {
 			return options.isEmpty() ? null : new Completion(options, -1);
 		}
 		return completion.around(options, List.of());
@@ -747,30 +640,25 @@ public class LabelCompleter
 
 	// Each option given the description of the parameter it completes for variable (variables.json), if any.
 	@Nullable
-	private static Completion described(@Nullable Completion completion, String variable)
-	{
+	private static Completion described(@Nullable Completion completion, String variable) {
 		return completion == null ? null : completion.withDescriptions(word -> VariableCatalog.completionDescription(variable, word));
 	}
 
 	// Names closed with ">" unless one already follows; numeric IDs aren't completed.
 	@Nullable
-	private Completion completeIconName(IconNames.Kind kind, String partial, boolean closed)
-	{
+	private Completion completeIconName(IconNames.Kind kind, String partial, boolean closed) {
 		// Every name, even before anything's typed; icons load only for the rows shown.
-		if (!partial.isEmpty() && partial.chars().allMatch(Character::isDigit))
-		{
+		if (!partial.isEmpty() && partial.chars().allMatch(Character::isDigit)) {
 			return null;
 		}
 		// An exact name is listed too, to close it.
 		Matches matches = matches(partial, iconNames.matches(kind, partial));
 		List<String> starting = matches.names;
 		List<String> contained = matches.contained;
-		if (matches.exact != null)
-		{
+		if (matches.exact != null) {
 			starting.add(0, matches.exact);
 		}
-		if (starting.isEmpty() && contained.isEmpty())
-		{
+		if (starting.isEmpty() && contained.isEmpty()) {
 			return null;
 		}
 		String closer = closed ? "" : ">";
@@ -778,11 +666,9 @@ public class LabelCompleter
 			.withContained(contained, partial.length(), closer)
 			.withIcons(kind == IconNames.Kind.NPC ? Args.NPC_ICON : name -> "<" + kind.tag + "=" + name + ">");
 		// An NPC with a chathead completes without ">", so ",head" can be offered next.
-		if (kind == IconNames.Kind.NPC && !closer.isEmpty())
-		{
+		if (kind == IconNames.Kind.NPC && !closer.isEmpty()) {
 			List<Completion.Option> options = new ArrayList<>();
-			for (Completion.Option option : completion.options)
-			{
+			for (Completion.Option option : completion.options) {
 				boolean open = option.label != null && !option.label.equalsIgnoreCase(partial.trim()) && iconNames.hasHead(option.label);
 				options.add(open ? new Completion.Option(option.label, option.insert.substring(0, option.insert.length() - closer.length()),
 					option.replace, option.icon, option.description) : option);
@@ -790,8 +676,7 @@ public class LabelCompleter
 			completion = new Completion(options, completion.preferred);
 		}
 		// A bare "<sprite=" lists the category searches first.
-		if (kind == IconNames.Kind.SPRITE && partial.isEmpty())
-		{
+		if (kind == IconNames.Kind.SPRITE && partial.isEmpty()) {
 			List<Completion.Option> options = new ArrayList<>();
 			iconNames.spriteCategories().forEach((search, sprite) ->
 				options.add(new Completion.Option(search, search, 0, "<sprite=" + sprite + ">", "Search " + search + " sprites")));
@@ -799,8 +684,7 @@ public class LabelCompleter
 			completion = completion.around(options, List.of());
 		}
 		// A typed NPC with a chathead also offers ",head" first.
-		if (kind == IconNames.Kind.NPC && iconNames.hasHead(partial))
-		{
+		if (kind == IconNames.Kind.NPC && iconNames.hasHead(partial)) {
 			completion = completion.around(List.of(new Completion.Option(",head", ",head" + closer, 0, "<npc=" + partial.trim() + ",head>")), List.of());
 		}
 		return completion;
@@ -808,14 +692,12 @@ public class LabelCompleter
 
 	// Shortest name first unless recent/nearby labels use one; ":" closes it. A full name also lists "@" for a color.
 	@Nullable
-	private Completion completeEmoji(String partial)
-	{
+	private Completion completeEmoji(String partial) {
 		Matches matches = matches(partial, emojis.names());
 		matches.names.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
 		matches.contained.sort(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
 		Completion completion = withIcons(complete(matches, partial, ":", ":", ":", true), name -> ":" + name + ":");
-		if (completion == null || !emojis.names().contains(partial))
-		{
+		if (completion == null || !emojis.names().contains(partial)) {
 			return completion;
 		}
 		return completion.around(List.of(), List.of(new Completion.Option("@", "@", 0, null)));
@@ -824,35 +706,28 @@ public class LabelCompleter
 	// The parameter after "metronome" or "m": digits, an optional "_" and leading +/-. From recent/nearby usage, else
 	// 4; "}" once complete.
 	@Nullable
-	private Completion completeMetronomeParams(String partial)
-	{
-		for (int i = 0; i < partial.length(); i++)
-		{
+	private Completion completeMetronomeParams(String partial) {
+		for (int i = 0; i < partial.length(); i++) {
 			char c = partial.charAt(i);
-			if (!Character.isDigit(c) && c != '_' && !(i == 0 && (c == '+' || c == '-')))
-			{
+			if (!Character.isDigit(c) && c != '_' && !(i == 0 && (c == '+' || c == '-'))) {
 				return null;
 			}
 		}
 
 		String param = recent.firstValue(METRONOME_TOKEN, partial);
-		if (param != null)
-		{
+		if (param != null) {
 			return Completion.single(param, param.substring(partial.length()), null);
 		}
-		if (partial.isEmpty() || partial.equals("+") || partial.equals("-"))
-		{
+		if (partial.isEmpty() || partial.equals("+") || partial.equals("-")) {
 			return Completion.single(partial + DEFAULT_METRONOME, DEFAULT_METRONOME, null);
 		}
 		return METRONOME_PARAM.matcher(partial).matches() ? Completion.closer("}") : null;
 	}
 
-	private static int lastMatchEnd(Pattern pattern, String text)
-	{
+	private static int lastMatchEnd(Pattern pattern, String text) {
 		int end = -1;
 		Matcher matcher = pattern.matcher(text);
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			end = matcher.end();
 		}
 		return end;

@@ -9,8 +9,7 @@ import lombok.RequiredArgsConstructor;
 // One sender's pending shared marker set -- removed by its own scheduled task after TTL (see
 // GroundMarkerPartySharingManager), not persisted or rendered until actually imported.
 @RequiredArgsConstructor
-class PendingPartyShare
-{
+class PendingPartyShare {
 	static final Duration TTL = Duration.ofSeconds(120);
 
 	final long senderMemberId;

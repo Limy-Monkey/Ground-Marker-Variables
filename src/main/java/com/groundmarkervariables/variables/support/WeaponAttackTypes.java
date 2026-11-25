@@ -12,8 +12,7 @@ import static com.groundmarkervariables.variables.support.WeaponAttackType.STAB;
 // sourced from the client's own combat_interface_setup.cs2 script (see ngraves95/attacktimer's
 // WeaponType.java; its weaponType==22/30 fallbacks match ours exactly, confirming the ordinals
 // line up). null means no style in that slot, matching weaponTypeStyleNames' own null slots.
-public final class WeaponAttackTypes
-{
+public final class WeaponAttackTypes {
 	private static final WeaponAttackType[][] BY_WEAPON_CATEGORY = {
 		{CRUSH, CRUSH, null, CRUSH}, // 0
 		{SLASH, SLASH, CRUSH, SLASH}, // 1
@@ -55,20 +54,16 @@ public final class WeaponAttackTypes
 		{MAGIC, MAGIC, null, MAGIC}, // 37 Self-powering book
 	};
 
-	private WeaponAttackTypes()
-	{
+	private WeaponAttackTypes() {
 	}
 
-	public static WeaponAttackType forStyle(int weaponCategory, int styleIndex)
-	{
-		if (weaponCategory < 0 || weaponCategory >= BY_WEAPON_CATEGORY.length)
-		{
+	public static WeaponAttackType forStyle(int weaponCategory, int styleIndex) {
+		if (weaponCategory < 0 || weaponCategory >= BY_WEAPON_CATEGORY.length) {
 			return null;
 		}
 
 		WeaponAttackType[] types = BY_WEAPON_CATEGORY[weaponCategory];
-		if (types == null || styleIndex < 0 || styleIndex >= types.length)
-		{
+		if (types == null || styleIndex < 0 || styleIndex >= types.length) {
 			return null;
 		}
 

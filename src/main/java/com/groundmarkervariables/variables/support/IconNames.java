@@ -45,10 +45,8 @@ import net.runelite.client.util.Text;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class IconNames
-{
-	public enum Kind
-	{
+public class IconNames {
+	public enum Kind {
 		NPC("npc", "(,head)?"),
 		ITEM("item", "(@\\d{1,3}%)?"),
 		SPRITE("sprite", "(@\\d{1,3}%)?");
@@ -58,8 +56,7 @@ public class IconNames
 		// The tag with an ID, for collapse().
 		private final Pattern idPattern;
 
-		Kind(String tag, String suffix)
-		{
+		Kind(String tag, String suffix) {
 			this.tag = tag;
 			this.pattern = Pattern.compile("<" + tag + "=(" + NAME_CHARS + "*[^<>{}=,@\\d\\s]" + NAME_CHARS + "*)" + suffix + ">",
 				Pattern.CASE_INSENSITIVE);
@@ -77,8 +74,7 @@ public class IconNames
 
 	private static final Map<String, Integer> PRAYERS = new LinkedHashMap<>();
 
-	static
-	{
+	static {
 		PRAYERS.put("Thick Skin", SpriteID.Prayeron.THICK_SKIN);
 		PRAYERS.put("Burst of Strength", SpriteID.Prayeron.BURST_OF_STRENGTH);
 		PRAYERS.put("Clarity of Thought", SpriteID.Prayeron.CLARITY_OF_THOUGHT);
@@ -113,8 +109,7 @@ public class IconNames
 		PRAYERS.put("Zeal", SpriteID.Prayeron.ZEAL);
 	}
 
-	private static final class Index
-	{
+	private static final class Index {
 		// Display names, shortest first.
 		final List<String> names;
 		// Lowercase name -> ID.
@@ -122,8 +117,7 @@ public class IconNames
 		// NPCs: lowercase names whose ID has a chathead model, for <npc=Name,head>.
 		final Set<String> heads;
 
-		Index(Map<String, String> names, Map<String, Integer> ids, Set<String> heads)
-		{
+		Index(Map<String, String> names, Map<String, Integer> ids, Set<String> heads) {
 			List<String> sorted = new ArrayList<>(names.values());
 			sorted.sort(Comparator.comparingInt(String::length).thenComparing(String.CASE_INSENSITIVE_ORDER));
 			this.names = Collections.unmodifiableList(sorted);
@@ -154,42 +148,34 @@ public class IconNames
 	private volatile JsonObject spriteJson = bundledSprites();
 
 	// A newer sprite-names.json (see LatestData). The sprites are rebuilt on next use.
-	public void updateSprites(String json)
-	{
+	public void updateSprites(String json) {
 		spriteJson = new JsonParser().parse(json).getAsJsonObject();
-		clientThread.invoke(() ->
-		{
+		clientThread.invoke(() -> {
 			indexes.remove(Kind.SPRITE);
 			spriteNames = null;
 		});
 	}
 
 	// Searches listed first after a bare "<sprite=", each with its sprite: every sprite name ends in its "(Category)".
-	public Map<String, Integer> spriteCategories()
-	{
+	public Map<String, Integer> spriteCategories() {
 		return jsonSprites(spriteJson, "categories");
 	}
 
 	// Client thread. Takes note of nearby NPCs and held items for complete().
-	public void refreshNearby()
-	{
+	public void refreshNearby() {
 		Set<String> npcNames = new HashSet<>();
-		for (NPC npc : client.getTopLevelWorldView().npcs())
-		{
+		for (NPC npc : client.getTopLevelWorldView().npcs()) {
 			NPCComposition shown = npc.getTransformedComposition();
 			String name = shown == null ? null : clean(shown.getName());
-			if (name != null)
-			{
+			if (name != null) {
 				npcNames.add(name.toLowerCase(Locale.ROOT));
 			}
 		}
 
 		Set<String> itemNames = new HashSet<>();
-		for (Item item : heldItems())
-		{
+		for (Item item : heldItems()) {
 			String name = itemName(item.getId());
-			if (name != null)
-			{
+			if (name != null) {
 				itemNames.add(name.toLowerCase(Locale.ROOT));
 			}
 		}
@@ -201,11 +187,9 @@ public class IconNames
 	// The best name starting with partial (any case): an exact match, then nearby NPCs / held items, then the
 	// shortest. Null if none, or while the names are still loading.
 	@Nullable
-	public String complete(Kind kind, String partial)
-	{
+	public String complete(Kind kind, String partial) {
 		Index index = index(kind);
-		if (index == null || partial.isEmpty())
-		{
+		if (index == null || partial.isEmpty()) {
 			return null;
 		}
 
@@ -214,23 +198,18 @@ public class IconNames
 		String shortest = null;
 		String nearby = null;
 		// Shortest first, so an exact match comes before any longer name.
-		for (String name : index.names)
-		{
+		for (String name : index.names) {
 			String key = name.toLowerCase(Locale.ROOT);
-			if (!key.startsWith(lower))
-			{
+			if (!key.startsWith(lower)) {
 				continue;
 			}
-			if (key.equals(lower))
-			{
+			if (key.equals(lower)) {
 				return name;
 			}
-			if (nearby == null && preferred.contains(key))
-			{
+			if (nearby == null && preferred.contains(key)) {
 				nearby = name;
 			}
-			if (shortest == null)
-			{
+			if (shortest == null) {
 				shortest = name;
 			}
 		}
@@ -240,19 +219,15 @@ public class IconNames
 	// The item named name, ignoring case and apostrophes ("Alchemists amulet" -> "Alchemist's amulet"); the shortest
 	// if several. Null if none, or while the names are still loading.
 	@Nullable
-	public String itemNamed(String name)
-	{
+	public String itemNamed(String name) {
 		Map<String, String> byLoose = looseItemNames;
-		if (byLoose == null)
-		{
+		if (byLoose == null) {
 			Index index = index(Kind.ITEM);
-			if (index == null)
-			{
+			if (index == null) {
 				return null;
 			}
 			byLoose = new HashMap<>();
-			for (String item : index.names)
-			{
+			for (String item : index.names) {
 				byLoose.putIfAbsent(loose(item), item);
 			}
 			looseItemNames = byLoose;
@@ -260,14 +235,12 @@ public class IconNames
 		return byLoose.get(loose(name));
 	}
 
-	private static String loose(String name)
-	{
+	private static String loose(String name) {
 		return name.trim().toLowerCase(Locale.ROOT).replace("'", "");
 	}
 
 	// Whether the NPC named name (any case) has a chathead; false while the names are still loading.
-	public boolean hasHead(String name)
-	{
+	public boolean hasHead(String name) {
 		Index index = loaded(Kind.NPC);
 		return index != null && index.heads.contains(name.trim().toLowerCase(Locale.ROOT));
 	}
@@ -275,40 +248,31 @@ public class IconNames
 	// Client thread. A boss's hiscores icon by the names {kc} uses, which differ from the hiscores table's ("Gauntlet"
 	// for "The Gauntlet", "Obor" for "Obor chests opened", ...); null if none.
 	@Nullable
-	public Integer bossSprite(String name)
-	{
-		if (bossSprites == null)
-		{
+	public Integer bossSprite(String name) {
+		if (bossSprites == null) {
 			bossSprites = loadBossSprites();
 		}
 		return bossSprites.get(bossKey(name));
 	}
 
 	// Each row by its whole name; one with a colon also by the part before it, unless a row has that name already.
-	private Map<String, Integer> loadBossSprites()
-	{
+	private Map<String, Integer> loadBossSprites() {
 		Map<String, Integer> sprites = new HashMap<>();
 		Map<String, Integer> beforeColon = new HashMap<>();
-		try
-		{
-			for (int row : client.getDBTableRows(DBTableID.HiscoresBossesInfo.ID))
-			{
+		try {
+			for (int row : client.getDBTableRows(DBTableID.HiscoresBossesInfo.ID)) {
 				Object[] name = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSNAME, 0);
 				Object[] icon = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSICON, 0);
-				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer)
-				{
+				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer) {
 					String bossName = (String) name[0];
 					sprites.putIfAbsent(bossKey(bossName), (Integer) icon[0]);
 					int colon = bossName.indexOf(':');
-					if (colon > 0)
-					{
+					if (colon > 0) {
 						beforeColon.putIfAbsent(bossKey(bossName.substring(0, colon)), (Integer) icon[0]);
 					}
 				}
 			}
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			log.warn("Couldn't read boss icons", e);
 		}
 		beforeColon.forEach(sprites::putIfAbsent);
@@ -316,11 +280,9 @@ public class IconNames
 	}
 
 	// Lowercase, without a leading "The ", colons, or a trailing "chest(s) (opened)".
-	private static String bossKey(String name)
-	{
+	private static String bossKey(String name) {
 		String key = Text.removeTags(name).toLowerCase(Locale.ROOT).trim();
-		if (key.startsWith("the "))
-		{
+		if (key.startsWith("the ")) {
 			key = key.substring(4);
 		}
 		return key.replace(":", "").replaceAll("\\s+chests?(\\s+opened)?$", "").replaceAll("\\s+", " ").trim();
@@ -329,11 +291,9 @@ public class IconNames
 	// Every name starting with partial (any case; all of them if it's empty), in complete()'s order: an exact match,
 	// then nearby NPCs / held items, then the rest shortest first; then names only containing it, shortest first. Empty
 	// if none, or while the names are still loading.
-	public List<String> matches(Kind kind, String partial)
-	{
+	public List<String> matches(Kind kind, String partial) {
 		Index index = loaded(kind);
-		if (index == null)
-		{
+		if (index == null) {
 			return List.of();
 		}
 
@@ -343,27 +303,19 @@ public class IconNames
 		List<String> nearby = new ArrayList<>();
 		List<String> rest = new ArrayList<>();
 		List<String> contained = new ArrayList<>();
-		for (String name : index.names)
-		{
+		for (String name : index.names) {
 			String key = name.toLowerCase(Locale.ROOT);
-			if (!key.startsWith(lower))
-			{
-				if (ChatboxWidgets.hasWords(key, lower))
-				{
+			if (!key.startsWith(lower)) {
+				if (ChatboxWidgets.hasWords(key, lower)) {
 					contained.add(name);
 				}
 				continue;
 			}
-			if (key.equals(lower))
-			{
+			if (key.equals(lower)) {
 				exact.add(name);
-			}
-			else if (preferred.contains(key))
-			{
+			} else if (preferred.contains(key)) {
 				nearby.add(name);
-			}
-			else
-			{
+			} else {
 				rest.add(name);
 			}
 		}
@@ -376,19 +328,15 @@ public class IconNames
 
 	// Client thread. expand() reversed, for showing a label in the editor: "<item=4151@50%>" -> "<item=Abyssal whip@50%>".
 	// IDs without a name are left as-is.
-	public String collapse(String label)
-	{
-		if (label == null || label.indexOf('<') < 0)
-		{
+	public String collapse(String label) {
+		if (label == null || label.indexOf('<') < 0) {
 			return label;
 		}
 
-		for (Kind kind : Kind.values())
-		{
+		for (Kind kind : Kind.values()) {
 			Matcher matcher = kind.idPattern.matcher(label);
 			StringBuilder sb = new StringBuilder();
-			while (matcher.find())
-			{
+			while (matcher.find()) {
 				String name = name(kind, Integer.parseInt(matcher.group(1)));
 				String tag = name == null ? matcher.group() : "<" + kind.tag + "=" + name + (matcher.group(2) == null ? "" : matcher.group(2)) + ">";
 				matcher.appendReplacement(sb, Matcher.quoteReplacement(tag));
@@ -401,27 +349,21 @@ public class IconNames
 
 	// Client thread. An NPC's, item's or sprite's name by ID, or null.
 	@Nullable
-	private String name(Kind kind, int id)
-	{
-		if (kind == Kind.NPC)
-		{
+	private String name(Kind kind, int id) {
+		if (kind == Kind.NPC) {
 			return npcName(id);
 		}
-		if (kind == Kind.ITEM)
-		{
+		if (kind == Kind.ITEM) {
 			return itemName(id);
 		}
-		if (spriteNames == null)
-		{
+		if (spriteNames == null) {
 			Index index = index(Kind.SPRITE);
-			if (index == null)
-			{
+			if (index == null) {
 				return null;
 			}
 			// Shortest name first, so it's the one kept.
 			spriteNames = new HashMap<>();
-			for (String name : index.names)
-			{
+			for (String name : index.names) {
 				spriteNames.putIfAbsent(index.ids.get(name.toLowerCase(Locale.ROOT)), name);
 			}
 		}
@@ -430,26 +372,21 @@ public class IconNames
 
 	// Client thread. "<npc=Verzik Vitur>" -> "<npc=8369>", "<item=Abyssal whip@50%>" -> "<item=4151@50%>",
 	// "<sprite=Piety (Prayer)>" -> "<sprite=946>". Unknown names are left as-is.
-	public String expand(String label)
-	{
-		if (label == null || label.indexOf('<') < 0)
-		{
+	public String expand(String label) {
+		if (label == null || label.indexOf('<') < 0) {
 			return label;
 		}
 
-		for (Kind kind : Kind.values())
-		{
+		for (Kind kind : Kind.values()) {
 			label = replace(label, kind);
 		}
 		return label;
 	}
 
-	private String replace(String label, Kind kind)
-	{
+	private String replace(String label, Kind kind) {
 		Matcher matcher = kind.pattern.matcher(label);
 		StringBuilder sb = new StringBuilder();
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			Integer id = id(kind, matcher.group(1).trim());
 			String suffix = matcher.group(2) == null ? "" : matcher.group(2).toLowerCase(Locale.ROOT);
 			String replacement = id == null ? matcher.group() : "<" + kind.tag + "=" + id + suffix + ">";
@@ -460,25 +397,17 @@ public class IconNames
 	}
 
 	@Nullable
-	public Integer id(Kind kind, String name)
-	{
-		if (kind == Kind.NPC)
-		{
-			for (NPC nearby : client.getTopLevelWorldView().npcs())
-			{
+	public Integer id(Kind kind, String name) {
+		if (kind == Kind.NPC) {
+			for (NPC nearby : client.getTopLevelWorldView().npcs()) {
 				NPCComposition shown = nearby.getTransformedComposition();
-				if (shown != null && name.equalsIgnoreCase(clean(shown.getName())))
-				{
+				if (shown != null && name.equalsIgnoreCase(clean(shown.getName()))) {
 					return shown.getId();
 				}
 			}
-		}
-		else if (kind == Kind.ITEM)
-		{
-			for (Item item : heldItems())
-			{
-				if (name.equalsIgnoreCase(itemName(item.getId())))
-				{
+		} else if (kind == Kind.ITEM) {
+			for (Item item : heldItems()) {
+				if (name.equalsIgnoreCase(itemName(item.getId()))) {
 					return item.getId();
 				}
 			}
@@ -488,18 +417,13 @@ public class IconNames
 		return index == null ? null : index.ids.get(name.toLowerCase(Locale.ROOT));
 	}
 
-	private List<Item> heldItems()
-	{
+	private List<Item> heldItems() {
 		List<Item> held = new ArrayList<>();
-		for (int id : new int[]{InventoryID.INV, InventoryID.WORN})
-		{
+		for (int id : new int[]{InventoryID.INV, InventoryID.WORN}) {
 			ItemContainer container = client.getItemContainer(id);
-			if (container != null)
-			{
-				for (Item item : container.getItems())
-				{
-					if (item.getId() >= 0)
-					{
+			if (container != null) {
+				for (Item item : container.getItems()) {
+					if (item.getId() >= 0) {
 						held.add(item);
 					}
 				}
@@ -510,11 +434,9 @@ public class IconNames
 
 	// On the client thread, built now if not yet (saving and drawing labels need it); elsewhere as loaded().
 	@Nullable
-	private Index index(Kind kind)
-	{
+	private Index index(Kind kind) {
 		Index index = loaded(kind);
-		if (index == null && client.isClientThread())
-		{
+		if (index == null && client.isClientThread()) {
 			new Build(kind).step(Integer.MAX_VALUE);
 			index = indexes.get(kind);
 		}
@@ -523,27 +445,22 @@ public class IconNames
 
 	// Never blocks: the index if built, else null, building it in the background (a slice per client tick).
 	@Nullable
-	private Index loaded(Kind kind)
-	{
+	private Index loaded(Kind kind) {
 		Index index = indexes.get(kind);
-		if (index == null && building.add(kind))
-		{
+		if (index == null && building.add(kind)) {
 			clientThread.invoke(new Build(kind));
 		}
 		return index;
 	}
 
 	// Whether kind's names have loaded; if not, they start loading in the background.
-	public boolean ready(Kind kind)
-	{
+	public boolean ready(Kind kind) {
 		return loaded(kind) != null;
 	}
 
 	// If names are loading in the background, runs run once, on the client thread, the tick after the next is done.
-	public void whenLoaded(Runnable run)
-	{
-		if (!building.isEmpty())
-		{
+	public void whenLoaded(Runnable run) {
+		if (!building.isEmpty()) {
 			onLoaded.add(run);
 		}
 	}
@@ -551,8 +468,7 @@ public class IconNames
 	// A kind's index, built in slices on the client thread: in the background, one per tick until done. Every named
 	// NPC / item, keeping the lowest ID per name; or the sprites, at once.
 	@RequiredArgsConstructor
-	private final class Build implements BooleanSupplier
-	{
+	private final class Build implements BooleanSupplier {
 		private final Kind kind;
 		private final Map<String, String> names = new HashMap<>();
 		private final Map<String, Integer> ids = new HashMap<>();
@@ -561,31 +477,23 @@ public class IconNames
 		private int next;
 
 		@Override
-		public boolean getAsBoolean()
-		{
+		public boolean getAsBoolean() {
 			return indexes.containsKey(kind) ? done() : step(BUILD_SLICE);
 		}
 
 		// Up to slice more definitions; true once the index is stored.
-		private boolean step(int slice)
-		{
-			if (kind == Kind.SPRITE)
-			{
+		private boolean step(int slice) {
+			if (kind == Kind.SPRITE) {
 				buildSprites(names, ids);
-			}
-			else
-			{
-				if (fileIds == null)
-				{
+			} else {
+				if (fileIds == null) {
 					int[] all = client.getIndexConfig().getFileIds(kind == Kind.NPC ? NPC_GROUP : ITEM_GROUP);
 					fileIds = all == null ? new int[0] : all;
 				}
-				for (int end = (int) Math.min(fileIds.length, (long) next + slice); next < end; next++)
-				{
+				for (int end = (int) Math.min(fileIds.length, (long) next + slice); next < end; next++) {
 					add(fileIds[next]);
 				}
-				if (next < fileIds.length)
-				{
+				if (next < fileIds.length) {
 					return false;
 				}
 			}
@@ -594,32 +502,26 @@ public class IconNames
 		}
 
 		// An NPC's head counts if the ID kept for its name has one.
-		private void add(int id)
-		{
+		private void add(int id) {
 			NPCComposition npc = kind == Kind.NPC ? client.getNpcDefinition(id) : null;
 			String name = npc == null ? (kind == Kind.NPC ? null : itemName(id)) : npc.getModels() == null ? null : clean(npc.getName());
-			if (name == null)
-			{
+			if (name == null) {
 				return;
 			}
 			String key = name.toLowerCase(Locale.ROOT);
 			names.putIfAbsent(key, name);
 			Integer kept = ids.get(key);
-			if (kept == null || id < kept)
-			{
+			if (kept == null || id < kept) {
 				ids.put(key, id);
 				heads.remove(key);
-				if (npc != null && npc.getChatheadModels() != null && npc.getChatheadModels().length > 0)
-				{
+				if (npc != null && npc.getChatheadModels() != null && npc.getChatheadModels().length > 0) {
 					heads.add(key);
 				}
 			}
 		}
 
-		private boolean done()
-		{
-			if (building.remove(kind))
-			{
+		private boolean done() {
+			if (building.remove(kind)) {
 				// Not mid-way through whatever needed the names now (e.g. drawing a label).
 				onLoaded.forEach(clientThread::invokeLater);
 				onLoaded.clear();
@@ -630,18 +532,14 @@ public class IconNames
 
 	// Prayers, skills, spells, bosses from the game, then sprite-names.json; each named "Name (Category)", e.g.
 	// "Wind Surge (Spell)". The first to take a name keeps it.
-	private void buildSprites(Map<String, String> names, Map<String, Integer> ids)
-	{
+	private void buildSprites(Map<String, String> names, Map<String, Integer> ids) {
 		PRAYERS.forEach((name, id) -> addSprite(names, ids, name + " (Prayer)", id));
 		addTableSprites(names, ids, DBTableID.HiscoresSkillInfo.ID, DBTableID.HiscoresSkillInfo.COL_SKILLNAME,
 			DBTableID.HiscoresSkillInfo.COL_SKILLICON, " (Skill)");
 
-		try
-		{
+		try {
 			spellVariables.forEachSpellSprite((name, sprite) -> addSprite(names, ids, name + " (Spell)", sprite));
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			log.warn("Couldn't read spell icons", e);
 		}
 
@@ -651,14 +549,10 @@ public class IconNames
 	}
 
 	// The bundled sprite-names.json; empty if unreadable.
-	private static JsonObject bundledSprites()
-	{
-		try (Reader reader = new InputStreamReader(IconNames.class.getResourceAsStream("sprite-names.json"), StandardCharsets.UTF_8))
-		{
+	private static JsonObject bundledSprites() {
+		try (Reader reader = new InputStreamReader(IconNames.class.getResourceAsStream("sprite-names.json"), StandardCharsets.UTF_8)) {
 			return new JsonParser().parse(reader).getAsJsonObject();
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e) {
 			log.warn("Couldn't load sprite names", e);
 			return new JsonObject();
 		}
@@ -666,14 +560,11 @@ public class IconNames
 
 	// A name -> sprite ID map from json, in order: "sprites", RuneLite's SpriteID constants as "Name (Category)", or
 	// "categories". Empty if missing.
-	private static Map<String, Integer> jsonSprites(JsonObject json, String key)
-	{
+	private static Map<String, Integer> jsonSprites(JsonObject json, String key) {
 		Map<String, Integer> sprites = new LinkedHashMap<>();
 		JsonObject section = json.getAsJsonObject(key);
-		if (section != null)
-		{
-			for (Map.Entry<String, JsonElement> sprite : section.entrySet())
-			{
+		if (section != null) {
+			for (Map.Entry<String, JsonElement> sprite : section.entrySet()) {
 				sprites.put(sprite.getKey(), sprite.getValue().getAsInt());
 			}
 		}
@@ -681,34 +572,25 @@ public class IconNames
 	}
 
 	private void addTableSprites(Map<String, String> names, Map<String, Integer> ids, int table, int nameColumn, int iconColumn,
-		String suffix)
-	{
-		try
-		{
-			for (int row : client.getDBTableRows(table))
-			{
+		String suffix) {
+		try {
+			for (int row : client.getDBTableRows(table)) {
 				Object[] name = client.getDBTableField(row, nameColumn, 0);
 				Object[] icon = client.getDBTableField(row, iconColumn, 0);
-				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer)
-				{
+				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer) {
 					addSprite(names, ids, name[0] + suffix, (Integer) icon[0]);
 				}
 			}
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			log.warn("Couldn't read sprite names from table {}", table, e);
 		}
 	}
 
-	private static void addSprite(Map<String, String> names, Map<String, Integer> ids, @Nullable String rawName, int id)
-	{
+	private static void addSprite(Map<String, String> names, Map<String, Integer> ids, @Nullable String rawName, int id) {
 		String name = clean(rawName);
-		if (name != null && id > 0)
-		{
+		if (name != null && id > 0) {
 			String key = name.toLowerCase(Locale.ROOT);
-			if (names.putIfAbsent(key, name) == null)
-			{
+			if (names.putIfAbsent(key, name) == null) {
 				ids.put(key, id);
 			}
 		}
@@ -716,26 +598,22 @@ public class IconNames
 
 	// Only NPCs with a model of their own.
 	@Nullable
-	private String npcName(int id)
-	{
+	private String npcName(int id) {
 		NPCComposition npc = client.getNpcDefinition(id);
 		return npc == null || npc.getModels() == null ? null : clean(npc.getName());
 	}
 
 	// Not noted items or bank placeholders.
 	@Nullable
-	private String itemName(int id)
-	{
+	private String itemName(int id) {
 		ItemComposition item = client.getItemDefinition(id);
 		return item == null || item.getNote() != -1 || item.getPlaceholderTemplateId() != -1 ? null : clean(item.getName());
 	}
 
 	// Null for unnamed definitions and names the tags can't hold.
 	@Nullable
-	private static String clean(@Nullable String name)
-	{
-		if (name == null)
-		{
+	private static String clean(@Nullable String name) {
+		if (name == null) {
 			return null;
 		}
 		name = Text.removeTags(name).trim();

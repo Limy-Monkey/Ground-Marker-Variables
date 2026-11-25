@@ -30,10 +30,8 @@ import net.runelite.client.util.Text;
 // durations as RuneLite's Timers & Buffs and Spell Reminder. A timer needs its start to have been seen.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class ActiveEffectTracker
-{
-	public enum Effect
-	{
+public class ActiveEffectTracker {
+	public enum Effect {
 		VENGEANCE, THRALL, DEATH_CHARGE, SHADOW_VEIL, MARK_OF_DARKNESS
 	}
 
@@ -49,8 +47,7 @@ public class ActiveEffectTracker
 	private static final int PURGING_STAFF_MULTIPLIER = 5;
 
 	@RequiredArgsConstructor
-	private static final class Timer
-	{
+	private static final class Timer {
 		private final int start;
 		private final int ticks;
 	}
@@ -61,22 +58,18 @@ public class ActiveEffectTracker
 	private final Map<Effect, Timer> timers = new EnumMap<>(Effect.class);
 	private int lastDeathCharge;
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 		timers.clear();
 		lastDeathCharge = 0;
 	}
 
-	public boolean active(Effect effect)
-	{
-		switch (effect)
-		{
+	public boolean active(Effect effect) {
+		switch (effect) {
 			case VENGEANCE:
 				return client.getVarbitValue(VarbitID.VENGEANCE_REBOUND) != 0;
 			case THRALL:
@@ -94,88 +87,69 @@ public class ActiveEffectTracker
 	// Percent of an active effect's time left, or null if it isn't timed, its start wasn't seen, or its
 	// estimate ran out while it's still up.
 	@Nullable
-	public Integer percentLeft(Effect effect)
-	{
+	public Integer percentLeft(Effect effect) {
 		Timer timer = timers.get(effect);
 		int left = ticksLeft(effect);
 		return timer == null || left <= 0 ? null : (int) Math.ceil(100.0 * left / timer.ticks);
 	}
 
-	private int ticksLeft(Effect effect)
-	{
+	private int ticksLeft(Effect effect) {
 		Timer timer = timers.get(effect);
 		return timer == null ? 0 : timer.start + timer.ticks - client.getTickCount();
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
-	{
-		if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM)
-		{
+	public void onChatMessage(ChatMessage event) {
+		if (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM) {
 			return;
 		}
 
 		String message = Text.standardize(event.getMessage());
 		int magic = client.getRealSkillLevel(Skill.MAGIC);
-		if (message.endsWith(SHADOW_VEIL))
-		{
+		if (message.endsWith(SHADOW_VEIL)) {
 			start(Effect.SHADOW_VEIL, magic);
-		}
-		else if (message.endsWith(MARK_PLACED))
-		{
+		} else if (message.endsWith(MARK_PLACED)) {
 			start(Effect.MARK_OF_DARKNESS, magic * 3 * (wieldingPurgingStaff() ? PURGING_STAFF_MULTIPLIER : 1));
-		}
-		else if (message.endsWith(MARK_FADED))
-		{
+		} else if (message.endsWith(MARK_FADED)) {
 			timers.remove(Effect.MARK_OF_DARKNESS);
 		}
 	}
 
 	// Mark of Darkness ends on death.
 	@Subscribe
-	public void onActorDeath(ActorDeath event)
-	{
-		if (event.getActor() == client.getLocalPlayer())
-		{
+	public void onActorDeath(ActorDeath event) {
+		if (event.getActor() == client.getLocalPlayer()) {
 			timers.remove(Effect.MARK_OF_DARKNESS);
 		}
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
-	{
+	public void onVarbitChanged(VarbitChanged event) {
 		int value = event.getValue();
-		switch (event.getVarbitId())
-		{
+		switch (event.getVarbitId()) {
 			case VarbitID.ARCEUUS_DEATH_CHARGE_ACTIVE:
 				// 2 is a recast while one's already up.
-				if (value == 2 || value == 1 && lastDeathCharge == 0)
-				{
+				if (value == 2 || value == 1 && lastDeathCharge == 0) {
 					start(Effect.DEATH_CHARGE, DEATH_CHARGE_TICKS);
-				}
-				else if (value == 0)
-				{
+				} else if (value == 0) {
 					timers.remove(Effect.DEATH_CHARGE);
 				}
 				lastDeathCharge = value;
 				break;
 			case VarbitID.ARCEUUS_RESURRECTION_COOLDOWN:
 				// Set on cast: boosted Magic level ticks, after it appears.
-				if (value == 1)
-				{
+				if (value == 1) {
 					int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
 					start(Effect.THRALL, (simpleVariables.combatAchievementTier() >= MASTER_TIER ? ticks * 2 : ticks) + THRALL_SUMMON_TICKS);
 				}
 				break;
 			case VarbitID.ARCEUUS_RESURRECTION_ACTIVE:
-				if (value == 0)
-				{
+				if (value == 0) {
 					timers.remove(Effect.THRALL);
 				}
 				break;
 			case VarbitID.ARCEUUS_SHADOW_VEIL_ACTIVE:
-				if (value == 0)
-				{
+				if (value == 0) {
 					timers.remove(Effect.SHADOW_VEIL);
 				}
 				break;
@@ -185,21 +159,17 @@ public class ActiveEffectTracker
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
-	{
-		if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING)
-		{
+	public void onGameStateChanged(GameStateChanged event) {
+		if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING) {
 			timers.clear();
 		}
 	}
 
-	private void start(Effect effect, int ticks)
-	{
+	private void start(Effect effect, int ticks) {
 		timers.put(effect, new Timer(client.getTickCount(), ticks));
 	}
 
-	private boolean wieldingPurgingStaff()
-	{
+	private boolean wieldingPurgingStaff() {
 		ItemContainer worn = client.getItemContainer(InventoryID.WORN);
 		Item weapon = worn == null ? null : worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
 		return weapon != null && (weapon.getId() == ItemID.PURGING_STAFF || weapon.getId() == ItemID.BR_PURGING_STAFF);

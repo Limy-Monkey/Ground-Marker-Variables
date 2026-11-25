@@ -9,13 +9,11 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 // Draws marker labels (text, shadows, color runs and inline item icons). Split out from
 // GroundMarkerVariablesTileOverlay so other plugins can tell tiles and labels apart.
-public class GroundMarkerVariablesLabelOverlay extends Overlay
-{
+public class GroundMarkerVariablesLabelOverlay extends Overlay {
 	private final GroundMarkerVariablesOverlay markerOverlay;
 
 	@Inject
-	private GroundMarkerVariablesLabelOverlay(GroundMarkerVariablesOverlay markerOverlay)
-	{
+	private GroundMarkerVariablesLabelOverlay(GroundMarkerVariablesOverlay markerOverlay) {
 		this.markerOverlay = markerOverlay;
 		setPosition(OverlayPosition.DYNAMIC);
 		setPriority(PRIORITY_MED);
@@ -23,8 +21,7 @@ public class GroundMarkerVariablesLabelOverlay extends Overlay
 	}
 
 	@Override
-	public Dimension render(Graphics2D graphics)
-	{
+	public Dimension render(Graphics2D graphics) {
 		markerOverlay.renderMarkers(graphics, true);
 		return null;
 	}

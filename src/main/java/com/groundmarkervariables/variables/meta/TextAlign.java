@@ -1,6 +1,5 @@
 package com.groundmarkervariables.variables.meta;
 
-public enum TextAlign
-{
+public enum TextAlign {
 	LEFT, RIGHT, CENTER
 }

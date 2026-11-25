@@ -35,8 +35,7 @@ import net.runelite.client.events.RuneScapeProfileChanged;
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class WeaponStyleTracker
-{
+public class WeaponStyleTracker {
 	private static final String NO_STYLE = "None";
 	// Autocast spell index -> spell obj.
 	private static final int AUTOCAST_SPELLS = 1986;
@@ -44,8 +43,7 @@ public class WeaponStyleTracker
 	private static final int SPELL_SPRITE = 597;
 
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-	public static final class Style
-	{
+	public static final class Style {
 		public final String name;
 		@Nullable
 		public final WeaponAttackType type;
@@ -65,19 +63,16 @@ public class WeaponStyleTracker
 	private String lastAutocast;
 	private int lastAutocastSprite = -1;
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 	}
 
 	@Subscribe
-	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
-	{
+	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
 		categoryByWeapon.clear();
 		styleByCategory.clear();
 		trackedWeaponId = -1;
@@ -89,13 +84,11 @@ public class WeaponStyleTracker
 
 	// Before the plugin's own onGameTick refreshes labels.
 	@Subscribe(priority = 1)
-	public void onGameTick(GameTick event)
-	{
+	public void onGameTick(GameTick event) {
 		int weaponId = equippedWeaponId();
 		int styleIndex = attackStyleIndex();
 		int autocastSpell = client.getVarbitValue(VarbitID.AUTOCAST_SPELL);
-		if (weaponId == trackedWeaponId && styleIndex == trackedStyleIndex && autocastSpell == trackedAutocastSpell)
-		{
+		if (weaponId == trackedWeaponId && styleIndex == trackedStyleIndex && autocastSpell == trackedAutocastSpell) {
 			return;
 		}
 
@@ -104,108 +97,90 @@ public class WeaponStyleTracker
 		trackedAutocastSpell = autocastSpell;
 
 		int category = weaponCategory();
-		if (buildAttackStyle(category, 4) != null)
-		{
+		if (buildAttackStyle(category, 4) != null) {
 			lastAutocast = styleIndex >= 4 ? autocastName(styleIndex == 5) : null;
 			lastAutocastSprite = lastAutocast == null ? -1 : autocastSprite();
 		}
 
 		styleByCategory.put(category, current());
-		if (weaponId > 0)
-		{
+		if (weaponId > 0) {
 			categoryByWeapon.put(client.getItemDefinition(weaponId).getName(), category);
 		}
 	}
 
 	// Melee styles keep their style name (Accurate, Aggressive...). Autocast is the spell's name,
 	// anything else the combat tab's button name, e.g. Rapid or Longrange.
-	public Style current()
-	{
+	public Style current() {
 		int category = weaponCategory();
 		int styleIndex = attackStyleIndex();
 		WeaponAttackType type = WeaponAttackTypes.forStyle(category, styleIndex);
 		String name = styleIndex >= 4 ? autocastName(styleIndex == 5)
 			: type == WeaponAttackType.STAB || type == WeaponAttackType.SLASH || type == WeaponAttackType.CRUSH ? null
 			: combatTabName(category, styleIndex);
-		if (name == null)
-		{
+		if (name == null) {
 			name = buildAttackStyle(category, styleIndex);
 		}
 		return new Style(name == null ? NO_STYLE : name, type);
 	}
 
 	@Nullable
-	private String autocastName(boolean defensive)
-	{
+	private String autocastName(boolean defensive) {
 		String name = autocastSpell();
 		return name == null ? null : defensive ? name + " (def)" : name;
 	}
 
 	// e.g. "Fire Surge" or "Fire Surge (def)". Null if not autocasting.
 	@Nullable
-	public String lastAutocast()
-	{
+	public String lastAutocast() {
 		return lastAutocast;
 	}
 
 	// The last autocast spell's spellbook icon, or -1.
-	public int lastAutocastSprite()
-	{
+	public int lastAutocastSprite() {
 		return lastAutocastSprite;
 	}
 
 	@Nullable
-	private String autocastSpell()
-	{
+	private String autocastSpell() {
 		int spell = autocastSpellObj();
 		String name = spell <= 0 ? null : client.getItemDefinition(spell).getStringValue(ParamID.SPELL_NAME);
 		return name == null || name.isEmpty() ? null : name;
 	}
 
-	private int autocastSprite()
-	{
+	private int autocastSprite() {
 		int spell = autocastSpellObj();
 		int sprite = spell <= 0 ? -1 : client.getItemDefinition(spell).getIntValue(SPELL_SPRITE);
 		return sprite > 0 ? sprite : -1;
 	}
 
-	private int autocastSpellObj()
-	{
+	private int autocastSpellObj() {
 		return client.getEnum(AUTOCAST_SPELLS).getIntValue(client.getVarbitValue(VarbitID.AUTOCAST_SPELL));
 	}
 
 	@Nullable
-	private String combatTabName(int category, int styleIndex)
-	{
+	private String combatTabName(int category, int styleIndex) {
 		String[] names = tabNamesByCategory.computeIfAbsent(category, this::loadCombatTabNames);
 		return styleIndex >= 0 && styleIndex < names.length ? names[styleIndex] : null;
 	}
 
 	// Button names by style slot. getDBTableField returns one field (0 = slot, 1 = name) of every button.
-	private String[] loadCombatTabNames(int category)
-	{
+	private String[] loadCombatTabNames(int category) {
 		String[] names = new String[6];
-		try
-		{
+		try {
 			List<Integer> rows = client.getDBRowsByValue(DBTableID.CombatInterfaceWeaponCategory.ID, DBTableID.CombatInterfaceWeaponCategory.COL_ID, 0, category);
-			if (rows.isEmpty())
-			{
+			if (rows.isEmpty()) {
 				return names;
 			}
 
 			Object[] slots = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, 0);
 			Object[] buttonNames = client.getDBTableField(rows.get(0), DBTableID.CombatInterfaceWeaponCategory.COL_BUTTON, 1);
-			for (int i = 0; i < Math.min(slots.length, buttonNames.length); i++)
-			{
+			for (int i = 0; i < Math.min(slots.length, buttonNames.length); i++) {
 				int slot = (Integer) slots[i];
-				if (slot >= 0 && slot < names.length)
-				{
+				if (slot >= 0 && slot < names.length) {
 					names[slot] = (String) buttonNames[i];
 				}
 			}
-		}
-		catch (RuntimeException e)
-		{
+		} catch (RuntimeException e) {
 			log.warn("Couldn't read combat tab names for weapon category {}", category, e);
 			Arrays.fill(names, null);
 		}
@@ -213,14 +188,12 @@ public class WeaponStyleTracker
 	}
 
 	// Equipped this session, alphabetical.
-	public Set<String> weaponNames()
-	{
+	public Set<String> weaponNames() {
 		return Collections.unmodifiableSet(categoryByWeapon.keySet());
 	}
 
 	@Nullable
-	public Style forWeapon(String search)
-	{
+	public Style forWeapon(String search) {
 		String weapon = weaponName(search);
 		return weapon == null ? null : styleByCategory.get(categoryByWeapon.get(weapon));
 	}
@@ -228,12 +201,10 @@ public class WeaponStyleTracker
 	// A seen weapon's name matching search: the worn weapon first, then inventory items, then
 	// any other. Exact before substring within each. Null if no match has been equipped.
 	@Nullable
-	public String weaponName(String search)
-	{
+	public String weaponName(String search) {
 		String needle = search.trim();
 		String match = bestMatch(itemNames(client.getItemContainer(InventoryID.WORN), EquipmentInventorySlot.WEAPON.getSlotIdx()), needle);
-		if (match == null)
-		{
+		if (match == null) {
 			match = bestMatch(itemNames(client.getItemContainer(InventoryID.INV), -1), needle);
 		}
 		return match != null ? match : bestMatch(categoryByWeapon.keySet(), needle);
@@ -241,24 +212,19 @@ public class WeaponStyleTracker
 
 	// Only names with a saved state, returned in their saved casing.
 	@Nullable
-	private String bestMatch(Collection<String> names, String needle)
-	{
+	private String bestMatch(Collection<String> names, String needle) {
 		String substring = null;
-		for (String name : names)
-		{
+		for (String name : names) {
 			String saved = categoryByWeapon.containsKey(name) ? categoryByWeapon.ceilingKey(name) : null;
-			if (saved == null)
-			{
+			if (saved == null) {
 				continue;
 			}
 
-			if (saved.equalsIgnoreCase(needle))
-			{
+			if (saved.equalsIgnoreCase(needle)) {
 				return saved;
 			}
 
-			if (substring == null && saved.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT)))
-			{
+			if (substring == null && saved.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT))) {
 				substring = saved;
 			}
 		}
@@ -266,49 +232,40 @@ public class WeaponStyleTracker
 	}
 
 	// All item names in container, or just slot's when slot >= 0.
-	private List<String> itemNames(@Nullable ItemContainer container, int slot)
-	{
+	private List<String> itemNames(@Nullable ItemContainer container, int slot) {
 		List<String> names = new ArrayList<>();
 		Item[] items = container == null ? new Item[0] : container.getItems();
-		for (int i = 0; i < items.length; i++)
-		{
-			if ((slot < 0 || i == slot) && items[i].getId() > 0)
-			{
+		for (int i = 0; i < items.length; i++) {
+			if ((slot < 0 || i == slot) && items[i].getId() > 0) {
 				names.add(client.getItemDefinition(items[i].getId()).getName());
 			}
 		}
 		return names;
 	}
 
-	private int weaponCategory()
-	{
+	private int weaponCategory() {
 		return client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
 	}
 
-	private int equippedWeaponId()
-	{
+	private int equippedWeaponId() {
 		ItemContainer equipment = client.getItemContainer(InventoryID.WORN);
 		Item weapon = equipment == null ? null : equipment.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
 		return weapon == null ? -1 : weapon.getId();
 	}
 
 	// Staff slot 4 covers Casting and Defensive Casting, split by AUTOCAST_DEFMODE.
-	private int attackStyleIndex()
-	{
+	private int attackStyleIndex() {
 		int styleIndex = client.getVarpValue(VarPlayerID.COM_MODE);
-		if (styleIndex == 4)
-		{
+		if (styleIndex == 4) {
 			styleIndex += client.getVarbitValue(VarbitID.AUTOCAST_DEFMODE);
 		}
 
 		return styleIndex;
 	}
 
-	private String buildAttackStyle(int weaponCategory, int attackStyleIndex)
-	{
+	private String buildAttackStyle(int weaponCategory, int attackStyleIndex) {
 		String[] styleNames = weaponTypeStyleNames(weaponCategory);
-		if (attackStyleIndex < 0 || attackStyleIndex >= styleNames.length)
-		{
+		if (attackStyleIndex < 0 || attackStyleIndex >= styleNames.length) {
 			return null;
 		}
 
@@ -316,23 +273,18 @@ public class WeaponStyleTracker
 	}
 
 	// Mirrors core's AttackStylesPlugin, including its blue moon spear and partisan fallbacks.
-	private String[] weaponTypeStyleNames(int weaponType)
-	{
-		if (weaponType == 36) // Obligator
-		{
+	private String[] weaponTypeStyleNames(int weaponType) {
+		if (weaponType == 36) { // Obligator
 			return new String[] {"5t Accurate", "5t Aggressive", "3t Aggressive"};
 		}
 
 		int weaponStyleEnumId = client.getEnum(EnumID.WEAPON_STYLES).getIntValue(weaponType);
-		if (weaponStyleEnumId == -1)
-		{
-			if (weaponType == 22) // Blue moon spear
-			{
+		if (weaponStyleEnumId == -1) {
+			if (weaponType == 22) { // Blue moon spear
 				return new String[] {"Accurate", "Aggressive", null, "Defensive", "Casting", "Defensive Casting"};
 			}
 
-			if (weaponType == 30) // Partisan
-			{
+			if (weaponType == 30) { // Partisan
 				return new String[] {"Accurate", "Aggressive", "Aggressive", "Defensive"};
 			}
 
@@ -341,11 +293,9 @@ public class WeaponStyleTracker
 
 		int[] weaponStyleStructs = client.getEnum(weaponStyleEnumId).getIntVals();
 		String[] styleNames = new String[weaponStyleStructs.length];
-		for (int i = 0; i < weaponStyleStructs.length; i++)
-		{
+		for (int i = 0; i < weaponStyleStructs.length; i++) {
 			String name = client.getStructComposition(weaponStyleStructs[i]).getStringValue(ParamID.ATTACK_STYLE_NAME);
-			if ("Other".equals(name))
-			{
+			if ("Other".equals(name)) {
 				continue;
 			}
 

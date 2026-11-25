@@ -20,38 +20,32 @@ import net.runelite.client.util.Text;
 // on ConfigSync (up to every 5 min) -- see LootLabelVariable, which merges this in each tick.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class RecentLootTracker
-{
+public class RecentLootTracker {
 	private final Map<String, PendingNpcLoot> pending = new ConcurrentHashMap<>();
 
 	private final EventBus eventBus;
 	private final ItemManager itemManager;
 
-	public void startUp()
-	{
+	public void startUp() {
 		eventBus.register(this);
 	}
 
-	public void shutDown()
-	{
+	public void shutDown() {
 		eventBus.unregister(this);
 		pending.clear();
 	}
 
 	@Subscribe
-	public void onServerNpcLoot(ServerNpcLoot event)
-	{
+	public void onServerNpcLoot(ServerNpcLoot event) {
 		NPCComposition npc = event.getComposition();
 		String name = Text.removeTags(npc.getName());
-		if (name.isEmpty())
-		{
+		if (name.isEmpty()) {
 			return;
 		}
 
 		PendingNpcLoot loot = pending.computeIfAbsent(name.toLowerCase(Locale.ENGLISH), key -> new PendingNpcLoot(name));
 		loot.kills++;
-		for (ItemStack item : event.getItems())
-		{
+		for (ItemStack item : event.getItems()) {
 			loot.gpValue += (long) itemManager.getItemPrice(item.getId()) * item.getQuantity();
 			loot.itemQuantities.merge(item.getId(), item.getQuantity(), Integer::sum);
 		}
@@ -59,19 +53,16 @@ public class RecentLootTracker
 
 	// Same trigger as Loot Tracker's ConfigSync flush
 	@Subscribe
-	public void onConfigSync(ConfigSync event)
-	{
+	public void onConfigSync(ConfigSync event) {
 		pending.clear();
 	}
 
 	@Subscribe
-	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
-	{
+	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
 		pending.clear();
 	}
 
-	public PendingNpcLoot get(String monster)
-	{
+	public PendingNpcLoot get(String monster) {
 		return pending.get(monster.toLowerCase(Locale.ENGLISH));
 	}
 }

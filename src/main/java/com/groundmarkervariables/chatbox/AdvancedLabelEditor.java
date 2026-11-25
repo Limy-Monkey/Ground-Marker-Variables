@@ -51,8 +51,7 @@ import okhttp3.HttpUrl;
 // only show while the input is still unedited; once edited, untitled suggestion rows list every way to complete the
 // token at the cursor (see LabelCompleter) instead. Section titles use Quill 8 like the prompt; entries are clickable: a label
 // fills the input, a suggestion completes the token like Tab.
-public class AdvancedLabelEditor extends ChatboxTextInput
-{
+public class AdvancedLabelEditor extends ChatboxTextInput {
 	private static final int LINE_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 16;
 	// As core's Wiki plugin opens an item or NPC by id.
@@ -91,8 +90,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// removable, since Current/Nearby aren't backed by the saved recent-labels list), up to SUGGESTION_COLUMNS
 	// suggestions (click inserts), or a line of a parameter's description (not selectable).
 	@RequiredArgsConstructor
-	private static final class Row
-	{
+	private static final class Row {
 		private final String text;
 		private final boolean title;
 		private final boolean removable;
@@ -103,31 +101,26 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		private final Completion.Option preferred;
 		private final boolean hint;
 
-		private static Row title(String text)
-		{
+		private static Row title(String text) {
 			return new Row(text, true, false, null, null, false);
 		}
 
-		private static Row label(String text, boolean removable)
-		{
+		private static Row label(String text, boolean removable) {
 			return new Row(text, false, removable, null, null, false);
 		}
 
-		private static Row suggestions(List<Completion.Option> suggestions, @Nullable Completion.Option preferred)
-		{
+		private static Row suggestions(List<Completion.Option> suggestions, @Nullable Completion.Option preferred) {
 			return new Row("", false, false, suggestions, preferred, false);
 		}
 
-		private static Row hint(String text)
-		{
+		private static Row hint(String text) {
 			return new Row(text, false, false, null, null, true);
 		}
 	}
 
 	// One wrapped row of edit text — mirrors ChatboxTextInput's own private Line class.
 	@RequiredArgsConstructor
-	private static final class WrappedLine
-	{
+	private static final class WrappedLine {
 		private final int start;
 		private final int end;
 		private final String text;
@@ -183,8 +176,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// One edit: at position, removed became inserted; and the selection before and after.
 	@RequiredArgsConstructor
-	private static final class Change
-	{
+	private static final class Change {
 		private final int position;
 		private final String removed;
 		private final String inserted;
@@ -194,8 +186,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// One Ctrl+Z step: the edits made without a STEP_PAUSE_MS gap, in order.
-	private static final class Step
-	{
+	private static final class Step {
 		private final List<Change> changes = new ArrayList<>();
 	}
 
@@ -221,8 +212,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	@Inject
 	AdvancedLabelEditor(ChatboxPanelManager chatboxPanelManager, ClientThread clientThread, GroundMarkerVariablesConfig config,
 		ConfigManager configManager, LabelCompleter completer, SuggestionIconOverlay iconOverlay, ChatboxWidgets widgets,
-		GroundMarkerVariablesSharingManager sharingManager, IconNames iconNames)
-	{
+		GroundMarkerVariablesSharingManager sharingManager, IconNames iconNames) {
 		super(chatboxPanelManager, clientThread);
 		this.widgets = widgets;
 		this.chatboxPanelManager = chatboxPanelManager;
@@ -234,10 +224,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		this.sharingManager = sharingManager;
 		this.iconNames = iconNames;
 		// Names still loading when suggested: suggested again once they have, if still open.
-		completer.onNamesLoaded(() ->
-		{
-			if (chatboxPanelManager.getCurrentInput() == this)
-			{
+		completer.onNamesLoaded(() -> {
+			if (chatboxPanelManager.getCurrentInput() == this) {
 				update();
 			}
 		});
@@ -247,12 +235,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	@Override
-	protected void close()
-	{
+	protected void close() {
 		iconOverlay.clear();
 		// Handed off to the import, which comes back here: its onClose (e.g. clearing the tile's preview) waits for then.
-		if (handingOff)
-		{
+		if (handingOff) {
 			handingOff = false;
 			return;
 		}
@@ -263,8 +249,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// onRemoveRecent handles right-click "Remove" on a Recent entry. tileColor is used to
 	// underline </col> — see buildColorTagUnderlines().
 	public AdvancedLabelEditor recommendations(String originalLabel, List<String> recentLabels, List<String> nearbyLabels,
-		Consumer<String> onRemoveRecent, Color tileColor)
-	{
+		Consumer<String> onRemoveRecent, Color tileColor) {
 		this.originalLabel = originalLabel == null ? "" : originalLabel;
 		this.recentLabels = new ArrayList<>(recentLabels);
 		this.nearbyLabels = nearbyLabels;
@@ -276,15 +261,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// What completes the token at the cursor, or null (e.g. with text selected).
 	@Nullable
-	private Completion completion()
-	{
+	private Completion completion() {
 		return getCursorStart() != getCursorEnd() ? null : completer.complete(getValue(), getCursorStart());
 	}
 
 	// The preferred completion's text: the ghost, and what Tab inserts. Null if none.
 	@Nullable
-	private String pendingCompletion()
-	{
+	private String pendingCompletion() {
 		Completion completion = completion();
 		String insert = completion == null ? null : completion.preferredInsert();
 		return insert == null || insert.isEmpty() ? null : insert;
@@ -293,21 +276,17 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Ctrl+V of copied ground markers (or a marker set), true if handled here (else it's a normal paste): one marker's label
 	// alone (icons by name, as labels are edited), not its color or place, at the cursor; more go through the import, which
 	// asks first, then back to this editor.
-	private boolean pasteMarkers()
-	{
+	private boolean pasteMarkers() {
 		List<GroundMarkerPointData> markers = sharingManager.clipboardMarkers();
-		if (markers.isEmpty())
-		{
+		if (markers.isEmpty()) {
 			return false;
 		}
-		if (markers.size() == 1)
-		{
+		if (markers.size() == 1) {
 			String label = Strings.nullToEmpty(markers.get(0).getLabel());
 			clientThread.invoke(() -> insertAtCursor(iconNames.collapse(label), 0));
 			return true;
 		}
-		clientThread.invoke(() ->
-		{
+		clientThread.invoke(() -> {
 			handingOff = true;
 			sharingManager.importClipboard(() -> chatboxPanelManager.openInput(this));
 		});
@@ -315,8 +294,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// insert in place of the replace characters before the cursor.
-	private void insertAtCursor(String insert, int replace)
-	{
+	private void insertAtCursor(String insert, int replace) {
 		String before = getValue().substring(0, Math.max(0, getCursorStart() - replace));
 		value(before + insert + getValue().substring(getCursorEnd()));
 		cursorAt(before.length() + insert.length());
@@ -334,10 +312,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// than X/C/V/A is swallowed and does nothing, per its own keyPressed()).
 	// Ctrl+Space accepts autocomplete like Tab -- its key-typed ' ' must not also insert a space.
 	@Override
-	public void keyTyped(KeyEvent ev)
-	{
-		if (ev.isControlDown() && ev.getKeyChar() == ' ')
-		{
+	public void keyTyped(KeyEvent ev) {
+		if (ev.isControlDown() && ev.getKeyChar() == ' ') {
 			ev.consume();
 			return;
 		}
@@ -346,40 +322,31 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	@Override
-	public void keyPressed(KeyEvent ev)
-	{
-		if (!chatboxPanelManager.shouldTakeInput())
-		{
+	public void keyPressed(KeyEvent ev) {
+		if (!chatboxPanelManager.shouldTakeInput()) {
 			return;
 		}
 
 		int code = ev.getKeyCode();
 
-		if (ev.isControlDown() && (code == KeyEvent.VK_Z || code == KeyEvent.VK_Y))
-		{
+		if (ev.isControlDown() && (code == KeyEvent.VK_Z || code == KeyEvent.VK_Y)) {
 			ev.consume();
-			if (code == KeyEvent.VK_Z && !ev.isShiftDown())
-			{
+			if (code == KeyEvent.VK_Z && !ev.isShiftDown()) {
 				undoStep();
-			}
-			else
-			{
+			} else {
 				redoStep();
 			}
 			return;
 		}
 
-		if (ev.isControlDown() && code == KeyEvent.VK_V && pasteMarkers())
-		{
+		if (ev.isControlDown() && code == KeyEvent.VK_V && pasteMarkers()) {
 			ev.consume();
 			return;
 		}
 
-		if (code == KeyEvent.VK_TAB || (code == KeyEvent.VK_SPACE && ev.isControlDown()))
-		{
+		if (code == KeyEvent.VK_TAB || (code == KeyEvent.VK_SPACE && ev.isControlDown())) {
 			String completion = pendingCompletion();
-			if (completion != null)
-			{
+			if (completion != null) {
 				ev.consume();
 				insertAtCursor(completion, 0);
 				return;
@@ -389,48 +356,35 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		boolean shift = ev.isShiftDown();
 		boolean wordJump = ev.isControlDown() || ev.isAltDown();
 
-		if (shift && (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT))
-		{
+		if (shift && (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT)) {
 			ev.consume();
 
 			int caret;
-			if (shiftSelectionAnchor == -1)
-			{
-				if (getCursorStart() == getCursorEnd())
-				{
+			if (shiftSelectionAnchor == -1) {
+				if (getCursorStart() == getCursorEnd()) {
 					shiftSelectionAnchor = getCursorStart();
 					caret = shiftSelectionAnchor;
-				}
-				else
-				{
+				} else {
 					// An existing (mouse-drag or double-click) selection: anchor at the edge
 					// opposite the direction being extended, caret at the edge being moved —
 					// not just "caret = anchor", which would extend from the wrong edge.
-					if (code == KeyEvent.VK_LEFT)
-					{
+					if (code == KeyEvent.VK_LEFT) {
 						shiftSelectionAnchor = getCursorEnd();
 						caret = getCursorStart();
-					}
-					else
-					{
+					} else {
 						shiftSelectionAnchor = getCursorStart();
 						caret = getCursorEnd();
 					}
 				}
-			}
-			else
-			{
+			} else {
 				caret = shiftSelectionAnchor == getCursorStart() ? getCursorEnd() : getCursorStart();
 			}
 
-			if (wordJump)
-			{
+			if (wordJump) {
 				caret = code == KeyEvent.VK_LEFT
 					? previousWordBoundary(getValue(), caret)
 					: nextWordBoundary(getValue(), caret);
-			}
-			else
-			{
+			} else {
 				caret += code == KeyEvent.VK_LEFT ? -1 : 1;
 			}
 
@@ -440,8 +394,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		// Ctrl/Alt+Left/Right with no shift -- move by a whole word instead of one character.
 		// Collapses from whichever edge is being moved toward, same as a plain arrow would.
-		if (!shift && wordJump && (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT))
-		{
+		if (!shift && wordJump && (code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT)) {
 			shiftSelectionAnchor = -1;
 			cursorAt(code == KeyEvent.VK_LEFT
 				? previousWordBoundary(getValue(), getCursorStart())
@@ -451,15 +404,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		// Ctrl/Alt+Backspace -- delete the selection if one exists, otherwise delete back to
 		// the previous word boundary.
-		if (wordJump && code == KeyEvent.VK_BACK_SPACE)
-		{
+		if (wordJump && code == KeyEvent.VK_BACK_SPACE) {
 			ev.consume();
 			shiftSelectionAnchor = -1;
 			String text = getValue();
 			int start = getCursorStart();
 			int end = getCursorEnd();
-			if (start == end)
-			{
+			if (start == end) {
 				start = previousWordBoundary(text, start);
 			}
 			value(text.substring(0, start) + text.substring(end));
@@ -467,8 +418,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			return;
 		}
 
-		if (!shift)
-		{
+		if (!shift) {
 			shiftSelectionAnchor = -1;
 		}
 
@@ -479,23 +429,16 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// (braces included), quadruple-click (or more) the entire label — the base class has none
 	// of these.
 	@Override
-	public MouseEvent mouseClicked(MouseEvent mouseEvent)
-	{
+	public MouseEvent mouseClicked(MouseEvent mouseEvent) {
 		super.mouseClicked(mouseEvent);
 
-		if (mouseEvent.getButton() == MouseEvent.BUTTON1)
-		{
+		if (mouseEvent.getButton() == MouseEvent.BUTTON1) {
 			int clicks = mouseEvent.getClickCount();
-			if (clicks >= 4)
-			{
+			if (clicks >= 4) {
 				selectAll();
-			}
-			else if (clicks == 3)
-			{
+			} else if (clicks == 3) {
 				selectTokenAt(getCursorStart());
-			}
-			else if (clicks == 2)
-			{
+			} else if (clicks == 2) {
 				selectWordAt(getCursorStart());
 			}
 		}
@@ -505,25 +448,20 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// The outermost complete {...} token around pos, at any nesting depth (an unclosed "{" is skipped); the entire
 	// label if none. A brace scan, not a regex: any token length works.
-	private void selectTokenAt(int pos)
-	{
+	private void selectTokenAt(int pos) {
 		String text = getValue();
 		int i = 0;
-		while (i < text.length())
-		{
-			if (text.charAt(i) != '{')
-			{
+		while (i < text.length()) {
+			if (text.charAt(i) != '{') {
 				i++;
 				continue;
 			}
 			int close = ConditionalVariable.matchingBrace(text, i);
-			if (close < 0)
-			{
+			if (close < 0) {
 				i++;
 				continue;
 			}
-			if (pos >= i && pos <= close + 1)
-			{
+			if (pos >= i && pos <= close + 1) {
 				shiftSelectionAnchor = -1;
 				cursorAt(i, close + 1);
 				return;
@@ -534,26 +472,21 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		selectAll();
 	}
 
-	private void selectAll()
-	{
+	private void selectAll() {
 		shiftSelectionAnchor = -1;
 		cursorAt(0, getValue().length());
 	}
 
-	private void selectWordAt(int pos)
-	{
+	private void selectWordAt(int pos) {
 		String text = getValue();
-		if (text.isEmpty())
-		{
+		if (text.isEmpty()) {
 			return;
 		}
 
 		// The literal "\n" line-break escape is its own word, not split across the "\" (not
 		// alphanumeric) and "n" (alphanumeric) categories below.
-		for (int start = Math.max(0, pos - 2); start <= Math.min(pos, text.length() - 2); start++)
-		{
-			if (text.startsWith("\\n", start))
-			{
+		for (int start = Math.max(0, pos - 2); start <= Math.min(pos, text.length() - 2); start++) {
+			if (text.startsWith("\\n", start)) {
 				shiftSelectionAnchor = -1;
 				cursorAt(start, start + 2);
 				return;
@@ -569,12 +502,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// From pos, past the characters that are (or, not alphanumeric, aren't) letters or digits, going left (step -1) or
 	// right (1).
-	private static int runEdge(String value, int pos, boolean alphanumeric, int step)
-	{
+	private static int runEdge(String value, int pos, boolean alphanumeric, int step) {
 		int i = pos;
 		while (step < 0 ? i > 0 && Character.isLetterOrDigit(value.charAt(i - 1)) == alphanumeric
-			: i < value.length() && Character.isLetterOrDigit(value.charAt(i)) == alphanumeric)
-		{
+			: i < value.length() && Character.isLetterOrDigit(value.charAt(i)) == alphanumeric) {
 			i += step;
 		}
 		return i;
@@ -585,43 +516,34 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// "hasFreeze && weapon", moving left from the end stops after "weapon" (alphanumeric
 	// run), then after " && " (one non-alphanumeric run: space, &, &, space together),
 	// then at the very start (the rest of "hasFreeze").
-	private static int previousWordBoundary(String value, int pos)
-	{
+	private static int previousWordBoundary(String value, int pos) {
 		return pos <= 0 ? pos : runEdge(value, pos, Character.isLetterOrDigit(value.charAt(pos - 1)), -1);
 	}
 
-	private static int nextWordBoundary(String value, int pos)
-	{
+	private static int nextWordBoundary(String value, int pos) {
 		return pos >= value.length() ? pos : runEdge(value, pos, Character.isLetterOrDigit(value.charAt(pos)), 1);
 	}
 
 	// Absolute Y of the top of wrapped edit row `lineIndex` (0-based).
-	private static int editRowY(int lineIndex)
-	{
+	private static int editRowY(int lineIndex) {
 		return 5 + LINE_HEIGHT + (LINE_HEIGHT * lineIndex);
 	}
 
 	// Whether wrapped line lineIndex is in the shown window.
-	private boolean shown(int lineIndex)
-	{
+	private boolean shown(int lineIndex) {
 		return lineIndex >= editScroll && lineIndex < editScroll + editWindow;
 	}
 
 	// Scrolls the window to the caret's line when the value or caret changed since last time, else keeps it in range.
-	private void followCaret(List<WrappedLine> wrappedLines)
-	{
+	private void followCaret(List<WrappedLine> wrappedLines) {
 		int caret = getCursorEnd();
-		if (!getValue().equals(followedValue) || caret != followedCaret)
-		{
+		if (!getValue().equals(followedValue) || caret != followedCaret) {
 			followedValue = getValue();
 			followedCaret = caret;
 			int line = findLineIndex(wrappedLines, caret);
-			if (line < editScroll)
-			{
+			if (line < editScroll) {
 				editScroll = line;
-			}
-			else if (line >= editScroll + editWindow)
-			{
+			} else if (line >= editScroll + editWindow) {
 				editScroll = line - editWindow + 1;
 			}
 		}
@@ -629,25 +551,20 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Hides buildEdit()'s widgets (from index from on) outside the shown rows.
-	private void hideOutsideWindow(Widget container, int from)
-	{
+	private void hideOutsideWindow(Widget container, int from) {
 		Widget[] children = container.getDynamicChildren();
-		for (int i = from; i < children.length; i++)
-		{
+		for (int i = from; i < children.length; i++) {
 			int y = children[i].getOriginalY();
-			if (y < editRowY(0) || y >= editRowY(editWindow))
-			{
+			if (y < editRowY(0) || y >= editRowY(editWindow)) {
 				children[i].setHidden(true);
 			}
 		}
 	}
 
 	// With more lines than shown: the wheel over the edit rows scrolls them, and a scrollbar shows where they are.
-	private void buildEditScrolling(Widget container)
-	{
+	private void buildEditScrolling(Widget container) {
 		int maxScroll = editLines - editWindow;
-		if (maxScroll <= 0)
-		{
+		if (maxScroll <= 0) {
 			return;
 		}
 
@@ -656,15 +573,13 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			this::scrollEdit);
 	}
 
-	private void scrollEdit(int direction)
-	{
+	private void scrollEdit(int direction) {
 		editScroll = Math.max(0, Math.min(editScroll + direction, editLines - editWindow));
 		update();
 	}
 
 	// The shrink button: COMPACT_EDIT_LINES rows, or back to MAX_EDIT_LINES, showing the caret's line.
-	private void toggleCompact()
-	{
+	private void toggleCompact() {
 		compact = !compact;
 		followedCaret = -1;
 		update();
@@ -673,10 +588,8 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Core's click area covers every wrapped line, hidden ones too (over the top bar and the list): presses outside
 	// the shown rows aren't for the text.
 	@Override
-	public MouseEvent mousePressed(MouseEvent mouseEvent)
-	{
-		if (mouseEvent.getY() < editTopCanvasY || mouseEvent.getY() >= editBottomCanvasY)
-		{
+	public MouseEvent mousePressed(MouseEvent mouseEvent) {
+		if (mouseEvent.getY() < editTopCanvasY || mouseEvent.getY() >= editBottomCanvasY) {
 			return mouseEvent;
 		}
 		return super.mousePressed(mouseEvent);
@@ -685,18 +598,15 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// Renders the rest of a variable name as ghost text right after the caret — display-only,
 	// never inserted into the real value. Caret may be mid-value now, so its row/X come from
 	// findLineIndex the same way buildColorTagUnderlines locates a match.
-	private void buildAutocomplete(Widget container, List<WrappedLine> wrappedLines)
-	{
+	private void buildAutocomplete(Widget container, List<WrappedLine> wrappedLines) {
 		String completion = pendingCompletion();
-		if (completion == null)
-		{
+		if (completion == null) {
 			return;
 		}
 
 		int cursor = getCursorStart();
 		int lineIndex = findLineIndex(wrappedLines, cursor);
-		if (!shown(lineIndex))
-		{
+		if (!shown(lineIndex)) {
 			return;
 		}
 		WrappedLine line = wrappedLines.get(lineIndex);
@@ -710,8 +620,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		// No native rounded-rect widget exists, so this is a plain filled backing behind the
 		// ghost text — same technique buildEdit() itself uses for its selection highlight. Only
 		// needed when there's real text after the cursor on this row to stay legible over.
-		if (localCursor < line.text.length())
-		{
+		if (localCursor < line.text.length()) {
 			ChatboxWidgets.rect(container, GHOST_BACKGROUND_COLOR, ghostX - 1, ghostY, ghostWidth + 2, LINE_HEIGHT);
 		}
 
@@ -719,42 +628,32 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Empirically tuned — PLAIN_11 needs 2px more than PLAIN_12.
-	private int ghostYOffset()
-	{
+	private int ghostYOffset() {
 		return widgets.smallFont() ? -4 : -2;
 	}
 
 	// Underlines any complete <col=RRGGBB> or <col=name> tag in the label, in the color it
 	// names. A tag split across a wrapped line break (rare) is skipped rather than drawn wrong.
-	private void buildColorTagUnderlines(Widget container, List<WrappedLine> wrappedLines)
-	{
+	private void buildColorTagUnderlines(Widget container, List<WrappedLine> wrappedLines) {
 		Matcher matcher = COLOR_TAG_PATTERN_ANY.matcher(getValue());
-		while (matcher.find())
-		{
+		while (matcher.find()) {
 			int lineIndex = findLineIndex(wrappedLines, matcher.start());
 			WrappedLine line = wrappedLines.get(lineIndex);
-			if (matcher.end() - 1 > line.end || !shown(lineIndex))
-			{
+			if (matcher.end() - 1 > line.end || !shown(lineIndex)) {
 				continue;
 			}
 
 			String value = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
 
 			int color;
-			if (value == null)
-			{
+			if (value == null) {
 				// </col> — the tile's own current color, always fully opaque.
 				color = tileColor.getRGB() & 0xFFFFFF;
-			}
-			else
-			{
+			} else {
 				String hex = NamedColors.HEX_BY_NAME.getOrDefault(value.toLowerCase(), value);
-				try
-				{
+				try {
 					color = Integer.parseInt(hex, 16);
-				}
-				catch (NumberFormatException e)
-				{
+				} catch (NumberFormatException e) {
 					continue;
 				}
 			}
@@ -766,37 +665,31 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// The x of index in line's text, as shown: centered in the edit row.
-	private int textX(WrappedLine line, int index)
-	{
+	private int textX(WrappedLine line, int index) {
 		return editX + (editWidth - font.getTextWidth(Text.escapeJagex(line.text))) / 2
 			+ font.getTextWidth(Text.escapeJagex(line.text.substring(0, index)));
 	}
 
 	// Mirrors ChatboxTextInput#buildEdit()'s own word-wrap algorithm, since it's computed
 	// internally there and never exposed — needed for our own separator/ghost/underline layout.
-	private List<WrappedLine> computeWrappedLines(String value, int w)
-	{
+	private List<WrappedLine> computeWrappedLines(String value, int w) {
 		List<WrappedLine> result = new ArrayList<>();
-		if (value.isEmpty())
-		{
+		if (value.isEmpty()) {
 			result.add(new WrappedLine(0, 0, ""));
 			return result;
 		}
 
 		int breakIndex = -1;
 		StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < value.length(); i++)
-		{
+		for (int i = 0; i < value.length(); i++) {
 			int count = i - sb.length();
 			char c = value.charAt(i);
 			sb.append(c);
-			if (BREAK_MATCHER.matcher(String.valueOf(c)).matches())
-			{
+			if (BREAK_MATCHER.matcher(String.valueOf(c)).matches()) {
 				breakIndex = sb.length();
 			}
 
-			if (i == value.length() - 1)
-			{
+			if (i == value.length() - 1) {
 				result.add(new WrappedLine(count, count + sb.length() - 1, sb.toString()));
 				break;
 			}
@@ -804,13 +697,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			// Raw, matching core's own buildEdit() exactly — a raw <col=...> substring measures
 			// as near-zero-width Jagex markup there too, so a mismatch here (e.g. escaping)
 			// would make our predicted wrap points diverge from what's actually rendered.
-			if (font.getTextWidth(sb.toString() + value.charAt(i + 1)) < w)
-			{
+			if (font.getTextWidth(sb.toString() + value.charAt(i + 1)) < w) {
 				continue;
 			}
 
-			if (breakIndex > 1)
-			{
+			if (breakIndex > 1) {
 				String str = sb.substring(0, breakIndex);
 				result.add(new WrappedLine(count, count + str.length() - 1, str));
 				sb.replace(0, breakIndex, "");
@@ -825,13 +716,10 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		return result;
 	}
 
-	private static int findLineIndex(List<WrappedLine> lines, int charIndex)
-	{
-		for (int i = 0; i < lines.size(); i++)
-		{
+	private static int findLineIndex(List<WrappedLine> lines, int charIndex) {
+		for (int i = 0; i < lines.size(); i++) {
 			WrappedLine line = lines.get(i);
-			if (charIndex >= line.start && charIndex <= line.end)
-			{
+			if (charIndex >= line.start && charIndex <= line.end) {
 				return i;
 			}
 		}
@@ -840,8 +728,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	@Override
-	protected void update()
-	{
+	protected void update() {
 		recordHistory();
 		Widget container = chatboxPanelManager.getContainerWidget();
 		container.deleteAllChildren();
@@ -850,8 +737,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		ChatboxWidgets.centeredText(container, getPrompt(), FontID.QUILL_8, 0x800000, 5, LINE_HEIGHT);
 
-		if (font == null)
-		{
+		if (font == null) {
 			font = ChatboxWidgets.font(container, widgets.fontId());
 		}
 
@@ -861,8 +747,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		int window = Math.min(wrappedLines.size(), compact ? COMPACT_EDIT_LINES : MAX_EDIT_LINES);
 		editX = wrappedLines.size() > window ? SCROLLBAR_WIDTH : 0;
 		editWidth = container.getWidth() - 2 * editX;
-		if (editX > 0)
-		{
+		if (editX > 0) {
 			wrappedLines = computeWrappedLines(getValue(), editWidth);
 		}
 		editLines = wrappedLines.size();
@@ -891,8 +776,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		// The list ends where all VISIBLE_ROWS end under one edit line.
 		int listBottom = editRowY(1) + 7 + VISIBLE_ROWS * ROW_HEIGHT;
 		visibleRows = Math.max(0, Math.min(VISIBLE_ROWS, (listBottom - resultsStartY) / ROW_HEIGHT));
-		if (visibleRows == 0)
-		{
+		if (visibleRows == 0) {
 			iconOverlay.show(iconPlacements, tips);
 			return;
 		}
@@ -908,18 +792,15 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// As the other chatboxes' (see SearchableChatbox): "x" (close without saving) and "_" (font size toggle), then "<"
 	// undo (grayed out with nothing to undo), ">" redo (only while there's something to redo), right-aligned in the prompt
 	// row.
-	private void buildTopBar(Widget container)
-	{
+	private void buildTopBar(Widget container) {
 		FontTypeFace buttonFont = ChatboxWidgets.font(container, SearchableChatbox.BUTTON_FONT);
-		int rightX = SearchableChatbox.closeAndFontButtons(container, buttonFont, chatboxPanelManager, widgets, () ->
-		{
+		int rightX = SearchableChatbox.closeAndFontButtons(container, buttonFont, chatboxPanelManager, widgets, () -> {
 			font = null;
 			update();
 		});
 
 		// ">" only while there's something to redo: a new edit clears it.
-		if (!redoSteps.isEmpty())
-		{
+		if (!redoSteps.isEmpty()) {
 			rightX = SearchableChatbox.nextX(SearchableChatbox.button(container, buttonFont, Text.escapeJagex(">"), "Redo", "", true, rightX,
 				this::redoStep));
 		}
@@ -929,19 +810,16 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			!undoSteps.isEmpty(), rightX, this::undoStep));
 
 		// From 3 wrapped lines: "-" shrinks the text to COMPACT_EDIT_LINES rows, "+" brings back MAX_EDIT_LINES.
-		if (editLines >= 3)
-		{
+		if (editLines >= 3) {
 			SearchableChatbox.button(container, buttonFont, compact ? "+" : "-", compact ? "Expand" : "Shrink", "", true, rightX,
 				this::toggleCompact);
 		}
 	}
 
 	// ⚠️ right of the logo once the label reaches LONG_LABEL characters, its tooltip the count used.
-	private void buildLengthWarning(Widget container)
-	{
+	private void buildLengthWarning(Widget container) {
 		int length = getValue().length();
-		if (length < LONG_LABEL)
-		{
+		if (length < LONG_LABEL) {
 			return;
 		}
 		Rectangle area = new Rectangle(ChatboxWidgets.LOGO_RIGHT, 5 + (LINE_HEIGHT - ICON_HEIGHT) / 2, ICON_HEIGHT, ICON_HEIGHT);
@@ -951,8 +829,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// Every edit ends in update(), so it's recorded here as just what changed: added to the newest undo step if it's
 	// within STEP_PAUSE_MS of the last edit, else starting a new one.
-	private void recordHistory()
-	{
+	private void recordHistory() {
 		String value = getValue();
 		int start = getCursorStart();
 		int end = getCursorEnd();
@@ -962,32 +839,27 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		recordedValue = value;
 		recordedStart = start;
 		recordedEnd = end;
-		if (before == null || before.equals(value))
-		{
+		if (before == null || before.equals(value)) {
 			return;
 		}
 
 		// The changed middle: what's left after the shared start and end.
 		int prefix = 0;
 		int max = Math.min(before.length(), value.length());
-		while (prefix < max && before.charAt(prefix) == value.charAt(prefix))
-		{
+		while (prefix < max && before.charAt(prefix) == value.charAt(prefix)) {
 			prefix++;
 		}
 		int suffix = 0;
-		while (suffix < max - prefix && before.charAt(before.length() - 1 - suffix) == value.charAt(value.length() - 1 - suffix))
-		{
+		while (suffix < max - prefix && before.charAt(before.length() - 1 - suffix) == value.charAt(value.length() - 1 - suffix)) {
 			suffix++;
 		}
 		Change change = new Change(prefix, before.substring(prefix, before.length() - suffix),
 			value.substring(prefix, value.length() - suffix), startBefore, endBefore, end);
 
 		long time = System.currentTimeMillis();
-		if (!stepOpen || undoSteps.isEmpty() || time - lastEditAt >= STEP_PAUSE_MS)
-		{
+		if (!stepOpen || undoSteps.isEmpty() || time - lastEditAt >= STEP_PAUSE_MS) {
 			undoSteps.push(new Step());
-			if (undoSteps.size() > MAX_UNDO_STEPS)
-			{
+			if (undoSteps.size() > MAX_UNDO_STEPS) {
 				undoSteps.removeLast();
 			}
 		}
@@ -997,33 +869,27 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		lastEditAt = time;
 	}
 
-	private void undoStep()
-	{
+	private void undoStep() {
 		replay(undoSteps, redoSteps, true);
 	}
 
-	private void redoStep()
-	{
+	private void redoStep() {
 		replay(redoSteps, undoSteps, false);
 	}
 
 	// The newest step of from, moved to to: undone, each of its edits reversed, last first, the selection back to
 	// before its first; or redone, its edits again in order, the caret where its last left it.
-	private void replay(Deque<Step> from, Deque<Step> to, boolean undo)
-	{
+	private void replay(Deque<Step> from, Deque<Step> to, boolean undo) {
 		Step step = from.poll();
-		if (step == null)
-		{
+		if (step == null) {
 			return;
 		}
 		List<Change> changes = new ArrayList<>(step.changes);
-		if (undo)
-		{
+		if (undo) {
 			Collections.reverse(changes);
 		}
 		String value = getValue();
-		for (Change change : changes)
-		{
+		for (Change change : changes) {
 			String in = undo ? change.removed : change.inserted;
 			String out = undo ? change.inserted : change.removed;
 			value = value.substring(0, change.position) + in + value.substring(change.position + out.length());
@@ -1036,8 +902,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// Recorded first, so undoing or redoing isn't itself recorded as an edit. The next edit starts a new step.
-	private void apply(String value, int start, int end)
-	{
+	private void apply(String value, int start, int end) {
 		recordedValue = value;
 		recordedStart = start;
 		recordedEnd = end;
@@ -1047,35 +912,29 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 		cursorAt(start, end);
 	}
 
-	private List<Row> buildRows()
-	{
+	private List<Row> buildRows() {
 		List<Row> rows = new ArrayList<>();
 		boolean hasCurrent = !originalLabel.isEmpty();
 		boolean edited = !getValue().equals(originalLabel);
 
 		// Once edited, Recent/Nearby no longer apply; what can complete the token at the cursor does.
-		if (edited && config.showSuggestions())
-		{
+		if (edited && config.showSuggestions()) {
 			addSuggestions(rows);
 		}
 
-		if (hasCurrent && config.showCurrent())
-		{
+		if (hasCurrent && config.showCurrent()) {
 			rows.add(Row.title("Current"));
 			rows.add(Row.label(originalLabel, false));
 		}
 
 		// Recent, then Nearby, each skipping labels already listed (Current's even when it isn't shown), so none is
 		// listed twice.
-		if (!edited)
-		{
+		if (!edited) {
 			Set<String> listed = new HashSet<>(Set.of(originalLabel));
-			if (config.showRecent())
-			{
+			if (config.showRecent()) {
 				addSection(rows, "Recent", recentLabels, listed, true);
 			}
-			if (config.showNearby())
-			{
+			if (config.showNearby()) {
 				addSection(rows, "Nearby", nearbyLabels, listed, false);
 			}
 		}
@@ -1084,11 +943,9 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// title, then each of labels not in listed (now added to it); nothing if none are left.
-	private static void addSection(List<Row> rows, String title, List<String> labels, Set<String> listed, boolean removable)
-	{
+	private static void addSection(List<Row> rows, String title, List<String> labels, Set<String> listed, boolean removable) {
 		List<String> left = labels.stream().filter(label -> !listed.contains(label)).collect(Collectors.toList());
-		if (!left.isEmpty())
-		{
+		if (!left.isEmpty()) {
 			rows.add(Row.title(title));
 			left.forEach(label -> rows.add(Row.label(label, removable)));
 		}
@@ -1098,24 +955,19 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	// A variable's exact name first gets its own line, or a required value being typed its parameter's. Then every
 	// listed completion of the token at the cursor, SUGGESTION_COLUMNS to a row, the one Tab would insert marked; with
 	// none, what the variable takes there.
-	private void addSuggestions(List<Row> rows)
-	{
+	private void addSuggestions(List<Row> rows) {
 		boolean caret = getCursorStart() == getCursorEnd();
-		if (caret)
-		{
+		if (caret) {
 			String summary = completer.variableSummary(getValue(), getCursorStart());
 			String top = summary != null ? summary : completer.valueHint(getValue(), getCursorStart());
-			if (top != null)
-			{
+			if (top != null) {
 				addHint(rows, top);
 			}
 		}
 
 		Completion completion = completion();
-		if (completion == null || !completion.hasListed())
-		{
-			if (caret)
-			{
+		if (completion == null || !completion.hasListed()) {
+			if (caret) {
 				completer.parameterHints(getValue(), getCursorStart()).forEach(hint -> addHint(rows, hint));
 			}
 			return;
@@ -1123,53 +975,42 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 		Completion.Option preferred = completion.preferred < 0 ? null : completion.options.get(completion.preferred);
 		List<Completion.Option> listed = new ArrayList<>();
-		for (Completion.Option option : completion.options)
-		{
-			if (option == Completion.BREAK)
-			{
+		for (Completion.Option option : completion.options) {
+			if (option == Completion.BREAK) {
 				addSuggestionRows(rows, listed, preferred);
 				rows.add(Row.hint(""));
 				listed = new ArrayList<>();
-			}
-			else if (option.label != null)
-			{
+			} else if (option.label != null) {
 				listed.add(option);
 			}
 		}
 		addSuggestionRows(rows, listed, preferred);
 	}
 
-	private static void addSuggestionRows(List<Row> rows, List<Completion.Option> listed, @Nullable Completion.Option preferred)
-	{
-		for (int i = 0; i < listed.size(); i += SUGGESTION_COLUMNS)
-		{
+	private static void addSuggestionRows(List<Row> rows, List<Completion.Option> listed, @Nullable Completion.Option preferred) {
+		for (int i = 0; i < listed.size(); i += SUGGESTION_COLUMNS) {
 			List<Completion.Option> row = listed.subList(i, Math.min(i + SUGGESTION_COLUMNS, listed.size()));
 			rows.add(Row.suggestions(row, row.contains(preferred) ? preferred : null));
 		}
 	}
 
-	private void buildRecommendations(Widget container, int resultsStartY)
-	{
+	private void buildRecommendations(Widget container, int resultsStartY) {
 		List<Row> rows = buildRows();
-		if (rows.isEmpty())
-		{
+		if (rows.isEmpty()) {
 			return;
 		}
 
-		if (!getValue().equals(scrolledValue))
-		{
+		if (!getValue().equals(scrolledValue)) {
 			scrolledValue = getValue();
 			scrollOffset = 0;
 		}
 		scrollOffset = ChatboxWidgets.scrollList(container, resultsStartY, ROW_HEIGHT, visibleRows, rows.size(),
 			Math.max(0, rows.size() - visibleRows + 1), scrollOffset, this::scroll);
 		int visibleCount = Math.min(visibleRows, rows.size() - scrollOffset);
-		for (int i = 0; i < visibleCount; i++)
-		{
+		for (int i = 0; i < visibleCount; i++) {
 			Row row = rows.get(scrollOffset + i);
 			int y = resultsStartY + (ROW_HEIGHT * i);
-			if (row.suggestions != null)
-			{
+			if (row.suggestions != null) {
 				buildSuggestionRow(container, row, y);
 				continue;
 			}
@@ -1180,48 +1021,41 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 			Widget text = ChatboxWidgets.rowText(container, row.title || row.hint ? row.text : Text.escapeJagex(row.text),
 				row.title ? FontID.QUILL_8 : widgets.fontId(), color, row.title ? 6 : 13, y, ROW_HEIGHT, SCROLLBAR_WIDTH + 6);
 
-			if (!row.title && !row.hint)
-			{
+			if (!row.title && !row.hint) {
 				addRowActions(text, row, color);
 			}
 		}
 	}
 
 	// A label fills the input; a Recent one can be removed.
-	private void addRowActions(Widget text, Row row, int color)
-	{
+	private void addRowActions(Widget text, Row row, int color) {
 		// Expanded so the tooltip's <col=> handling gets real hex, not a named color.
 		text.setName(NamedColors.expandColorAliases(row.text));
 		List<Runnable> actions = new ArrayList<>();
 		SearchableChatbox.addAction(text, actions, "Select", () -> value(row.text));
-		if (row.removable)
-		{
+		if (row.removable) {
 			SearchableChatbox.addAction(text, actions, "Remove", () -> removeRecentEntry(row.text));
 		}
 		ChatboxWidgets.hover(text, color);
 	}
 
 	// Each suggestion in its column: its icon if it has one, then its name cut to fit. Clicking either inserts it.
-	private void buildSuggestionRow(Widget container, Row row, int y)
-	{
+	private void buildSuggestionRow(Widget container, Row row, int y) {
 		int left = 13;
 		int columnWidth = (container.getWidth() - left - SCROLLBAR_WIDTH - 6) / SUGGESTION_COLUMNS;
-		for (int column = 0; column < row.suggestions.size(); column++)
-		{
+		for (int column = 0; column < row.suggestions.size(); column++) {
 			Completion.Option option = row.suggestions.get(column);
 			int x = left + column * columnWidth;
 			// After the icon's space whether or not there's an icon, so names line up.
 			int textX = x + ICON_WIDTH + ICON_GAP;
-			if (option.icon != null)
-			{
+			if (option.icon != null) {
 				// Empty: SuggestionIconOverlay draws the icon over it, smoothly scaled, once it's worked out.
 				addInsertAction(ChatboxWidgets.child(container, WidgetType.GRAPHIC, x, y, ICON_WIDTH, ICON_HEIGHT), option);
 				iconPlacements.add(new SuggestionIconOverlay.Placement(container, new Rectangle(x, y, ICON_WIDTH, ICON_HEIGHT),
 					() -> completer.icon(option.icon)));
 			}
 
-			if (option.description != null)
-			{
+			if (option.description != null) {
 				tips.add(new SuggestionIconOverlay.Tip(container, new Rectangle(x, y, columnWidth, ROW_HEIGHT), option.description));
 			}
 
@@ -1236,22 +1070,18 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 
 	// "Insert": completes the token at the cursor with option. Its full name shows on hover. A named item or NPC
 	// also gets "Wiki".
-	private void addInsertAction(Widget widget, Completion.Option option)
-	{
+	private void addInsertAction(Widget widget, Completion.Option option) {
 		widget.setName(NamedColors.expandColorAliases(option.label));
 		List<Runnable> actions = new ArrayList<>();
 		Runnable insert = () -> insertAtCursor(option.insert, option.replace);
 		SearchableChatbox.addAction(widget, actions, "Insert", insert);
 		String wikiType = option.icon == null ? null : option.icon.startsWith("<item=") ? "item"
 			: option.icon.startsWith(Args.NPC_ICON_PREFIX) ? "npc" : null;
-		if (wikiType != null)
-		{
-			SearchableChatbox.addAction(widget, actions, "Wiki", () ->
-			{
+		if (wikiType != null) {
+			SearchableChatbox.addAction(widget, actions, "Wiki", () -> {
 				// The ID from its icon, if worked out by now; else it inserts.
 				Completion.Icon icon = completer.icon(option.icon);
-				if (icon == null)
-				{
+				if (icon == null) {
 					insert.run();
 					return;
 				}
@@ -1261,20 +1091,17 @@ public class AdvancedLabelEditor extends ChatboxTextInput
 	}
 
 	// hint as rows, escaped (as drawn), wrapped to the list's width.
-	private void addHint(List<Row> rows, String hint)
-	{
+	private void addHint(List<Row> rows, String hint) {
 		ChatboxWidgets.wrap(font, Text.escapeJagex(hint), rowTextWidth).forEach(line -> rows.add(Row.hint(line)));
 	}
 
-	private void removeRecentEntry(String label)
-	{
+	private void removeRecentEntry(String label) {
 		recentLabels.remove(label);
 		onRemoveRecent.accept(label);
 		update();
 	}
 
-	private void scroll(int direction)
-	{
+	private void scroll(int direction) {
 		// Kept in range by update().
 		scrollOffset += direction;
 		update();

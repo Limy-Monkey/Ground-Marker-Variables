@@ -18,8 +18,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 // Badge over the World Map orb's top-left corner, shown when GroundMarkerPartySharingManager
 // receives a party-shared marker set. Opacity comes from its badgeOpacity(now).
-public class PartyNotificationOverlay extends Overlay
-{
+public class PartyNotificationOverlay extends Overlay {
 	private static final int SPRITE_ID = 937;
 	private static final int WIDTH = 5;
 	private static final int HEIGHT = 16;
@@ -29,8 +28,7 @@ public class PartyNotificationOverlay extends Overlay
 	private final SpriteManager spriteManager;
 
 	@Inject
-	private PartyNotificationOverlay(Client client, GroundMarkerPartySharingManager partySharingManager, SpriteManager spriteManager)
-	{
+	private PartyNotificationOverlay(Client client, GroundMarkerPartySharingManager partySharingManager, SpriteManager spriteManager) {
 		this.client = client;
 		this.partySharingManager = partySharingManager;
 		this.spriteManager = spriteManager;
@@ -39,33 +37,27 @@ public class PartyNotificationOverlay extends Overlay
 	}
 
 	@Override
-	public Dimension render(Graphics2D graphics)
-	{
+	public Dimension render(Graphics2D graphics) {
 		float opacity = partySharingManager.badgeOpacity(Instant.now());
-		if (opacity <= 0f)
-		{
+		if (opacity <= 0f) {
 			return null;
 		}
 
 		Widget worldMapOrb = client.getWidget(InterfaceID.Orbs.WORLDMAP);
-		if (worldMapOrb == null || worldMapOrb.isHidden())
-		{
+		if (worldMapOrb == null || worldMapOrb.isHidden()) {
 			worldMapOrb = client.getWidget(InterfaceID.OrbsNomap.WORLDMAP);
 		}
-		if (worldMapOrb == null || worldMapOrb.isHidden())
-		{
+		if (worldMapOrb == null || worldMapOrb.isHidden()) {
 			return null;
 		}
 
 		Rectangle bounds = worldMapOrb.getBounds();
-		if (bounds.getX() <= 0)
-		{
+		if (bounds.getX() <= 0) {
 			return null;
 		}
 
 		BufferedImage sprite = spriteManager.getSprite(SPRITE_ID, 0);
-		if (sprite == null)
-		{
+		if (sprite == null) {
 			return null;
 		}
 
@@ -74,8 +66,7 @@ public class PartyNotificationOverlay extends Overlay
 		int y = bounds.y - HEIGHT / 2;
 
 		Composite originalComposite = graphics.getComposite();
-		if (opacity < 1f)
-		{
+		if (opacity < 1f) {
 			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
 		}
 		graphics.drawImage(sprite, x, y, WIDTH, HEIGHT, null);

@@ -25,8 +25,7 @@ import net.runelite.client.game.ItemManager;
 // obtained/total" (not with iconsOnly), then the obtained items' icons (or with missing, the rest), itemsPerLine to a
 // line, at most maxItems.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class LogLabelVariable implements LabelVariable
-{
+public class LogLabelVariable implements LabelVariable {
 	private static final int DEFAULT_ITEMS_PER_LINE = 10;
 	private static final String NOT_FOUND = "RuneProfile plugin not found";
 
@@ -44,37 +43,31 @@ public class LogLabelVariable implements LabelVariable
 		.number("itemsPerLine", "maxItems");
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return args.pattern();
 	}
 
 	@Override
-	public Args args()
-	{
+	public Args args() {
 		return args;
 	}
 
 	// Just the obtained count, for math and comparisons.
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		RuneProfileCollectionLog.Entry entry = entry(matcher);
 		RuneProfileCollectionLog.Page page = entry == null ? null : entry.page();
 		return page == null ? null : String.valueOf(withLoot(page, matcher).obtained);
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		RuneProfileCollectionLog.Entry entry = entry(matcher);
-		if (entry == null)
-		{
+		if (entry == null) {
 			return null;
 		}
 		RuneProfileCollectionLog.Page page = entry.page();
-		if (page == null)
-		{
+		if (page == null) {
 			return entry.error() != null ? entry.error() : entry.timedOut() ? NOT_FOUND : richText.animatedDots(client.getTickCount());
 		}
 		page = withLoot(page, matcher);
@@ -82,8 +75,7 @@ public class LogLabelVariable implements LabelVariable
 		Args.Options options = args.options(matcher);
 		boolean iconsOnly = options.flag("iconsOnly");
 		String text = iconsOnly ? "" : richText.labeled(page.name, page.obtained + "/" + page.items.size()) + kcText(page, matcher);
-		if (options.flag("noicons"))
-		{
+		if (options.flag("noicons")) {
 			return text;
 		}
 
@@ -96,27 +88,22 @@ public class LogLabelVariable implements LabelVariable
 	}
 
 	// " kc: N" from {kc}'s tracker, by the page's name or as written; empty if unknown.
-	private String kcText(RuneProfileCollectionLog.Page page, Matcher matcher)
-	{
+	private String kcText(RuneProfileCollectionLog.Page page, Matcher matcher) {
 		Integer kc = killCounts.getKc(BossAliases.resolve(page.name));
-		if (kc == null)
-		{
+		if (kc == null) {
 			kc = killCounts.getKc(BossAliases.resolve(args.main(matcher)));
 		}
 		return kc == null ? "" : " kc: " + richText.highlightValue(String.valueOf(kc));
 	}
 
 	// Add LootTracker data unknown by RuneProfile yet
-	private RuneProfileCollectionLog.Page withLoot(RuneProfileCollectionLog.Page page, Matcher matcher)
-	{
+	private RuneProfileCollectionLog.Page withLoot(RuneProfileCollectionLog.Page page, Matcher matcher) {
 		String written = args.main(matcher);
 		LootTrackerRecords.Record record = lootTrackerRecords.find(page.name);
-		if (!record.found && !page.name.equalsIgnoreCase(written))
-		{
+		if (!record.found && !page.name.equalsIgnoreCase(written)) {
 			record = lootTrackerRecords.find(written);
 		}
-		if (!record.found)
-		{
+		if (!record.found) {
 			return page;
 		}
 		Map<Integer, Integer> unnoted = new HashMap<>();
@@ -124,14 +111,12 @@ public class LogLabelVariable implements LabelVariable
 		return page.withAtLeast(unnoted);
 	}
 
-	private RuneProfileCollectionLog.Entry entry(Matcher matcher)
-	{
+	private RuneProfileCollectionLog.Entry entry(Matcher matcher) {
 		String page = args.main(matcher);
 		return page == null ? null : collectionLog.page(page);
 	}
 
-	private Set<String> pageSuggestions()
-	{
+	private Set<String> pageSuggestions() {
 		return pages.pageSuggestions();
 	}
 }

@@ -12,20 +12,17 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 // Deflate primed with a versioned dictionary of our label syntax, for exports and party sharing.
-public final class MarkerCompression
-{
+public final class MarkerCompression {
 	public static final int VERSION = 1;
 	// Version N uses entry N - 1. Never edit a dictionary; add a new version.
 	private static final List<byte[]> DICTIONARIES = List.of(
 		dictionary("dictionary-1.txt", "81eab1acbd9c88a475d263b11e4a851d09d61bcf1c0fafaa82fef37debfcbd44"));
 
-	private MarkerCompression()
-	{
+	private MarkerCompression() {
 	}
 
 	// With the current VERSION.
-	public static byte[] compress(String text)
-	{
+	public static byte[] compress(String text) {
 		Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION, true);
 		deflater.setDictionary(DICTIONARIES.get(VERSION - 1));
 		deflater.setInput(text.getBytes(StandardCharsets.UTF_8));
@@ -33,8 +30,7 @@ public final class MarkerCompression
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		byte[] buffer = new byte[1024];
-		while (!deflater.finished())
-		{
+		while (!deflater.finished()) {
 			out.write(buffer, 0, deflater.deflate(buffer));
 		}
 		deflater.end();
@@ -42,14 +38,11 @@ public final class MarkerCompression
 	}
 
 	// Throws IllegalArgumentException if data is damaged.
-	public static String decompress(byte[] data, int version) throws NewerFormatException
-	{
-		if (version > DICTIONARIES.size())
-		{
+	public static String decompress(byte[] data, int version) throws NewerFormatException {
+		if (version > DICTIONARIES.size()) {
 			throw new NewerFormatException();
 		}
-		if (version < 1)
-		{
+		if (version < 1) {
 			throw new IllegalArgumentException("No version " + version);
 		}
 
@@ -59,49 +52,36 @@ public final class MarkerCompression
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		byte[] buffer = new byte[1024];
-		try
-		{
-			while (!inflater.finished())
-			{
+		try {
+			while (!inflater.finished()) {
 				int count = inflater.inflate(buffer);
-				if (count == 0 && inflater.needsInput())
-				{
+				if (count == 0 && inflater.needsInput()) {
 					throw new IllegalArgumentException("Truncated");
 				}
 				out.write(buffer, 0, count);
 			}
-			if (inflater.getRemaining() > 0)
-			{
+			if (inflater.getRemaining() > 0) {
 				throw new IllegalArgumentException("Trailing data");
 			}
-		}
-		catch (DataFormatException e)
-		{
+		} catch (DataFormatException e) {
 			throw new IllegalArgumentException("Damaged", e);
-		}
-		finally
-		{
+		} finally {
 			inflater.end();
 		}
 		return out.toString(StandardCharsets.UTF_8);
 	}
 
 	// Loads a dictionary-N.txt (format in its header) and checks it wasn't edited.
-	private static byte[] dictionary(String file, String sha256)
-	{
-		try (InputStream in = MarkerCompression.class.getResourceAsStream(file))
-		{
-			if (in == null)
-			{
+	private static byte[] dictionary(String file, String sha256) {
+		try (InputStream in = MarkerCompression.class.getResourceAsStream(file)) {
+			if (in == null) {
 				throw new IllegalStateException("Missing " + file);
 			}
 
 			StringBuilder dictionary = new StringBuilder();
-			for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n"))
-			{
+			for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
 				line = line.strip();
-				if (line.isEmpty() || line.startsWith("#"))
-				{
+				if (line.isEmpty() || line.startsWith("#")) {
 					continue;
 				}
 				// '·' at either end is a space.
@@ -112,31 +92,23 @@ public final class MarkerCompression
 
 			byte[] bytes = dictionary.toString().getBytes(StandardCharsets.UTF_8);
 			String hash = sha256(bytes);
-			if (!hash.equals(sha256))
-			{
+			if (!hash.equals(sha256)) {
 				throw new IllegalStateException(file + " was edited: its SHA-256 is " + hash);
 			}
 			return bytes;
-		}
-		catch (IOException e)
-		{
+		} catch (IOException e) {
 			throw new IllegalStateException("Couldn't load " + file, e);
 		}
 	}
 
-	private static String sha256(byte[] bytes)
-	{
-		try
-		{
+	private static String sha256(byte[] bytes) {
+		try {
 			StringBuilder hex = new StringBuilder();
-			for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes))
-			{
+			for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes)) {
 				hex.append(String.format("%02x", b));
 			}
 			return hex.toString();
-		}
-		catch (NoSuchAlgorithmException e)
-		{
+		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException(e);
 		}
 	}

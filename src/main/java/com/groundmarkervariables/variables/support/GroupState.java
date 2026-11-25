@@ -15,11 +15,9 @@ import javax.inject.Singleton;
 // {group}/{setGroup}: each group's options, merged from every {setGroup} declaring it in first-seen
 // order until shutdown, and its picked option.
 @Singleton
-public class GroupState
-{
+public class GroupState {
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-	public static final class Group
-	{
+	public static final class Group {
 		public final String name;
 		public final List<String> options = new ArrayList<>();
 	}
@@ -37,63 +35,50 @@ public class GroupState
 	private int tick;
 
 	// A {setGroup} for name was resolved, ~ if temporary.
-	public void seen(String name, boolean temporary)
-	{
-		if (temporary)
-		{
+	public void seen(String name, boolean temporary) {
+		if (temporary) {
 			this.temporary.add(key(name));
 		}
 		lastSeen.put(key(name), tick);
 	}
 
 	// Once per tick, after the nearby tiles are resolved.
-	public void tick()
-	{
+	public void tick() {
 		tick++;
-		for (String key : temporary)
-		{
+		for (String key : temporary) {
 			Integer seen = lastSeen.get(key);
-			if (seen == null || tick - seen > TEMPORARY_GRACE_TICKS)
-			{
+			if (seen == null || tick - seen > TEMPORARY_GRACE_TICKS) {
 				picked.remove(key);
 			}
 		}
 	}
 
-	public void declare(String name, List<String> options, @Nullable String defaultOption)
-	{
-		if (options.isEmpty())
-		{
+	public void declare(String name, List<String> options, @Nullable String defaultOption) {
+		if (options.isEmpty()) {
 			return;
 		}
 
 		Group group = groups.computeIfAbsent(key(name), k -> new Group(name));
-		for (String option : options)
-		{
-			if (option(group, option) == null)
-			{
+		for (String option : options) {
+			if (option(group, option) == null) {
 				group.options.add(option);
 			}
 		}
 
-		if (defaultOption != null)
-		{
+		if (defaultOption != null) {
 			defaults.put(key(name), defaultOption);
 		}
 	}
 
 	@Nullable
-	public Group group(String name)
-	{
+	public Group group(String name) {
 		return groups.get(key(name));
 	}
 
 	// Every declared group's name, as first declared.
-	public List<String> names()
-	{
+	public List<String> names() {
 		List<String> names = new ArrayList<>();
-		for (Group group : groups.values())
-		{
+		for (Group group : groups.values()) {
 			names.add(group.name);
 		}
 		return names;
@@ -101,42 +86,34 @@ public class GroupState
 
 	// The picked option, or if none was picked or it's no longer an option, the default, or the first.
 	@Nullable
-	public String value(String name)
-	{
+	public String value(String name) {
 		Group group = group(name);
-		if (group == null)
-		{
+		if (group == null) {
 			return picked.get(key(name));
 		}
 
 		String value = option(group, picked.get(key(name)));
-		if (value == null)
-		{
+		if (value == null) {
 			value = option(group, defaults.get(key(name)));
 		}
 		return value != null ? value : group.options.get(0);
 	}
 
 	@Nullable
-	private static String option(Group group, @Nullable String value)
-	{
-		for (String option : group.options)
-		{
-			if (option.equalsIgnoreCase(value))
-			{
+	private static String option(Group group, @Nullable String value) {
+		for (String option : group.options) {
+			if (option.equalsIgnoreCase(value)) {
 				return option;
 			}
 		}
 		return null;
 	}
 
-	public void pick(String name, String option)
-	{
+	public void pick(String name, String option) {
 		picked.put(key(name), option);
 	}
 
-	public void clear()
-	{
+	public void clear() {
 		groups.clear();
 		picked.clear();
 		defaults.clear();
@@ -145,8 +122,7 @@ public class GroupState
 		tick = 0;
 	}
 
-	private static String key(String name)
-	{
+	private static String key(String name) {
 		return name.trim().toLowerCase(Locale.ROOT);
 	}
 }

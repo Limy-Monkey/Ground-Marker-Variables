@@ -19,8 +19,7 @@ import net.runelite.api.GameState;
 // reset when it was preceded by LOGGING_IN/HOPPING/CONNECTION_LOST.
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class SixHourTimeRemainingLabelVariable implements LabelVariable
-{
+public class SixHourTimeRemainingLabelVariable implements LabelVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{6Hour(?:Time(?:Remaining)?)?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Duration SESSION_LIMIT = Duration.ofHours(6);
 	private static final String LABEL = "Six hour log in";
@@ -29,18 +28,15 @@ public class SixHourTimeRemainingLabelVariable implements LabelVariable
 	private volatile Instant loginInstant = Instant.now();
 	private volatile boolean ready;
 
-	public void onGameStateChanged(GameState state)
-	{
-		switch (state)
-		{
+	public void onGameStateChanged(GameState state) {
+		switch (state) {
 			case LOGGING_IN:
 			case HOPPING:
 			case CONNECTION_LOST:
 				ready = true;
 				break;
 			case LOGGED_IN:
-				if (ready)
-				{
+				if (ready) {
 					loginInstant = Instant.now();
 					ready = false;
 				}
@@ -50,49 +46,41 @@ public class SixHourTimeRemainingLabelVariable implements LabelVariable
 		}
 	}
 
-	public Duration remaining()
-	{
+	public Duration remaining() {
 		Duration remaining = SESSION_LIMIT.minus(Duration.between(loginInstant, Instant.now()));
 		return remaining.isNegative() ? Duration.ZERO : remaining;
 	}
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		return formatPlain();
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		return LABEL + ": " + richText.highlightValue(formatRich());
 	}
 
 	// Used by BooleanVariable's warning special case.
-	String richTextWithColor(Color color)
-	{
+	String richTextWithColor(Color color) {
 		return LABEL + ": " + RichText.colored(color, formatRich());
 	}
 
 	// Always h:mm, e.g. "1:45".
-	String formatPlain()
-	{
+	String formatPlain() {
 		Duration remaining = remaining();
 		return remaining.toHours() + ":" + String.format("%02d", remaining.toMinutesPart());
 	}
 
 	// h:mm at an hour or more remaining, mm:ss under an hour.
-	private String formatRich()
-	{
+	private String formatRich() {
 		Duration remaining = remaining();
-		if (remaining.toHours() >= 1)
-		{
+		if (remaining.toHours() >= 1) {
 			return remaining.toHours() + ":" + String.format("%02d", remaining.toMinutesPart());
 		}
 

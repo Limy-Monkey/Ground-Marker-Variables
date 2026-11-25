@@ -11,8 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 // Render-affecting state collected from a label's meta variables (see MetaVariableResolver).
 // A null field means "no override".
-public class MetaState
-{
+public class MetaState {
 	@Nullable
 	private Color tileColor;
 	@Nullable
@@ -33,129 +32,107 @@ public class MetaState
 	private int groundFacing;
 
 	@Nullable
-	public String getGroundLabel()
-	{
+	public String getGroundLabel() {
 		return groundLabel;
 	}
 
-	void setGroundLabel(String groundLabel)
-	{
+	void setGroundLabel(String groundLabel) {
 		this.groundLabel = groundLabel;
 	}
 
 	// {ground@dir}: where the top of the {ground} content faces, in degrees clockwise from north.
-	public int getGroundFacing()
-	{
+	public int getGroundFacing() {
 		return groundFacing;
 	}
 
-	void setGroundFacing(int groundFacing)
-	{
+	void setGroundFacing(int groundFacing) {
 		this.groundFacing = groundFacing;
 	}
 
 	// A {setGroup} in the resolved label: its group, and its own options in order, or null for the declared ones.
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-	public static final class GroupMenu
-	{
+	public static final class GroupMenu {
 		public final String name;
 		@Nullable
 		public final List<String> options;
 	}
 
-	public List<GroupMenu> getGroupMenus()
-	{
+	public List<GroupMenu> getGroupMenus() {
 		return groupMenus;
 	}
 
-	public void addGroupMenu(String name, @Nullable List<String> options)
-	{
+	public void addGroupMenu(String name, @Nullable List<String> options) {
 		groupMenus.add(new GroupMenu(name, options));
 	}
 
 	@Nullable
-	public Color getTileColor()
-	{
+	public Color getTileColor() {
 		return tileColor;
 	}
 
-	public void setTileColor(Color tileColor)
-	{
+	public void setTileColor(Color tileColor) {
 		this.tileColor = tileColor;
 	}
 
 	// 0 (transparent) to 1 (opaque) -- outline only, see {tileCol=50%}.
 	@Nullable
-	public Float getTileOpacity()
-	{
+	public Float getTileOpacity() {
 		return tileOpacity;
 	}
 
-	public void setTileOpacity(Float tileOpacity)
-	{
+	public void setTileOpacity(Float tileOpacity) {
 		this.tileOpacity = tileOpacity;
 	}
 
 	// Overrides the Border width config for the outline and {highlight} brackets.
 	@Nullable
-	public Float getBorderWidth()
-	{
+	public Float getBorderWidth() {
 		return borderWidth;
 	}
 
-	public void setBorderWidth(Float borderWidth)
-	{
+	public void setBorderWidth(Float borderWidth) {
 		this.borderWidth = borderWidth;
 	}
 
 	// {hover}: the background drawn behind this label while hovered; null if it has no hover effect.
 	@Nullable
-	public Color getHoverBackground()
-	{
+	public Color getHoverBackground() {
 		return hoverBackground;
 	}
 
-	public void setHoverBackground(Color hoverBackground)
-	{
+	public void setHoverBackground(Color hoverBackground) {
 		this.hoverBackground = hoverBackground;
 	}
 
 	// The label as shown while hovered, with its {hoverOnly} content; null if it has none.
 	@Nullable
-	public String getHoverLabel()
-	{
+	public String getHoverLabel() {
 		return hoverLabel;
 	}
 
-	public List<TextAlign> getHoverLineAlignments()
-	{
+	public List<TextAlign> getHoverLineAlignments() {
 		return hoverLineAlignments;
 	}
 
-	void setHoverLabel(String hoverLabel, List<TextAlign> hoverLineAlignments)
-	{
+	void setHoverLabel(String hoverLabel, List<TextAlign> hoverLineAlignments) {
 		this.hoverLabel = hoverLabel;
 		this.hoverLineAlignments = hoverLineAlignments;
 	}
 
-	public Map<HighlightCorner, Color> getHighlights()
-	{
+	public Map<HighlightCorner, Color> getHighlights() {
 		return highlights;
 	}
 
-	public void setHighlight(HighlightCorner corner, Color color)
-	{
+	public void setHighlight(HighlightCorner corner, Color color) {
 		highlights.put(corner, color);
 	}
 
 	// One entry per rendered line; a line past the end of this list uses TextAlign.CENTER.
-	public List<TextAlign> getLineAlignments()
-	{
+	public List<TextAlign> getLineAlignments() {
 		return lineAlignments;
 	}
 
-	void setLineAlignments(List<TextAlign> lineAlignments)
-	{
+	void setLineAlignments(List<TextAlign> lineAlignments) {
 		this.lineAlignments = lineAlignments;
 	}
 }

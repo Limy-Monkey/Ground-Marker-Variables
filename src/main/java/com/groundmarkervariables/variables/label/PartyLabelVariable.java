@@ -29,8 +29,7 @@ import net.runelite.client.util.Text;
 // {party} -> the party size. LabelResolver renders {party <template>} itself via render(), since
 // the template may contain nested tokens.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class PartyLabelVariable implements LabelVariable
-{
+public class PartyLabelVariable implements LabelVariable {
 	private static final Pattern PATTERN = Pattern.compile("\\{party(?:\\s+([^{}?:<>=!]+?))?\\}", Pattern.CASE_INSENSITIVE);
 	private static final Pattern COUNT_START = Pattern.compile("\\{partyCount\\s+", Pattern.CASE_INSENSITIVE);
 	// A keyword may follow a "\t" table cell break, whose t would otherwise hide the word boundary.
@@ -44,14 +43,12 @@ public class PartyLabelVariable implements LabelVariable
 	private static final String DEFAULT_TEMPLATE = "num. name | hp | prayer";
 
 	// Used to sort names by raid party order
-	private static final class RaidParty
-	{
+	private static final class RaidParty {
 		private final int statusVarbit;
 		private final int lobbyNames;
 		private final int[] nameVarcs;
 
-		private RaidParty(int statusVarbit, int lobbyNames, int... nameVarcs)
-		{
+		private RaidParty(int statusVarbit, int lobbyNames, int... nameVarcs) {
 			this.statusVarbit = statusVarbit;
 			this.lobbyNames = lobbyNames;
 			this.nameVarcs = nameVarcs;
@@ -75,38 +72,31 @@ public class PartyLabelVariable implements LabelVariable
 	private final PartyMemberContext memberContext;
 
 	@Override
-	public Pattern pattern()
-	{
+	public Pattern pattern() {
 		return PATTERN;
 	}
 
 	@Override
-	public String resolvePlain(Matcher matcher)
-	{
+	public String resolvePlain(Matcher matcher) {
 		return String.valueOf(size());
 	}
 
 	@Override
-	public String resolveRich(Matcher matcher)
-	{
+	public String resolveRich(Matcher matcher) {
 		return richText.highlightValue(String.valueOf(size()));
 	}
 
-	public int size()
-	{
+	public int size() {
 		return members().size();
 	}
 
 	// Skips RuneLite's name for a member until theirs arrives, e.g. just after rejoining. Of members
 	// sharing a name, only the newest (last joined) is kept.
-	private List<PartyMember> members()
-	{
+	private List<PartyMember> members() {
 		Map<String, PartyMember> byName = new LinkedHashMap<>();
-		for (PartyMember member : partyService.getMembers())
-		{
+		for (PartyMember member : partyService.getMembers()) {
 			String name = member.getDisplayName();
-			if (name == null || UNKNOWN_NAME.equals(name))
-			{
+			if (name == null || UNKNOWN_NAME.equals(name)) {
 				continue;
 			}
 
@@ -117,47 +107,38 @@ public class PartyLabelVariable implements LabelVariable
 		return new ArrayList<>(byName.values());
 	}
 
-	private static String standardize(String name)
-	{
+	private static String standardize(String name) {
 		return Text.standardize(name.replace('_', ' '));
 	}
 
 	// Sort party members by raid party order (ToB / ToA / TFA)
-	private void sortByRaidSlot(List<PartyMember> members)
-	{
+	private void sortByRaidSlot(List<PartyMember> members) {
 		List<String> raidNames = raidPartyNames();
-		if (raidNames.isEmpty())
-		{
+		if (raidNames.isEmpty()) {
 			return;
 		}
 
-		members.sort(Comparator.comparingInt(member ->
-		{
+		members.sort(Comparator.comparingInt(member -> {
 			int slot = raidNames.indexOf(standardize(member.getDisplayName()));
 			return slot < 0 ? Integer.MAX_VALUE : slot;
 		}));
 	}
 
 	// Names by slot, or empty when not in a raid party.
-	private List<String> raidPartyNames()
-	{
-		for (RaidParty raid : RAID_PARTIES)
-		{
+	private List<String> raidPartyNames() {
+		for (RaidParty raid : RAID_PARTIES) {
 			int status = client.getVarbitValue(raid.statusVarbit);
-			if (status == 0)
-			{
+			if (status == 0) {
 				continue;
 			}
 
 			// 1: in the lobby, so the raid's own name varcs aren't set yet.
-			if (status == 1)
-			{
+			if (status == 1) {
 				return lobbyNames(raid.lobbyNames);
 			}
 
 			List<String> names = new ArrayList<>();
-			for (int varc : raid.nameVarcs)
-			{
+			for (int varc : raid.nameVarcs) {
 				String name = client.getVarcStrValue(varc);
 				names.add(name == null ? "" : standardize(Text.removeTags(name)));
 			}
@@ -167,17 +148,14 @@ public class PartyLabelVariable implements LabelVariable
 	}
 
 	// One name per <br> line of the lobby's party list.
-	private List<String> lobbyNames(int widgetId)
-	{
+	private List<String> lobbyNames(int widgetId) {
 		Widget widget = client.getWidget(widgetId);
-		if (widget == null || widget.getText() == null)
-		{
+		if (widget == null || widget.getText() == null) {
 			return List.of();
 		}
 
 		List<String> names = new ArrayList<>();
-		for (String line : widget.getText().split("<br>"))
-		{
+		for (String line : widget.getText().split("<br>")) {
 			names.add(standardize(Text.removeTags(line)));
 		}
 		return names;
@@ -185,10 +163,8 @@ public class PartyLabelVariable implements LabelVariable
 
 	// The template once per member, one per line: keywords substituted outside nested tokens, then
 	// resolveRow run with that member as the context.
-	public String render(String template, UnaryOperator<String> resolveRow)
-	{
-		if (client.getLocalPlayer() == null)
-		{
+	public String render(String template, UnaryOperator<String> resolveRow) {
+		if (client.getLocalPlayer() == null) {
 			return null;
 		}
 
@@ -200,32 +176,26 @@ public class PartyLabelVariable implements LabelVariable
 
 		int num = 1;
 		boolean anyRow = false;
-		for (PartyMember member : members)
-		{
+		for (PartyMember member : members) {
 			boolean isLocal = local != null && member.getMemberId() == local.getMemberId();
 			int rowNum = num++;
 			String row = outsideTokens(template, text -> substituteKeywords(text, rowNum, member, isLocal));
 
 			memberContext.enterRow(isLocal ? null : member, rowNum);
-			try
-			{
+			try {
 				row = resolveRow.apply(row);
-			}
-			finally
-			{
+			} finally {
 				memberContext.exitRow();
 			}
 			// Rows that resolve to nothing are skipped, e.g. {hasFreeze ? name} for members without.
-			if (row == null || row.trim().isEmpty())
-			{
+			if (row == null || row.trim().isEmpty()) {
 				continue;
 			}
 			result.append(anyRow ? "\\n" : "").append(row);
 			anyRow = true;
 		}
 
-		if (!anyRow)
-		{
+		if (!anyRow) {
 			return "";
 		}
 		result.append("\\n{/align}");
@@ -233,29 +203,23 @@ public class PartyLabelVariable implements LabelVariable
 	}
 
 	// {partyCount <template>}: each {<expr>} in the template summed over the party.
-	public String resolveCounts(String text, UnaryOperator<String> resolvePlain)
-	{
+	public String resolveCounts(String text, UnaryOperator<String> resolvePlain) {
 		Matcher start = COUNT_START.matcher(text);
 		StringBuilder out = new StringBuilder();
 		int i = 0;
-		while (start.find(i))
-		{
+		while (start.find(i)) {
 			int close = ConditionalVariable.matchingBrace(text, start.start());
 			int firstToken = text.indexOf('{', start.end());
-			if (close < 0 || firstToken < 0 || firstToken > close)
-			{
+			if (close < 0 || firstToken < 0 || firstToken > close) {
 				out.append(text, i, start.end());
 				i = start.end();
 				continue;
 			}
 
 			String value;
-			try
-			{
+			try {
 				value = renderCount(text.substring(start.end(), close), resolvePlain);
-			}
-			catch (RuntimeException e)
-			{
+			} catch (RuntimeException e) {
 				value = "ERROR";
 			}
 
@@ -265,16 +229,13 @@ public class PartyLabelVariable implements LabelVariable
 		return out.append(text.substring(i)).toString();
 	}
 
-	private String renderCount(String template, UnaryOperator<String> resolvePlain)
-	{
+	private String renderCount(String template, UnaryOperator<String> resolvePlain) {
 		StringBuilder out = new StringBuilder();
 		int i = 0;
 		int open;
-		while ((open = template.indexOf('{', i)) >= 0)
-		{
+		while ((open = template.indexOf('{', i)) >= 0) {
 			int close = ConditionalVariable.matchingBrace(template, open);
-			if (close < 0)
-			{
+			if (close < 0) {
 				break;
 			}
 
@@ -285,24 +246,18 @@ public class PartyLabelVariable implements LabelVariable
 	}
 
 	// A number adds itself, any other true value 1. Unavailable inside a {party} row or {partyCount}.
-	private String count(String expression, UnaryOperator<String> resolvePlain)
-	{
-		if (memberContext.rowNumber() > 0)
-		{
+	private String count(String expression, UnaryOperator<String> resolvePlain) {
+		if (memberContext.rowNumber() > 0) {
 			return memberContext.unavailable(false);
 		}
 
 		double total = 0;
-		for (String value : resolveEach(expression, resolvePlain))
-		{
+		for (String value : resolveEach(expression, resolvePlain)) {
 			String plain = value == null ? "" : Text.removeTags(value).trim();
 			Double number = ConditionEvaluator.tryParseNumber(plain);
-			if (number != null)
-			{
+			if (number != null) {
 				total += Double.isFinite(number) ? number : 0;
-			}
-			else if (BooleanVariable.truthy(plain) && !plain.equals(memberContext.unavailable(false)))
-			{
+			} else if (BooleanVariable.truthy(plain) && !plain.equals(memberContext.unavailable(false))) {
 				total++;
 			}
 		}
@@ -310,32 +265,26 @@ public class PartyLabelVariable implements LabelVariable
 	}
 
 	// text resolved once per member, in row order, with that member as the context.
-	private List<String> resolveEach(String text, UnaryOperator<String> resolve)
-	{
+	private List<String> resolveEach(String text, UnaryOperator<String> resolve) {
 		PartyMember local = partyService.getLocalMember();
 		List<PartyMember> members = members();
 		sortByRaidSlot(members);
 		List<String> values = new ArrayList<>();
 
 		int num = 1;
-		for (PartyMember member : members)
-		{
+		for (PartyMember member : members) {
 			boolean isLocal = local != null && member.getMemberId() == local.getMemberId();
 			memberContext.enterRow(isLocal ? null : member, num++);
-			try
-			{
+			try {
 				values.add(resolve.apply(text));
-			}
-			finally
-			{
+			} finally {
 				memberContext.exitRow();
 			}
 		}
 		return values;
 	}
 
-	private String substituteKeywords(String text, int num, PartyMember member, boolean isLocal)
-	{
+	private String substituteKeywords(String text, int num, PartyMember member, boolean isLocal) {
 		String hp = isLocal ? localStat(Skill.HITPOINTS) : memberStat(member, Skill.HITPOINTS);
 		String prayer = isLocal ? localStat(Skill.PRAYER) : memberStat(member, Skill.PRAYER);
 
@@ -346,33 +295,26 @@ public class PartyLabelVariable implements LabelVariable
 		return text;
 	}
 
-	private String localStat(Skill skill)
-	{
+	private String localStat(Skill skill) {
 		return client.getBoostedSkillLevel(skill) + "/" + client.getRealSkillLevel(skill);
 	}
 
 	// A base of 0 means they haven't sent it yet.
-	private static String memberStat(PartyMember member, Skill skill)
-	{
+	private static String memberStat(PartyMember member, Skill skill) {
 		return member.getStatBase(skill) > 0 ? member.getStatBoost(skill) + "/" + member.getStatBase(skill) : UNKNOWN;
 	}
 
 	// Applies replace to the text outside {...} tokens only.
-	private static String outsideTokens(String template, UnaryOperator<String> replace)
-	{
+	private static String outsideTokens(String template, UnaryOperator<String> replace) {
 		StringBuilder out = new StringBuilder();
 		int start = 0;
 		int depth = 0;
-		for (int i = 0; i < template.length(); i++)
-		{
+		for (int i = 0; i < template.length(); i++) {
 			char c = template.charAt(i);
-			if (c == '{' && depth++ == 0)
-			{
+			if (c == '{' && depth++ == 0) {
 				out.append(replace.apply(template.substring(start, i)));
 				start = i;
-			}
-			else if (c == '}' && depth > 0 && --depth == 0)
-			{
+			} else if (c == '}' && depth > 0 && --depth == 0) {
 				out.append(template, start, i + 1);
 				start = i + 1;
 			}

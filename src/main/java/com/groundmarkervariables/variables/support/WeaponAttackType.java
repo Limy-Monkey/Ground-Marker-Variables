@@ -4,8 +4,7 @@ import lombok.RequiredArgsConstructor;
 
 // The damage type a combat style slot uses -- see WeaponAttackTypes.
 @RequiredArgsConstructor
-public enum WeaponAttackType
-{
+public enum WeaponAttackType {
 	STAB("Stab"),
 	SLASH("Slash"),
 	CRUSH("Crush"),
@@ -15,8 +14,7 @@ public enum WeaponAttackType
 
 	private final String displayName;
 
-	public String displayName()
-	{
+	public String displayName() {
 		return displayName;
 	}
 }

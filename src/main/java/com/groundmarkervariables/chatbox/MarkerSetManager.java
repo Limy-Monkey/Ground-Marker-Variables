@@ -34,8 +34,7 @@ import net.runelite.client.util.Text;
 // Built-in, imported and own marker sets, opened from the chatboxes' logo. A set's checkbox switches it on and off; clicking its name shows its
 // entries, each with its own checkbox. Right-click a set to copy or delete it.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public class MarkerSetManager extends SearchableChatbox
-{
+public class MarkerSetManager extends SearchableChatbox {
 	// Left of Import while the last check failed.
 	private static final String SATELLITE_ANTENNA = "1f4e1";
 	private static final int ICON_SIZE = 14;
@@ -65,8 +64,7 @@ public class MarkerSetManager extends SearchableChatbox
 
 	// A set, one of its entries, or the status line (entry == STATUS).
 	@RequiredArgsConstructor
-	private static final class Row
-	{
+	private static final class Row {
 		@Nullable
 		private final MarkerSet set;
 		@Nullable
@@ -79,52 +77,45 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	@Override
-	protected void open()
-	{
+	protected void open() {
 		markerSets.setListener(this::updateIfOpen);
 		markerSets.checkForUpdates(false);
 		update();
 	}
 
 	@Override
-	protected void close()
-	{
+	protected void close() {
 		markerSets.setListener(null);
 		mapPins.clear();
 		super.close();
 	}
 
 	// Lists only own sets, each clicked to pick it, e.g. to add markers to.
-	public MarkerSetManager pick(Consumer<MarkerSet> onPick)
-	{
+	public MarkerSetManager pick(Consumer<MarkerSet> onPick) {
 		this.onPick = onPick;
 		return this;
 	}
 
 	@Override
-	protected String title()
-	{
+	protected String title() {
 		return onPick != null ? "Add to which set?" : "Marker Sets (" + markerSets.listed().size() + ")";
 	}
 
 	// None while picking a set.
 	@Override
-	protected int recycled()
-	{
+	protected int recycled() {
 		return onPick != null ? 0 : markerSets.bin().size();
 	}
 
 	// The recycling bin's :recycle: while it has sets (or is open), Import, and the failed update's mark left of it.
 	@Override
-	protected void buildTopBar(Widget container, FontTypeFace font, int rightX)
-	{
+	protected void buildTopBar(Widget container, FontTypeFace font, int rightX) {
 		rightX = recycleBinButton(container, rightX, this::update);
 		// Right-click: check GitHub for built-in set updates now, not waiting for the next check.
 		Widget importButton = button(container, font, "Import", "Import from clipboard", "", true, rightX, this::importClipboard);
 		addAction(importButton, new ArrayList<>(List.of(this::importClipboard)), "Check for updates", () -> markerSets.checkForUpdates(true));
 		rightX = nextX(importButton);
-		if (markerSets.failed())
-		{
+		if (markerSets.failed()) {
 			Rectangle area = new Rectangle(container.getWidth() - rightX - ICON_SIZE + 4, 5 + (LINE_HEIGHT - ICON_SIZE) / 2, ICON_SIZE,
 				ICON_SIZE);
 			iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(SATELLITE_ANTENNA)));
@@ -133,84 +124,65 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// Each set in the chosen order, with its entries when expanded or searched for.
-	private List<Row> rows()
-	{
+	private List<Row> rows() {
 		List<Row> rows = new ArrayList<>();
 		List<MarkerSet> sets = recycleBin ? markerSets.bin().values().stream().map(recycled -> recycled.set).collect(Collectors.toList())
 			: markerSets.listed();
 		sets.sort(order());
-		for (MarkerSet set : sets)
-		{
-			if (onPick != null && set.kind != MarkerSet.Kind.OWN)
-			{
+		for (MarkerSet set : sets) {
+			if (onPick != null && set.kind != MarkerSet.Kind.OWN) {
 				continue;
 			}
 			boolean setMatches = matches(set.title) || matches(set.author) || matches(set.kind.title);
 			List<MarkerSet.Entry> entries = new ArrayList<>();
-			for (MarkerSet.Entry entry : set.entries)
-			{
-				if (setMatches || matches(entry.name()))
-				{
+			for (MarkerSet.Entry entry : set.entries) {
+				if (setMatches || matches(entry.name())) {
 					entries.add(entry);
 				}
 			}
-			if (!setMatches && entries.isEmpty())
-			{
+			if (!setMatches && entries.isEmpty()) {
 				continue;
 			}
 			rows.add(new Row(set, null));
-			if (expanded.contains(set.key()) || !query.isEmpty() && !setMatches)
-			{
+			if (expanded.contains(set.key()) || !query.isEmpty() && !setMatches) {
 				entries.forEach(entry -> rows.add(new Row(set, entry)));
 			}
 		}
 		return rows;
 	}
 
-	private boolean matches(String text)
-	{
+	private boolean matches(String text) {
 		return ChatboxWidgets.hasWords(text, query);
 	}
 
 	@Override
-	protected void buildRows(Widget container)
-	{
+	protected void buildRows(Widget container) {
 		clipboardHasMarkers = !recycleBin && !sharingManager.clipboardMarkers().isEmpty();
 		List<Row> rows = rows();
 		String status = markerSets.status();
 		boolean table = !rows.isEmpty();
-		if (!table)
-		{
+		if (!table) {
 			status = !query.isEmpty() ? "No marker sets match \"" + query + "\"."
 				: status != null ? status : "No marker sets yet.";
 		}
-		if (status != null)
-		{
+		if (status != null) {
 			rows.add(new Row(null, STATUS));
 		}
 		columns(container, HEADINGS, SIZED_FOR, 0);
 		String shown = status;
-		table(container, table, rows.size(), (i, y) ->
-		{
+		table(container, table, rows.size(), (i, y) -> {
 			Row row = rows.get(i);
-			if (row.entry == STATUS)
-			{
+			if (row.entry == STATUS) {
 				addText(container, Text.escapeJagex(shown), widgets.fontId(), DETAIL_COLOR, 6, y);
-			}
-			else if (row.entry == null)
-			{
+			} else if (row.entry == null) {
 				addSet(container, row.set, y);
-			}
-			else
-			{
+			} else {
 				addEntry(container, row.set, row.entry, y);
 			}
-		}, (i, y) ->
-		{
+		}, (i, y) -> {
 			// Scrolled into a set's entries: its row stays on the fixed line, in place of the headings.
 			Row row = rows.get(i);
-			if (row.entry == null || row.entry == STATUS)
-			{
+			if (row.entry == null || row.entry == STATUS) {
 				return false;
 			}
 			addSet(container, row.set, y);
@@ -219,12 +191,10 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// By sortColumn, reversed if descending (unknown dates first going up), then title.
-	private Comparator<MarkerSet> order()
-	{
+	private Comparator<MarkerSet> order() {
 		Comparator<MarkerSet> byTitle = Comparator.comparing(set -> set.title, String.CASE_INSENSITIVE_ORDER);
 		Comparator<MarkerSet> byColumn;
-		switch (sortColumn)
-		{
+		switch (sortColumn) {
 			case 1:
 				byColumn = Comparator.comparingInt(MarkerSet::tileCount);
 				break;
@@ -244,15 +214,13 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// Tiles in the set's switched-on entries, whether or not the set itself is on.
-	private int enabledTiles(MarkerSet set)
-	{
+	private int enabledTiles(MarkerSet set) {
 		return set.entries.stream().filter(entry -> markerSets.enabled(set, entry)).mapToInt(entry -> entry.tiles.size()).sum();
 	}
 
 	// Title, tiles, source, author and updated; the title cell is the one clicked to expand, copy or delete. In the
 	// recycling bin, the crossed check box restores it, and the title cell restores, expands or deletes it for good.
-	private void addSet(Widget container, MarkerSet set, int y)
-	{
+	private void addSet(Widget container, MarkerSet set, int y) {
 		boolean enabled = markerSets.enabled(set);
 		Widget checkbox = checkbox(container, enabled, 6, y);
 		addAction(checkbox, new ArrayList<>(), recycleBin ? "Restore" : enabled ? "Disable" : "Enable",
@@ -261,25 +229,21 @@ public class MarkerSetManager extends SearchableChatbox
 		String[] cells = {set.title, enabledTiles(set) + "/" + set.tileCount(), set.kind.title, set.author,
 			set.updated != null ? DATE.format(set.updated) : set.kind == MarkerSet.Kind.PLUGIN ? "" : "Unknown"};
 		Widget label = null;
-		for (int column = 0; column < cells.length; column++)
-		{
+		for (int column = 0; column < cells.length; column++) {
 			Widget cell = cell(container, cells[column], column == 0 ? 0x000000 : DETAIL_COLOR, column, y);
 			label = label == null ? cell : label;
 		}
 		describe(container, set.description, new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
 		List<Runnable> actions = new ArrayList<>();
-		if (onPick != null)
-		{
+		if (onPick != null) {
 			addAction(label, actions, "Choose", () -> onPick.accept(set));
 		}
 		addAction(label, actions, expanded.contains(set.key()) ? "Compact set" : "Expand set", () -> toggleExpanded(set));
-		if (recycleBin)
-		{
+		if (recycleBin) {
 			Rectangle titleArea = new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT);
 			addAction(label, actions, "Restore", () -> restore(set));
 			addAction(label, actions, "Delete", () -> confirmPurge(markerSets.bin().minutesLeft(set.key()), titleArea,
-				"the marker set \"" + Text.escapeJagex(set.title) + "\"", () ->
-				{
+				"the marker set \"" + Text.escapeJagex(set.title) + "\"", () -> {
 					markerSets.bin().remove(set.key());
 					sendChatMessage("The marker set \"" + set.title + "\" was deleted permanently.");
 				}));
@@ -292,31 +256,25 @@ public class MarkerSetManager extends SearchableChatbox
 		manage.put("Export", () -> exportTiles(set));
 		manage.put("Clone", () -> cloneSet(set));
 		addSubmenu(label, actions, "Manage", manage);
-		if (set.kind == MarkerSet.Kind.OWN)
-		{
+		if (set.kind == MarkerSet.Kind.OWN) {
 			// Yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
 			Player player = client.getLocalPlayer();
 			String name = player != null ? player.getName() : null;
 			Map<String, Runnable> edit = new LinkedHashMap<>();
 			edit.put("Set title", () -> askTitle(set));
 			edit.put("Set description", () -> askDescription(set.description, text -> markerSets.setDescription(set, text)));
-			if (clipboardHasMarkers)
-			{
+			if (clipboardHasMarkers) {
 				edit.put("Paste", () -> paste(set));
 			}
-			if (name != null && name.equalsIgnoreCase(set.author))
-			{
+			if (name != null && name.equalsIgnoreCase(set.author)) {
 				edit.put("Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
-			}
-			else if (name != null)
-			{
+			} else if (name != null) {
 				edit.put("Claim Authorship", () -> markerSets.claim(set, name));
 			}
 			addSubmenu(label, actions, "Edit", edit);
 		}
 		// Last, Dissolve then Delete. A plugin's group is its to clear.
-		if (set.kind == MarkerSet.Kind.SHARED || set.kind == MarkerSet.Kind.OWN)
-		{
+		if (set.kind == MarkerSet.Kind.SHARED || set.kind == MarkerSet.Kind.OWN) {
 			addAction(label, actions, "Dissolve set", () -> confirmDissolve(set));
 			addAction(label, actions, "Delete", () -> confirmDelete(set));
 		}
@@ -325,33 +283,28 @@ public class MarkerSetManager extends SearchableChatbox
 
 	// Map (see WorldMapPins#mapChoices): all set's tiles pinned (each named by its entry) or on RuneLite.net, the open
 	// world map moved to tiles.
-	private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea)
-	{
-		addSubmenu(widget, actions, "Map", mapPins.mapChoices(tiles, titledTiles(set), () ->
-		{
+	private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea) {
+		addSubmenu(widget, actions, "Map", mapPins.mapChoices(tiles, titledTiles(set), () -> {
 			Map<String, List<GroundMarkerPointData>> byEntry = new LinkedHashMap<>();
 			set.entries.forEach(entry -> byEntry.computeIfAbsent(entry.name(), name -> new ArrayList<>()).addAll(entry.tiles));
 			mapPins.pin(set, byEntry);
 		}, text -> notice(labelArea, text), this::updateIfOpen));
 	}
 
-	private static List<GroundMarkerPointData> tiles(MarkerSet set)
-	{
+	private static List<GroundMarkerPointData> tiles(MarkerSet set) {
 		List<GroundMarkerPointData> tiles = new ArrayList<>();
 		set.entries.forEach(entry -> tiles.addAll(entry.tiles));
 		return tiles;
 	}
 
 	// tiles(set), each labeled by its entry's title if it has one, for RuneLite.net.
-	private static List<GroundMarkerPointData> titledTiles(MarkerSet set)
-	{
+	private static List<GroundMarkerPointData> titledTiles(MarkerSet set) {
 		List<GroundMarkerPointData> tiles = new ArrayList<>();
 		set.entries.forEach(entry -> entry.tiles.forEach(tile -> tiles.add(entry.title == null ? tile : tile.withLabel(entry.title))));
 		return tiles;
 	}
 
-	private void addEntry(Widget container, MarkerSet set, MarkerSet.Entry entry, int y)
-	{
+	private void addEntry(Widget container, MarkerSet set, MarkerSet.Entry entry, int y) {
 		boolean enabled = markerSets.enabled(set, entry);
 		int x = columnX(0);
 		Widget checkbox = checkbox(container, enabled, x, y);
@@ -363,23 +316,18 @@ public class MarkerSetManager extends SearchableChatbox
 		describe(container, entry.description, new Rectangle(textX, y, textWidth, ROW_HEIGHT));
 		cell(container, String.valueOf(entry.tiles.size()), DETAIL_COLOR, 1, y);
 		// A recycled set's entries are only listed.
-		for (Widget clickable : recycleBin ? List.<Widget>of() : List.of(checkbox, label))
-		{
+		for (Widget clickable : recycleBin ? List.<Widget>of() : List.of(checkbox, label)) {
 			List<Runnable> actions = new ArrayList<>();
 			addAction(clickable, actions, enabled ? "Disable" : "Enable", () -> markerSets.setEnabled(set, entry, !enabled));
 			addShowOnMap(clickable, actions, set, entry.tiles, new Rectangle(textX, y, textWidth, ROW_HEIGHT));
 			Runnable copy = () -> copyTiles(entry.tiles, "\"" + entry.name() + "\" in the marker set \"" + set.title + "\"");
 			// Your own: Edit > Label (one tile's: a group's would become that tile), Copy, Set Title, Set Description,
 			// Delete. Others' have just Copy.
-			if (set.kind != MarkerSet.Kind.OWN)
-			{
+			if (set.kind != MarkerSet.Kind.OWN) {
 				addAction(clickable, actions, "Copy", copy);
-			}
-			else
-			{
+			} else {
 				Map<String, Runnable> edit = new LinkedHashMap<>();
-				if (!entry.group)
-				{
+				if (!entry.group) {
 					edit.put("Label", () -> editTile(set, entry));
 				}
 				edit.put("Copy", copy);
@@ -392,48 +340,40 @@ public class MarkerSetManager extends SearchableChatbox
 		ChatboxWidgets.hover(label, color);
 	}
 
-	private void toggleExpanded(MarkerSet set)
-	{
-		if (!expanded.remove(set.key()))
-		{
+	private void toggleExpanded(MarkerSet set) {
+		if (!expanded.remove(set.key())) {
 			expanded.add(set.key());
 		}
 		update();
 	}
 
-	private void copy(MarkerSet set)
-	{
+	private void copy(MarkerSet set) {
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerSets.export(set)), null);
 		sendChatMessage("The marker set \"" + set.title + "\" was copied to your clipboard.");
 	}
 
 	// A copied marker set, as the orb's Import; else copied ground markers, named and saved as the user's own set by Unknown,
 	// same-label markers grouped (as Marker Manager's Set).
-	private void importClipboard()
-	{
+	private void importClipboard() {
 		sharingManager.parseClipboard((set, text) -> sharingManager.confirmSetImport(set, text, this::reopen),
 			markers -> sharingManager.importAsSet(markers, this::reopen));
 	}
 
 	// Just its tiles, as ground markers: a label with variables goes in "gmv", as written.
-	private void exportTiles(MarkerSet set)
-	{
+	private void exportTiles(MarkerSet set) {
 		copyTiles(tiles(set), "the marker set \"" + set.title + "\"");
 	}
 
 	// The clipboard's ground markers (read again, in case it changed) added to set, an entry per label as Marker Manager's Set.
 	// Any at a tile already in it: asks whether to skip those, replace the set's, or cancel.
-	private void paste(MarkerSet set)
-	{
+	private void paste(MarkerSet set) {
 		List<GroundMarkerPointData> markers = sharingManager.clipboardMarkers();
-		if (markers.isEmpty())
-		{
+		if (markers.isEmpty()) {
 			sendChatMessage("You do not have ground markers copied in your clipboard.");
 			return;
 		}
 		long duplicates = MarkerSets.duplicates(set, markers);
-		if (duplicates == 0)
-		{
+		if (duplicates == 0) {
 			paste(set, markers, false, 0);
 			return;
 		}
@@ -446,8 +386,7 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// replace: the set's tiles where markers go are replaced; else duplicates of markers are skipped.
-	private void paste(MarkerSet set, List<GroundMarkerPointData> markers, boolean replace, long duplicates)
-	{
+	private void paste(MarkerSet set, List<GroundMarkerPointData> markers, boolean replace, long duplicates) {
 		long pasted = replace ? markers.size() : markers.size() - duplicates;
 		sendChatMessage(markerSets.paste(set, markers, replace) == null ? MarkerSets.TOO_LARGE
 			: pasted + (pasted == 1 ? " ground marker was" : " ground markers were") + " pasted into the marker set \"" + set.title + "\""
@@ -456,26 +395,22 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// tiles as ground markers (see exportTiles), from (e.g. "the marker set "TFA"") for the chat message.
-	private void copyTiles(List<GroundMarkerPointData> tiles, String from)
-	{
+	private void copyTiles(List<GroundMarkerPointData> tiles, String from) {
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.exportGmvPlain(tiles)), null);
 		sendChatMessage(tiles.size() + (tiles.size() == 1 ? " ground marker" : " ground markers") + " from " + from
 			+ (tiles.size() == 1 ? " was" : " were") + " copied to your clipboard.");
 	}
 
 	// Your own copy, still by its author until you claim it.
-	private void cloneSet(MarkerSet set)
-	{
+	private void cloneSet(MarkerSet set) {
 		MarkerSet clone = markerSets.cloneSet(set);
 		sendChatMessage(clone == null ? MarkerSets.TOO_LARGE
 			: "The marker set \"" + clone.title + "\" was made from \"" + set.title + "\" by " + set.author + ".");
 	}
 
-	private void confirmDelete(MarkerSet set)
-	{
+	private void confirmDelete(MarkerSet set) {
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete the marker set \"" + Text.escapeJagex(set.title) + "\"?")
-			.yes(() ->
-			{
+			.yes(() -> {
 				markerSets.delete(set);
 				sendChatMessage("The marker set \"" + set.title + "\" was moved to the recycling bin, where it can be restored until you close the client.");
 				reopen();
@@ -486,11 +421,9 @@ public class MarkerSetManager extends SearchableChatbox
 
 	// Out of the recycling bin; back to the marker sets once it's empty. A dissolved set first asks whether to keep the
 	// saved markers dissolving made from its tiles.
-	private void restore(MarkerSet set)
-	{
+	private void restore(MarkerSet set) {
 		MarkerSets.Recycled recycled = markerSets.bin().get(set.key());
-		if (recycled == null || !recycled.dissolved)
-		{
+		if (recycled == null || !recycled.dissolved) {
 			restore(set, false);
 			return;
 		}
@@ -504,10 +437,8 @@ public class MarkerSetManager extends SearchableChatbox
 	}
 
 	// removeMarkers: the saved markers at its tiles are removed again, fully undoing a dissolve.
-	private void restore(MarkerSet set, boolean removeMarkers)
-	{
-		if (removeMarkers)
-		{
+	private void restore(MarkerSet set, boolean removeMarkers) {
+		if (removeMarkers) {
 			markerStorage.deletePoints(tiles(set));
 			plugin.loadPoints();
 		}
@@ -518,39 +449,31 @@ public class MarkerSetManager extends SearchableChatbox
 
 	// Every tile back into saved markers (previewed, keeping or overwriting markers already there, as on import), then
 	// the set goes to the recycling bin, where restoring it can undo this (see restore()).
-	private void confirmDissolve(MarkerSet set)
-	{
-		sharingManager.confirmImport(tiles(set)," ground markers were restored from the marker set \"" + set.title + "\".", () ->
-		{
+	private void confirmDissolve(MarkerSet set) {
+		sharingManager.confirmImport(tiles(set)," ground markers were restored from the marker set \"" + set.title + "\".", () -> {
 			markerSets.delete(set, true);
 			reopen();
 		}, this::reopen);
 	}
 
-	private void editTile(MarkerSet set, MarkerSet.Entry entry)
-	{
+	private void editTile(MarkerSet set, MarkerSet.Entry entry) {
 		editLabel(entry.tiles.get(0), label -> markerSets.setLabel(set, entry, label));
 	}
 
 	// A set needs a title, so blank leaves it as it was.
 	// description, if any, as a tooltip over area: its "\n"s as line breaks, any tags dropped.
-	private void describe(Widget container, @Nullable String description, Rectangle area)
-	{
-		if (description != null)
-		{
+	private void describe(Widget container, @Nullable String description, Rectangle area) {
+		if (description != null) {
 			tips.add(new SuggestionIconOverlay.Tip(container, area, Text.removeTags(description).replace("\\n", "</br>")));
 		}
 	}
 
 	// A set's or entry's description, starting as current; blank for none (see MarkerSet#description for its limits).
-	private void askDescription(@Nullable String current, Consumer<String> save)
-	{
+	private void askDescription(@Nullable String current, Consumer<String> save) {
 		chatboxPanelManager.openTextInput("Description (blank for none)")
 			.value(current == null ? "" : current)
-			.onDone((Predicate<String>) text ->
-			{
-				clientThread.invoke(() ->
-				{
+			.onDone((Predicate<String>) text -> {
+				clientThread.invoke(() -> {
 					save.accept(text);
 					reopen();
 				});
@@ -559,16 +482,12 @@ public class MarkerSetManager extends SearchableChatbox
 			.build();
 	}
 
-	private void askTitle(MarkerSet set)
-	{
+	private void askTitle(MarkerSet set) {
 		chatboxPanelManager.openTextInput("Marker set title")
 			.value(set.title)
-			.onDone((Predicate<String>) title ->
-			{
-				clientThread.invoke(() ->
-				{
-					if (!title.isBlank())
-					{
+			.onDone((Predicate<String>) title -> {
+				clientThread.invoke(() -> {
+					if (!title.isBlank()) {
 						markerSets.setTitle(set, title);
 					}
 					reopen();
@@ -580,16 +499,12 @@ public class MarkerSetManager extends SearchableChatbox
 
 	// Blank removes the title, so the entry shows its label again. onDone returns false: reopening this replaces the
 	// prompt, which closing would close instead.
-	private void askTitle(MarkerSet set, MarkerSet.Entry entry)
-	{
+	private void askTitle(MarkerSet set, MarkerSet.Entry entry) {
 		chatboxPanelManager.openTextInput("Title (blank for none)")
 			.value(entry.title == null ? "" : entry.title)
-			.onDone((Predicate<String>) title ->
-			{
-				clientThread.invoke(() ->
-				{
-					if (!markerSets.setTitle(set, entry, title))
-					{
+			.onDone((Predicate<String>) title -> {
+				clientThread.invoke(() -> {
+					if (!markerSets.setTitle(set, entry, title)) {
 						sendChatMessage("Another entry in \"" + set.title + "\" is already titled \"" + title.trim() + "\".");
 					}
 					reopen();
@@ -599,13 +514,11 @@ public class MarkerSetManager extends SearchableChatbox
 			.build();
 	}
 
-	private void confirmDelete(MarkerSet set, MarkerSet.Entry entry)
-	{
+	private void confirmDelete(MarkerSet set, MarkerSet.Entry entry) {
 		int tiles = entry.tiles.size();
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete \"" + Text.escapeJagex(entry.name()) + "\" ("
 				+ tiles + (tiles == 1 ? " tile" : " tiles") + ") from the marker set \"" + Text.escapeJagex(set.title) + "\"?")
-			.yes(() ->
-			{
+			.yes(() -> {
 				markerSets.remove(set, entry);
 				sendChatMessage("\"" + entry.name() + "\" was deleted from the marker set \"" + set.title + "\".");
 				reopen();
