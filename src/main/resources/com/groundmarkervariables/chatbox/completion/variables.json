@@ -108,7 +108,9 @@
     "parameters": [{"name": "icon", "description": "The spellbook's tab icon"}],
     "examples": ["{spellbook == [Ancient, Arceuus]}"]},
   "has<Spell>": {"syntax": "{has<Spell>}", "description": "Whether you can cast a spell right now: its spellbook (or Spellbook Swap) and runes", "returns": "Boolean", "party": true, "icon": "yes", "category": "Spells",
-    "parameters": [{"name": "icon", "description": "The spell's icon, dimmed if not castable"}],
+    "parameters": [{"name": "icon", "description": "The spell's icon, dimmed if not castable"},
+      {"name": "noSbs", "description": "Only on its own spellbook: Spellbook Swap doesn't count"},
+      {"name": "checkLvl", "description": "Checks magic level requirement at current level boost"}],
     "variants": [
       {"name": "hasFreeze", "description": "Can cast Ice Barrage: Ancient and runes", "aliases": ["hasFreezes"]},
       {"name": "hasThralls", "description": "Can cast thralls: Arceuus, Book of the Dead, and runes"},
@@ -121,6 +123,13 @@
       {"name": "hasDeathCharge", "description": "Can cast Death Charge: Arceuus and runes"},
       {"name": "hasSpellbookSwap", "description": "Can cast Spellbook Swap: Lunar and runes"}],
     "examples": ["{spellbook == Ancient ? {hasFreeze ? Freeze ready : No freeze}}", "{hasThralls ? Thralls ready : No thralls}", "{hasVengeance icon}"]},
+  "hasSpell": {"syntax": "{hasSpell <name>}", "description": "Whether you can cast any spell right now, by its name in the game: its spellbook (or Spellbook Swap) and runes", "returns": "Boolean", "party": true, "icon": "yes", "category": "Spells",
+    "parameters": [
+      {"name": "<name>", "description": "A spell's name, e.g. Crumble Undead"},
+      {"name": "icon", "description": "The spell's icon, dimmed if not castable"},
+      {"name": "noSbs", "description": "Only on its own spellbook: Spellbook Swap doesn't count"},
+      {"name": "checkLvl", "description": "Checks magic level requirement at current level boost"}],
+    "examples": ["{hasSpell Crumble Undead ? Crumble ready : No crumble}", "{hasSpell Ice Barrage icon}"]},
   "hasSurge": {"syntax": "{hasSurge [elements]}", "description": "Any surge spell castable, or specific {hasSurge air water icon}", "returns": "Boolean", "party": true, "icon": "yes", "category": "Spells",
     "parameters": [
       {"name": "[elements]", "complete": [
@@ -129,7 +138,9 @@
         {"word": "water", "description": "Water Surge"},
         {"word": "earth", "description": "Earth Surge"},
         {"word": "fire", "description": "Fire Surge"}]},
-      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"}]},
+      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"},
+      {"name": "noSbs", "description": "Only on its own spellbook: Spellbook Swap doesn't count"},
+      {"name": "checkLvl", "description": "Checks magic level requirement at current level boost"}]},
   "hasBarrage": {"syntax": "{hasBarrage [elements]}", "description": "Any barrage spell castable, or specific {hasBarrage blood ice icon}", "returns": "Boolean", "party": true, "icon": "yes", "category": "Spells",
     "parameters": [
       {"name": "[elements]", "complete": [
@@ -137,7 +148,9 @@
         {"word": "shadow", "description": "Shadow Barrage"},
         {"word": "blood", "description": "Blood Barrage"},
         {"word": "ice", "description": "Ice Barrage"}]},
-      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"}]},
+      {"name": "icon", "description": "Their icons, split into one, each dimmed if not castable"},
+      {"name": "noSbs", "description": "Only on its own spellbook: Spellbook Swap doesn't count"},
+      {"name": "checkLvl", "description": "Checks magic level requirement at current level boost"}]},
 
   "kc": {"requiresArgument": true,"syntax": "{kc <boss>}", "description": "Kill count, uses the Chat Commands plugin", "returns": "Number", "party": true, "category": "Bosses & loot",
     "parameters": [{"name": "<boss>", "description": "A boss name or alias, any case, e.g. toa, cox cm, cg"}],

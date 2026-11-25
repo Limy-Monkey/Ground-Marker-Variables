@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.support;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.groundmarkervariables.variables.label.SpellVariables;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -26,13 +27,11 @@ import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.api.EnumComposition;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
-import net.runelite.api.ParamID;
 import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.SpriteID;
@@ -72,9 +71,6 @@ public class IconNames
 	// Config archive groups holding every NPC / item definition.
 	private static final int NPC_GROUP = 9;
 	private static final int ITEM_GROUP = 10;
-	// Spellbook index -> enum of the book's spell objects; their name and icon params.
-	private static final int SPELLBOOKS = 1981;
-	private static final int SPELL_ICON = 597;
 	// Definitions read per client tick by a background build (see loaded()).
 	private static final int BUILD_SLICE = 2000;
 
@@ -137,6 +133,7 @@ public class IconNames
 
 	private final Client client;
 	private final ClientThread clientThread;
+	private final SpellVariables spellVariables;
 
 	// Built on the client thread on first use; read from the editor's key thread too.
 	private final Map<Kind, Index> indexes = new ConcurrentHashMap<>();
@@ -640,16 +637,7 @@ public class IconNames
 
 		try
 		{
-			for (int book : client.getEnum(SPELLBOOKS).getIntVals())
-			{
-				EnumComposition spells = client.getEnum(book);
-				for (int spell : spells.getIntVals())
-				{
-					ItemComposition definition = client.getItemDefinition(spell);
-					String spellName = definition.getStringValue(ParamID.SPELL_NAME);
-					addSprite(names, ids, spellName == null ? null : spellName + " (Spell)", definition.getIntValue(SPELL_ICON));
-				}
-			}
+			spellVariables.forEachSpellSprite((name, sprite) -> addSprite(names, ids, name + " (Spell)", sprite));
 		}
 		catch (RuntimeException e)
 		{

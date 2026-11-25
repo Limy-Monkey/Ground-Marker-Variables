@@ -59,6 +59,8 @@ public final class Args
 	@Nullable
 	private Supplier<Collection<String>> mainNames;
 	private Function<String, String> mainIcon = NO_ICON;
+	// A main name's suggestion description; null for variables.json's.
+	private Function<String, String> mainDescription = main -> null;
 	private boolean mainOptional;
 	private boolean joined;
 	// By its word as typed, lowercase ("missing", "itemsperline=").
@@ -299,6 +301,18 @@ public final class Args
 	public String mainIcon(String main)
 	{
 		return mainIcon.apply(main);
+	}
+
+	public Args mainDescribed(Function<String, String> description)
+	{
+		mainDescription = description;
+		return this;
+	}
+
+	@Nullable
+	public String mainDescription(String main)
+	{
+		return mainDescription.apply(main);
 	}
 
 	// Each listed option as typed to complete it, e.g. "missing", "itemsPerLine=".

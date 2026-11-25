@@ -6,12 +6,16 @@ import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
+import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.Icons;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,16 +23,17 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import net.runelite.api.Client;
+import net.runelite.api.EnumID;
+import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
+import net.runelite.api.ItemComposition;
+import net.runelite.api.ParamID;
+import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.party.PartyMember;
-import static com.groundmarkervariables.variables.support.Spellbooks.ANCIENT;
-import static com.groundmarkervariables.variables.support.Spellbooks.ARCEUUS;
-import static com.groundmarkervariables.variables.support.Spellbooks.LUNAR;
-import static com.groundmarkervariables.variables.support.Spellbooks.STANDARD;
 
 // The {has<Spell>} variables, one entry each: true if the player could cast the spell right now -- for a family like
 // {hasSurge [wind] [water] ... [icon]}, any of those named, all by default -- on its spellbook (or Spellbook Swap) with
@@ -39,46 +44,43 @@ import static com.groundmarkervariables.variables.support.Spellbooks.STANDARD;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SpellVariables
 {
+	// A spell definition's params: its spellbook (as Spellbooks), icon, and rune / count pairs (the game's magic_runetype_n /
+	// magic_runecount_n).
+	private static final int SPELL_SPELLBOOK = 336;
+	private static final int SPELL_ICON = 597;
+	private static final int[] RUNE_PARAMS = {365, 366, 367, 368, 369, 370, 606, 607};
+	// Every spell variable's: its icon instead; no Spellbook Swap; and the level needed (see castable()).
+	private static final String[] FLAGS = {"icon", "noSbs", "checkLvl"};
+
 	private final Client client;
 	private final RichText richText;
 	private final PartyDataSharing partyDataSharing;
 
 	private final List<SpellVariable> all = define();
+	// See cacheSpells(); read by {hasSpell}'s suggestions on the editor's key thread.
+	private volatile Map<String, GameSpell> cacheSpells = Map.of();
 
 	// Built before the fields above are set: they're only read when a variable resolves.
 	private List<SpellVariable> define()
 	{
 		return List.of(
-			single("hasAlchs", "Alchs", STANDARD, Map.of(ItemID.NATURERUNE, 1, ItemID.FIRERUNE, 1), sprite(SpriteID.Magicon.HIGH_LEVEL_ALCHEMY)),
-			single("hasEntangle", "Entangles", STANDARD, Map.of(ItemID.EARTHRUNE, 5, ItemID.WATERRUNE, 5, ItemID.NATURERUNE, 4),
-				sprite(SpriteID.Magicon2.ENTANGLE)).orWildernessSack(ItemID.BLIGHTED_SACK_ENTANGLE),
-			single("hasFreeze", "Freezes", ANCIENT, Map.of(ItemID.WATERRUNE, 6, ItemID.BLOODRUNE, 2, ItemID.DEATHRUNE, 4),
-				sprite(SpriteID.Magicon2.ICE_BARRAGE)).orWildernessSack(ItemID.BLIGHTED_SACK_ICEBARRAGE).alias("hasFreezes"),
-			single("hasThralls", "Thralls", ARCEUUS, Map.of(ItemID.FIRERUNE, 1, ItemID.BLOODRUNE, 1, ItemID.COSMICRUNE, 1),
-				item(ItemID.BOOK_OF_THE_DEAD)).needing(ItemID.BOOK_OF_THE_DEAD),
-			single("hasVileVigour", "Vile Vigour", ARCEUUS, Map.of(ItemID.SOULRUNE, 1, ItemID.AIRRUNE, 3), sprite(SpriteID.MagicNecroOn.VILE_VIGOUR)),
-			single("hasUndeadGrasp", "Undead Grasp", ARCEUUS, Map.of(ItemID.BLOODRUNE, 1, ItemID.FIRERUNE, 12),
-				sprite(SpriteID.MagicNecroOn.UNDEAD_GRASP)),
-			single("hasMarkOfDarkness", "Mark of Darkness", ARCEUUS, Map.of(ItemID.COSMICRUNE, 1, ItemID.SOULRUNE, 1),
-				sprite(SpriteID.MagicNecroOn.MARK_OF_DARKNESS)),
-			single("hasDeathCharge", "Death Charge", ARCEUUS, Map.of(ItemID.BLOODRUNE, 1, ItemID.DEATHRUNE, 1, ItemID.SOULRUNE, 1),
-				sprite(SpriteID.MagicNecroOn.DEATH_CHARGE)),
-			single("hasVengeance", "Vengeance", LUNAR, Map.of(ItemID.ASTRALRUNE, 4, ItemID.DEATHRUNE, 2, ItemID.EARTHRUNE, 10),
-				sprite(SpriteID.LunarMagicOn.VENGEANCE)),
-			single("hasSpellbookSwap", "Spellbook Swap", LUNAR, Spellbooks.SPELLBOOK_SWAP_RUNES, sprite(SpriteID.LunarMagicOn.SPELLBOOK_SWAP)),
-			family("hasSurge", "Surge", STANDARD,
-				spell("Wind Surge", SpriteID.Magicon2.WIND_SURGE, Map.of(ItemID.WRATHRUNE, 1, ItemID.AIRRUNE, 7), "wind", "air"),
-				spell("Water Surge", SpriteID.Magicon2.WATER_SURGE, Map.of(ItemID.WRATHRUNE, 1, ItemID.AIRRUNE, 7, ItemID.WATERRUNE, 10), "water"),
-				spell("Earth Surge", SpriteID.Magicon2.EARTH_SURGE, Map.of(ItemID.WRATHRUNE, 1, ItemID.AIRRUNE, 7, ItemID.EARTHRUNE, 10), "earth"),
-				spell("Fire Surge", SpriteID.Magicon2.FIRE_SURGE, Map.of(ItemID.WRATHRUNE, 1, ItemID.AIRRUNE, 7, ItemID.FIRERUNE, 10), "fire")),
+			hasSpell(),
+			single("hasAlchs", "Alchs", "High Level Alchemy"),
+			single("hasEntangle", "Entangles", "Entangle").orWildernessSack(ItemID.BLIGHTED_SACK_ENTANGLE),
+			single("hasFreeze", "Freezes", "Ice Barrage").orWildernessSack(ItemID.BLIGHTED_SACK_ICEBARRAGE).alias("hasFreezes"),
+			// Greater thralls, with the book's icon.
+			single("hasThralls", "Thralls", "Resurrect Greater Ghost").needing(ItemID.BOOK_OF_THE_DEAD),
+			single("hasVileVigour", "Vile Vigour", "Vile Vigour"),
+			single("hasUndeadGrasp", "Undead Grasp", "Undead Grasp"),
+			single("hasMarkOfDarkness", "Mark of Darkness", "Mark of Darkness"),
+			single("hasDeathCharge", "Death Charge", "Death Charge"),
+			single("hasVengeance", "Vengeance", "Vengeance"),
+			single("hasSpellbookSwap", "Spellbook Swap", "Spellbook Swap"),
+			family("hasSurge", "Surge", spell("Wind Surge", "wind", "air"), spell("Water Surge", "water"), spell("Earth Surge", "earth"),
+				spell("Fire Surge", "fire")),
 			// Unlike {hasFreeze}, a blighted sack doesn't count.
-			family("hasBarrage", "Barrage", ANCIENT,
-				spell("Smoke Barrage", SpriteID.Magicon2.SMOKE_BARRAGE,
-					Map.of(ItemID.DEATHRUNE, 4, ItemID.BLOODRUNE, 2, ItemID.FIRERUNE, 4, ItemID.AIRRUNE, 4), "smoke"),
-				spell("Shadow Barrage", SpriteID.Magicon2.SHADOW_BARRAGE,
-					Map.of(ItemID.DEATHRUNE, 4, ItemID.BLOODRUNE, 2, ItemID.AIRRUNE, 4, ItemID.SOULRUNE, 1), "shadow"),
-				spell("Blood Barrage", SpriteID.Magicon2.BLOOD_BARRAGE, Map.of(ItemID.DEATHRUNE, 4, ItemID.BLOODRUNE, 4, ItemID.SOULRUNE, 1), "blood"),
-				spell("Ice Barrage", SpriteID.Magicon2.ICE_BARRAGE, Map.of(ItemID.DEATHRUNE, 4, ItemID.BLOODRUNE, 2, ItemID.WATERRUNE, 6), "ice"))
+			family("hasBarrage", "Barrage", spell("Smoke Barrage", "smoke"), spell("Shadow Barrage", "shadow"), spell("Blood Barrage", "blood"),
+				spell("Ice Barrage", "ice"))
 		);
 	}
 
@@ -87,80 +89,145 @@ public class SpellVariables
 		return all;
 	}
 
-	// One spell, its name text.
-	private SpellVariable single(String name, String text, int spellbook, Map<Integer, Integer> runes, Function<Boolean, String> icon)
+	// One of the game's spells, by its name there; text its Rich Text name.
+	private SpellVariable single(String name, String text, String spell)
 	{
-		return new SpellVariable(name, text, spellbook, List.of(new Spell(List.of(), text, runes, icon)));
+		return family(name, text, new Spell(List.of(), text, spell));
 	}
 
-	// Spells chosen by their words, text naming several.
-	private SpellVariable family(String name, String text, int spellbook, Spell... spells)
+	// One of the game's spells by its name there, chosen in a family by words.
+	private static Spell spell(String name, String... words)
 	{
-		return new SpellVariable(name, text, spellbook, List.of(spells));
+		return new Spell(List.of(words), name, name);
 	}
 
-	private static Spell spell(String name, int spriteId, Map<Integer, Integer> runes, String... words)
+	// Spells chosen by their words (in the order named; all if none), text naming several.
+	private SpellVariable family(String name, String text, Spell... spells)
 	{
-		return new Spell(List.of(words), name, runes, sprite(spriteId));
+		List<Spell> all = List.of(spells);
+		Args args = Args.of(name);
+		for (Spell spell : all)
+		{
+			spell.words.forEach(word -> args.iconFlag(word, w -> "{" + name + " " + w + " icon}"));
+			if (spell.words.size() > 1)
+			{
+				args.exclusive(spell.words.toArray(new String[0]));
+			}
+		}
+		args.flag(FLAGS);
+		return new SpellVariable(text, args, all, matcher ->
+		{
+			List<Spell> chosen = new ArrayList<>();
+			for (String word : args.options(matcher).words())
+			{
+				for (Spell spell : all)
+				{
+					if (spell.words.stream().anyMatch(word::equalsIgnoreCase) && !chosen.contains(spell))
+					{
+						chosen.add(spell);
+					}
+				}
+			}
+			return chosen.isEmpty() ? all : chosen;
+		});
 	}
 
-	private static Function<Boolean, String> sprite(int spriteId)
+	// {hasSpell <name> [icon]}: any spell in the game's spellbooks, read from its cache.
+	private SpellVariable hasSpell()
 	{
-		return castable -> Icons.sprite(spriteId, castable);
+		Args args = Args.of("hasSpell").main(() -> cacheSpells.keySet(), name -> "<sprite=" + name + " (Spell)>").flag(FLAGS)
+			.mainDescribed(name -> cacheSpells.containsKey(name) ? cacheSpells.get(name).hint : null);
+		return new SpellVariable("", args, List.of(), matcher ->
+		{
+			String name = args.main(matcher);
+			return name == null || !cacheSpells().containsKey(name) ? List.of() : List.of(spell(name));
+		});
 	}
 
-	private static Function<Boolean, String> item(int itemId)
+	// The game's spells by name (any case), each its spellbook, level, runes (as the game checks them: up to 4 rune and count
+	// params) and icon; the first of a name kept. Empty until the cache can be read; on the client thread.
+	private Map<String, GameSpell> cacheSpells()
 	{
-		return castable -> Icons.item(itemId, castable);
+		if (cacheSpells.isEmpty() && client.getGameState().getState() >= GameState.LOGIN_SCREEN.getState())
+		{
+			Map<String, GameSpell> spells = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+			for (int book : client.getEnum(EnumID.SPELLBOOKS).getIntVals())
+			{
+				for (int id : client.getEnum(book).getIntVals())
+				{
+					ItemComposition definition = client.getItemDefinition(id);
+					String name = definition.getStringValue(ParamID.SPELL_NAME);
+					int spellbook = definition.getIntValue(SPELL_SPELLBOOK);
+					int level = definition.getIntValue(ParamID.SPELL_LEVELREQ);
+					Map<Integer, Integer> runes = new LinkedHashMap<>();
+					List<String> costs = new ArrayList<>();
+					for (int i = 0; i < RUNE_PARAMS.length; i += 2)
+					{
+						int rune = definition.getIntValue(RUNE_PARAMS[i]);
+						if (rune > 0)
+						{
+							int count = definition.getIntValue(RUNE_PARAMS[i + 1]);
+							runes.merge(rune, count, Integer::sum);
+							costs.add(count + " " + client.getItemDefinition(rune).getName().replaceFirst("(?i) runes?$", ""));
+						}
+					}
+					if (name != null && !name.isEmpty() && spellbook >= 0 && spellbook < Spellbooks.NAMES.size())
+					{
+						// e.g. "Lvl 39 Standard: 2 Air, 2 Earth, 1 Chaos".
+						String hint = "Lvl " + level + " " + Spellbooks.NAMES.get(spellbook) + (costs.isEmpty() ? "" : ": " + String.join(", ", costs));
+						spells.putIfAbsent(name, new GameSpell(spellbook, level, runes, definition.getIntValue(SPELL_ICON), hint));
+					}
+				}
+			}
+			cacheSpells = spells;
+		}
+		return cacheSpells;
 	}
 
+	// Each of the game's spells: its name and icon sprite.
+	public void forEachSpellSprite(BiConsumer<String, Integer> action)
+	{
+		cacheSpells().forEach((name, spell) -> action.accept(name, spell.sprite));
+	}
+
+	// A spell as the game defines it (see cacheSpells()).
+	@Value
+	private static class GameSpell
+	{
+		int spellbook;
+		int level;
+		Map<Integer, Integer> runes;
+		int sprite;
+		// {hasSpell}'s suggestion description: level, spellbook and runes.
+		String hint;
+	}
+
+	// A spell as a variable names it.
+	@RequiredArgsConstructor
 	private static final class Spell
 	{
 		// The words choosing it in a family, e.g. "wind" and "air"; none for a single spell.
 		private final List<String> words;
 		// Rich Text name when it's the only one, e.g. "Wind Surge".
 		private final String name;
-		private final Map<Integer, Integer> runes;
-		private final Function<Boolean, String> icon;
-		// An item that must be carried or worn, or -1.
+		// The game's spell, by its name there.
+		private final String game;
+		// An item that must be carried or worn, its icon then the spell's; or -1.
 		private int needed = -1;
 		// Carried in the Wilderness on the spellbook, it stands in for the runes, or -1.
 		private int sack = -1;
-
-		private Spell(List<String> words, String name, Map<Integer, Integer> runes, Function<Boolean, String> icon)
-		{
-			this.words = words;
-			this.name = name;
-			this.runes = runes;
-			this.icon = icon;
-		}
 	}
 
+	@RequiredArgsConstructor
 	public final class SpellVariable implements LabelVariable, PartyMemberVariable
 	{
 		// Rich Text name for several, e.g. "Surge".
 		private final String text;
-		private final int spellbook;
-		// In {split} order.
-		private final List<Spell> spells;
 		private final Args args;
-
-		private SpellVariable(String name, String text, int spellbook, List<Spell> spells)
-		{
-			this.text = text;
-			this.spellbook = spellbook;
-			this.spells = spells;
-			args = Args.of(name);
-			for (Spell spell : spells)
-			{
-				spell.words.forEach(word -> args.iconFlag(word, w -> "{" + name + " " + w + " icon}"));
-				if (spell.words.size() > 1)
-				{
-					args.exclusive(spell.words.toArray(new String[0]));
-				}
-			}
-			args.flag("icon");
-		}
+		// Its own, for needing() and orWildernessSack().
+		private final List<Spell> spells;
+		// The spells a match names, in {split} order; none for an unknown {hasSpell} name.
+		private final Function<Matcher, List<Spell>> chosen;
 
 		private SpellVariable alias(String name)
 		{
@@ -193,28 +260,32 @@ public class SpellVariables
 			return args;
 		}
 
+		// An unknown {hasSpell} name is null.
 		@Override
 		public String resolvePlain(Matcher matcher)
 		{
-			return String.valueOf(Boolean.TRUE.equals(any(chosen(matcher), this::castable)));
+			List<Spell> chosen = this.chosen.apply(matcher);
+			return chosen.isEmpty() ? ConditionEvaluator.NULL : String.valueOf(Boolean.TRUE.equals(any(chosen, castable(matcher))));
 		}
 
 		@Override
 		public String resolveRich(Matcher matcher)
 		{
-			return rich(matcher, this::castable);
+			return rich(matcher, castable(matcher));
 		}
 
 		@Override
 		public String resolvePlain(Matcher matcher, PartyMember member)
 		{
-			return String.valueOf(!Boolean.FALSE.equals(any(chosen(matcher), memberCastable(member))));
+			List<Spell> chosen = this.chosen.apply(matcher);
+			return chosen.isEmpty() ? ConditionEvaluator.NULL
+				: String.valueOf(!Boolean.FALSE.equals(any(chosen, memberCastable(member, matcher))));
 		}
 
 		@Override
 		public String resolveRich(Matcher matcher, PartyMember member)
 		{
-			return rich(matcher, memberCastable(member));
+			return rich(matcher, memberCastable(member, matcher));
 		}
 
 		@Override
@@ -226,7 +297,11 @@ public class SpellVariables
 		// One's name, or text for several, colored by castable; or with icon, their sprites.
 		private String rich(Matcher matcher, Function<Spell, Boolean> castable)
 		{
-			List<Spell> chosen = chosen(matcher);
+			List<Spell> chosen = this.chosen.apply(matcher);
+			if (chosen.isEmpty())
+			{
+				return "";
+			}
 			if (args.options(matcher).flag("icon"))
 			{
 				return icon(chosen, castable);
@@ -235,37 +310,33 @@ public class SpellVariables
 			return richText.booleanColored(!Boolean.FALSE.equals(any(chosen, castable)), name);
 		}
 
-		// The spells named, in the order named, or all of them.
-		private List<Spell> chosen(Matcher matcher)
+		// With noSbs, only on its own spellbook; with checkLvl, also at its level (boosted Magic).
+		private Function<Spell, Boolean> castable(Matcher matcher)
 		{
-			List<Spell> chosen = new ArrayList<>();
-			for (String word : args.options(matcher).words())
+			Args.Options options = args.options(matcher);
+			boolean swap = !options.flag("noSbs");
+			int magic = options.flag("checkLvl") ? client.getBoostedSkillLevel(Skill.MAGIC) : Integer.MAX_VALUE;
+			return spell ->
 			{
-				for (Spell spell : spells)
+				GameSpell game = cacheSpells().get(spell.game);
+				if (game == null || game.level > magic)
 				{
-					if (spell.words.stream().anyMatch(word::equalsIgnoreCase) && !chosen.contains(spell))
-					{
-						chosen.add(spell);
-					}
+					return false;
 				}
-			}
-			return chosen.isEmpty() ? spells : chosen;
+				boolean hasNeeded = spell.needed < 0 || carried(spell.needed, InventoryID.INVENTORY) || carried(spell.needed, InventoryID.EQUIPMENT);
+				if (hasNeeded && Spellbooks.canCast(client, game.spellbook, game.runes, swap))
+				{
+					return true;
+				}
+				return spell.sack >= 0 && carried(spell.sack, InventoryID.INVENTORY) && client.getVarbitValue(VarbitID.INSIDE_WILDERNESS) != 0
+					&& Spellbooks.canCast(client, game.spellbook, Map.of(), swap);
+			};
 		}
 
-		private boolean castable(Spell spell)
+		// As castable(); null when everything checks out but their spellbook, or with checkLvl their Magic level, is unknown.
+		private Function<Spell, Boolean> memberCastable(PartyMember member, Matcher matcher)
 		{
-			boolean hasNeeded = spell.needed < 0 || carried(spell.needed, InventoryID.INVENTORY) || carried(spell.needed, InventoryID.EQUIPMENT);
-			if (hasNeeded && Spellbooks.canCast(client, spellbook, spell.runes))
-			{
-				return true;
-			}
-			return spell.sack >= 0 && carried(spell.sack, InventoryID.INVENTORY) && client.getVarbitValue(VarbitID.INSIDE_WILDERNESS) != 0
-				&& Spellbooks.canCast(client, spellbook, Map.of());
-		}
-
-		// Null when everything checks out but their spellbook is unknown.
-		private Function<Spell, Boolean> memberCastable(PartyMember member)
-		{
+			Args.Options options = args.options(matcher);
 			String spellbookName = partyDataSharing.value(member.getMemberId(), PartyValue.SPELLBOOK);
 			return spell ->
 			{
@@ -274,7 +345,9 @@ public class SpellVariables
 				{
 					return false;
 				}
-				return Spellbooks.canCast(member, spellbookName, spellbook, spell.runes);
+				GameSpell game = cacheSpells().get(spell.game);
+				Boolean castable = game == null ? null : Spellbooks.canCast(member, spellbookName, game.spellbook, game.runes, !options.flag("noSbs"));
+				return options.flag("checkLvl") && Boolean.TRUE.equals(castable) ? null : castable;
 			};
 		}
 	}
@@ -284,19 +357,17 @@ public class SpellVariables
 		return RuneCounter.itemCount(client, container, itemId) > 0;
 	}
 
-	// One's icon, or a {split} of several.
-	private static String icon(List<Spell> chosen, Function<Spell, Boolean> castable)
+	// One's icon (the game's, or its needed item's), or a {split} of several.
+	private String icon(List<Spell> chosen, Function<Spell, Boolean> castable)
 	{
-		if (chosen.size() == 1)
-		{
-			return chosen.get(0).icon.apply(castable.apply(chosen.get(0)));
-		}
-		StringBuilder icon = new StringBuilder("{split}");
+		StringBuilder icon = new StringBuilder();
 		for (Spell spell : chosen)
 		{
-			icon.append(spell.icon.apply(castable.apply(spell)));
+			GameSpell game = cacheSpells().get(spell.game);
+			Boolean on = castable.apply(spell);
+			icon.append(spell.needed >= 0 ? Icons.item(spell.needed, on) : game == null ? "" : Icons.sprite(game.sprite, on));
 		}
-		return icon.append("{/split}").toString();
+		return chosen.size() == 1 ? icon.toString() : "{split}" + icon + "{/split}";
 	}
 
 	// True if any is castable, otherwise null if any might be (spellbook unknown), otherwise false.

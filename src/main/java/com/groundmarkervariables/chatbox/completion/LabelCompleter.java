@@ -714,7 +714,9 @@ public class LabelCompleter
 				return option;
 			}
 		}
-		return withOptions(described(withIcons(match(partial, names, "{" + prefix, "", "}", false), args::mainIcon), catalog), partial, names, args);
+		Completion named = withIcons(match(partial, names, "{" + prefix, "", "}", false), args::mainIcon);
+		return withOptions(named == null ? null : named.withDescriptions(name -> args.mainDescription(name) != null ? args.mainDescription(name)
+			: VariableCatalog.completionDescription(catalog, name)), partial, names, args);
 	}
 
 	// A full main argument typed (any case) also offers each of its options and extras first, after ", " (", items=");

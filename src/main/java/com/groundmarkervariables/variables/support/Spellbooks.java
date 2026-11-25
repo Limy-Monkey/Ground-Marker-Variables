@@ -29,8 +29,8 @@ public final class Spellbooks
 	{
 	}
 
-	// runes: rune id -> amount the spell itself costs.
-	public static boolean canCast(Client client, int spellbook, Map<Integer, Integer> runes)
+	// runes: rune id -> amount the spell itself costs. swap: Spellbook Swap counts.
+	public static boolean canCast(Client client, int spellbook, Map<Integer, Integer> runes, boolean swap)
 	{
 		int current = client.getVarbitValue(VarbitID.SPELLBOOK);
 		if (current == spellbook)
@@ -38,7 +38,7 @@ public final class Spellbooks
 			return hasRunes(client, runes);
 		}
 
-		if (current != LUNAR)
+		if (current != LUNAR || !swap)
 		{
 			return false;
 		}
@@ -57,7 +57,7 @@ public final class Spellbooks
 	// For a party member, whose spellbook is spellbookName (null if they haven't shared it). Null
 	// means they have the runes, but their spellbook isn't known.
 	@Nullable
-	public static Boolean canCast(PartyMember member, @Nullable String spellbookName, int spellbook, Map<Integer, Integer> runes)
+	public static Boolean canCast(PartyMember member, @Nullable String spellbookName, int spellbook, Map<Integer, Integer> runes, boolean swap)
 	{
 		int current = spellbookName == null ? -1 : NAMES.indexOf(spellbookName);
 		if (current == -1)
@@ -70,7 +70,7 @@ public final class Spellbooks
 			return hasRunes(member, runes);
 		}
 
-		return current == LUNAR && hasRunes(member, withSwap(runes));
+		return current == LUNAR && swap && hasRunes(member, withSwap(runes));
 	}
 
 	private static Map<Integer, Integer> withSwap(Map<Integer, Integer> runes)
