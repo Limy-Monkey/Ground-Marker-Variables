@@ -1,5 +1,6 @@
 package com.groundmarkervariables.chatbox;
 
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.graphics.LoadingImages;
 import com.groundmarkervariables.graphics.NpcImages;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -85,6 +87,7 @@ public class SuggestionIconOverlay extends Overlay
 	private final SpriteManager spriteManager;
 	private final NpcImages npcImages;
 	private final Emojis emojis;
+	private final GroundMarkerVariablesConfig config;
 	private volatile List<Placement> placements = List.of();
 	private volatile List<Tip> tips = List.of();
 	private static final long NOTICE_MS = 3000;
@@ -102,8 +105,9 @@ public class SuggestionIconOverlay extends Overlay
 
 	@Inject
 	private SuggestionIconOverlay(Client client, TooltipManager tooltipManager, ItemManager itemManager, SpriteManager spriteManager,
-		NpcImages npcImages, Emojis emojis)
+		NpcImages npcImages, Emojis emojis, GroundMarkerVariablesConfig config)
 	{
+		this.config = config;
 		this.client = client;
 		this.tooltipManager = tooltipManager;
 		this.itemManager = itemManager;
@@ -142,6 +146,9 @@ public class SuggestionIconOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
+		Point mouse = client.getMouseCanvasPosition();
+		// With showIconIds, the drawn icon under the mouse, for showTip().
+		Completion.Icon hovered = null;
 		for (Placement placement : placements)
 		{
 			Rectangle container = placement.container.isHidden() ? null : placement.container.getBounds();
@@ -154,6 +161,10 @@ public class SuggestionIconOverlay extends Overlay
 			}
 			Rectangle bounds = new Rectangle(placement.area);
 			bounds.translate(container.x, container.y);
+			if (icon != null && config.showIconIds() && container.contains(mouse.getX(), mouse.getY()) && bounds.contains(mouse.getX(), mouse.getY()))
+			{
+				hovered = icon;
+			}
 			BufferedImage image = scaled.get(source);
 			if (image == null)
 			{
@@ -168,8 +179,21 @@ public class SuggestionIconOverlay extends Overlay
 			clipped.dispose();
 		}
 		showNotice(graphics);
-		showTip();
+		showTip(mouse, hovered == null ? null : iconId(hovered));
 		return null;
+	}
+
+	// "Kind: Id <id>", e.g. "Item: Id 4151"; a {split}'s parts a line each.
+	private static String iconId(Completion.Icon icon)
+	{
+		if (icon.kind == Completion.Icon.Kind.SPLIT)
+		{
+			List<String> parts = new ArrayList<>();
+			icon.parts.forEach(part -> parts.add(iconId(part)));
+			return String.join("</br>", parts);
+		}
+		String kind = icon.kind.name().startsWith("NPC") ? "NPC" : icon.kind.name().charAt(0) + icon.kind.name().substring(1).toLowerCase(Locale.ROOT);
+		return kind + ": Id " + icon.id;
 	}
 
 	private void showNotice(Graphics2D graphics)
@@ -186,10 +210,10 @@ public class SuggestionIconOverlay extends Overlay
 		tooltip.render(graphics);
 	}
 
-	// The tooltip of the suggestion under the mouse, if it's inside the chatbox.
-	private void showTip()
+	// The tooltip of the suggestion under the mouse, if it's inside the chatbox, then iconId (the icon under it), if any.
+	private void showTip(Point mouse, @Nullable String iconId)
 	{
-		Point mouse = client.getMouseCanvasPosition();
+		String text = null;
 		for (Tip tip : tips)
 		{
 			Rectangle container = tip.container.isHidden() ? null : tip.container.getBounds();
@@ -201,9 +225,14 @@ public class SuggestionIconOverlay extends Overlay
 			bounds.translate(container.x, container.y);
 			if (bounds.contains(mouse.getX(), mouse.getY()))
 			{
-				tooltipManager.add(new Tooltip(tip.text));
-				return;
+				text = tip.text;
+				break;
 			}
+		}
+		text = iconId == null ? text : text == null ? iconId : text + "</br>" + iconId;
+		if (text != null)
+		{
+			tooltipManager.add(new Tooltip(text));
 		}
 	}
 

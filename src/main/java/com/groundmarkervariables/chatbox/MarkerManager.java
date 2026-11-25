@@ -500,7 +500,7 @@ public class MarkerManager extends SearchableChatbox
 	{
 		List<GroundMarkerPointData> points = selectedPoints();
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete " + points.size()
-				+ (points.size() == 1 ? " ground marker?" : " ground markers?"))
+				+ (points.size() == 1 ? " ground marker?" : " ground markers?") + "<br>This deletes the Core RuneLite Ground Markers.")
 			.yes(() ->
 			{
 				deletedMarkers.addAll(points);

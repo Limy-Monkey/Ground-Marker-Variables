@@ -399,6 +399,18 @@ public interface GroundMarkerVariablesConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			position = 7,
+			keyName = "showIconIds",
+			name = "Icon IDs",
+			description = "Hovering an icon in the Suggestions shows its ID, e.g. Item: Id 4151",
+			section = advancedEditorSection
+	)
+	default boolean showIconIds()
+	{
+		return false;
+	}
+
 	@ConfigSection(
 			name = "Variables",
 			description = "Quick reference for every available variable — see the README for full details.",
