@@ -13,10 +13,7 @@ import net.runelite.client.party.PartyMember;
 // for any other spellbook, as long as its runes are there on top of the spell's own.
 public final class Spellbooks
 {
-	public static final int STANDARD = 0;
-	public static final int ANCIENT = 1;
-	public static final int LUNAR = 2;
-	public static final int ARCEUUS = 3;
+	private static final int LUNAR = 2;
 	// By VarbitID.SPELLBOOK value; also {spellbook}'s plain text.
 	public static final List<String> NAMES = List.of("Standard", "Ancient", "Lunar", "Arceuus");
 

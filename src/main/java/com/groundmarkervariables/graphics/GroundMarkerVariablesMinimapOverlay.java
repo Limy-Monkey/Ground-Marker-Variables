@@ -2,7 +2,6 @@ package com.groundmarkervariables.graphics;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.markers.CachedMarker;
-import com.groundmarkervariables.markers.RenderedTile;
 import com.groundmarkervariables.markers.RenderedTiles;
 import com.groundmarkervariables.variables.meta.MetaState;
 import java.awt.BasicStroke;
@@ -52,18 +51,7 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay
 		}
 
 		// The same marker per tile as the main overlay.
-		Instant now = Instant.now();
-		for (WorldView wv : renderedTiles.worldViews())
-		{
-			for (RenderedTile rendered : renderedTiles.winners(wv))
-			{
-				float opacity = rendered.marker.source.opacity(rendered.marker, now);
-				if (opacity > 0f)
-				{
-					drawMarker(graphics, wv, rendered.worldPoint, rendered.marker.marker, opacity);
-				}
-			}
-		}
+		renderedTiles.forEachShown(Instant.now(), (wv, worldPoint, marker, opacity) -> drawMarker(graphics, wv, worldPoint, marker, opacity));
 
 		return null;
 	}
@@ -76,11 +64,7 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay
 		}
 
 		MetaState metaState = marker.getMetaState();
-		Color baseColor = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
-
-		// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
-		Color color = metaState.getTileColor() != null
-			? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
+		Color color = marker.tileColor(config.markerColor());
 		if (metaState.getTileOpacity() != null)
 		{
 			color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));

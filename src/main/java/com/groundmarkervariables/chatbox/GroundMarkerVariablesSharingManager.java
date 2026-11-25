@@ -30,13 +30,10 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.menus.MenuManager;
 import net.runelite.client.menus.WidgetMenuOption;
@@ -57,7 +54,6 @@ public class GroundMarkerVariablesSharingManager
 	private final Client client;
 	private final ImportPreviewManager importPreviewManager;
 	private final MenuManager menuManager;
-	private final ChatMessageManager chatMessageManager;
 	private final ChatboxPanelManager chatboxPanelManager;
 	private final DeletedMarkers deletedMarkers;
 	private final MarkerMinifier markerMinifier;
@@ -381,11 +377,8 @@ public class GroundMarkerVariablesSharingManager
 			.build();
 	}
 
-	private void sendChatMessage(final String message)
+	private void sendChatMessage(String message)
 	{
-		chatMessageManager.queue(QueuedMessage.builder()
-			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage(message)
-			.build());
+		plugin.sendChatMessage(message);
 	}
 }

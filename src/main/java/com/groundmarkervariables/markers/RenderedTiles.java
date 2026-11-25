@@ -1,5 +1,6 @@
 package com.groundmarkervariables.markers;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -86,6 +87,28 @@ public class RenderedTiles
 	public Collection<RenderedTile> winners(WorldView wv)
 	{
 		return tiles(wv).winners.values();
+	}
+
+	// One marker drawn at a tile (see forEachShown()).
+	public interface Shown
+	{
+		void draw(WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity);
+	}
+
+	// Each world view's winning marker per tile, with its opacity now, unless faded out.
+	public void forEachShown(Instant now, Shown shown)
+	{
+		for (WorldView wv : tracked)
+		{
+			for (RenderedTile rendered : winners(wv))
+			{
+				float opacity = rendered.marker.source.opacity(rendered.marker, now);
+				if (opacity > 0f)
+				{
+					shown.draw(wv, rendered.worldPoint, rendered.marker.marker, opacity);
+				}
+			}
+		}
 	}
 
 	@Nullable

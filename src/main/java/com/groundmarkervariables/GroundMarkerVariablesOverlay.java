@@ -9,7 +9,6 @@ import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.MarkerCulling;
-import com.groundmarkervariables.markers.RenderedTile;
 import com.groundmarkervariables.markers.RenderedTiles;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -212,17 +211,7 @@ public class GroundMarkerVariablesOverlay
 		tipItemId = -1;
 		tipText = null;
 		// One marker per tile, across saved, group, pinged and preview markers (see RenderedTiles).
-		for (WorldView wv : renderedTiles.worldViews())
-		{
-			for (RenderedTile rendered : renderedTiles.winners(wv))
-			{
-				float opacity = rendered.marker.source.opacity(rendered.marker, now);
-				if (opacity > 0f)
-				{
-					drawTileAt(graphics, wv, rendered.worldPoint, rendered.marker.marker, borderStroke, opacity, labels);
-				}
-			}
-		}
+		renderedTiles.forEachShown(now, (wv, worldPoint, marker, opacity) -> drawTileAt(graphics, wv, worldPoint, marker, borderStroke, opacity, labels));
 
 		if (labels)
 		{
@@ -261,11 +250,7 @@ public class GroundMarkerVariablesOverlay
 		}
 
 		MetaState metaState = marker.getMetaState();
-		Color baseColor = marker.source.getColor() != null ? marker.source.getColor() : config.markerColor();
-
-		// No tileOpacity override -- keep the tile's own saved alpha, not fully opaque.
-		Color color = metaState.getTileColor() != null
-			? ColorUtil.colorWithAlpha(metaState.getTileColor(), baseColor.getAlpha()) : baseColor;
+		Color color = marker.tileColor(config.markerColor());
 
 		// tileOpacity only ever affects the outline below, never the fill or label text.
 		Color outlineColor = metaState.getTileOpacity() != null

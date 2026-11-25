@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -174,6 +175,20 @@ public class MarkerStorage
 		}
 
 		configManager.setConfiguration(group, REGION_PREFIX + regionId, gson.toJson(points));
+	}
+
+	// The stored point at worldPoint changed in place, saved; false if there's none.
+	public boolean updatePoint(WorldPoint worldPoint, UnaryOperator<GroundMarkerPointData> change)
+	{
+		List<GroundMarkerPointData> points = new ArrayList<>(getStoredPoints(worldPoint.getRegionID()));
+		GroundMarkerPointData point = findStoredPoint(worldPoint);
+		if (point == null)
+		{
+			return false;
+		}
+		points.set(points.indexOf(point), change.apply(point));
+		savePoints(worldPoint.getRegionID(), points);
+		return true;
 	}
 
 	public GroundMarkerPointData findStoredPoint(WorldPoint worldPoint)

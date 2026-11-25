@@ -16,7 +16,6 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.util.function.UnaryOperator;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.SpritePixels;
 import net.runelite.api.gameval.SpriteID;
@@ -29,8 +28,6 @@ import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.input.KeyListener;
@@ -71,8 +68,6 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	protected Client client;
 	@Inject
 	protected GroundMarkerVariablesPlugin plugin;
-	@Inject
-	private ChatMessageManager chatMessageManager;
 	@Inject
 	private SuggestionIconOverlay iconOverlay;
 	// This update's icons (the logo, check marks, ...) and tooltips, drawn by iconOverlay.
@@ -465,9 +460,6 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
 	protected void sendChatMessage(String message)
 	{
-		chatMessageManager.queue(QueuedMessage.builder()
-			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage(message)
-			.build());
+		plugin.sendChatMessage(message);
 	}
 }

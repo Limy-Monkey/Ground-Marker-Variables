@@ -3,6 +3,8 @@ package com.groundmarkervariables.markers;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaState;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
+import java.awt.Color;
+import net.runelite.client.util.ColorUtil;
 
 // Pre-resolved label and meta state so render() doesn't re-run resolution every frame. Resolved when made; drawn
 // ones are refreshed once per game tick at their own tile (see GroundMarkerVariablesPlugin#onGameTick).
@@ -39,5 +41,13 @@ public class CachedMarker
 	public MetaState getMetaState()
 	{
 		return metaState;
+	}
+
+	// Its tile's color: {tileCol}'s with the saved alpha (tileOpacity is the outline's, not this), else the saved
+	// color, else defaultColor.
+	public Color tileColor(Color defaultColor)
+	{
+		Color base = source.getColor() != null ? source.getColor() : defaultColor;
+		return metaState.getTileColor() != null ? ColorUtil.colorWithAlpha(metaState.getTileColor(), base.getAlpha()) : base;
 	}
 }

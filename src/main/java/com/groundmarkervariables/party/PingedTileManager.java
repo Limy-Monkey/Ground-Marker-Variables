@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.Tile;
@@ -31,8 +30,6 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.events.PartyChanged;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -64,14 +61,12 @@ public class PingedTileManager implements TileSource
 	private final MetaVariableResolver metaVariableResolver;
 	private final PartyService partyService;
 	private final WSClient wsClient;
-	private final ChatMessageManager chatMessageManager;
 	private final RenderedTiles renderedTiles;
 
 	@Inject
 	private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
 		GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, ChatMessageManager chatMessageManager,
-		RenderedTiles renderedTiles)
+		MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, RenderedTiles renderedTiles)
 	{
 		this.renderedTiles = renderedTiles;
 		this.client = client;
@@ -85,7 +80,6 @@ public class PingedTileManager implements TileSource
 		this.metaVariableResolver = metaVariableResolver;
 		this.partyService = partyService;
 		this.wsClient = wsClient;
-		this.chatMessageManager = chatMessageManager;
 	}
 
 	public void startUp()
@@ -286,9 +280,6 @@ public class PingedTileManager implements TileSource
 
 	private void sendChatMessage(String message)
 	{
-		chatMessageManager.queue(QueuedMessage.builder()
-			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage(message)
-			.build());
+		plugin.sendChatMessage(message);
 	}
 }

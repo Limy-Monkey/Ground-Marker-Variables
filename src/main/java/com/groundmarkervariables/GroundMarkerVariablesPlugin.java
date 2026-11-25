@@ -81,6 +81,8 @@ import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
@@ -150,6 +152,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 
 	@Inject
 	private ConfigManager configManager;
+
+	@Inject
+	private ChatMessageManager chatMessageManager;
 
 	@Inject
 	private GroundMarkerVariablesConfig config;
@@ -653,23 +658,16 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 		return colors;
 	}
 
+	// A console message in the chat, e.g. what a chatbox did.
+	public void sendChatMessage(String message)
+	{
+		chatMessageManager.queue(QueuedMessage.builder().type(ChatMessageType.CONSOLE).runeLiteFormattedMessage(message).build());
+	}
+
 	// Mirrors core's colorTile() — updates just the color of an existing point.
 	private void colorTile(WorldPoint worldPoint, Color newColor)
 	{
-		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
-
-		for (int i = 0; i < points.size(); i++)
-		{
-			GroundMarkerPointData point = points.get(i);
-			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
-				&& point.getZ() == worldPoint.getPlane())
-			{
-				points.set(i, point.withColor(newColor));
-				markerStorage.savePoints(regionId, points);
-				return;
-			}
-		}
+		markerStorage.updatePoint(worldPoint, point -> point.withColor(newColor));
 	}
 
 	// Mirrors core's "Reset all" — resets every marker's color in the region to the configured
@@ -831,30 +829,15 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource
 	// A saved marker's label (icon names already IDs); also the Marker Manager's Edit.
 	public void saveExpandedLabel(WorldPoint worldPoint, String newLabel)
 	{
-		int regionId = worldPoint.getRegionID();
-		List<GroundMarkerPointData> points = new ArrayList<>(markerStorage.getStoredPoints(regionId));
 		String label = newLabel.isEmpty() ? null : newLabel;
-
-		for (int i = 0; i < points.size(); i++)
+		// Else an unmarked tile, labeled via labelUnmarkedTiles -- an empty label leaves it unmarked.
+		if (!markerStorage.updatePoint(worldPoint, point -> point.withLabel(label)) && label != null)
 		{
-			GroundMarkerPointData point = points.get(i);
-			if (point.getRegionX() == worldPoint.getRegionX() && point.getRegionY() == worldPoint.getRegionY()
-				&& point.getZ() == worldPoint.getPlane())
-			{
-				points.set(i, point.withLabel(label));
-				markerStorage.savePoints(regionId, points);
-				if (label != null)
-				{
-					recordRecentLabel(label);
-				}
-				return;
-			}
+			markerStorage.addPoints(List.of(new GroundMarkerPointData(worldPoint.getRegionID(), worldPoint.getRegionX(), worldPoint.getRegionY(),
+				worldPoint.getPlane(), config.markerColor(), label)));
 		}
-
-		// Unmarked tile, labeled via labelUnmarkedTiles -- an empty label leaves it unmarked.
 		if (label != null)
 		{
-			markerStorage.addPoints(List.of(new GroundMarkerPointData(regionId, worldPoint.getRegionX(), worldPoint.getRegionY(), worldPoint.getPlane(), config.markerColor(), label)));
 			recordRecentLabel(label);
 		}
 	}
