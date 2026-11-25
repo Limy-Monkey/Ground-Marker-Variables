@@ -169,7 +169,7 @@ public class MarkerSetManager extends SearchableChatbox
 
 	private boolean matches(String text)
 	{
-		return query.isEmpty() || text.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT));
+		return ChatboxWidgets.hasWords(text, query);
 	}
 
 	@Override

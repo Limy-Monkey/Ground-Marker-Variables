@@ -1,6 +1,7 @@
 package com.groundmarkervariables.chatbox.completion;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import com.groundmarkervariables.chatbox.ChatboxWidgets;
 import com.groundmarkervariables.graphics.NpcImages;
 import com.groundmarkervariables.graphics.SplitIcons;
 import com.groundmarkervariables.variables.Args;
@@ -605,7 +606,6 @@ public class LabelCompleter
 	private static Matches matches(String partial, Iterable<String> names)
 	{
 		Matches matches = new Matches();
-		String lower = partial.toLowerCase(Locale.ROOT);
 		for (String name : names)
 		{
 			if (name.length() > partial.length() && name.regionMatches(true, 0, partial, 0, partial.length()))
@@ -616,7 +616,7 @@ public class LabelCompleter
 			{
 				matches.exact = name;
 			}
-			else if (!partial.isEmpty() && name.toLowerCase(Locale.ROOT).contains(lower))
+			else if (!partial.isEmpty() && ChatboxWidgets.hasWords(name, partial))
 			{
 				matches.contained.add(name);
 			}

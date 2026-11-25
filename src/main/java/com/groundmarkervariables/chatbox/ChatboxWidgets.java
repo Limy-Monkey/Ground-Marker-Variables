@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -201,6 +202,21 @@ public final class ChatboxWidgets
 			lines.add(line.toString());
 		}
 		return lines;
+	}
+
+	// Every search and suggestion list's match: text holds each space-separated word of query, in any case and order
+	// ("toa tob" matches "{kc toa} {kc tob}"); true for a blank query.
+	public static boolean hasWords(String text, String query)
+	{
+		String lower = text.toLowerCase(Locale.ROOT);
+		for (String word : query.toLowerCase(Locale.ROOT).split(" "))
+		{
+			if (!lower.contains(word))
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// text cut short with ".." to fit width px in font, as drawn escaped.

@@ -17,7 +17,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -383,15 +382,14 @@ public class MarkerManager extends SearchableChatbox
 		return visible;
 	}
 
-	// Passes the { } filter and the search: its area name (or "Region <id>") or label contains it.
+	// Passes the { } filter and the search: its area name (or "Region <id>") and label hold its words.
 	private boolean shown(Entry entry)
 	{
 		if (variablesOnly && !hasVariable(entry))
 		{
 			return false;
 		}
-		String search = query.toLowerCase(Locale.ROOT);
-		return entry.area.toLowerCase(Locale.ROOT).contains(search) || entry.label.toLowerCase(Locale.ROOT).contains(search);
+		return ChatboxWidgets.hasWords(entry.area + "\n" + entry.label, query);
 	}
 
 	// plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).

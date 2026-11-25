@@ -3,6 +3,7 @@ package com.groundmarkervariables.variables.support;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.groundmarkervariables.chatbox.ChatboxWidgets;
 import com.groundmarkervariables.variables.label.SpellVariables;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -347,7 +348,7 @@ public class IconNames
 			String key = name.toLowerCase(Locale.ROOT);
 			if (!key.startsWith(lower))
 			{
-				if (key.contains(lower))
+				if (ChatboxWidgets.hasWords(key, lower))
 				{
 					contained.add(name);
 				}
