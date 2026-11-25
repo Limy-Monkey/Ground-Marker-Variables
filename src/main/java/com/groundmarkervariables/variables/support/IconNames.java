@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +29,7 @@ import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.EnumID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
@@ -35,7 +37,6 @@ import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InventoryID;
-import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.util.Text;
 
@@ -72,42 +73,10 @@ public class IconNames {
 	// Definitions read per client tick by a background build (see loaded()).
 	private static final int BUILD_SLICE = 2000;
 
-	private static final Map<String, Integer> PRAYERS = new LinkedHashMap<>();
-
-	static {
-		PRAYERS.put("Thick Skin", SpriteID.Prayeron.THICK_SKIN);
-		PRAYERS.put("Burst of Strength", SpriteID.Prayeron.BURST_OF_STRENGTH);
-		PRAYERS.put("Clarity of Thought", SpriteID.Prayeron.CLARITY_OF_THOUGHT);
-		PRAYERS.put("Sharp Eye", SpriteID.Prayeron.SHARP_EYE);
-		PRAYERS.put("Mystic Will", SpriteID.Prayeron.MYSTIC_WILL);
-		PRAYERS.put("Rock Skin", SpriteID.Prayeron.ROCK_SKIN);
-		PRAYERS.put("Superhuman Strength", SpriteID.Prayeron.SUPERHUMAN_STRENGTH);
-		PRAYERS.put("Improved Reflexes", SpriteID.Prayeron.IMPROVED_REFLEXES);
-		PRAYERS.put("Rapid Restore", SpriteID.Prayeron.RAPID_RESTORE);
-		PRAYERS.put("Rapid Heal", SpriteID.Prayeron.RAPID_HEAL);
-		PRAYERS.put("Protect Item", SpriteID.Prayeron.PROTECT_ITEM);
-		PRAYERS.put("Hawk Eye", SpriteID.Prayeron.HAWK_EYE);
-		PRAYERS.put("Mystic Lore", SpriteID.Prayeron.MYSTIC_LORE);
-		PRAYERS.put("Steel Skin", SpriteID.Prayeron.STEEL_SKIN);
-		PRAYERS.put("Ultimate Strength", SpriteID.Prayeron.ULTIMATE_STRENGTH);
-		PRAYERS.put("Incredible Reflexes", SpriteID.Prayeron.INCREDIBLE_REFLEXES);
-		PRAYERS.put("Protect from Magic", SpriteID.Prayeron.PROTECT_FROM_MAGIC);
-		PRAYERS.put("Protect from Missiles", SpriteID.Prayeron.PROTECT_FROM_MISSILES);
-		PRAYERS.put("Protect from Melee", SpriteID.Prayeron.PROTECT_FROM_MELEE);
-		PRAYERS.put("Eagle Eye", SpriteID.Prayeron.EAGLE_EYE);
-		PRAYERS.put("Deadeye", SpriteID.Prayeron.DEADEYE);
-		PRAYERS.put("Mystic Might", SpriteID.Prayeron.MYSTIC_MIGHT);
-		PRAYERS.put("Mystic Vigour", SpriteID.Prayeron.MYSTIC_VIGOUR);
-		PRAYERS.put("Retribution", SpriteID.Prayeron.RETRIBUTION);
-		PRAYERS.put("Redemption", SpriteID.Prayeron.REDEMPTION);
-		PRAYERS.put("Smite", SpriteID.Prayeron.SMITE);
-		PRAYERS.put("Preserve", SpriteID.Prayeron.PRESERVE);
-		PRAYERS.put("Chivalry", SpriteID.Prayeron.CHIVALRY);
-		PRAYERS.put("Piety", SpriteID.Prayeron.PIETY);
-		PRAYERS.put("Rigour", SpriteID.Prayeron.RIGOUR);
-		PRAYERS.put("Augury", SpriteID.Prayeron.AUGURY);
-		PRAYERS.put("Zeal", SpriteID.Prayeron.ZEAL);
-	}
+	// A prayer object's (see buildSprites()) name, prayer-book icon, and the prayer it leads to (e.g. Eagle Eye to Deadeye).
+	private static final int PRAYER_NAME = 1752;
+	private static final int PRAYER_ICON = 1757;
+	private static final int PRAYER_NEXT = 1760;
 
 	private static final class Index {
 		// Display names, shortest first.
@@ -259,22 +228,14 @@ public class IconNames {
 	private Map<String, Integer> loadBossSprites() {
 		Map<String, Integer> sprites = new HashMap<>();
 		Map<String, Integer> beforeColon = new HashMap<>();
-		try {
-			for (int row : client.getDBTableRows(DBTableID.HiscoresBossesInfo.ID)) {
-				Object[] name = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSNAME, 0);
-				Object[] icon = client.getDBTableField(row, DBTableID.HiscoresBossesInfo.COL_BOSSICON, 0);
-				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer) {
-					String bossName = (String) name[0];
-					sprites.putIfAbsent(bossKey(bossName), (Integer) icon[0]);
-					int colon = bossName.indexOf(':');
-					if (colon > 0) {
-						beforeColon.putIfAbsent(bossKey(bossName.substring(0, colon)), (Integer) icon[0]);
-					}
+		tableRows(DBTableID.HiscoresBossesInfo.ID, DBTableID.HiscoresBossesInfo.COL_BOSSNAME, DBTableID.HiscoresBossesInfo.COL_BOSSICON,
+			(name, icon) -> {
+				sprites.putIfAbsent(bossKey(name), icon);
+				int colon = name.indexOf(':');
+				if (colon > 0) {
+					beforeColon.putIfAbsent(bossKey(name.substring(0, colon)), icon);
 				}
-			}
-		} catch (RuntimeException e) {
-			log.warn("Couldn't read boss icons", e);
-		}
+			});
 		beforeColon.forEach(sprites::putIfAbsent);
 		return sprites;
 	}
@@ -533,18 +494,28 @@ public class IconNames {
 	// Prayers, skills, spells, bosses from the game, then sprite-names.json; each named "Name (Category)", e.g.
 	// "Wind Surge (Spell)". The first to take a name keeps it.
 	private void buildSprites(Map<String, String> names, Map<String, Integer> ids) {
-		PRAYERS.forEach((name, id) -> addSprite(names, ids, name + " (Prayer)", id));
-		addTableSprites(names, ids, DBTableID.HiscoresSkillInfo.ID, DBTableID.HiscoresSkillInfo.COL_SKILLNAME,
-			DBTableID.HiscoresSkillInfo.COL_SKILLICON, " (Skill)");
-
 		try {
+			// The prayer book's prayers, then those they lead to (Deadeye, Mystic Vigour, Zeal).
+			List<Integer> prayers = new ArrayList<>();
+			for (int prayer : client.getEnum(EnumID.PRAYERS_NORMAL).getIntVals()) {
+				prayers.add(prayer);
+			}
+			for (int i = 0; i < prayers.size(); i++) {
+				ItemComposition prayer = client.getItemDefinition(prayers.get(i));
+				addSprite(names, ids, prayer.getStringValue(PRAYER_NAME) + " (Prayer)", prayer.getIntValue(PRAYER_ICON));
+				int next = prayer.getIntValue(PRAYER_NEXT);
+				if (next > 0 && !prayers.contains(next)) {
+					prayers.add(next);
+				}
+			}
 			spellVariables.forEachSpellSprite((name, sprite) -> addSprite(names, ids, name + " (Spell)", sprite));
 		} catch (RuntimeException e) {
-			log.warn("Couldn't read spell icons", e);
+			log.warn("Couldn't read prayer or spell icons", e);
 		}
-
-		addTableSprites(names, ids, DBTableID.HiscoresBossesInfo.ID, DBTableID.HiscoresBossesInfo.COL_BOSSNAME,
-			DBTableID.HiscoresBossesInfo.COL_BOSSICON, " (Hiscore)");
+		tableRows(DBTableID.HiscoresSkillInfo.ID, DBTableID.HiscoresSkillInfo.COL_SKILLNAME, DBTableID.HiscoresSkillInfo.COL_SKILLICON,
+			(name, icon) -> addSprite(names, ids, name + " (Skill)", icon));
+		tableRows(DBTableID.HiscoresBossesInfo.ID, DBTableID.HiscoresBossesInfo.COL_BOSSNAME, DBTableID.HiscoresBossesInfo.COL_BOSSICON,
+			(name, icon) -> addSprite(names, ids, name + " (Hiscore)", icon));
 		jsonSprites(spriteJson, "sprites").forEach((name, id) -> addSprite(names, ids, name, id));
 	}
 
@@ -571,18 +542,18 @@ public class IconNames {
 		return sprites;
 	}
 
-	private void addTableSprites(Map<String, String> names, Map<String, Integer> ids, int table, int nameColumn, int iconColumn,
-		String suffix) {
+	// Each of a game table's rows with a name and an icon, e.g. a hiscores skill's or boss's.
+	private void tableRows(int table, int nameColumn, int iconColumn, BiConsumer<String, Integer> row) {
 		try {
-			for (int row : client.getDBTableRows(table)) {
-				Object[] name = client.getDBTableField(row, nameColumn, 0);
-				Object[] icon = client.getDBTableField(row, iconColumn, 0);
+			for (int id : client.getDBTableRows(table)) {
+				Object[] name = client.getDBTableField(id, nameColumn, 0);
+				Object[] icon = client.getDBTableField(id, iconColumn, 0);
 				if (name.length > 0 && icon.length > 0 && name[0] instanceof String && icon[0] instanceof Integer) {
-					addSprite(names, ids, name[0] + suffix, (Integer) icon[0]);
+					row.accept((String) name[0], (Integer) icon[0]);
 				}
 			}
 		} catch (RuntimeException e) {
-			log.warn("Couldn't read sprite names from table {}", table, e);
+			log.warn("Couldn't read table {}", table, e);
 		}
 	}
 

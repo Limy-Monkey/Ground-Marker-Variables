@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -114,16 +115,7 @@ public final class ItemQuantityFinder {
 			}
 		}
 
-		if (inventory != null && hasRunePouch(inventory)) {
-			EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
-			for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++) {
-				int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
-				int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-				if (amount > 0 && runeType != 0) {
-					cache.add(runepouchEnum.getIntValue(runeType), amount, itemManager);
-				}
-			}
-		}
+		addItems(cache, runePouch(client, inventory == null ? null : inventory.getItems()), itemManager);
 		return cache;
 	}
 
@@ -149,19 +141,41 @@ public final class ItemQuantityFinder {
 		}
 	}
 
-	private static boolean hasRunePouch(ItemContainer inventory) {
-		for (Item item : inventory.getItems()) {
-			if (item == null) {
-				continue;
-			}
-
-			for (int runePouchId : RUNE_POUCH_ITEM_IDS) {
-				if (item.getId() == runePouchId) {
-					return true;
+	// The rune pouch's runes as items, if inventory holds one (any kind); else none. Also RuneCounter's.
+	public static Item[] runePouch(Client client, @Nullable Item[] inventory) {
+		List<Item> runes = new ArrayList<>();
+		if (hasRunePouch(inventory)) {
+			EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
+			for (int i = 0; i < RUNE_POUCH_AMOUNT_VARBITS.length; i++) {
+				int amount = client.getVarbitValue(RUNE_POUCH_AMOUNT_VARBITS[i]);
+				int runeType = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
+				if (amount > 0 && runeType != 0) {
+					runes.add(new Item(runepouchEnum.getIntValue(runeType), amount));
 				}
 			}
 		}
+		return runes.toArray(new Item[0]);
+	}
 
+	public static boolean hasRunePouch(@Nullable Item[] inventory) {
+		for (int runePouchId : RUNE_POUCH_ITEM_IDS) {
+			if (itemCount(inventory, runePouchId) > 0) {
+				return true;
+			}
+		}
 		return false;
+	}
+
+	// The total quantity of itemId in items.
+	public static int itemCount(@Nullable Item[] items, int itemId) {
+		int total = 0;
+		if (items != null) {
+			for (Item item : items) {
+				if (item != null && item.getId() == itemId) {
+					total += item.getQuantity();
+				}
+			}
+		}
+		return total;
 	}
 }

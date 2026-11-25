@@ -10,19 +10,15 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 import javax.annotation.Nullable;
 import net.runelite.api.Client;
-import net.runelite.api.EnumComposition;
-import net.runelite.api.EnumID;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.party.PartyMember;
 
 // Shared "how many of X does the player actually have available" logic for any variable
-// that needs to reason about spell reagents (SpellVariables). Rune pouch decoding mirrors gearscape's own
-// RunePouchItem/buildRunePouch.
+// that needs to reason about spell reagents (SpellVariables). The rune pouch is ItemQuantityFinder's.
 public final class RuneCounter {
 	private RuneCounter() {
 	}
@@ -30,20 +26,6 @@ public final class RuneCounter {
 	private static final long LOCAL = Long.MIN_VALUE;
 	// hasRunes results until clearCache(), by member id (or LOCAL) then rune set.
 	private static final Map<Long, Map<Map<Integer, Integer>, Boolean>> HAS_RUNES = new HashMap<>();
-
-	// Regular/Trouver x normal/Divine — mirrors gearscape's RelevantItems.RUNE_POUCH_VARIANTS.
-	private static final int[] RUNE_POUCH_VARIANTS = {
-		ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER,
-	};
-
-	private static final int[] RUNE_POUCH_QUANTITY_VARBITS = {
-		VarbitID.RUNE_POUCH_QUANTITY_1, VarbitID.RUNE_POUCH_QUANTITY_2, VarbitID.RUNE_POUCH_QUANTITY_3,
-		VarbitID.RUNE_POUCH_QUANTITY_4, VarbitID.RUNE_POUCH_QUANTITY_5, VarbitID.RUNE_POUCH_QUANTITY_6,
-	};
-	private static final int[] RUNE_POUCH_TYPE_VARBITS = {
-		VarbitID.RUNE_POUCH_TYPE_1, VarbitID.RUNE_POUCH_TYPE_2, VarbitID.RUNE_POUCH_TYPE_3,
-		VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_TYPE_5, VarbitID.RUNE_POUCH_TYPE_6,
-	};
 
 	private static final Map<Integer, int[]> INFINITE_RUNE_WEAPONS = Map.of(
 		ItemID.FIRERUNE, new int[] {
@@ -119,14 +101,23 @@ public final class RuneCounter {
 
 	// runes: rune id -> amount.
 	public static boolean hasRunes(Client client, Map<Integer, Integer> runes) {
-		return HAS_RUNES.computeIfAbsent(LOCAL, k -> new HashMap<>()).computeIfAbsent(runes,
-			r -> hasRunes(r, items(client, InventoryID.INVENTORY), items(client, InventoryID.EQUIPMENT), rune -> count(client, rune)));
+		return HAS_RUNES.computeIfAbsent(LOCAL, k -> new HashMap<>()).computeIfAbsent(runes, r -> {
+			Item[] inventory = items(client, InventoryID.INVENTORY);
+			return hasRunes(r, inventory, items(client, InventoryID.EQUIPMENT), counter(inventory, ItemQuantityFinder.runePouch(client, inventory)));
+		});
 	}
 
 	// The same, from a party member's PartyDataService inventory, gear and rune pouch.
 	public static boolean hasRunes(PartyMember member, Map<Integer, Integer> runes) {
-		return HAS_RUNES.computeIfAbsent(member.getMemberId(), k -> new HashMap<>()).computeIfAbsent(runes,
-			r -> hasRunes(r, member.getInv(), member.getWorn(), rune -> count(member, rune)));
+		return HAS_RUNES.computeIfAbsent(member.getMemberId(), k -> new HashMap<>()).computeIfAbsent(runes, r -> {
+			Item[] inventory = member.getInv();
+			return hasRunes(r, inventory, member.getWorn(), counter(inventory, ItemQuantityFinder.hasRunePouch(inventory) ? member.getRunepouch() : null));
+		});
+	}
+
+	// A rune's count: in inventory, plus in the rune pouch (null if none).
+	private static ToIntFunction<Integer> counter(@Nullable Item[] inventory, @Nullable Item[] pouch) {
+		return rune -> ItemQuantityFinder.itemCount(inventory, rune) + ItemQuantityFinder.itemCount(pouch, rune);
 	}
 
 	// With some choice of weapon and offhand, worn or in the inventory to equip instead. Each one
@@ -187,34 +178,6 @@ public final class RuneCounter {
 		return bySource;
 	}
 
-	private static int count(PartyMember member, int runeId) {
-		Item[] inventory = member.getInv();
-		return itemCount(inventory, runeId) + (hasRunePouch(inventory) ? itemCount(member.getRunepouch(), runeId) : 0);
-	}
-
-	public static int itemCount(@Nullable Item[] items, int itemId) {
-		if (items == null) {
-			return 0;
-		}
-
-		int total = 0;
-		for (Item item : items) {
-			if (item != null && item.getId() == itemId) {
-				total += item.getQuantity();
-			}
-		}
-		return total;
-	}
-
-	private static boolean hasRunePouch(@Nullable Item[] inventory) {
-		for (int variant : RUNE_POUCH_VARIANTS) {
-			if (itemCount(inventory, variant) > 0) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	// Any quantity of a combo rune covering runeId counts as satisfying it.
 	private static boolean hasSubstitute(ToIntFunction<Integer> count, int runeId) {
 		int[] substitutes = SUBSTITUTES_BY_RUNE.get(runeId);
@@ -231,67 +194,7 @@ public final class RuneCounter {
 		return false;
 	}
 
-	// Total quantity of a rune available: inventory + rune pouch contents
-	static int count(Client client, int runeId) {
-		return itemCount(client, InventoryID.INVENTORY, runeId) + runePouchCount(client, runeId);
-	}
-
 	public static int itemCount(Client client, InventoryID inventoryId, int itemId) {
-		ItemContainer container = client.getItemContainer(inventoryId);
-		if (container == null) {
-			return 0;
-		}
-
-		int total = 0;
-		for (Item item : container.getItems()) {
-			if (item != null && item.getId() == itemId) {
-				total += item.getQuantity();
-			}
-		}
-
-		return total;
-	}
-
-	private static int runePouchCount(Client client, int runeId) {
-		if (!containsRunePouch(client)) {
-			return 0;
-		}
-
-		EnumComposition runepouchEnum = client.getEnum(EnumID.RUNEPOUCH_RUNE);
-		int total = 0;
-		for (int i = 0; i < RUNE_POUCH_TYPE_VARBITS.length; i++) {
-			int quantity = client.getVarbitValue(RUNE_POUCH_QUANTITY_VARBITS[i]);
-			int runeIndex = client.getVarbitValue(RUNE_POUCH_TYPE_VARBITS[i]);
-			if (runeIndex == 0 || quantity <= 0) {
-				continue;
-			}
-
-			if (runepouchEnum.getIntValue(runeIndex) == runeId) {
-				total += quantity;
-			}
-		}
-
-		return total;
-	}
-
-	private static boolean containsRunePouch(Client client) {
-		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
-		if (inventory == null) {
-			return false;
-		}
-
-		for (Item item : inventory.getItems()) {
-			if (item == null) {
-				continue;
-			}
-
-			for (int variant : RUNE_POUCH_VARIANTS) {
-				if (item.getId() == variant) {
-					return true;
-				}
-			}
-		}
-
-		return false;
+		return ItemQuantityFinder.itemCount(items(client, inventoryId), itemId);
 	}
 }

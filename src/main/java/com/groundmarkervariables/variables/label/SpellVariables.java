@@ -8,6 +8,7 @@ import com.groundmarkervariables.variables.PartyMemberVariable;
 import com.groundmarkervariables.variables.RichText;
 import com.groundmarkervariables.variables.support.ConditionEvaluator;
 import com.groundmarkervariables.variables.support.Icons;
+import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import com.groundmarkervariables.variables.support.Spellbooks;
 import java.util.ArrayList;
@@ -296,8 +297,8 @@ public class SpellVariables {
 			Args.Options options = args.options(matcher);
 			String spellbookName = partyDataSharing.value(member.getMemberId(), PartyValue.SPELLBOOK);
 			return spell -> {
-				if (spell.needed >= 0 && RuneCounter.itemCount(member.getInv(), spell.needed) <= 0
-					&& RuneCounter.itemCount(member.getWorn(), spell.needed) <= 0) {
+				if (spell.needed >= 0 && ItemQuantityFinder.itemCount(member.getInv(), spell.needed) <= 0
+					&& ItemQuantityFinder.itemCount(member.getWorn(), spell.needed) <= 0) {
 					return false;
 				}
 				GameSpell game = cacheSpells().get(spell.game);
