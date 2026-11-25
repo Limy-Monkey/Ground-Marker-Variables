@@ -59,6 +59,14 @@ public class ArgVariable implements LabelVariable
 		return this;
 	}
 
+	// arg may be a comma-separated list, e.g. {hasItem salve, blowpipe}, each part suggested as arg is (after suggest()).
+	public ArgVariable listed()
+	{
+		pattern = Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
+		args.extras(main -> args.mainNames(), args::mainIcon);
+		return this;
+	}
+
 	// Autocomplete suggests arg from names, each with icon's syntax if any.
 	public ArgVariable suggest(Supplier<Collection<String>> names, @Nullable Function<String, String> icon)
 	{

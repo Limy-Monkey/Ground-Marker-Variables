@@ -102,7 +102,8 @@ public class ArgVariables
 				.suggest(() -> itemManager.search("").stream().map(price -> price.getName()).distinct().collect(Collectors.toList()), Args.ITEM_ICON),
 			text("hasItem", typed -> loggedIn() ? !items(typed, null).isEmpty() : null, (typed, v) -> heldItem(typed, null))
 				.party((typed, member) -> !items(typed, member).isEmpty(), this::heldItem, (typed, v) -> heldItem(typed, null))
-				.suggest(this::itemNames, Args.ITEM_ICON),
+				.suggest(this::itemNames, Args.ITEM_ICON)
+				.listed(),
 			number("numItem", typed -> loggedIn() ? quantity(items(typed, null), false) : null,
 				(typed, v) -> richText.labeled(typed + " count", stack(v)))
 				.party((typed, member) -> quantity(items(typed, member), false),
@@ -304,10 +305,19 @@ public class ArgVariables
 	}
 
 	// Ours when member is null.
+	// The held matches of each of typed's comma-separated names (only {hasItem} allows several), in order.
 	private List<ItemQuantityFinder.Match> items(String typed, @Nullable PartyMember member)
 	{
-		String search = typed.toLowerCase(Locale.ROOT);
-		return member == null ? ItemQuantityFinder.findAll(client, itemManager, search) : ItemQuantityFinder.findAll(member, itemManager, search);
+		List<ItemQuantityFinder.Match> matches = new ArrayList<>();
+		for (String name : typed.split(","))
+		{
+			String search = name.trim().toLowerCase(Locale.ROOT);
+			if (!search.isEmpty())
+			{
+				matches.addAll(member == null ? ItemQuantityFinder.findAll(client, itemManager, search) : ItemQuantityFinder.findAll(member, itemManager, search));
+			}
+		}
+		return matches;
 	}
 
 	// The first held match's name colored true, else typed colored false.
