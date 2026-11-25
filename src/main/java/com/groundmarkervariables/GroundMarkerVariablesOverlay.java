@@ -74,7 +74,7 @@ import lombok.RequiredArgsConstructor;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundMarkerVariablesOverlay {
-	private static final int MAX_DRAW_DISTANCE = 32;
+	static final int MAX_DRAW_DISTANCE = 32;
 	// Matches TextComponent's own tag format, so a label can color individual runs of text
 	// (e.g. "<col=ff0000>Danger</col>") without affecting the tile's own fill/outline color.
 	private static final Pattern COLOR_TAG_PATTERN = Pattern.compile("<col=([0-9a-fA-F]{2,6})>");

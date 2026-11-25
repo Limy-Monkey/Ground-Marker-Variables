@@ -9,6 +9,7 @@ import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -57,9 +58,9 @@ public class WorldMapPins {
 	// What pinned them, so the same rows aren't pinned again.
 	@Nullable
 	private Object pinnedKey;
-	// The world map drawing a region's plane (see mapAt), by region << 2 | plane; the points still to check, and what runs once
+	// The world maps drawing a region's plane (see mapsAt), by region << 2 | plane; the points still to check, and what runs once
 	// they are.
-	private final Map<Integer, Integer> mapped = new HashMap<>();
+	private final Map<Integer, List<Integer>> mapped = new HashMap<>();
 	private final Map<Integer, WorldPoint> unchecked = new LinkedHashMap<>();
 	private final Set<Runnable> afterCheck = new LinkedHashSet<>();
 
@@ -123,7 +124,7 @@ public class WorldMapPins {
 	private void moveTo(List<GroundMarkerPointData> tiles) {
 		List<WorldPoint> points = new ArrayList<>();
 		Map<Integer, Integer> floors = new HashMap<>();
-		tiles.stream().filter(tile -> mapped.getOrDefault(key(tile.worldPoint()), -1) >= 0).forEach(tile -> {
+		tiles.stream().filter(tile -> !mapped.getOrDefault(key(tile.worldPoint()), List.of()).isEmpty()).forEach(tile -> {
 			points.add(tile.worldPoint());
 			floors.merge(tile.getZ(), 1, Integer::sum);
 		});
@@ -160,31 +161,38 @@ public class WorldMapPins {
 	// onChecked runs.
 	@Nullable
 	public Integer mapAt(WorldPoint point, Runnable onChecked) {
+		List<Integer> maps = mapsAt(point, onChecked);
+		return maps == null ? null : maps.isEmpty() ? -1 : maps.get(0);
+	}
+
+	// Every world map drawing point's region and plane, as mapAt prefers them (the surface last); empty if none, null until
+	// checked.
+	@Nullable
+	public List<Integer> mapsAt(WorldPoint point, Runnable onChecked) {
 		int key = key(point);
-		Integer map = mapped.get(key);
-		if (map == null) {
+		List<Integer> maps = mapped.get(key);
+		if (maps == null) {
 			if (unchecked.isEmpty()) {
 				clientThread.invokeLater(this::check);
 			}
 			unchecked.putIfAbsent(key, point);
 			afterCheck.add(onChecked);
 		}
-		return map;
+		return maps;
 	}
 
 	// worldmap_findcoordinmap over each map in its list, for each unchecked region.
 	private void check() {
 		unchecked.forEach((key, point) -> {
-			int found = -1;
+			List<Integer> found = new ArrayList<>();
 			for (int map : client.getEnum(WORLDMAP_LIST_ENUM).getIntVals()) {
 				client.runScript(FIND_COORD_IN_MAP_SCRIPT, map, coord(point));
 				if (client.getIntStack()[0] != -1) {
-					found = map;
-					if (map != RegionNames.SURFACE_MAP) {
-						break;
-					}
+					found.add(map);
 				}
 			}
+			// The surface last.
+			found.sort(Comparator.comparing(map -> map == RegionNames.SURFACE_MAP));
 			mapped.put(key, found);
 		});
 		unchecked.clear();

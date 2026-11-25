@@ -110,6 +110,12 @@ public final class RegionNames {
 		return DIRECTIONS[(int) Math.floorMod(Math.round(angle / (Math.PI / 4)), 8)] + " of " + nearest.name;
 	}
 
+	// A world map's name by id (but the surface's), e.g. "Brimhaven Dungeon"; null if unknown.
+	@Nullable
+	public static String mapName(int map) {
+		return names().maps.get(map);
+	}
+
 	// A newer region-names.json (see LatestData).
 	public static void update(String json) {
 		names = parse(new StringReader(json));

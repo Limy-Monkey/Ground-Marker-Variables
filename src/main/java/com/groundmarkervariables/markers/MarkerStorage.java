@@ -3,6 +3,7 @@ package com.groundmarkervariables.markers;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,6 +13,7 @@ import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 import javax.inject.Singleton;
@@ -32,21 +34,23 @@ public class MarkerStorage {
 
 	// Every region with saved markers, in core's keys or ours.
 	public List<Integer> storedRegionIds() {
-		Set<Integer> regionIds = new LinkedHashSet<>();
-		addRegionIds(CORE_CONFIG_GROUP, regionIds);
-		addRegionIds(GroundMarkerVariablesConfig.GROUP, regionIds);
+		Set<Integer> regionIds = new LinkedHashSet<>(regionIds(CORE_CONFIG_GROUP, REGION_PREFIX));
+		regionIds.addAll(regionIds(GroundMarkerVariablesConfig.GROUP, REGION_PREFIX));
 		return new ArrayList<>(regionIds);
 	}
 
-	private void addRegionIds(String group, Set<Integer> regionIds) {
-		String prefix = group + "." + REGION_PREFIX;
-		for (String key : configManager.getConfigurationKeys(prefix)) {
+	// Every region with a value in group under prefix + regionId (see readRegion).
+	public List<Integer> regionIds(String group, String prefix) {
+		String full = group + "." + prefix;
+		List<Integer> regionIds = new ArrayList<>();
+		for (String key : configManager.getConfigurationKeys(full)) {
 			try {
-				regionIds.add(Integer.parseInt(key.substring(prefix.length())));
+				regionIds.add(Integer.parseInt(key.substring(full.length())));
 			} catch (NumberFormatException e) {
 				// Not one of ours.
 			}
 		}
+		return regionIds;
 	}
 
 	// Core's points with our labels merged in, plus ours core no longer has.
@@ -71,14 +75,25 @@ public class MarkerStorage {
 	}
 
 	private List<GroundMarkerPointData> read(String group, int regionId) {
-		String json = configManager.getConfiguration(group, REGION_PREFIX + regionId);
-		if (json == null || json.isEmpty()) {
-			return Collections.emptyList();
-		}
-
-		List<GroundMarkerPointData> points = gson.fromJson(json, new TypeToken<List<GroundMarkerPointData>>() {
+		List<GroundMarkerPointData> points = readRegion(group, REGION_PREFIX, regionId, new TypeToken<List<GroundMarkerPointData>>() {
 		}.getType());
 		return points == null ? Collections.emptyList() : points;
+	}
+
+	// A region's value in group under prefix + regionId (markers' "region_", TileFacts' "tileFacts_"), as type; null if none.
+	@Nullable
+	public <T> T readRegion(String group, String prefix, int regionId, Type type) {
+		String json = configManager.getConfiguration(group, prefix + regionId);
+		return json == null || json.isEmpty() ? null : gson.fromJson(json, type);
+	}
+
+	// Saves a region's value (see readRegion), or removes it if empty.
+	public void writeRegion(String group, String prefix, int regionId, Object value, boolean empty) {
+		if (!empty) {
+			configManager.setConfiguration(group, prefix + regionId, gson.toJson(value));
+		} else if (configManager.getConfiguration(group, prefix + regionId) != null) {
+			configManager.unsetConfiguration(group, prefix + regionId);
+		}
 	}
 
 	// Merges in points not already at an existing point's location, grouped by their own regionId.
@@ -135,14 +150,7 @@ public class MarkerStorage {
 	}
 
 	private void write(String group, int regionId, List<GroundMarkerPointData> points) {
-		if (points.isEmpty()) {
-			if (configManager.getConfiguration(group, REGION_PREFIX + regionId) != null) {
-				configManager.unsetConfiguration(group, REGION_PREFIX + regionId);
-			}
-			return;
-		}
-
-		configManager.setConfiguration(group, REGION_PREFIX + regionId, gson.toJson(points));
+		writeRegion(group, REGION_PREFIX, regionId, points, points.isEmpty());
 	}
 
 	// The stored point at worldPoint changed in place, saved; false if there's none.

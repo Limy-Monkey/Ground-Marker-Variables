@@ -233,14 +233,14 @@ public class MarkerSetManager extends SearchableChatbox {
 			Widget cell = cell(container, cells[column], column == 0 ? 0x000000 : DETAIL_COLOR, column, y);
 			label = label == null ? cell : label;
 		}
-		describe(container, set.description, new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
+		describe(container, set.description, cellArea(0, y));
 		List<Runnable> actions = new ArrayList<>();
 		if (onPick != null) {
 			addAction(label, actions, "Choose", () -> onPick.accept(set));
 		}
 		addAction(label, actions, expanded.contains(set.key()) ? "Compact set" : "Expand set", () -> toggleExpanded(set));
 		if (recycleBin) {
-			Rectangle titleArea = new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT);
+			Rectangle titleArea = cellArea(0, y);
 			addAction(label, actions, "Restore", () -> restore(set));
 			addAction(label, actions, "Delete", () -> confirmPurge(markerSets.bin().minutesLeft(set.key()), titleArea,
 				"the marker set \"" + Text.escapeJagex(set.title) + "\"", () -> {
@@ -250,7 +250,7 @@ public class MarkerSetManager extends SearchableChatbox {
 			ChatboxWidgets.hover(label, 0x000000);
 			return;
 		}
-		addShowOnMap(label, actions, set, tiles(set), new Rectangle(columnX(0), y, columnWidth(0), ROW_HEIGHT));
+		addShowOnMap(label, actions, set, tiles(set), cellArea(0, y));
 		Map<String, Runnable> manage = new LinkedHashMap<>();
 		manage.put("Copy", () -> copy(set));
 		manage.put("Export", () -> exportTiles(set));
@@ -460,11 +460,10 @@ public class MarkerSetManager extends SearchableChatbox {
 		editLabel(entry.tiles.get(0), label -> markerSets.setLabel(set, entry, label));
 	}
 
-	// A set needs a title, so blank leaves it as it was.
-	// description, if any, as a tooltip over area: its "\n"s as line breaks, any tags dropped.
+	// description, if any, as a tooltip over area (see longTip).
 	private void describe(Widget container, @Nullable String description, Rectangle area) {
 		if (description != null) {
-			tips.add(new SuggestionIconOverlay.Tip(container, area, Text.removeTags(description).replace("\\n", "</br>")));
+			tips.add(new SuggestionIconOverlay.Tip(container, area, longTip(description)));
 		}
 	}
 

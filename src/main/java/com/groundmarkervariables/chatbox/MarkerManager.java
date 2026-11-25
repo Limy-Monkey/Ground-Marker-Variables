@@ -2,11 +2,13 @@ package com.groundmarkervariables.chatbox;
 
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.chatbox.completion.Completion;
+import com.groundmarkervariables.chatbox.completion.LabelCompleter;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.MarkerSets;
+import com.groundmarkervariables.markers.TileFacts;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -19,10 +21,13 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -56,6 +61,30 @@ public class MarkerManager extends SearchableChatbox {
 	private static final List<List<String>> SIZED_FOR = List.of(List.of("Sergeant Damien's Training Camp"), List.of("999"),
 		List.of("#"), List.of());
 	private static final int DIAMOND = 10;
+	// Tile info (TileFacts) columns after Label, shown by +/-, sortable and headed by icons: Map, yes/no ones by their
+	// TileFacts bit (with their tooltips), then the Wilderness level. Region is sized a little shorter; Label gives up the most.
+	private static final String[] INFO_HEADINGS = {"Region", "", "", "Label", "Instanced", "On water", "Walkable", "Map", "Wilderness"};
+	private static final List<List<String>> INFO_SIZED_FOR = List.of(List.of("Sergeant Damien's Training"), List.of("999"),
+		List.of("#"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+	private static final String[] INFO_ICONS = {"<sprite=House Portal (Map Icon)>", "<sprite=Sails (Sailing)>",
+		"<sprite=Orb Walk Icon (Minimap)>", "<sprite=Orb World Map Planet (Minimap)>", "<sprite=Killer Skull (Player)>"};
+	private static final int[] INFO_BITS = {TileFacts.SEEN_INSTANCED, TileFacts.WATER, TileFacts.WALKABLE, 0, 0};
+	private static final String[] INFO_YES = {"Instanced", "On water", "Walkable", null, null};
+	private static final String[] INFO_NO = {"Not instanced", "Not on water", "Not walkable", null, "Not in the Wilderness"};
+	private static final int MAP = 3;
+	private static final int WILDERNESS = 4;
+	// Each column's name in the search, *<name> for yes and !<name> for no (see shown).
+	private static final String[] INFO_SEARCH = {"instanced", "water", "walkable", "map", "wilderness"};
+	// An unlabeled row's label, shown and searched.
+	private static final String NO_LABEL = "(no label)";
+	// infoValue() until known (Map's is the map id, -1 for none).
+	private static final int UNKNOWN = -2;
+	private static final String YES = ":check_mark@lightgreen:";
+	private static final String NO = ":ballot_x@lightpink:";
+	// A value's icon size (headings' are larger).
+	private static final int INFO_ICON = 10;
+	// Shown or not, until the client closes.
+	private static boolean showInfo;
 
 	private final MarkerStorage markerStorage;
 	private final DeletedMarkers deletedMarkers;
@@ -66,6 +95,9 @@ public class MarkerManager extends SearchableChatbox {
 	private final WorldMapPins mapPins;
 	private final ColorPickerManager colorPickerManager;
 	private final GroundMarkerVariablesConfig config;
+	private final TileFacts tileFacts;
+	// Resolves the tile info icons by name.
+	private final LabelCompleter completer;
 	@Nullable
 	private Entry shown;
 
@@ -73,9 +105,14 @@ public class MarkerManager extends SearchableChatbox {
 	private final Set<Entry> selected = new HashSet<>();
 	// { } toggle: only rows whose label has a variable. Off at first.
 	private boolean variablesOnly;
-	// The player's area when loaded, listed first.
+	// The player's area when loaded, listed first; then areas with a marker drawn nearby (see forEachNearby).
 	@Nullable
 	private String currentArea;
+	private Set<String> nearbyAreas = Set.of();
+	// A world map lookup finished since load() (see areaName).
+	private boolean namesStale;
+	// Whether load() listed the recycling bin; its selection isn't kept into or out of it.
+	private boolean loadedBin;
 
 	// Every marker in one area sharing a label ("" for none) and color.
 	@RequiredArgsConstructor
@@ -87,11 +124,29 @@ public class MarkerManager extends SearchableChatbox {
 		private final String label;
 		@Nullable
 		private final Color color;
+		// The world maps drawing it (see mapNames), as of load().
+		private final List<String> maps;
 		private final List<GroundMarkerPointData> points = new ArrayList<>();
+
+		// Its label as shown and searched.
+		private String shownLabel() {
+			return label.isEmpty() ? NO_LABEL : label;
+		}
+
+		// Its preferred map's name (the Map column's), else "".
+		private String mapName() {
+			return maps.isEmpty() ? "" : maps.get(0);
+		}
 	}
 
-	// Rebuilds the list from storage, clearing the selection but keeping the scroll (a new manager starts at the top).
+	// Rebuilds the list from storage, keeping the scroll (a new manager starts at the top) and the selection: each row whose
+	// tiles were all selected, by position (so not one a new marker joined).
 	public void load() {
+		Set<WorldPoint> wasSelected = new HashSet<>();
+		if (recycleBin == loadedBin) {
+			selected.forEach(entry -> entry.points.forEach(point -> wasSelected.add(point.worldPoint())));
+		}
+		loadedBin = recycleBin;
 		entries.clear();
 		selected.clear();
 		shown = null;
@@ -106,41 +161,59 @@ public class MarkerManager extends SearchableChatbox {
 			}
 		}
 		entries.addAll(byKey.values());
+		entries.stream().filter(entry -> entry.points.stream().allMatch(point -> wasSelected.contains(point.worldPoint())))
+			.forEach(selected::add);
 
 		Player player = client.getLocalPlayer();
-		WorldPoint location = player == null ? null : WorldPoint.fromLocalInstance(client, player.getLocalLocation());
-		String name = location == null ? null : areaName(location);
-		currentArea = location == null ? null : name != null ? name : "Dungeon " + location.getRegionID();
+		currentArea = player == null ? null : areaOf(WorldPoint.fromLocalInstance(client, player.getLocalLocation()));
+		Set<WorldPoint> nearby = new HashSet<>();
+		plugin.forEachNearby((wv, rendered) -> nearby.add(rendered.stored));
+		nearbyAreas = entries.stream().filter(entry -> entry.points.stream().anyMatch(point -> nearby.contains(point.worldPoint())))
+			.map(entry -> entry.area).collect(Collectors.toSet());
 	}
 
 	// RegionNames' name for point, by the world map drawing it once that's known (then this reloads, if still open).
 	@Nullable
 	private String areaName(WorldPoint point) {
-		return RegionNames.name(point, mapPins.mapAt(point, () -> {
-			if (chatboxPanelManager.getCurrentInput() == this) {
-				reopen();
-			}
-		}));
+		return RegionNames.name(point, mapPins.mapAt(point, this::mapChecked));
+	}
+
+	// areaName(point), else "Dungeon <region id>".
+	private String areaOf(WorldPoint point) {
+		return Objects.requireNonNullElse(areaName(point), "Dungeon " + point.getRegionID());
 	}
 
 	// point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart.
 	private void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row) {
-		String name = areaName(point.worldPoint());
-		String area = name != null ? name : "Dungeon " + point.getRegionId();
+		String area = areaOf(point.worldPoint());
 		String label = point.getLabel() == null ? "" : point.getLabel();
-		byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor(),
-			key -> new Entry(area, name != null, point.getRegionId(), label, point.getColor())).points.add(point);
+		byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor() + infoKey(point),
+			key -> new Entry(area, areaName(point.worldPoint()) != null, point.getRegionId(), label, point.getColor(),
+				mapNames(point.worldPoint()))).points.add(point);
 	}
 
-	// By sortColumn, reversed if descending; then the current area first, named areas alphabetically, unnamed regions by id,
-	// labels alphabetically (none last), then color.
+	// By sortColumn, reversed if descending; then the current area first, nearby ones next, named areas alphabetically,
+	// unnamed regions by id, labels alphabetically (none last), then color.
 	private Comparator<Entry> order() {
-		Comparator<Entry> byArea = Comparator.comparing((Entry e) -> !e.area.equals(currentArea)).thenComparing(e -> !e.named)
-			.thenComparing(e -> e.area, String.CASE_INSENSITIVE_ORDER).thenComparingInt(e -> e.regionId);
+		// The player's area, areas with markers nearby, then by world map: the overworld, each other map (by name), none, not yet
+		// known.
+		Comparator<Entry> byArea = Comparator.comparingInt((Entry e) -> e.area.equals(currentArea) ? 0 : nearbyAreas.contains(e.area) ? 1 : 2)
+			.thenComparingInt(e -> mapRank(infoValue(e.points.get(0), MAP)))
+			.thenComparing(Entry::mapName)
+			.thenComparing(e -> !e.named).thenComparing(e -> e.area, String.CASE_INSENSITIVE_ORDER).thenComparingInt(e -> e.regionId);
 		Comparator<Entry> byLabel = Comparator.comparing((Entry e) -> e.label.isEmpty()).thenComparing(e -> e.label, String.CASE_INSENSITIVE_ORDER);
 		Comparator<Entry> byColor = Comparator.comparing(e -> e.color == null ? null : e.color.getRGB(),
 			Comparator.nullsFirst(Comparator.naturalOrder()));
 		Comparator<Entry> byColumn = sortColumn == LABEL ? byLabel : byArea;
+		if (showInfo && sortColumn > LABEL) {
+			// A tile info column: yes (higher levels first), then no; Map: overworld, dungeon, then none. Reversed if descending;
+			// unknown always last.
+			int info = sortColumn - LABEL - 1;
+			ToIntFunction<Entry> value = e -> infoValue(e.points.get(0), info);
+			Comparator<Entry> byInfo = Comparator.comparingInt(e -> info != MAP ? -value.applyAsInt(e) : mapRank(value.applyAsInt(e)));
+			return Comparator.comparing((Entry e) -> value.applyAsInt(e) == UNKNOWN).thenComparing(descending ? byInfo.reversed() : byInfo)
+				.thenComparing(byArea).thenComparing(byLabel).thenComparing(byColor);
+		}
 		return (descending ? byColumn.reversed() : byColumn).thenComparing(byArea).thenComparing(byLabel).thenComparing(byColor);
 	}
 
@@ -225,6 +298,10 @@ public class MarkerManager extends SearchableChatbox {
 
 	@Override
 	protected void buildRows(Widget container) {
+		if (namesStale) {
+			namesStale = false;
+			load();
+		}
 		updatePins();
 		List<Entry> rows = visibleEntries();
 		if (rows.isEmpty()) {
@@ -234,8 +311,98 @@ public class MarkerManager extends SearchableChatbox {
 			return;
 		}
 		rows.sort(order());
-		columns(container, HEADINGS, SIZED_FOR, LABEL);
+		columns(container, showInfo ? INFO_HEADINGS : HEADINGS, showInfo ? INFO_SIZED_FOR : SIZED_FOR, LABEL);
 		table(container, true, rows.size(), (i, y) -> addEntry(container, rows.get(i), y), null);
+		infoToggle(container);
+	}
+
+	// In the header: shown, each tile info column's icon (clicked, hides them); hidden, one at Label's end to show them.
+	private void infoToggle(Widget container) {
+		Widget toggle = ChatboxWidgets.text(container, showInfo ? "-" : "+", widgets.fontId(), 0x000000,
+			container.getWidth() - ChatboxWidgets.SCROLLBAR_WIDTH, RESULTS_Y, ChatboxWidgets.SCROLLBAR_WIDTH, ROW_HEIGHT);
+		toggle.setXTextAlignment(WidgetTextAlignment.CENTER);
+		addAction(toggle, new ArrayList<>(), showInfo ? "Hide Tile Facts" : "Show Tile Facts",
+			() -> {
+				showInfo = !showInfo;
+				// Regrouped by (or no longer by) tile info.
+				load();
+				update();
+			});
+		ChatboxWidgets.hover(toggle, 0x000000);
+	}
+
+	@Override
+	@Nullable
+	protected Supplier<Completion.Icon> headingIcon(int column) {
+		return showInfo && column > LABEL ? () -> completer.icon(INFO_ICONS[column - LABEL - 1]) : null;
+	}
+
+	// A tile info column's value for point (info i): the map id (-1 for none), 1 or 0, or the Wilderness level; UNKNOWN until
+	// known. A row's tiles all share them (see infoKey), so its first's is the row's.
+	private int infoValue(GroundMarkerPointData point, int i) {
+		if (i == MAP) {
+			Integer map = mapPins.mapAt(point.worldPoint(), this::mapChecked);
+			return map == null ? UNKNOWN : map;
+		}
+		Integer facts = tileFacts.get(point);
+		return i == WILDERNESS ? TileFacts.wildernessLevel(point.worldPoint()) : facts == null ? UNKNOWN : (facts & INFO_BITS[i]) != 0 ? 1 : 0;
+	}
+
+	// A Map value's place in order: the overworld, other maps, none, then unknown.
+	private static int mapRank(int map) {
+		return map == RegionNames.SURFACE_MAP ? 0 : map > 0 ? 1 : map == UNKNOWN ? 3 : 2;
+	}
+
+	// A world map lookup finished: reload on the next draw (this may not have opened yet; openInput waits a tick too).
+	private void mapChecked() {
+		namesStale = true;
+		updateIfOpen();
+	}
+
+	// With tile info shown, what else a row's tiles share: each info column's value.
+	private String infoKey(GroundMarkerPointData point) {
+		StringBuilder key = new StringBuilder();
+		for (int i = 0; showInfo && i < INFO_ICONS.length; i++) {
+			key.append('\0').append(infoValue(point, i));
+		}
+		return key.toString();
+	}
+
+	// Each tile info column's icon (Wilderness: the level, if any) and its tooltip, else "?" until it's known.
+	private void addInfo(Widget container, Entry entry, int y) {
+		for (int i = 0; i < INFO_ICONS.length; i++) {
+			int column = LABEL + 1 + i;
+			String name = INFO_HEADINGS[column];
+			int value = infoValue(entry.points.get(0), i);
+			String syntax = null;
+			String tip;
+			if (value == UNKNOWN) {
+				cell(container, "?", DETAIL_COLOR, column, y);
+				tip = i == MAP ? "Finding its world map." : "Go near this tile to load its info.";
+			} else if (i == MAP) {
+				syntax = value == RegionNames.SURFACE_MAP ? "<sprite=Map Link Upstairs (Map Icon)>" : value > 0 ? "<sprite=Map Link Downstairs (Map Icon)>"
+					: "<sprite=Dungeon (Map Icon)>";
+				tip = value < 0 ? "Not on the world map" : String.join("</br>", entry.maps);
+			} else if (i == WILDERNESS && value > 0) {
+				cell(container, String.valueOf(value), DETAIL_COLOR, column, y);
+				tip = name + " " + value;
+			} else {
+				syntax = value > 0 ? YES : NO;
+				tip = value > 0 ? INFO_YES[i] : INFO_NO[i];
+			}
+			if (syntax != null) {
+				String icon = syntax;
+				rowIcon(container, columnX(column), y, INFO_ICON, () -> completer.icon(icon));
+			}
+			tips.add(new SuggestionIconOverlay.Tip(container, cellArea(column, y), tip));
+		}
+	}
+
+	// text's whole as column's tooltip at y (see longTip), if cell() cut it.
+	private void tipIfCut(Widget container, String text, int column, int y) {
+		if (!fit(text, columnWidth(column)).equals(text)) {
+			tips.add(new SuggestionIconOverlay.Tip(container, cellArea(column, y), longTip(text)));
+		}
 	}
 
 	// Its checkbox, area, count (right-aligned), color diamond (none for the default color) and label (escaped, so a label's
@@ -247,38 +414,55 @@ public class MarkerManager extends SearchableChatbox {
 		Widget area = cell(container, entry.area, 0x000000, 0, y);
 		cell(container, String.valueOf(entry.points.size()), DETAIL_COLOR, 1, y).setXTextAlignment(WidgetTextAlignment.RIGHT);
 		if (entry.color != null) {
-			iconPlacements.add(new SuggestionIconOverlay.Placement(container,
-				new Rectangle(columnX(2), y + (ROW_HEIGHT - DIAMOND) / 2, DIAMOND, DIAMOND), Completion.Icon.diamond(entry.color)));
+			Completion.Icon diamond = Completion.Icon.diamond(entry.color);
+			rowIcon(container, columnX(2), y, DIAMOND, () -> diamond);
 		}
-		Widget label = cell(container, entry.label.isEmpty() ? "(no label)" : entry.label, 0x000000, LABEL, y);
+		Widget label = cell(container, entry.shownLabel(), 0x000000, LABEL, y);
+		tipIfCut(container, entry.area, 0, y);
+		tipIfCut(container, entry.label, LABEL, y);
+		if (showInfo) {
+			addInfo(container, entry, y);
+		}
 
-		// Over the whole row, on top of its cells.
-		Widget row = ChatboxWidgets.child(container, WidgetType.TEXT, 6, y, columnX(LABEL) + columnWidth(LABEL) - 6, ROW_HEIGHT);
-		List<Runnable> actions = new ArrayList<>();
-		addAction(row, actions, recycleBin ? "Restore" : checked ? "Deselect" : "Select",
-			recycleBin ? () -> restore(entry) : () -> toggle(entry, !checked));
-		if (!recycleBin) {
-			// Label for one marker; Color for all of the row's.
-			Map<String, Runnable> edit = new LinkedHashMap<>();
-			if (entry.points.size() == 1) {
-				edit.put("Label", () -> edit(entry.points.get(0)));
-			}
-			edit.put("Color", () -> pickColor(entry));
-			addSubmenu(row, actions, "Edit", edit);
+		// The row's options, made once: select (or restore), edit (Label for one marker; Color for all of the row's), map,
+		// delete for good.
+		Rectangle labelArea = cellArea(LABEL, y);
+		Map<String, Runnable> edit = new LinkedHashMap<>();
+		if (entry.points.size() == 1) {
+			edit.put("Label", () -> edit(entry.points.get(0)));
 		}
-		Rectangle labelArea = new Rectangle(columnX(LABEL), y, columnWidth(LABEL), ROW_HEIGHT);
-		addSubmenu(row, actions, "Map", mapPins.mapChoices(entry.points, entry.points, () -> {
+		edit.put("Color", () -> pickColor(entry));
+		Map<String, Runnable> map = mapPins.mapChoices(entry.points, entry.points, () -> {
 			shown = entry;
 			updatePins();
-		}, text -> notice(labelArea, text), this::updateIfOpen));
-		if (recycleBin) {
-			addAction(row, actions, "Delete", () -> confirmPurge(deletedMarkers.minutesLeft(entry.points.get(0)), labelArea,
-				"this ground marker", () -> {
-					deletedMarkers.removeAll(entry.points);
-					sendChatMessage("The ground marker was deleted permanently.");
-				}));
+		}, text -> notice(labelArea, text), this::updateIfOpen);
+		Runnable delete = () -> confirmPurge(deletedMarkers.minutesLeft(entry.points.get(0)), labelArea, "this ground marker", () -> {
+			deletedMarkers.removeAll(entry.points);
+			sendChatMessage("The ground marker was deleted permanently.");
+		});
+
+		// Over the whole row (tile info too), on top of its cells: a part per column, each with those and Filter by its column.
+		String[] columns = showInfo ? INFO_HEADINGS : HEADINGS;
+		for (int column = 0; column < columns.length; column++) {
+			int x = column == 0 ? 6 : columnX(column);
+			int end = column + 1 < columns.length ? columnX(column + 1) : container.getWidth() - ChatboxWidgets.SCROLLBAR_WIDTH;
+			Widget part = ChatboxWidgets.child(container, WidgetType.TEXT, x, y, end - x, ROW_HEIGHT);
+			List<Runnable> actions = new ArrayList<>();
+			addAction(part, actions, recycleBin ? "Restore" : checked ? "Deselect" : "Select",
+				recycleBin ? () -> restore(entry) : () -> toggle(entry, !checked));
+			Map.Entry<String, String> filter = recycleBin ? null : filter(entry, column);
+			if (!recycleBin) {
+				addSubmenu(part, actions, "Edit", edit);
+			}
+			if (filter != null) {
+				addAction(part, actions, "Filter by " + filter.getKey(), () -> addToSearch(filter.getValue()));
+			}
+			addSubmenu(part, actions, "Map", map);
+			if (recycleBin) {
+				addAction(part, actions, "Delete", delete);
+			}
+			ChatboxWidgets.hover(part, 0x000000, area, label);
 		}
-		ChatboxWidgets.hover(row, 0x000000, area, label);
 	}
 
 	private void updatePins() {
@@ -371,12 +555,92 @@ public class MarkerManager extends SearchableChatbox {
 		return visible;
 	}
 
-	// Passes the { } filter and the search: its area name (or "Dungeon <id>") and label hold its words.
+	// Passes the { } filter and the search: each *<info> / !<info> word (INFO_SEARCH, or a unique start of one) is yes / no for
+	// all its tiles (unknown is neither), and its area name (or "Dungeon <id>"), label, map name and color hold the other words.
 	private boolean shown(Entry entry) {
 		if (variablesOnly && !hasVariable(entry)) {
 			return false;
 		}
-		return ChatboxWidgets.hasWords(entry.area + "\n" + entry.label, query);
+		StringBuilder words = new StringBuilder();
+		for (String word : query.split(" ")) {
+			boolean yes = word.startsWith("*");
+			if (!yes && !word.startsWith("!")) {
+				words.append(word).append(' ');
+				continue;
+			}
+			int info = infoSearch(word.substring(1));
+			if (info >= 0 && !Boolean.valueOf(yes).equals(rowYes(entry, info))) {
+				return false;
+			}
+		}
+		return ChatboxWidgets.hasWords(entry.area + "\n" + entry.shownLabel() + "\n" + String.join("\n", entry.maps) + "\n" + colorHex(entry),
+			words.toString().trim());
+	}
+
+	// The names of every world map drawing point, preferred first ("Overworld" for the surface; unnamed ones left out).
+	private List<String> mapNames(WorldPoint point) {
+		List<String> names = new ArrayList<>();
+		for (int map : Objects.requireNonNullElse(mapPins.mapsAt(point, this::mapChecked), List.<Integer>of())) {
+			String name = map == RegionNames.SURFACE_MAP ? "Overworld" : RegionNames.mapName(map);
+			if (name != null) {
+				names.add(name);
+			}
+		}
+		return names;
+	}
+
+	// Its color as saved, #AARRGGBB (so "ff0000" finds red too); the default marker color for none.
+	private String colorHex(Entry entry) {
+		return String.format("#%08X", (entry.color != null ? entry.color : config.markerColor()).getRGB());
+	}
+
+	// Filter by column: its name -> what it adds to the search (entry's region, label's first line, color, map name, or a
+	// tile info its tiles all share as *<info> / !<info>); null for the count or an info not known.
+	@Nullable
+	private Map.Entry<String, String> filter(Entry entry, int column) {
+		switch (column) {
+			case 0:
+				return Map.entry("Region", entry.area);
+			case 1:
+				return null;
+			case 2:
+				return Map.entry("Color", colorHex(entry));
+			case LABEL:
+				String label = MarkerSet.firstLine(entry.label);
+				return Map.entry("Label", label.isEmpty() ? NO_LABEL : label);
+		}
+		int info = column - LABEL - 1;
+		Boolean yes = rowYes(entry, info);
+		if (yes == null) {
+			return null;
+		}
+		String map = info == MAP && yes ? entry.mapName() : "";
+		return Map.entry(INFO_HEADINGS[column], !map.isEmpty() ? map : (yes ? "*" : "!") + INFO_SEARCH[info]);
+	}
+
+	// The tile info column a search word names (all of an INFO_SEARCH name, or a start only one has), else -1.
+	private static int infoSearch(String word) {
+		int found = -1;
+		for (int i = 0; i < INFO_SEARCH.length && !word.isEmpty(); i++) {
+			if (INFO_SEARCH[i].equals(word)) {
+				return i;
+			}
+			if (INFO_SEARCH[i].startsWith(word)) {
+				found = found == -1 ? i : -2;
+			}
+		}
+		return Math.max(found, -1);
+	}
+
+	// Whether entry's tiles are all yes for tile info i (Map: on some world map), or all no; null if any is unknown or they differ.
+	@Nullable
+	private Boolean rowYes(Entry entry, int i) {
+		Set<Boolean> answers = new HashSet<>();
+		for (GroundMarkerPointData point : entry.points) {
+			int value = infoValue(point, i);
+			answers.add(value == UNKNOWN ? null : i == MAP ? value >= 0 : value > 0);
+		}
+		return answers.size() == 1 ? answers.iterator().next() : null;
 	}
 
 	// plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.util.function.UnaryOperator;
@@ -55,6 +56,11 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	private static final String SORTED_UP = "25b2";
 	private static final String SORTED_DOWN = "25bc";
 	private static final int SORT_ARROW_SIZE = 8;
+	// A heading icon's size (see headingIcon).
+	private static final int HEADING_ICON = 14;
+	// longTip()'s width in pixels, and most lines.
+	private static final int TIP_WIDTH = 300;
+	private static final int TIP_LINES = 8;
 
 	// Injected into the fields, so subclasses' constructors (Lombok's) take only their own.
 	@Inject
@@ -160,6 +166,11 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 			scrollOffset = 0;
 			update();
 		});
+	}
+
+	// text added to the search as more words, e.g. by a right-click Filter.
+	protected void addToSearch(String text) {
+		search(query -> query.isEmpty() ? text : query + " " + text);
 	}
 
 	protected void scroll(int direction) {
@@ -280,7 +291,10 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		int used = 0;
 		for (int column = 0; column < headings.length; column++) {
 			if (column != flex) {
-				int width = headings[column].isEmpty() ? 0 : headingFont.getTextWidth(headings[column]) + 3 + SORT_ARROW_SIZE;
+				// An icon heading has the sort arrow's room only while sorted by.
+				int arrow = headingIcon(column) == null || column == sortColumn ? 3 + SORT_ARROW_SIZE : 0;
+				int heading = headingIcon(column) != null ? HEADING_ICON : headingFont.getTextWidth(headings[column]);
+				int width = headings[column].isEmpty() ? 0 : heading + arrow;
 				for (String value : sizedFor.get(column)) {
 					width = Math.max(width, font.getTextWidth(value));
 				}
@@ -307,6 +321,12 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		}
 	}
 
+	// A heading drawn as this icon rather than its text, which still names it ("Sort by <heading>"); null for its text.
+	@Nullable
+	protected Supplier<Completion.Icon> headingIcon(int column) {
+		return null;
+	}
+
 	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
 	private void addHeadings(Widget container, int y) {
 		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
@@ -315,8 +335,13 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 				continue;
 			}
 			int sortBy = column;
+			Supplier<Completion.Icon> icon = headingIcon(column);
 			// The sorted column's arrow takes from its room.
-			String text = ChatboxWidgets.fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
+			String text = icon != null ? ""
+				: ChatboxWidgets.fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
+			if (icon != null) {
+				rowIcon(container, columnX(column), y, HEADING_ICON, icon);
+			}
 			Widget heading = ChatboxWidgets.text(container, text, FontID.QUILL_8, 0x800000, columnX(column), y, columnWidth(column),
 				ROW_HEIGHT);
 			heading.setHasListener(true);
@@ -328,12 +353,32 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 			});
 			ChatboxWidgets.hover(heading, 0x800000);
 			if (column == sortColumn) {
-				Rectangle area = new Rectangle(columnX(column) + headingFont.getTextWidth(text) + 3,
-					y + (ROW_HEIGHT - SORT_ARROW_SIZE) / 2, SORT_ARROW_SIZE, SORT_ARROW_SIZE);
-				iconPlacements.add(new SuggestionIconOverlay.Placement(container, area,
-					Completion.Icon.emoji(descending ? SORTED_DOWN : SORTED_UP)));
+				Completion.Icon arrow = Completion.Icon.emoji(descending ? SORTED_DOWN : SORTED_UP);
+				rowIcon(container, columnX(column) + (icon != null ? HEADING_ICON : headingFont.getTextWidth(text)) + 3, y, SORT_ARROW_SIZE,
+					() -> arrow);
 			}
 		}
+	}
+
+	// A tooltip of long text, e.g. a label: tags removed, its lines (\n) wrapped to TIP_WIDTH px, at most TIP_LINES.
+	protected String longTip(String text) {
+		List<String> lines = new ArrayList<>();
+		for (String line : Text.removeTags(text).split("\\\\n")) {
+			lines.addAll(ChatboxWidgets.wrap(font, line, TIP_WIDTH));
+		}
+		return String.join("</br>", lines.subList(0, Math.min(lines.size(), TIP_LINES))) + (lines.size() > TIP_LINES ? "</br>.." : "");
+	}
+
+	// column's cell in the row at y.
+	protected Rectangle cellArea(int column, int y) {
+		return new Rectangle(columnX(column), y, columnWidth(column), ROW_HEIGHT);
+	}
+
+	// icon, size px square, at x in the row at y (centred down it); its area.
+	protected Rectangle rowIcon(Widget container, int x, int y, int size, Supplier<Completion.Icon> icon) {
+		Rectangle area = new Rectangle(x, y + (ROW_HEIGHT - size) / 2, size, size);
+		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, icon));
+		return area;
 	}
 
 	protected int columnX(int column) {

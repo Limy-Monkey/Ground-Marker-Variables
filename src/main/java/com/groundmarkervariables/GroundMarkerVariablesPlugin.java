@@ -13,12 +13,14 @@ import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.ExternalMarkerManager;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
+import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.markers.MarkerCulling;
 import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.RenderedTile;
 import com.groundmarkervariables.markers.RenderedTiles;
 import com.groundmarkervariables.markers.SourceMarker;
+import com.groundmarkervariables.markers.TileFacts;
 import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.TileSource;
 import com.google.inject.Provides;
@@ -54,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -275,6 +278,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 	@Inject
 	private RenderedTiles renderedTiles;
 
+	@Inject
+	private TileFacts tileFacts;
+
 	// Saved markers by region, resolved. Rebuilt when marker data or visible regions change (see onXxx subscribers);
 	// drawn ones refresh once per tick (onGameTick). RenderedTiles translates and weighs them with other sources.
 	private final Map<Integer, List<SourceMarker>> markersByRegion = new ConcurrentHashMap<>();
@@ -314,6 +320,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 		runeProfileCollectionLog.startUp();
 		renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, pingedTileManager, importPreviewManager));
 		markerSets.startUp();
+		clientThread.invoke(this::sweepTileFacts);
 		latestData.startUp();
 		pluginMessageHandler.startUp();
 
@@ -863,6 +870,35 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 		RuneCounter.clearCache();
 		refreshNearbyMarkers();
 		groupState.tick();
+		sampleTileFacts();
+	}
+
+	// Drawn markers' tile facts (TileFacts), each read once a session within draw distance; saved if any changed.
+	private void sampleTileFacts() {
+		forEachNearby((wv, rendered) -> tileFacts.sample(wv, rendered.worldPoint, rendered.stored));
+		tileFacts.save();
+	}
+
+	// Drops Tile Facts for tiles no longer marked: in no saved marker or marker set, recycling bins included. Once marker
+	// sets have loaded (see MarkerSets#startUp).
+	private void sweepTileFacts() {
+		List<GroundMarkerPointData> kept = new ArrayList<>(deletedMarkers.values());
+		markerStorage.storedRegionIds().forEach(regionId -> kept.addAll(markerStorage.getStoredPoints(regionId)));
+		List<MarkerSet> sets = new ArrayList<>(markerSets.sets());
+		markerSets.bin().values().forEach(recycled -> sets.add(recycled.set));
+		sets.forEach(set -> set.entries.forEach(entry -> kept.addAll(entry.tiles)));
+		tileFacts.sweep(kept);
+	}
+
+	// Each marker drawn within MAX_DRAW_DISTANCE (as culled), from any source, with its world view.
+	public void forEachNearby(BiConsumer<WorldView, RenderedTile> each) {
+		for (WorldView wv : renderedTiles.worldViews()) {
+			for (RenderedTile rendered : renderedTiles.all(wv)) {
+				if (markerCulling.inRange(rendered.worldPoint, GroundMarkerVariablesOverlay.MAX_DRAW_DISTANCE)) {
+					each.accept(wv, rendered);
+				}
+			}
+		}
 	}
 
 	// Feeds {6HourTimeRemaining} — see SixHourTimeRemainingLabelVariable.
