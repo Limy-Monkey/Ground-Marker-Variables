@@ -424,7 +424,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 				.onClick(e -> openLabelEditor(worldPoint));
 		}
 
-		buildConfigureMenu(existing, wv, selectedSceneTile.getWorldLocation());
+		buildConfigureMenu(wv, selectedSceneTile.getWorldLocation());
 		if (existing != null) {
 			if (savedDrawn) {
 				buildColorMenu(worldPoint, existing);
@@ -440,8 +440,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 		}
 	}
 
-	// Tile Variables: per-variable options for the saved marker's label, and other plugins' markers' Hide/Show, if any.
-	private void buildConfigureMenu(@Nullable GroundMarkerPointData existing, WorldView wv, WorldPoint tile) {
+	// Tile Variables: per-variable options for every marker's label there (saved or not), and other plugins' and sets'
+	// markers' own options, if any.
+	private void buildConfigureMenu(WorldView wv, WorldPoint tile) {
 		Menu submenu = null;
 		List<ExternalMarkerManager.MenuOption> sourceOptions = new ArrayList<>(externalMarkerManager.menuOptions(wv, tile));
 		sourceOptions.addAll(markerSets.menuOptions(wv, tile));
@@ -449,33 +450,31 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 			submenu = addVariableOption(submenu, option.option, option.target, option.action);
 		}
 
-		if (existing == null) {
-			return;
+		// Every marker at the tile (saved, a set's, another plugin's), as last resolved.
+		List<CachedMarker> markers = new ArrayList<>();
+		for (WorldView tracked : getTrackedWorldViews()) {
+			renderedTiles.all(tracked, tile).forEach(rendered -> markers.add(rendered.marker.marker));
 		}
 
-		String label = existing.getLabel() == null ? "" : existing.getLabel();
-
-		// "Reset Session" for each {lootSession <monster>} in the label, once per monster.
+		// "Reset Session" for each {lootSession <monster>} in their labels, once per monster.
 		Set<String> sessions = new HashSet<>();
-		Matcher session = LOOT_SESSION_TOKEN.matcher(label);
-		while (session.find()) {
-			String monster = session.group(1).trim();
-			if (!monster.isEmpty() && sessions.add(monster.toLowerCase(Locale.ROOT))) {
-				submenu = addVariableOption(submenu, "Reset Session", monster, () -> {
-					lootSessions.reset(monster);
-					refreshNearbyMarkers();
-				});
+		for (CachedMarker marker : markers) {
+			Matcher session = LOOT_SESSION_TOKEN.matcher(marker.source.getLabel() == null ? "" : marker.source.getLabel());
+			while (session.find()) {
+				String monster = session.group(1).trim();
+				if (!monster.isEmpty() && sessions.add(monster.toLowerCase(Locale.ROOT))) {
+					submenu = addVariableOption(submenu, "Reset Session", monster, () -> {
+						lootSessions.reset(monster);
+						refreshNearbyMarkers();
+					});
+				}
 			}
 		}
 
-		CachedMarker marker = markerAt(tile);
-		if (marker == null) {
-			return;
-		}
-
-		// Each declared group with a {setGroup} in the resolved label (so not a losing branch's), once, in its own option order.
+		// Each declared group with a {setGroup} in a resolved label (so not a losing branch's), once, in its own option order.
 		Set<String> groups = new HashSet<>();
-		for (MetaState.GroupMenu menu : marker.getMetaState().getGroupMenus()) {
+		for (MetaState.GroupMenu menu : markers.stream().flatMap(marker -> marker.getMetaState().getGroupMenus().stream())
+			.collect(Collectors.toList())) {
 			GroupState.Group group = groupState.group(menu.name);
 			if (group == null || !groups.add(group.name.toLowerCase(Locale.ROOT))) {
 				continue;
@@ -490,19 +489,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 				});
 			}
 		}
-	}
-
-	// The saved marker at tile (an instanced point), as last resolved.
-	@Nullable
-	private CachedMarker markerAt(WorldPoint tile) {
-		for (WorldView wv : getTrackedWorldViews()) {
-			for (RenderedTile rendered : renderedTiles.all(wv, tile)) {
-				if (rendered.marker.source == this) {
-					return rendered.marker.marker;
-				}
-			}
-		}
-		return null;
 	}
 
 	// Every loaded saved marker, at its instanced points.
