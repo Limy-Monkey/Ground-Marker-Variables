@@ -75,21 +75,18 @@ public class ItemModels {
             return null;
         }
 
+        // As dropped: the model as built (y down, z north), pitched a quarter turn so laying it flat keeps east, north and up.
+        // Else as the inventory icon.
+        float[][] turned = equippable(item) ? turned(model, 0, 0, Math.PI / 2)
+            : turned(model, item.getYan2d() * ANGLE_UNIT, item.getZan2d() * ANGLE_UNIT, item.getXan2d() * ANGLE_UNIT);
+        return new Oriented(model, turned[0], turned[1], turned[2]);
+    }
+
+    // model's vertices turned by yaw (around y), roll (around z), then pitch (around x): {x, y, z}. Also NpcImages'.
+    static float[][] turned(Model model, double yaw, double roll, double pitch) {
         float[] vx = model.getVerticesX(), vy = model.getVerticesY(), vz = model.getVerticesZ();
         int count = model.getVerticesCount();
         float[] x = new float[count], y = new float[count], z = new float[count];
-        if (equippable(item)) {
-            // As dropped: the model as built (y down, z north), mapped so laying it flat keeps east, north and up.
-            for (int i = 0; i < count; i++) {
-                x[i] = vx[i];
-                y[i] = -vz[i];
-                z[i] = vy[i];
-            }
-            return new Oriented(model, x, y, z);
-        }
-
-        // As the inventory icon: yaw (around y), roll (around z), then pitch (around x).
-        double yaw = item.getYan2d() * ANGLE_UNIT, roll = item.getZan2d() * ANGLE_UNIT, pitch = item.getXan2d() * ANGLE_UNIT;
         double sinYaw = Math.sin(yaw), cosYaw = Math.cos(yaw);
         double sinRoll = Math.sin(roll), cosRoll = Math.cos(roll);
         double sinPitch = Math.sin(pitch), cosPitch = Math.cos(pitch);
@@ -108,7 +105,7 @@ public class ItemModels {
             y[i] = (float) py;
             z[i] = (float) pz;
         }
-        return new Oriented(model, x, y, z);
+        return new float[][]{x, y, z};
     }
 
     // Wear, Wield or Equip in its inventory menu.

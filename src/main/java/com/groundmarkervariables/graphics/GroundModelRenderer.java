@@ -40,7 +40,7 @@ public class GroundModelRenderer {
     private static final double ABOVE = 0.05;
     private static final double BELOW = 0.1;
     // Share of the model's depth each render priority level moves a face forward when sorting.
-    static final double PRIORITY_STEP = 0.01;
+    private static final double PRIORITY_STEP = 0.01;
     // Textured faces are grown this many px, closing hairline gaps between neighbours.
     private static final double GROW = 0.7;
     // How far outside a triangle a pixel center may sit and still count, so shared edges leave no gaps.
@@ -366,6 +366,33 @@ public class GroundModelRenderer {
         return transform;
     }
 
+    // The faces drawn (colors not null), farthest first by z (the front toward -z), each render priority level moving a face
+    // PRIORITY_STEP of their depth nearer, so details the game layers by priority (a glory's gem) land on top. Their x, y
+    // and z bounds into bounds, {min x, max x, min y, max y, min z, max z}. Also NpcImages'.
+    static List<Integer> sortedFaces(Model model, Color[] colors, float[] x, float[] y, float[] z, double[] bounds) {
+        int[] f1 = model.getFaceIndices1(), f2 = model.getFaceIndices2(), f3 = model.getFaceIndices3();
+        Arrays.fill(bounds, Double.MAX_VALUE);
+        bounds[1] = bounds[3] = bounds[5] = -Double.MAX_VALUE;
+        List<Integer> faces = new ArrayList<>();
+        for (int f = 0; f < model.getFaceCount(); f++) {
+            if (colors[f] == null) {
+                continue;
+            }
+            faces.add(f);
+            for (int v : new int[]{f1[f], f2[f], f3[f]}) {
+                float[] axes = {x[v], y[v], z[v]};
+                for (int axis = 0; axis < 3; axis++) {
+                    bounds[axis * 2] = Math.min(bounds[axis * 2], axes[axis]);
+                    bounds[axis * 2 + 1] = Math.max(bounds[axis * 2 + 1], axes[axis]);
+                }
+            }
+        }
+        byte[] priorities = model.getFaceRenderPriorities();
+        double step = (bounds[5] - bounds[4]) * PRIORITY_STEP * 3;
+        faces.sort(Comparator.comparingDouble(f -> -(z[f1[f]] + z[f2[f]] + z[f3[f]]) + (priorities == null ? 0 : priorities[f] * step)));
+        return faces;
+    }
+
     // Laid face up: x stays east, up (-y) becomes north, the front (-z) faces the sky.
     @Nullable
     private Flat layFlat(Model model, float[] vx, float[] vy, float[] vz) {
@@ -377,33 +404,13 @@ public class GroundModelRenderer {
         Color[] faceColors = modelColors.faceColors(model);
         int[] faceCorners = modelColors.cornerColors(model);
 
-        float minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, minUp = Float.MAX_VALUE, maxUp = -Float.MAX_VALUE;
-        float minFront = Float.MAX_VALUE, maxFront = -Float.MAX_VALUE;
-        List<Integer> visible = new ArrayList<>();
-        for (int f = 0; f < faceCount; f++) {
-            if (faceColors[f] == null) {
-                continue;
-            }
-            visible.add(f);
-            for (int v : new int[]{f1[f], f2[f], f3[f]}) {
-                minX = Math.min(minX, vx[v]);
-                maxX = Math.max(maxX, vx[v]);
-                minUp = Math.min(minUp, -vy[v]);
-                maxUp = Math.max(maxUp, -vy[v]);
-                minFront = Math.min(minFront, -vz[v]);
-                maxFront = Math.max(maxFront, -vz[v]);
-            }
-        }
+        // Back to front by the model's own depth: bottom to top lying face up, right from any camera angle.
+        double[] bounds = new double[6];
+        List<Integer> visible = sortedFaces(model, faceColors, vx, vy, vz, bounds);
+        double minX = bounds[0], maxX = bounds[1], minUp = -bounds[3], maxUp = -bounds[2], minFront = -bounds[5], maxFront = -bounds[4];
         if (maxX <= minX || maxUp <= minUp) {
             return null;
         }
-
-        // Back to front by the model's own depth (bottom to top lying face up), right from any camera angle. Each render
-        // priority level moves a face forward, so details the game layers by priority (a glory's gem) land on top.
-        byte[] priorities = model.getFaceRenderPriorities();
-        double priorityStep = (maxFront - minFront) * PRIORITY_STEP * 3;
-        visible.sort(Comparator.comparingDouble(f -> -(vz[f1[f]] + vz[f2[f]] + vz[f3[f]])
-            + (priorities == null ? 0 : priorities[f] * priorityStep)));
         int count = visible.size();
         int[] faces = new int[count];
         Color[] colors = new Color[count];

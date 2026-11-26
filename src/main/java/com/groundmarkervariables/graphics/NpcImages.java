@@ -6,7 +6,6 @@ import java.awt.Polygon;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -29,10 +28,10 @@ public class NpcImages {
     private static final int SIZE = 64;
     // Drawn this many times larger, then scaled down, which smooths the edges.
     private static final int SUPERSAMPLE = 4;
-    // Turned this far from straight on, and looked down on this much, for a three-quarter view.
-    private static final double BODY_YAW = Math.toRadians(-30);
+    // Turned this far from straight on, and looked down on this much, for a three-quarter view (see ItemModels#turned).
+    private static final double BODY_YAW = Math.toRadians(30);
     private static final double BODY_PITCH = Math.toRadians(-15);
-    private static final double HEAD_YAW = Math.toRadians(-15);
+    private static final double HEAD_YAW = Math.toRadians(15);
     private static final double HEAD_PITCH = Math.toRadians(-5);
 
     private final Client client;
@@ -94,62 +93,24 @@ public class NpcImages {
     @Nullable
     public float[][] turned(int npcId, boolean head) {
         Model model = model(npcId, head);
-        return model == null ? null : turnedVertices.computeIfAbsent(model, m -> turn(m, head ? HEAD_YAW : BODY_YAW, head ? HEAD_PITCH : BODY_PITCH));
-    }
-
-    private static float[][] turn(Model model, double yaw, double pitch) {
-        int vertexCount = model.getVerticesCount();
-        float[] vx = model.getVerticesX(), vy = model.getVerticesY(), vz = model.getVerticesZ();
-        float[] x = new float[vertexCount], y = new float[vertexCount], z = new float[vertexCount];
-        double cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw), cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch);
-        for (int i = 0; i < vertexCount; i++) {
-            double turnedX = vx[i] * cosYaw - vz[i] * sinYaw;
-            double turnedZ = vx[i] * sinYaw + vz[i] * cosYaw;
-            x[i] = (float) turnedX;
-            y[i] = (float) (vy[i] * cosPitch - turnedZ * sinPitch);
-            z[i] = (float) (vy[i] * sinPitch + turnedZ * cosPitch);
-        }
-        return new float[][]{x, y, z};
+        return model == null ? null : turnedVertices.computeIfAbsent(model, m -> ItemModels.turned(m, head ? HEAD_YAW : BODY_YAW, 0,
+            head ? HEAD_PITCH : BODY_PITCH));
     }
 
     // Orthographic: x right, y down (as the model's own y), viewed from the south looking north.
     @Nullable
     private BufferedImage draw(Model model, float[][] turned) {
         Color[] colors = modelColors.faceColors(model);
-        float[] sx = turned[0], sy = turned[1], depth = turned[2];
-
-        int faceCount = model.getFaceCount();
+        float[] sx = turned[0], sy = turned[1];
         int[] f1 = model.getFaceIndices1(), f2 = model.getFaceIndices2(), f3 = model.getFaceIndices3();
 
-        // Visible faces, and the bounds they cover.
-        List<Integer> faces = new ArrayList<>();
-        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-        for (int f = 0; f < faceCount; f++) {
-            if (colors[f] == null) {
-                continue;
-            }
-            faces.add(f);
-            for (int v : new int[]{f1[f], f2[f], f3[f]}) {
-                minX = Math.min(minX, sx[v]);
-                maxX = Math.max(maxX, sx[v]);
-                minY = Math.min(minY, sy[v]);
-                maxY = Math.max(maxY, sy[v]);
-            }
-        }
+        // The faces drawn, farthest first, and the bounds they cover.
+        double[] bounds = new double[6];
+        List<Integer> faces = GroundModelRenderer.sortedFaces(model, colors, sx, sy, turned[2], bounds);
+        double minX = bounds[0], maxX = bounds[1], minY = bounds[2], maxY = bounds[3];
         if (faces.isEmpty() || maxX <= minX || maxY <= minY) {
             return null;
         }
-
-        // Farthest first; each priority level a little nearer (see GroundModelRenderer.PRIORITY_STEP).
-        double minDepth = Double.MAX_VALUE, maxDepth = -Double.MAX_VALUE;
-        for (float d : depth) {
-            minDepth = Math.min(minDepth, d);
-            maxDepth = Math.max(maxDepth, d);
-        }
-        byte[] priorities = model.getFaceRenderPriorities();
-        double priorityStep = (maxDepth - minDepth) * GroundModelRenderer.PRIORITY_STEP * 3;
-        faces.sort(Comparator.comparingDouble((Integer f) -> -(depth[f1[f]] + depth[f2[f]] + depth[f3[f]])
-            + (priorities == null ? 0 : priorities[f] * priorityStep)));
 
         int big = SIZE * SUPERSAMPLE;
         double scale = (big - SUPERSAMPLE * 2) / Math.max(maxX - minX, maxY - minY);
