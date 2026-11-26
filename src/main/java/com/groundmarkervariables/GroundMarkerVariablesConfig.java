@@ -11,412 +11,412 @@ import net.runelite.client.config.Range;
 
 @ConfigGroup(GroundMarkerVariablesConfig.GROUP)
 public interface GroundMarkerVariablesConfig extends Config {
-	String GROUP = "groundMarkerVariables";
+    String GROUP = "groundMarkerVariables";
 
-	// Recreates core Ground Markers' own config, since this plugin fully replaces it (see the
-	// migration plan) — values are copied from core's config the very first time this plugin
-	// ever starts up (see GroundMarkerVariablesPlugin#migrateConfigFromCore), so existing users
-	// keep their current settings.
-	@ConfigSection(
-			name = "Ground Markers",
-			description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
-			position = 1,
-			closedByDefault = true
-	)
-	String groundMarkersSection = "groundMarkers";
+    // Recreates core Ground Markers' own config, since this plugin fully replaces it (see the
+    // migration plan) — values are copied from core's config the very first time this plugin
+    // ever starts up (see GroundMarkerVariablesPlugin#migrateConfigFromCore), so existing users
+    // keep their current settings.
+    @ConfigSection(
+            name = "Ground Markers",
+            description = "Tile marker appearance settings, migrated from RuneLite's core Ground Markers plugin.",
+            position = 1,
+            closedByDefault = true
+    )
+    String groundMarkersSection = "groundMarkers";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "borderWidth",
-			name = "Border width",
-			description = "Width of the marked tile border.",
-			section = groundMarkersSection
-	)
-	default double borderWidth() {
-		return 2;
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "borderWidth",
+            name = "Border width",
+            description = "Width of the marked tile border.",
+            section = groundMarkersSection
+    )
+    default double borderWidth() {
+        return 2;
+    }
 
-	@ConfigItem(
-			position = 2,
-			keyName = "drawOnMinimap",
-			name = "Draw tiles on minimap",
-			description = "Configures whether marked tiles should be drawn on minimap.",
-			section = groundMarkersSection
-	)
-	default boolean drawTileOnMinimap() {
-		return false;
-	}
+    @ConfigItem(
+            position = 2,
+            keyName = "drawOnMinimap",
+            name = "Draw tiles on minimap",
+            description = "Configures whether marked tiles should be drawn on minimap.",
+            section = groundMarkersSection
+    )
+    default boolean drawTileOnMinimap() {
+        return false;
+    }
 
-	@Range(
-			max = 255
-	)
-	@ConfigItem(
-			position = 3,
-			keyName = "fillOpacity",
-			name = "Fill opacity",
-			description = "Opacity of the tile fill color.",
-			section = groundMarkersSection
-	)
-	default int fillOpacity() {
-		return 50;
-	}
+    @Range(
+            max = 255
+    )
+    @ConfigItem(
+            position = 3,
+            keyName = "fillOpacity",
+            name = "Fill opacity",
+            description = "Opacity of the tile fill color.",
+            section = groundMarkersSection
+    )
+    default int fillOpacity() {
+        return 50;
+    }
 
-	@ConfigItem(
-			position = 4,
-			keyName = "showImportExport",
-			name = "Show import/export/clear options",
-			description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
-			section = groundMarkersSection
-	)
-	default boolean showImportExport() {
-		return true;
-	}
+    @ConfigItem(
+            position = 4,
+            keyName = "showImportExport",
+            name = "Show import/export/clear options",
+            description = "Show the Import, Export, and Clear options on the world map orb right-click menu.",
+            section = groundMarkersSection
+    )
+    default boolean showImportExport() {
+        return true;
+    }
 
-	@Alpha
-	@ConfigItem(
-			position = 5,
-			keyName = "markerColor",
-			name = "Tile color",
-			description = "The default color for marked tiles.",
-			section = groundMarkersSection
-	)
-	default Color markerColor() {
-		return Color.YELLOW;
-	}
+    @Alpha
+    @ConfigItem(
+            position = 5,
+            keyName = "markerColor",
+            name = "Tile color",
+            description = "The default color for marked tiles.",
+            section = groundMarkersSection
+    )
+    default Color markerColor() {
+        return Color.YELLOW;
+    }
 
-	@ConfigItem(
-			position = 6,
-			keyName = "smartSave",
-			name = "Smart Save",
-			description = "Save {variable} labels separately",
-			section = groundMarkersSection
-	)
-	default boolean smartSave() {
-		return true;
-	}
+    @ConfigItem(
+            position = 6,
+            keyName = "smartSave",
+            name = "Smart Save",
+            description = "Save {variable} labels separately",
+            section = groundMarkersSection
+    )
+    default boolean smartSave() {
+        return true;
+    }
 
-	@ConfigSection(
-			name = "Metronome",
-			description = "Settings for {metronome} tiles.",
-			position = 2,
-			closedByDefault = true
-	)
-	String metronomeSection = "metronome";
+    @ConfigSection(
+            name = "Metronome",
+            description = "Settings for {metronome} tiles.",
+            position = 2,
+            closedByDefault = true
+    )
+    String metronomeSection = "metronome";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "resetMetronomeHotkey",
-			name = "Reset metronome",
-			description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
-			section = metronomeSection
-	)
-	default Keybind resetMetronomeHotkey() {
-		return Keybind.NOT_SET;
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "resetMetronomeHotkey",
+            name = "Reset metronome",
+            description = "Hotkey that resets every {metronome} tile's countdown to start from this tick.",
+            section = metronomeSection
+    )
+    default Keybind resetMetronomeHotkey() {
+        return Keybind.NOT_SET;
+    }
 
-	@ConfigItem(
-			position = 2,
-			keyName = "countDown",
-			name = "Count Down",
-			description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
-			section = metronomeSection
-	)
-	default boolean countDown() {
-		return false;
-	}
+    @ConfigItem(
+            position = 2,
+            keyName = "countDown",
+            name = "Count Down",
+            description = "Count {metronome} down from N to 1 instead of up from 1 to N.",
+            section = metronomeSection
+    )
+    default boolean countDown() {
+        return false;
+    }
 
-	@ConfigItem(
-			position = 3,
-			keyName = "highlightFinalTick",
-			name = "Highlight Final Tick",
-			description = "Color {metronome} on its final tick before it repeats.",
-			section = metronomeSection
-	)
-	default boolean highlightFinalTick() {
-		return false;
-	}
+    @ConfigItem(
+            position = 3,
+            keyName = "highlightFinalTick",
+            name = "Highlight Final Tick",
+            description = "Color {metronome} on its final tick before it repeats.",
+            section = metronomeSection
+    )
+    default boolean highlightFinalTick() {
+        return false;
+    }
 
-	@ConfigItem(
-			position = 4,
-			keyName = "finalTickColor",
-			name = "Final Tick Color",
-			description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
-			section = metronomeSection
-	)
-	default Color finalTickColor() {
-		return Color.CYAN;
-	}
+    @ConfigItem(
+            position = 4,
+            keyName = "finalTickColor",
+            name = "Final Tick Color",
+            description = "Color to use on {metronome}'s final tick when Highlight Final Tick is on.",
+            section = metronomeSection
+    )
+    default Color finalTickColor() {
+        return Color.CYAN;
+    }
 
-	@ConfigSection(
-			name = "Party Sync",
-			description = "Sync {metronome} to a party member's tick count.",
-			position = 3,
-			closedByDefault = true
-	)
-	String partySyncSection = "partySync";
+    @ConfigSection(
+            name = "Party Sync",
+            description = "Sync {metronome} to a party member's tick count.",
+            position = 3,
+            closedByDefault = true
+    )
+    String partySyncSection = "partySync";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "enablePartySync",
-			name = "Party Sync",
-			description = "Sync {metronome} to a party member's tick count.<br>They must be on the same world as you.",
-			section = partySyncSection
-	)
-	default boolean enablePartySync() {
-		return false;
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "enablePartySync",
+            name = "Party Sync",
+            description = "Sync {metronome} to a party member's tick count.<br>They must be on the same world as you.",
+            section = partySyncSection
+    )
+    default boolean enablePartySync() {
+        return false;
+    }
 
-	@ConfigItem(
-			position = 2,
-			keyName = "syncTarget",
-			name = "Sync Target",
-			description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
-			section = partySyncSection
-	)
-	default String syncTarget() {
-		return "";
-	}
+    @ConfigItem(
+            position = 2,
+            keyName = "syncTarget",
+            name = "Sync Target",
+            description = "Display name of the party member to sync {metronome} to.<br>They need Ground Marker Variables installed and must be in the same party",
+            section = partySyncSection
+    )
+    default String syncTarget() {
+        return "";
+    }
 
-	@ConfigItem(
-			position = 3,
-			keyName = "showPingedTiles",
-			name = "Show Pinged Tiles",
-			description = "Show markers shared by party members.",
-			section = partySyncSection
-	)
-	default boolean showPingedTiles() {
-		return true;
-	}
+    @ConfigItem(
+            position = 3,
+            keyName = "showPingedTiles",
+            name = "Show Pinged Tiles",
+            description = "Show markers shared by party members.",
+            section = partySyncSection
+    )
+    default boolean showPingedTiles() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 4,
-			keyName = "sendPingedTiles",
-			name = "Share Marker Option",
-			description = "Add Share Marker to a marker's Shift right-click menu while in a party.",
-			section = partySyncSection
-	)
-	default boolean shareMarkerOption() {
-		return false;
-	}
+    @ConfigItem(
+            position = 4,
+            keyName = "sendPingedTiles",
+            name = "Share Marker Option",
+            description = "Add Share Marker to a marker's Shift right-click menu while in a party.",
+            section = partySyncSection
+    )
+    default boolean shareMarkerOption() {
+        return false;
+    }
 
-	@ConfigSection(
-			name = "Rich Text",
-			description = "Controls text highlighting",
-			position = 4,
-			closedByDefault = true
-	)
-	String richTextSection = "richText";
+    @ConfigSection(
+            name = "Rich Text",
+            description = "Controls text highlighting",
+            position = 4,
+            closedByDefault = true
+    )
+    String richTextSection = "richText";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "richTextByDefault",
-			name = "Rich Text by default",
-			description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
-			section = richTextSection,
-			hidden = true
-	)
-	default boolean richTextByDefault() {
-		return true;
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "richTextByDefault",
+            name = "Rich Text by default",
+            description = "Use Rich Text values by default. Turn off to get plain unformatted numbers instead.",
+            section = richTextSection,
+            hidden = true
+    )
+    default boolean richTextByDefault() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 2,
-			keyName = "highlightValue",
-			name = "Highlight Value",
-			description = "Highlight the value of the relevant variable in Rich Text mode.",
-			section = richTextSection
-	)
-	default boolean highlightValue() {
-		return true;
-	}
+    @ConfigItem(
+            position = 2,
+            keyName = "highlightValue",
+            name = "Highlight Value",
+            description = "Highlight the value of the relevant variable in Rich Text mode.",
+            section = richTextSection
+    )
+    default boolean highlightValue() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 3,
-			keyName = "highlightColor",
-			name = "Highlight Color",
-			description = "Color used to highlight variable values when Highlight Value is on.",
-			section = richTextSection
-	)
-	default Color highlightColor() {
-		return new Color(0xFFC3A0);
-	}
+    @ConfigItem(
+            position = 3,
+            keyName = "highlightColor",
+            name = "Highlight Color",
+            description = "Color used to highlight variable values when Highlight Value is on.",
+            section = richTextSection
+    )
+    default Color highlightColor() {
+        return new Color(0xFFC3A0);
+    }
 
-	@ConfigItem(
-			position = 4,
-			keyName = "booleanTrueColor",
-			name = "Boolean True Color",
-			description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
-			section = richTextSection
-	)
-	default Color booleanTrueColor() {
-		return Color.GREEN;
-	}
+    @ConfigItem(
+            position = 4,
+            keyName = "booleanTrueColor",
+            name = "Boolean True Color",
+            description = "Color for a boolean True, e.g. {hasAlchs} will be Green if you can cast high alchemy.",
+            section = richTextSection
+    )
+    default Color booleanTrueColor() {
+        return Color.GREEN;
+    }
 
-	@ConfigItem(
-			position = 5,
-			keyName = "booleanFalseColor",
-			name = "Boolean False Color",
-			description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
-			section = richTextSection
-	)
-	default Color booleanFalseColor() {
-		return Color.RED;
-	}
+    @ConfigItem(
+            position = 5,
+            keyName = "booleanFalseColor",
+            name = "Boolean False Color",
+            description = "Color for a boolean False, e.g. {hasAlchs} will be Red if you don't have nature runes",
+            section = richTextSection
+    )
+    default Color booleanFalseColor() {
+        return Color.RED;
+    }
 
-	@ConfigItem(
-			position = 6,
-			keyName = "invertAutoRetaliate",
-			name = "Invert Auto Retaliate",
-			description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
-			section = richTextSection
-	)
-	default boolean invertAutoRetaliate() {
-		return true;
-	}
+    @ConfigItem(
+            position = 6,
+            keyName = "invertAutoRetaliate",
+            name = "Invert Auto Retaliate",
+            description = "Invert {autoRetaliate} so it is green when auto retaliate is off.",
+            section = richTextSection
+    )
+    default boolean invertAutoRetaliate() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 7,
-			keyName = "iconBackground",
-			name = "Icon Glow",
-			description = "Draw a soft glow behind items and sprites",
-			section = richTextSection
-	)
-	default boolean iconBackground() {
-		return true;
-	}
+    @ConfigItem(
+            position = 7,
+            keyName = "iconBackground",
+            name = "Icon Glow",
+            description = "Draw a soft glow behind items and sprites",
+            section = richTextSection
+    )
+    default boolean iconBackground() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 8,
-			keyName = "parallaxIcons",
-			name = "Parallax icons",
-			description = "Controls whether everything rendered on {ground} has depth: items and npcs as models, the rest lifted over its shadow",
-			section = richTextSection
-	)
-	default boolean parallaxIcons() {
-		return true;
-	}
+    @ConfigItem(
+            position = 8,
+            keyName = "parallaxIcons",
+            name = "Parallax icons",
+            description = "Controls whether everything rendered on {ground} has depth: items and npcs as models, the rest lifted over its shadow",
+            section = richTextSection
+    )
+    default boolean parallaxIcons() {
+        return true;
+    }
 
-	@ConfigSection(
-			name = "Advanced Editor",
-			description = "Settings for the Advanced Label Editor.",
-			position = 5,
-			closedByDefault = true
-	)
-	String advancedEditorSection = "advancedEditor";
+    @ConfigSection(
+            name = "Advanced Editor",
+            description = "Settings for the Advanced Label Editor.",
+            position = 5,
+            closedByDefault = true
+    )
+    String advancedEditorSection = "advancedEditor";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "useAdvancedLabelEditor",
-			name = "Use Advanced Label Editor",
-			description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
-			section = advancedEditorSection
-	)
-	default boolean useAdvancedLabelEditor() {
-		return true;
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "useAdvancedLabelEditor",
+            name = "Use Advanced Label Editor",
+            description = "Replace the plain Tile label prompt with the Advanced Label Editor.",
+            section = advancedEditorSection
+    )
+    default boolean useAdvancedLabelEditor() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 2,
-			keyName = "showCurrent",
-			name = "Show Current",
-			description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
-			section = advancedEditorSection
-	)
-	default boolean showCurrent() {
-		return false;
-	}
+    @ConfigItem(
+            position = 2,
+            keyName = "showCurrent",
+            name = "Show Current",
+            description = "Show the \"Current\" section of the Advanced Label Editor's recommendations.",
+            section = advancedEditorSection
+    )
+    default boolean showCurrent() {
+        return false;
+    }
 
-	@ConfigItem(
-			position = 3,
-			keyName = "showRecent",
-			name = "Show Recent",
-			description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
-			section = advancedEditorSection
-	)
-	default boolean showRecent() {
-		return true;
-	}
+    @ConfigItem(
+            position = 3,
+            keyName = "showRecent",
+            name = "Show Recent",
+            description = "Show the \"Recent\" section of the Advanced Label Editor's recommendations.",
+            section = advancedEditorSection
+    )
+    default boolean showRecent() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 4,
-			keyName = "showNearby",
-			name = "Show Nearby",
-			description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
-			section = advancedEditorSection
-	)
-	default boolean showNearby() {
-		return true;
-	}
+    @ConfigItem(
+            position = 4,
+            keyName = "showNearby",
+            name = "Show Nearby",
+            description = "Show the \"Nearby\" section of the Advanced Label Editor's recommendations.",
+            section = advancedEditorSection
+    )
+    default boolean showNearby() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 5,
-			keyName = "autocomplete",
-			name = "Autocomplete",
-			description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
-			section = advancedEditorSection
-	)
-	default boolean autocomplete() {
-		return true;
-	}
+    @ConfigItem(
+            position = 5,
+            keyName = "autocomplete",
+            name = "Autocomplete",
+            description = "Autocomplete variable names, skills, colors, and metronome parameters while typing in the Advanced Label Editor.",
+            section = advancedEditorSection
+    )
+    default boolean autocomplete() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 6,
-			keyName = "showSuggestions",
-			name = "Suggestions",
-			description = "Once a label is edited, list every way to complete what's being typed, with icons, below the Advanced Label Editor.",
-			section = advancedEditorSection
-	)
-	default boolean showSuggestions() {
-		return true;
-	}
+    @ConfigItem(
+            position = 6,
+            keyName = "showSuggestions",
+            name = "Suggestions",
+            description = "Once a label is edited, list every way to complete what's being typed, with icons, below the Advanced Label Editor.",
+            section = advancedEditorSection
+    )
+    default boolean showSuggestions() {
+        return true;
+    }
 
-	@ConfigItem(
-			position = 7,
-			keyName = "showIconIds",
-			name = "Icon IDs",
-			description = "Hovering an icon in the Suggestions shows its ID, e.g. Item: Id 4151",
-			section = advancedEditorSection
-	)
-	default boolean showIconIds() {
-		return false;
-	}
+    @ConfigItem(
+            position = 7,
+            keyName = "showIconIds",
+            name = "Icon IDs",
+            description = "Hovering an icon in the Suggestions shows its ID, e.g. Item: Id 4151",
+            section = advancedEditorSection
+    )
+    default boolean showIconIds() {
+        return false;
+    }
 
-	@ConfigSection(
-			name = "Variables",
-			description = "Quick reference for every available variable — see the README for full details.",
-			position = 6
-	)
-	String variablesSection = "variables";
+    @ConfigSection(
+            name = "Variables",
+            description = "Quick reference for every available variable — see the README for full details.",
+            position = 6
+    )
+    String variablesSection = "variables";
 
-	@ConfigItem(
-			position = 1,
-			keyName = "variableHelp1",
-			name = "<html><blockquote style=\"margin-left: 5px\">"
-					+ "- {^...} = raw variable<br>"
-					+ "- \\n = newline<br>"
-					+ "- :emoji:<br>"
-					+ "- &lt;npc=Bob,head&gt;<br>"
-					+ "- {ground} &lt;icon&gt;<br><br>"
-					+ "- {col=red} = Red text<br>"
-					+ "- {align=left} = Left-align<br>"
-					+ "- {b}Bold{/b}, {i}Italic{/i}<br><br>"
-					+ "- {kc tob + kc hmt}<br>"
-					+ "- {Ancient == spellbook}<br>"
-					+ "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ? A : B}<br>"
-					+ "</blockquote>",
-			description = "",
-			section = variablesSection
-	)
-	default void variableHelp2() {
-	}
+    @ConfigItem(
+            position = 1,
+            keyName = "variableHelp1",
+            name = "<html><blockquote style=\"margin-left: 5px\">"
+                    + "- {^...} = raw variable<br>"
+                    + "- \\n = newline<br>"
+                    + "- :emoji:<br>"
+                    + "- &lt;npc=Bob,head&gt;<br>"
+                    + "- {ground} &lt;icon&gt;<br><br>"
+                    + "- {col=red} = Red text<br>"
+                    + "- {align=left} = Left-align<br>"
+                    + "- {b}Bold{/b}, {i}Italic{/i}<br><br>"
+                    + "- {kc tob + kc hmt}<br>"
+                    + "- {Ancient == spellbook}<br>"
+                    + "- {&lt;cond1&gt; [&amp;&amp; / || &lt;cond2&gt;]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ? A : B}<br>"
+                    + "</blockquote>",
+            description = "",
+            section = variablesSection
+    )
+    default void variableHelp2() {
+    }
 
-	@ConfigItem(
-			position = 7,
-			keyName = "labelUnmarkedTiles",
-			name = "Label unmarked tiles",
-			description = "Show option to mark and label a tile together all at once."
-	)
-	default boolean labelUnmarkedTiles() {
-		return false;
-	}
+    @ConfigItem(
+            position = 7,
+            keyName = "labelUnmarkedTiles",
+            name = "Label unmarked tiles",
+            description = "Show option to mark and label a tile together all at once."
+    )
+    default boolean labelUnmarkedTiles() {
+        return false;
+    }
 }

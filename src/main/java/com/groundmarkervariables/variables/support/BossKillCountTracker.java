@@ -21,56 +21,56 @@ import net.runelite.client.config.ConfigManager;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class BossKillCountTracker {
-	private static final String GROUP = "groundMarkerVariablesKc";
-	private static final String CHAT_COMMANDS_GROUP = "killcount";
+    private static final String GROUP = "groundMarkerVariablesKc";
+    private static final String CHAT_COMMANDS_GROUP = "killcount";
 
-	// Ported from ChatCommandsPlugin.KILLCOUNT_PATTERN — matches messages like "Your Zulrah
-	// kill count is: 50.", "Your Chambers of Xeric count is: 5.", "Your subdued Wintertodt
-	// count is: 12.", "Your Theatre of Blood completion count is: 3." etc.
-	private static final Pattern KILLCOUNT_PATTERN = Pattern.compile(
-		"Your (?<pre>completion count for |subdued |completed )?(?:<col=[0-9a-f]{6}>)?(?<boss>.+?)(?:</col>)? "
-			+ "(?<post>(?:(?:kill|harvest|lap|completion|success|Total Ticket) )?(?:count )?)is: ?"
-			+ "(?:<col=[0-9a-f]{6}>|@.+?@)(?<kc>[0-9,]+)</col>");
+    // Ported from ChatCommandsPlugin.KILLCOUNT_PATTERN — matches messages like "Your Zulrah
+    // kill count is: 50.", "Your Chambers of Xeric count is: 5.", "Your subdued Wintertodt
+    // count is: 12.", "Your Theatre of Blood completion count is: 3." etc.
+    private static final Pattern KILLCOUNT_PATTERN = Pattern.compile(
+        "Your (?<pre>completion count for |subdued |completed )?(?:<col=[0-9a-f]{6}>)?(?<boss>.+?)(?:</col>)? "
+            + "(?<post>(?:(?:kill|harvest|lap|completion|success|Total Ticket) )?(?:count )?)is: ?"
+            + "(?:<col=[0-9a-f]{6}>|@.+?@)(?<kc>[0-9,]+)</col>");
 
-	private static final Map<String, String> KILLCOUNT_RENAMES = Map.of("Barrows chest", "Barrows Chests");
+    private static final Map<String, String> KILLCOUNT_RENAMES = Map.of("Barrows chest", "Barrows Chests");
 
-	private final ConfigManager configManager;
+    private final ConfigManager configManager;
 
-	public void onChatMessage(String message) {
-		Matcher matcher = KILLCOUNT_PATTERN.matcher(message);
-		if (!matcher.find()) {
-			return;
-		}
+    public void onChatMessage(String message) {
+        Matcher matcher = KILLCOUNT_PATTERN.matcher(message);
+        if (!matcher.find()) {
+            return;
+        }
 
-		String boss = matcher.group("boss");
-		int kc;
-		try {
-			kc = Integer.parseInt(matcher.group("kc").replace(",", ""));
-		} catch (NumberFormatException e) {
-			return;
-		}
+        String boss = matcher.group("boss");
+        int kc;
+        try {
+            kc = Integer.parseInt(matcher.group("kc").replace(",", ""));
+        } catch (NumberFormatException e) {
+            return;
+        }
 
-		// Neither qualifying word present means this isn't really a kill-count line (e.g. some
-		// unrelated "Your ... is: <number>" message) — same false-positive guard as the source.
-		if (isEmpty(matcher.group("pre")) && isEmpty(matcher.group("post"))) {
-			return;
-		}
+        // Neither qualifying word present means this isn't really a kill-count line (e.g. some
+        // unrelated "Your ... is: <number>" message) — same false-positive guard as the source.
+        if (isEmpty(matcher.group("pre")) && isEmpty(matcher.group("post"))) {
+            return;
+        }
 
-		String renamedBoss = KILLCOUNT_RENAMES.getOrDefault(boss, boss).replace(":", "");
-		configManager.setRSProfileConfiguration(GROUP, renamedBoss.toLowerCase(Locale.ENGLISH), kc);
-	}
+        String renamedBoss = KILLCOUNT_RENAMES.getOrDefault(boss, boss).replace(":", "");
+        configManager.setRSProfileConfiguration(GROUP, renamedBoss.toLowerCase(Locale.ENGLISH), kc);
+    }
 
-	public Integer getKc(String boss) {
-		String key = boss.toLowerCase(Locale.ENGLISH);
-		Integer own = configManager.getRSProfileConfiguration(GROUP, key, int.class);
-		if (own != null) {
-			return own;
-		}
+    public Integer getKc(String boss) {
+        String key = boss.toLowerCase(Locale.ENGLISH);
+        Integer own = configManager.getRSProfileConfiguration(GROUP, key, int.class);
+        if (own != null) {
+            return own;
+        }
 
-		return configManager.getRSProfileConfiguration(CHAT_COMMANDS_GROUP, key, int.class);
-	}
+        return configManager.getRSProfileConfiguration(CHAT_COMMANDS_GROUP, key, int.class);
+    }
 
-	private static boolean isEmpty(String value) {
-		return value == null || value.isEmpty();
-	}
+    private static boolean isEmpty(String value) {
+        return value == null || value.isEmpty();
+    }
 }

@@ -25,284 +25,284 @@ import net.runelite.client.util.QuantityFormatter;
 // precedence. Not usable with {metronomeN}. Also supports "<date literal> - date" (or
 // reversed) as a day-count countdown, since {date}'s own Plain Text isn't a number.
 public class MathVariable implements LabelVariable {
-	private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+?(?:\\s[+\\-*/]\\s[^{}]+?)+)\\}");
-	private static final Pattern OPERATOR = Pattern.compile("\\s([+\\-*/])\\s");
-	private static final String DATE_VARIABLE = "date";
-	private static final String TIME_VARIABLE = "time";
-	private static final String NOW_VARIABLE = "now";
+    private static final Pattern PATTERN = Pattern.compile("\\{([^{}]+?(?:\\s[+\\-*/]\\s[^{}]+?)+)\\}");
+    private static final Pattern OPERATOR = Pattern.compile("\\s([+\\-*/])\\s");
+    private static final String DATE_VARIABLE = "date";
+    private static final String TIME_VARIABLE = "time";
+    private static final String NOW_VARIABLE = "now";
 
-	private final List<LabelVariable> numericVariables;
-	private final RichText richText;
-	private final PartyMemberContext memberContext;
+    private final List<LabelVariable> numericVariables;
+    private final RichText richText;
+    private final PartyMemberContext memberContext;
 
-	@Inject
-	private MathVariable(NumericVariableRegistry registry, RichText richText, PartyMemberContext memberContext) {
-		this.memberContext = memberContext;
-		this.numericVariables = registry.all();
-		this.richText = richText;
-	}
+    @Inject
+    private MathVariable(NumericVariableRegistry registry, RichText richText, PartyMemberContext memberContext) {
+        this.memberContext = memberContext;
+        this.numericVariables = registry.all();
+        this.richText = richText;
+    }
 
-	@Override
-	public Pattern pattern() {
-		return PATTERN;
-	}
+    @Override
+    public Pattern pattern() {
+        return PATTERN;
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher) {
-		try {
-			Long minutes = evaluateTimeCountdown(matcher.group(1));
-			if (minutes != null) {
-				return formatMinutes(minutes, false);
-			}
+    @Override
+    public String resolvePlain(Matcher matcher) {
+        try {
+            Long minutes = evaluateTimeCountdown(matcher.group(1));
+            if (minutes != null) {
+                return formatMinutes(minutes, false);
+            }
 
-			Long days = evaluateDateCountdown(matcher.group(1));
-			if (days != null) {
-				return String.valueOf(days);
-			}
+            Long days = evaluateDateCountdown(matcher.group(1));
+            if (days != null) {
+                return String.valueOf(days);
+            }
 
-			Double value = evaluate(matcher.group(1));
-			return value == null ? null : formatPlain(value);
-		} catch (RuntimeException e) {
-			return "NaN";
-		}
-	}
+            Double value = evaluate(matcher.group(1));
+            return value == null ? null : formatPlain(value);
+        } catch (RuntimeException e) {
+            return "NaN";
+        }
+    }
 
-	@Override
-	public String resolveRich(Matcher matcher) {
-		try {
-			Long minutes = evaluateTimeCountdown(matcher.group(1));
-			if (minutes != null) {
-				return richText.highlightValue(formatMinutes(minutes, true));
-			}
+    @Override
+    public String resolveRich(Matcher matcher) {
+        try {
+            Long minutes = evaluateTimeCountdown(matcher.group(1));
+            if (minutes != null) {
+                return richText.highlightValue(formatMinutes(minutes, true));
+            }
 
-			Long days = evaluateDateCountdown(matcher.group(1));
+            Long days = evaluateDateCountdown(matcher.group(1));
 
-			// "day(s)" only applies to a bare date pair -- once anything's chained after it
-			// (a second operator), fall through to the normal plain-number formatting below.
-			Matcher opMatcher = OPERATOR.matcher(matcher.group(1));
-			if (days != null && opMatcher.find() && !opMatcher.find()) {
-				return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
-			}
+            // "day(s)" only applies to a bare date pair -- once anything's chained after it
+            // (a second operator), fall through to the normal plain-number formatting below.
+            Matcher opMatcher = OPERATOR.matcher(matcher.group(1));
+            if (days != null && opMatcher.find() && !opMatcher.find()) {
+                return richText.highlightValue(days + (days == 1 || days == -1 ? " day" : " days"));
+            }
 
-			Double value = days != null ? Double.valueOf(days) : evaluate(matcher.group(1));
-			return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
-		} catch (RuntimeException e) {
-			return "NaN";
-		}
-	}
+            Double value = days != null ? Double.valueOf(days) : evaluate(matcher.group(1));
+            return value == null ? null : richText.highlightValue(QuantityFormatter.quantityToStackSize(Math.round(value)));
+        } catch (RuntimeException e) {
+            return "NaN";
+        }
+    }
 
-	// Only matches if the FIRST operator is "-" and pairs "date" with a parseable date literal
-	// as the first two operands -- date math only applies at the very start of a chain (or,
-	// via evaluateInner(), the very start of a parenthesized group). Whatever follows (e.g.
-	// "+ 2") is handled by the normal evaluate().
-	private Long evaluateDateCountdown(String expression) {
-		Matcher opMatcher = OPERATOR.matcher(expression);
-		if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
-			return null;
-		}
+    // Only matches if the FIRST operator is "-" and pairs "date" with a parseable date literal
+    // as the first two operands -- date math only applies at the very start of a chain (or,
+    // via evaluateInner(), the very start of a parenthesized group). Whatever follows (e.g.
+    // "+ 2") is handled by the normal evaluate().
+    private Long evaluateDateCountdown(String expression) {
+        Matcher opMatcher = OPERATOR.matcher(expression);
+        if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
+            return null;
+        }
 
-		String first = expression.substring(0, opMatcher.start()).trim();
-		int secondStart = opMatcher.end();
+        String first = expression.substring(0, opMatcher.start()).trim();
+        int secondStart = opMatcher.end();
 
-		String second;
-		String remainder;
-		if (opMatcher.find()) {
-			second = expression.substring(secondStart, opMatcher.start()).trim();
-			remainder = expression.substring(opMatcher.start());
-		} else {
-			second = expression.substring(secondStart).trim();
-			remainder = "";
-		}
+        String second;
+        String remainder;
+        if (opMatcher.find()) {
+            second = expression.substring(secondStart, opMatcher.start()).trim();
+            remainder = expression.substring(opMatcher.start());
+        } else {
+            second = expression.substring(secondStart).trim();
+            remainder = "";
+        }
 
-		LocalDate firstDate = dateValueOf(first);
-		LocalDate secondDate = dateValueOf(second);
-		if (firstDate == null || secondDate == null) {
-			return null;
-		}
+        LocalDate firstDate = dateValueOf(first);
+        LocalDate secondDate = dateValueOf(second);
+        if (firstDate == null || secondDate == null) {
+            return null;
+        }
 
-		long dayCount = ChronoUnit.DAYS.between(secondDate, firstDate);
-		if (remainder.isEmpty()) {
-			return dayCount;
-		}
+        long dayCount = ChronoUnit.DAYS.between(secondDate, firstDate);
+        if (remainder.isEmpty()) {
+            return dayCount;
+        }
 
-		Double result = evaluate(dayCount + remainder);
-		return result == null ? null : Math.round(result);
-	}
+        Double result = evaluate(dayCount + remainder);
+        return result == null ? null : Math.round(result);
+    }
 
-	// "<a> - <b>" in minutes, between times (wrapping past midnight) or date times. Date pairs are
-	// left to evaluateDateCountdown.
-	private static Long evaluateTimeCountdown(String expression) {
-		Matcher opMatcher = OPERATOR.matcher(expression);
-		if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
-			return null;
-		}
+    // "<a> - <b>" in minutes, between times (wrapping past midnight) or date times. Date pairs are
+    // left to evaluateDateCountdown.
+    private static Long evaluateTimeCountdown(String expression) {
+        Matcher opMatcher = OPERATOR.matcher(expression);
+        if (!opMatcher.find() || !"-".equals(opMatcher.group(1))) {
+            return null;
+        }
 
-		String first = expression.substring(0, opMatcher.start()).trim();
-		String second = expression.substring(opMatcher.end()).trim();
-		if (opMatcher.find() || dateValueOf(first) != null && dateValueOf(second) != null) {
-			return null;
-		}
+        String first = expression.substring(0, opMatcher.start()).trim();
+        String second = expression.substring(opMatcher.end()).trim();
+        if (opMatcher.find() || dateValueOf(first) != null && dateValueOf(second) != null) {
+            return null;
+        }
 
-		Integer toMinute = minuteOfDay(first);
-		Integer fromMinute = minuteOfDay(second);
-		if (toMinute != null && fromMinute != null) {
-			return (long) Math.floorMod(toMinute - fromMinute, 24 * 60);
-		}
+        Integer toMinute = minuteOfDay(first);
+        Integer fromMinute = minuteOfDay(second);
+        if (toMinute != null && fromMinute != null) {
+            return (long) Math.floorMod(toMinute - fromMinute, 24 * 60);
+        }
 
-		LocalDateTime to = dateTimeValueOf(first);
-		LocalDateTime from = dateTimeValueOf(second);
-		return to == null || from == null ? null : ChronoUnit.MINUTES.between(from, to);
-	}
+        LocalDateTime to = dateTimeValueOf(first);
+        LocalDateTime from = dateTimeValueOf(second);
+        return to == null || from == null ? null : ChronoUnit.MINUTES.between(from, to);
+    }
 
-	// "now", "<date>" (midnight) or "<date> <time>", e.g. "oct 30 7am".
-	private static LocalDateTime dateTimeValueOf(String text) {
-		if (NOW_VARIABLE.equalsIgnoreCase(text)) {
-			return LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
-		}
+    // "now", "<date>" (midnight) or "<date> <time>", e.g. "oct 30 7am".
+    private static LocalDateTime dateTimeValueOf(String text) {
+        if (NOW_VARIABLE.equalsIgnoreCase(text)) {
+            return LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
+        }
 
-		String[] words = text.split("\\s+");
-		for (int split = words.length; split > 0; split--) {
-			LocalDate date = DateLiteralParser.parse(String.join(" ", Arrays.copyOfRange(words, 0, split)));
-			String timeText = String.join(" ", Arrays.copyOfRange(words, split, words.length));
-			Integer minute = timeText.isEmpty() ? Integer.valueOf(0) : minuteOfDay(timeText);
-			if (date != null && minute != null) {
-				return date.atStartOfDay().plusMinutes(minute);
-			}
-		}
-		return null;
-	}
+        String[] words = text.split("\\s+");
+        for (int split = words.length; split > 0; split--) {
+            LocalDate date = DateLiteralParser.parse(String.join(" ", Arrays.copyOfRange(words, 0, split)));
+            String timeText = String.join(" ", Arrays.copyOfRange(words, split, words.length));
+            Integer minute = timeText.isEmpty() ? Integer.valueOf(0) : minuteOfDay(timeText);
+            if (date != null && minute != null) {
+                return date.atStartOfDay().plusMinutes(minute);
+            }
+        }
+        return null;
+    }
 
-	// h:mm, negative in the past. Rich splits off days, e.g. "3 days 3:12".
-	private static String formatMinutes(long minutes, boolean rich) {
-		long abs = Math.abs(minutes);
-		long days = rich ? abs / (24 * 60) : 0;
-		long rest = abs - days * 24 * 60;
-		String time = String.format("%d:%02d", rest / 60, rest % 60);
-		return (minutes < 0 ? "-" : "") + (days == 0 ? time : days + (days == 1 ? " day " : " days ") + time);
-	}
+    // h:mm, negative in the past. Rich splits off days, e.g. "3 days 3:12".
+    private static String formatMinutes(long minutes, boolean rich) {
+        long abs = Math.abs(minutes);
+        long days = rich ? abs / (24 * 60) : 0;
+        long rest = abs - days * 24 * 60;
+        String time = String.format("%d:%02d", rest / 60, rest % 60);
+        return (minutes < 0 ? "-" : "") + (days == 0 ? time : days + (days == 1 ? " day " : " days ") + time);
+    }
 
-	// "time"/"now" is the current time. Bare numbers stay numbers, so {5 - 3} is still 2.
-	private static Integer minuteOfDay(String text) {
-		if (TIME_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text)) {
-			return LocalTime.now().toSecondOfDay() / 60;
-		}
+    // "time"/"now" is the current time. Bare numbers stay numbers, so {5 - 3} is still 2.
+    private static Integer minuteOfDay(String text) {
+        if (TIME_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text)) {
+            return LocalTime.now().toSecondOfDay() / 60;
+        }
 
-		if (ConditionEvaluator.tryParseNumber(text) != null) {
-			return null;
-		}
+        if (ConditionEvaluator.tryParseNumber(text) != null) {
+            return null;
+        }
 
-		LocalTime time = ConditionEvaluator.tryParseTime(text);
-		return time == null ? null : time.toSecondOfDay() / 60;
-	}
+        LocalTime time = ConditionEvaluator.tryParseTime(text);
+        return time == null ? null : time.toSecondOfDay() / 60;
+    }
 
-	// "date"/"now" means today; otherwise must parse as a date literal.
-	private static LocalDate dateValueOf(String text) {
-		return DATE_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text) ? LocalDate.now() : DateLiteralParser.parse(text);
-	}
+    // "date"/"now" means today; otherwise must parse as a date literal.
+    private static LocalDate dateValueOf(String text) {
+        return DATE_VARIABLE.equalsIgnoreCase(text) || NOW_VARIABLE.equalsIgnoreCase(text) ? LocalDate.now() : DateLiteralParser.parse(text);
+    }
 
-	// Reduces the innermost "(...)" first, then moves outwards. Paren is always space padded.
-	private Double evaluate(String expression) {
-		String reduced = expression;
-		while (reduced.contains("(")) {
-			int close = reduced.indexOf(')');
-			if (close < 0) {
-				return null;
-			}
+    // Reduces the innermost "(...)" first, then moves outwards. Paren is always space padded.
+    private Double evaluate(String expression) {
+        String reduced = expression;
+        while (reduced.contains("(")) {
+            int close = reduced.indexOf(')');
+            if (close < 0) {
+                return null;
+            }
 
-			int open = reduced.lastIndexOf('(', close);
-			if (open < 0) {
-				return null;
-			}
+            int open = reduced.lastIndexOf('(', close);
+            if (open < 0) {
+                return null;
+            }
 
-			Double inner = evaluateInner(reduced.substring(open + 1, close));
-			if (inner == null) {
-				return null;
-			}
+            Double inner = evaluateInner(reduced.substring(open + 1, close));
+            if (inner == null) {
+                return null;
+            }
 
-			reduced = reduced.substring(0, open) + formatPlain(inner) + reduced.substring(close + 1);
-		}
+            reduced = reduced.substring(0, open) + formatPlain(inner) + reduced.substring(close + 1);
+        }
 
-		return evaluateFlat(reduced);
-	}
+        return evaluateFlat(reduced);
+    }
 
-	// A paren group's own content may itself start with a date pairing.
-	private Double evaluateInner(String text) {
-		Long days = evaluateDateCountdown(text);
-		return days != null ? Double.valueOf(days) : evaluateFlat(text);
-	}
+    // A paren group's own content may itself start with a date pairing.
+    private Double evaluateInner(String text) {
+        Long days = evaluateDateCountdown(text);
+        return days != null ? Double.valueOf(days) : evaluateFlat(text);
+    }
 
-	// Splits on whitespace-padded operators, resolves every operand, then applies standard
-	// precedence (* and / before + and -) left to right within each pass.
-	private Double evaluateFlat(String expression) {
-		List<Double> operands = new ArrayList<>();
-		List<Character> operators = new ArrayList<>();
+    // Splits on whitespace-padded operators, resolves every operand, then applies standard
+    // precedence (* and / before + and -) left to right within each pass.
+    private Double evaluateFlat(String expression) {
+        List<Double> operands = new ArrayList<>();
+        List<Character> operators = new ArrayList<>();
 
-		Matcher opMatcher = OPERATOR.matcher(expression);
-		int last = 0;
-		while (opMatcher.find()) {
-			Double operand = resolveOperand(expression.substring(last, opMatcher.start()));
-			if (operand == null) {
-				return null;
-			}
-			operands.add(operand);
-			operators.add(opMatcher.group(1).charAt(0));
-			last = opMatcher.end();
-		}
+        Matcher opMatcher = OPERATOR.matcher(expression);
+        int last = 0;
+        while (opMatcher.find()) {
+            Double operand = resolveOperand(expression.substring(last, opMatcher.start()));
+            if (operand == null) {
+                return null;
+            }
+            operands.add(operand);
+            operators.add(opMatcher.group(1).charAt(0));
+            last = opMatcher.end();
+        }
 
-		Double finalOperand = resolveOperand(expression.substring(last));
-		if (finalOperand == null) {
-			return null;
-		}
-		operands.add(finalOperand);
+        Double finalOperand = resolveOperand(expression.substring(last));
+        if (finalOperand == null) {
+            return null;
+        }
+        operands.add(finalOperand);
 
-		for (int i = 0; i < operators.size(); ) {
-			char op = operators.get(i);
-			if (op != '*' && op != '/') {
-				i++;
-				continue;
-			}
+        for (int i = 0; i < operators.size(); ) {
+            char op = operators.get(i);
+            if (op != '*' && op != '/') {
+                i++;
+                continue;
+            }
 
-			double left = operands.get(i);
-			double right = operands.get(i + 1);
-			if (op == '/' && right == 0) {
-				return null;
-			}
+            double left = operands.get(i);
+            double right = operands.get(i + 1);
+            if (op == '/' && right == 0) {
+                return null;
+            }
 
-			operands.set(i, op == '*' ? left * right : left / right);
-			operands.remove(i + 1);
-			operators.remove(i);
-		}
+            operands.set(i, op == '*' ? left * right : left / right);
+            operands.remove(i + 1);
+            operators.remove(i);
+        }
 
-		double total = operands.get(0);
-		for (int i = 0; i < operators.size(); i++) {
-			total = operators.get(i) == '+' ? total + operands.get(i + 1) : total - operands.get(i + 1);
-		}
+        double total = operands.get(0);
+        for (int i = 0; i < operators.size(); i++) {
+            total = operators.get(i) == '+' ? total + operands.get(i + 1) : total - operands.get(i + 1);
+        }
 
-		return total;
-	}
+        return total;
+    }
 
-	// A literal number (plain or "1.5k"-style), or another variable's own Plain Text value.
-	private Double resolveOperand(String text) {
-		text = text.trim();
-		Double literal = ConditionEvaluator.tryParseNumber(text);
-		if (literal != null) {
-			return literal;
-		}
+    // A literal number (plain or "1.5k"-style), or another variable's own Plain Text value.
+    private Double resolveOperand(String text) {
+        text = text.trim();
+        Double literal = ConditionEvaluator.tryParseNumber(text);
+        if (literal != null) {
+            return literal;
+        }
 
-		for (LabelVariable variable : numericVariables) {
-			Matcher wrapped = variable.pattern().matcher("{" + text + "}");
-			if (wrapped.matches()) {
-				String resolved = memberContext.resolve(variable, wrapped, false);
-				return resolved == null ? null : ConditionEvaluator.tryParseNumber(resolved);
-			}
-		}
+        for (LabelVariable variable : numericVariables) {
+            Matcher wrapped = variable.pattern().matcher("{" + text + "}");
+            if (wrapped.matches()) {
+                String resolved = memberContext.resolve(variable, wrapped, false);
+                return resolved == null ? null : ConditionEvaluator.tryParseNumber(resolved);
+            }
+        }
 
-		return null;
-	}
+        return null;
+    }
 
-	static String formatPlain(double value) {
-		return value == Math.rint(value) && !Double.isInfinite(value)
-			? String.valueOf((long) value)
-			: String.valueOf(value);
-	}
+    static String formatPlain(double value) {
+        return value == Math.rint(value) && !Double.isInfinite(value)
+            ? String.valueOf((long) value)
+            : String.valueOf(value);
+    }
 }

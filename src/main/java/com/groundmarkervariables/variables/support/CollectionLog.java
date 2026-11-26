@@ -17,74 +17,74 @@ import net.runelite.client.callback.ClientThread;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class CollectionLog {
-	private static final int TABS_ENUM = 2102;
-	private static final int TAB_PAGES_PARAM = 683;
-	private static final int PAGE_NAME_PARAM = 689;
-	private static final int PAGE_ITEMS_PARAM = 690;
-	private static final String ALL_PETS_PAGE = "All Pets";
+    private static final int TABS_ENUM = 2102;
+    private static final int TAB_PAGES_PARAM = 683;
+    private static final int PAGE_NAME_PARAM = 689;
+    private static final int PAGE_ITEMS_PARAM = 690;
+    private static final String ALL_PETS_PAGE = "All Pets";
 
-	private final Client client;
-	private final ClientThread clientThread;
+    private final Client client;
+    private final ClientThread clientThread;
 
-	// Set last, once the rest is built.
-	private volatile Set<Integer> items;
-	private Set<Integer> pets;
-	private List<String> pageNames;
+    // Set last, once the rest is built.
+    private volatile Set<Integer> items;
+    private Set<Integer> pets;
+    private List<String> pageNames;
 
-	// Every page's name, in the log's order. Off the client thread before the first build: empty, the build queued.
-	public List<String> pageNames() {
-		if (items == null && !client.isClientThread()) {
-			clientThread.invoke(this::load);
-			return List.of();
-		}
-		load();
-		return pageNames;
-	}
+    // Every page's name, in the log's order. Off the client thread before the first build: empty, the build queued.
+    public List<String> pageNames() {
+        if (items == null && !client.isClientThread()) {
+            clientThread.invoke(this::load);
+            return List.of();
+        }
+        load();
+        return pageNames;
+    }
 
-	// The page names, and BossAliases short names for them: {log}'s and addLog='s suggestions.
-	public Set<String> pageSuggestions() {
-		List<String> names = pageNames();
-		Set<String> all = new LinkedHashSet<>(names);
-		all.addAll(BossAliases.aliasesOf(names));
-		return all;
-	}
+    // The page names, and BossAliases short names for them: {log}'s and addLog='s suggestions.
+    public Set<String> pageSuggestions() {
+        List<String> names = pageNames();
+        Set<String> all = new LinkedHashSet<>(names);
+        all.addAll(BossAliases.aliasesOf(names));
+        return all;
+    }
 
-	public boolean contains(int itemId) {
-		load();
-		return items.contains(itemId);
-	}
+    public boolean contains(int itemId) {
+        load();
+        return items.contains(itemId);
+    }
 
-	public boolean isPet(int itemId) {
-		load();
-		return pets.contains(itemId);
-	}
+    public boolean isPet(int itemId) {
+        load();
+        return pets.contains(itemId);
+    }
 
-	private void load() {
-		if (items != null) {
-			return;
-		}
+    private void load() {
+        if (items != null) {
+            return;
+        }
 
-		Set<Integer> allItems = new HashSet<>();
-		Set<Integer> allPets = new HashSet<>();
-		List<String> names = new ArrayList<>();
-		for (int tabStruct : client.getEnum(TABS_ENUM).getIntVals()) {
-			int pagesEnum = client.getStructComposition(tabStruct).getIntValue(TAB_PAGES_PARAM);
-			for (int pageStruct : client.getEnum(pagesEnum).getIntVals()) {
-				StructComposition page = client.getStructComposition(pageStruct);
-				String name = page.getStringValue(PAGE_NAME_PARAM);
-				names.add(name);
-				boolean petsPage = ALL_PETS_PAGE.equals(name);
-				for (int itemId : client.getEnum(page.getIntValue(PAGE_ITEMS_PARAM)).getIntVals()) {
-					allItems.add(itemId);
-					if (petsPage) {
-						allPets.add(itemId);
-					}
-				}
-			}
-		}
+        Set<Integer> allItems = new HashSet<>();
+        Set<Integer> allPets = new HashSet<>();
+        List<String> names = new ArrayList<>();
+        for (int tabStruct : client.getEnum(TABS_ENUM).getIntVals()) {
+            int pagesEnum = client.getStructComposition(tabStruct).getIntValue(TAB_PAGES_PARAM);
+            for (int pageStruct : client.getEnum(pagesEnum).getIntVals()) {
+                StructComposition page = client.getStructComposition(pageStruct);
+                String name = page.getStringValue(PAGE_NAME_PARAM);
+                names.add(name);
+                boolean petsPage = ALL_PETS_PAGE.equals(name);
+                for (int itemId : client.getEnum(page.getIntValue(PAGE_ITEMS_PARAM)).getIntVals()) {
+                    allItems.add(itemId);
+                    if (petsPage) {
+                        allPets.add(itemId);
+                    }
+                }
+            }
+        }
 
-		pets = allPets;
-		pageNames = Collections.unmodifiableList(names);
-		items = allItems;
-	}
+        pets = allPets;
+        pageNames = Collections.unmodifiableList(names);
+        items = allItems;
+    }
 }

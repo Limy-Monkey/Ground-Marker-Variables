@@ -6,26 +6,26 @@ import lombok.RequiredArgsConstructor;
 // ever compared to 2, unnamed) -- these names/IDs are reverse-engineered from observation.
 @RequiredArgsConstructor
 public enum SlayerModifierType {
-	SLAYER_POINTS(1, "Slayer Points"),
-	TASK_QUANTITY(2, "Task Quantity"),
-	CLUE_SCROLL_RATE(3, "Clue Scroll Rate"),
-	SUPERIOR_DROP_RATE(4, "Superior Drop Rate"),
-	SLAYER_XP(5, "Superior Slayer XP");
+    SLAYER_POINTS(1, "Slayer Points"),
+    TASK_QUANTITY(2, "Task Quantity"),
+    CLUE_SCROLL_RATE(3, "Clue Scroll Rate"),
+    SUPERIOR_DROP_RATE(4, "Superior Drop Rate"),
+    SLAYER_XP(5, "Superior Slayer XP");
 
-	private final int id;
-	private final String displayName;
+    private final int id;
+    private final String displayName;
 
-	public String displayName() {
-		return displayName;
-	}
+    public String displayName() {
+        return displayName;
+    }
 
-	public static SlayerModifierType fromId(int id) {
-		for (SlayerModifierType type : values()) {
-			if (type.id == id) {
-				return type;
-			}
-		}
+    public static SlayerModifierType fromId(int id) {
+        for (SlayerModifierType type : values()) {
+            if (type.id == id) {
+                return type;
+            }
+        }
 
-		return null;
-	}
+        return null;
+    }
 }

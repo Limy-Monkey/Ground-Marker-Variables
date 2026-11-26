@@ -26,110 +26,110 @@ import net.runelite.client.party.PartyMember;
 // or on another plane, it's :telescope: instead, plain "far".
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ReadyCheckLabelVariable implements LabelVariable, PartyMemberVariable {
-	private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
-	private static final int FAR_DISTANCE = 99;
-	private static final DateTimeFormatter AWAY_TIME = DateTimeFormatter.ofPattern("h:mm");
+    private static final Pattern PATTERN = Pattern.compile("\\{readyCheck\\}", Pattern.CASE_INSENSITIVE);
+    private static final int FAR_DISTANCE = 99;
+    private static final DateTimeFormatter AWAY_TIME = DateTimeFormatter.ofPattern("h:mm");
 
-	private final Client client;
-	private final ResolvingTile resolvingTile;
-	private final ReadyCheckTracker tracker;
-	private final Emojis emojis;
+    private final Client client;
+    private final ResolvingTile resolvingTile;
+    private final ReadyCheckTracker tracker;
+    private final Emojis emojis;
 
-	@Override
-	public Pattern pattern() {
-		return PATTERN;
-	}
+    @Override
+    public Pattern pattern() {
+        return PATTERN;
+    }
 
-	// The status is looked up even when far, since that marks this tile as seen (see ReadyCheckTracker).
-	@Override
-	public String resolvePlain(Matcher matcher) {
-		Status status = tracker.localStatus();
-		return isFar(localLocation()) ? "far" : plain(status);
-	}
+    // The status is looked up even when far, since that marks this tile as seen (see ReadyCheckTracker).
+    @Override
+    public String resolvePlain(Matcher matcher) {
+        Status status = tracker.localStatus();
+        return isFar(localLocation()) ? "far" : plain(status);
+    }
 
-	@Override
-	public String resolveRich(Matcher matcher) {
-		Status status = tracker.localStatus();
-		return isFar(localLocation()) ? farIcon() : rich(status);
-	}
+    @Override
+    public String resolveRich(Matcher matcher) {
+        Status status = tracker.localStatus();
+        return isFar(localLocation()) ? farIcon() : rich(status);
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member) {
-		Status status = tracker.status(member.getDisplayName());
-		return isFar(member) ? "far" : plain(status);
-	}
+    @Override
+    public String resolvePlain(Matcher matcher, PartyMember member) {
+        Status status = tracker.status(member.getDisplayName());
+        return isFar(member) ? "far" : plain(status);
+    }
 
-	@Override
-	public String resolveRich(Matcher matcher, PartyMember member) {
-		Status status = tracker.status(member.getDisplayName());
-		return isFar(member) ? farIcon() : rich(status);
-	}
+    @Override
+    public String resolveRich(Matcher matcher, PartyMember member) {
+        Status status = tracker.status(member.getDisplayName());
+        return isFar(member) ? farIcon() : rich(status);
+    }
 
-	// Going far clears their status, so it isn't still there when they come back.
-	private boolean isFar(PartyMember member) {
-		if (!isFar(member.getCoord())) {
-			return false;
-		}
+    // Going far clears their status, so it isn't still there when they come back.
+    private boolean isFar(PartyMember member) {
+        if (!isFar(member.getCoord())) {
+            return false;
+        }
 
-		tracker.clear(member.getDisplayName());
-		return true;
-	}
+        tracker.clear(member.getDisplayName());
+        return true;
+    }
 
-	// False without a player location or a tile being resolved.
-	private boolean isFar(@Nullable WorldPoint player) {
-		WorldPoint tile = resolvingTile.tile;
-		return player != null && tile != null && (player.getPlane() != tile.getPlane() || player.distanceTo(tile) > FAR_DISTANCE);
-	}
+    // False without a player location or a tile being resolved.
+    private boolean isFar(@Nullable WorldPoint player) {
+        WorldPoint tile = resolvingTile.tile;
+        return player != null && tile != null && (player.getPlane() != tile.getPlane() || player.distanceTo(tile) > FAR_DISTANCE);
+    }
 
-	@Nullable
-	private WorldPoint localLocation() {
-		return client.getLocalPlayer() == null ? null : client.getLocalPlayer().getWorldLocation();
-	}
+    @Nullable
+    private WorldPoint localLocation() {
+        return client.getLocalPlayer() == null ? null : client.getLocalPlayer().getWorldLocation();
+    }
 
-	private String farIcon() {
-		return emojis.expand("{tip=Not nearby}:telescope@lightgray:{/tip}");
-	}
+    private String farIcon() {
+        return emojis.expand("{tip=Not nearby}:telescope@lightgray:{/tip}");
+    }
 
-	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText) {
-		return resolveRich(matcher);
-	}
+    @Override
+    public String resolveRowRich(Matcher matcher, RichText richText) {
+        return resolveRich(matcher);
+    }
 
-	private static String plain(Status status) {
-		if (status == null) {
-			return "none";
-		}
+    private static String plain(Status status) {
+        if (status == null) {
+            return "none";
+        }
 
-		switch (status.kind) {
-			case READY:
-				return "ready";
-			case POTTING:
-				return "potting";
-			case POTTED:
-				return "potted";
-			case NOT_READY:
-				return "not ready";
-			default:
-				return "away";
-		}
-	}
+        switch (status.kind) {
+            case READY:
+                return "ready";
+            case POTTING:
+                return "potting";
+            case POTTED:
+                return "potted";
+            case NOT_READY:
+                return "not ready";
+            default:
+                return "away";
+        }
+    }
 
-	private String rich(Status status) {
-		if (status == null) {
-			return "";
-		}
+    private String rich(Status status) {
+        if (status == null) {
+            return "";
+        }
 
-		switch (status.kind) {
-			case READY:
-				return RichText.colored(Color.GREEN, "R");
-			case POTTING:
-				return RichText.colored(Color.GREEN, "P");
-			case POTTED:
-				return "{tip=Potted}<item=" + ItemID._4DOSE2COMBAT + ">{/tip}";
-			case NOT_READY:
-				return RichText.colored(Color.RED, "R");
-			default:
-				return "{tip=away at " + AWAY_TIME.format(status.time) + "}" + emojis.expand(":zzz:") + "{/tip}";
-		}
-	}
+        switch (status.kind) {
+            case READY:
+                return RichText.colored(Color.GREEN, "R");
+            case POTTING:
+                return RichText.colored(Color.GREEN, "P");
+            case POTTED:
+                return "{tip=Potted}<item=" + ItemID._4DOSE2COMBAT + ">{/tip}";
+            case NOT_READY:
+                return RichText.colored(Color.RED, "R");
+            default:
+                return "{tip=away at " + AWAY_TIME.format(status.time) + "}" + emojis.expand(":zzz:") + "{/tip}";
+        }
+    }
 }

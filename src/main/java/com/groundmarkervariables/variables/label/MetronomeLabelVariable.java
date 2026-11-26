@@ -25,97 +25,97 @@ import net.runelite.client.util.ColorUtil;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MetronomeLabelVariable implements LabelVariable {
-	// Optional +/- before N forces counting up/down, over both config and party sync.
-	private static final Pattern PATTERN = Pattern.compile(
-		"\\{(?:metronome|m)([+-]?)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
+    // Optional +/- before N forces counting up/down, over both config and party sync.
+    private static final Pattern PATTERN = Pattern.compile(
+        "\\{(?:metronome|m)([+-]?)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
 
-	private final Client client;
-	private final GroundMarkerVariablesConfig config;
-	private final PartyService partyService;
-	private final PartyDataSharing partyDataSharing;
-	// The map clock tick counting starts from: 0 until reset, the same for everyone.
-	private volatile int resetTick;
+    private final Client client;
+    private final GroundMarkerVariablesConfig config;
+    private final PartyService partyService;
+    private final PartyDataSharing partyDataSharing;
+    // The map clock tick counting starts from: 0 until reset, the same for everyone.
+    private volatile int resetTick;
 
-	public void reset() {
-		resetTick = client.getVarpValue(VarPlayerID.MAP_CLOCK);
-	}
+    public void reset() {
+        resetTick = client.getVarpValue(VarPlayerID.MAP_CLOCK);
+    }
 
-	// Ours, published to the party.
-	public int resetTick() {
-		return resetTick;
-	}
+    // Ours, published to the party.
+    public int resetTick() {
+        return resetTick;
+    }
 
-	// The Party Sync target's published value, if following someone who's sent it.
-	@Nullable
-	private String synced(PartyValue value) {
-		String target = config.syncTarget().replace('_', ' ');
-		if (!config.enablePartySync() || target.isEmpty()) {
-			return null;
-		}
-		for (PartyMember member : partyService.getMembers()) {
-			if (member.getDisplayName().replace('_', ' ').equalsIgnoreCase(target)) {
-				return partyDataSharing.value(member.getMemberId(), value);
-			}
-		}
-		return null;
-	}
+    // The Party Sync target's published value, if following someone who's sent it.
+    @Nullable
+    private String synced(PartyValue value) {
+        String target = config.syncTarget().replace('_', ' ');
+        if (!config.enablePartySync() || target.isEmpty()) {
+            return null;
+        }
+        for (PartyMember member : partyService.getMembers()) {
+            if (member.getDisplayName().replace('_', ' ').equalsIgnoreCase(target)) {
+                return partyDataSharing.value(member.getMemberId(), value);
+            }
+        }
+        return null;
+    }
 
-	// The sync target's reset tick if published, else ours.
-	private int countedFrom() {
-		try {
-			String synced = synced(PartyValue.METRONOME_RESET);
-			return synced != null ? Integer.parseInt(synced) : resetTick;
-		} catch (NumberFormatException e) {
-			return resetTick;
-		}
-	}
+    // The sync target's reset tick if published, else ours.
+    private int countedFrom() {
+        try {
+            String synced = synced(PartyValue.METRONOME_RESET);
+            return synced != null ? Integer.parseInt(synced) : resetTick;
+        } catch (NumberFormatException e) {
+            return resetTick;
+        }
+    }
 
-	@Override
-	public Pattern pattern() {
-		return PATTERN;
-	}
+    @Override
+    public Pattern pattern() {
+        return PATTERN;
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher) {
-		int max = parseGroup(matcher, 2, -1);
-		if (max <= 0) {
-			return null;
-		}
+    @Override
+    public String resolvePlain(Matcher matcher) {
+        int max = parseGroup(matcher, 2, -1);
+        if (max <= 0) {
+            return null;
+        }
 
-		int ticksPerStep = matcher.group(3) == null ? 1 : parseGroup(matcher, 3, -1);
-		if (ticksPerStep <= 0) {
-			return null;
-		}
+        int ticksPerStep = matcher.group(3) == null ? 1 : parseGroup(matcher, 3, -1);
+        if (ticksPerStep <= 0) {
+            return null;
+        }
 
-		String direction = matcher.group(1);
-		String syncedCountDown = synced(PartyValue.METRONOME_COUNT_DOWN);
-		boolean countDown = !direction.isEmpty() ? direction.equals("-")
-			: syncedCountDown != null ? Boolean.parseBoolean(syncedCountDown) : config.countDown();
+        String direction = matcher.group(1);
+        String syncedCountDown = synced(PartyValue.METRONOME_COUNT_DOWN);
+        boolean countDown = !direction.isEmpty() ? direction.equals("-")
+            : syncedCountDown != null ? Boolean.parseBoolean(syncedCountDown) : config.countDown();
 
-		int step = Math.floorDiv(client.getVarpValue(VarPlayerID.MAP_CLOCK) - countedFrom(), ticksPerStep);
-		int position = Math.floorMod(step, max);
-		String value = String.valueOf(countDown ? max - position : position + 1);
+        int step = Math.floorDiv(client.getVarpValue(VarPlayerID.MAP_CLOCK) - countedFrom(), ticksPerStep);
+        int position = Math.floorMod(step, max);
+        String value = String.valueOf(countDown ? max - position : position + 1);
 
-		if (config.highlightFinalTick() && position == max - 1) {
-			value = "<col=" + ColorUtil.colorToHexCode(config.finalTickColor()) + ">" + value + "</col>";
-		}
+        if (config.highlightFinalTick() && position == max - 1) {
+            value = "<col=" + ColorUtil.colorToHexCode(config.finalTickColor()) + ">" + value + "</col>";
+        }
 
-		return value;
-	}
+        return value;
+    }
 
-	// Rich and Plain are identical for {metronomeN[_M]}.
-	@Override
-	public String resolveRich(Matcher matcher) {
-		return resolvePlain(matcher);
-	}
+    // Rich and Plain are identical for {metronomeN[_M]}.
+    @Override
+    public String resolveRich(Matcher matcher) {
+        return resolvePlain(matcher);
+    }
 
-	// \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can
-	// overflow int; fall back to a value the caller treats as invalid rather than crashing.
-	private static int parseGroup(Matcher matcher, int group, int onOverflow) {
-		try {
-			return Integer.parseInt(matcher.group(group));
-		} catch (NumberFormatException e) {
-			return onOverflow;
-		}
-	}
+    // \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can
+    // overflow int; fall back to a value the caller treats as invalid rather than crashing.
+    private static int parseGroup(Matcher matcher, int group, int onOverflow) {
+        try {
+            return Integer.parseInt(matcher.group(group));
+        } catch (NumberFormatException e) {
+            return onOverflow;
+        }
+    }
 }

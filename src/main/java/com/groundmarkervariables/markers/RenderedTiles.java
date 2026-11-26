@@ -21,129 +21,129 @@ import net.runelite.api.coords.WorldPoint;
 // not hidden (ties: the higher order). Built on demand on the client thread; invalidate() is safe from any thread.
 @Singleton
 public class RenderedTiles {
-	public static final float PINGED_PRIORITY = 0.55f;
-	public static final float SAVED_PRIORITY = 0.6f;
-	public static final float SET_PRIORITY = 0.7f;
-	public static final float PREVIEW_PRIORITY = 2f;
+    public static final float PINGED_PRIORITY = 0.55f;
+    public static final float SAVED_PRIORITY = 0.6f;
+    public static final float SET_PRIORITY = 0.7f;
+    public static final float PREVIEW_PRIORITY = 2f;
 
-	private static final Comparator<RenderedTile> BEST_FIRST = Comparator
-		.comparingDouble((RenderedTile t) -> -t.marker.priority)
-		.thenComparingLong(t -> -t.marker.order);
+    private static final Comparator<RenderedTile> BEST_FIRST = Comparator
+        .comparingDouble((RenderedTile t) -> -t.marker.priority)
+        .thenComparingLong(t -> -t.marker.order);
 
-	// A world view's markers per point, best first, and the drawn one per point.
-	private static final class Tiles {
-		final Map<WorldPoint, List<RenderedTile>> all = new HashMap<>();
-		final Map<WorldPoint, RenderedTile> winners = new HashMap<>();
-	}
+    // A world view's markers per point, best first, and the drawn one per point.
+    private static final class Tiles {
+        final Map<WorldPoint, List<RenderedTile>> all = new HashMap<>();
+        final Map<WorldPoint, RenderedTile> winners = new HashMap<>();
+    }
 
-	private final List<TileSource> sources = new CopyOnWriteArrayList<>();
-	private final Set<WorldView> tracked = ConcurrentHashMap.newKeySet();
-	private final Map<WorldView, Tiles> byWorldView = new ConcurrentHashMap<>();
+    private final List<TileSource> sources = new CopyOnWriteArrayList<>();
+    private final Set<WorldView> tracked = ConcurrentHashMap.newKeySet();
+    private final Map<WorldView, Tiles> byWorldView = new ConcurrentHashMap<>();
 
-	@Inject
-	private RenderedTiles() {
-	}
+    @Inject
+    private RenderedTiles() {
+    }
 
-	public void setSources(List<TileSource> sources) {
-		this.sources.clear();
-		this.sources.addAll(sources);
-		invalidate();
-	}
+    public void setSources(List<TileSource> sources) {
+        this.sources.clear();
+        this.sources.addAll(sources);
+        invalidate();
+    }
 
-	public void track(WorldView wv) {
-		tracked.add(wv);
-		byWorldView.remove(wv);
-	}
+    public void track(WorldView wv) {
+        tracked.add(wv);
+        byWorldView.remove(wv);
+    }
 
-	public void untrack(WorldView wv) {
-		tracked.remove(wv);
-		byWorldView.remove(wv);
-	}
+    public void untrack(WorldView wv) {
+        tracked.remove(wv);
+        byWorldView.remove(wv);
+    }
 
-	public void clear() {
-		sources.clear();
-		tracked.clear();
-		byWorldView.clear();
-	}
+    public void clear() {
+        sources.clear();
+        tracked.clear();
+        byWorldView.clear();
+    }
 
-	// After any source's markers, priorities or hides change.
-	public void invalidate() {
-		byWorldView.clear();
-	}
+    // After any source's markers, priorities or hides change.
+    public void invalidate() {
+        byWorldView.clear();
+    }
 
-	public Collection<WorldView> worldViews() {
-		return tracked;
-	}
+    public Collection<WorldView> worldViews() {
+        return tracked;
+    }
 
-	public Collection<RenderedTile> winners(WorldView wv) {
-		return tiles(wv).winners.values();
-	}
+    public Collection<RenderedTile> winners(WorldView wv) {
+        return tiles(wv).winners.values();
+    }
 
-	// One marker drawn at a tile (see forEachShown()).
-	public interface Shown {
-		void draw(WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity);
-	}
+    // One marker drawn at a tile (see forEachShown()).
+    public interface Shown {
+        void draw(WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity);
+    }
 
-	// Each world view's winning marker per tile, with its opacity now, unless faded out.
-	public void forEachShown(Instant now, Shown shown) {
-		for (WorldView wv : tracked) {
-			for (RenderedTile rendered : winners(wv)) {
-				float opacity = rendered.marker.source.opacity(rendered.marker, now);
-				if (opacity > 0f) {
-					shown.draw(wv, rendered.worldPoint, rendered.marker.marker, opacity);
-				}
-			}
-		}
-	}
+    // Each world view's winning marker per tile, with its opacity now, unless faded out.
+    public void forEachShown(Instant now, Shown shown) {
+        for (WorldView wv : tracked) {
+            for (RenderedTile rendered : winners(wv)) {
+                float opacity = rendered.marker.source.opacity(rendered.marker, now);
+                if (opacity > 0f) {
+                    shown.draw(wv, rendered.worldPoint, rendered.marker.marker, opacity);
+                }
+            }
+        }
+    }
 
-	@Nullable
-	public RenderedTile winner(WorldView wv, WorldPoint worldPoint) {
-		return tiles(wv).winners.get(worldPoint);
-	}
+    @Nullable
+    public RenderedTile winner(WorldView wv, WorldPoint worldPoint) {
+        return tiles(wv).winners.get(worldPoint);
+    }
 
-	// Every marker at worldPoint, best first, hidden or not.
-	public List<RenderedTile> all(WorldView wv, WorldPoint worldPoint) {
-		return tiles(wv).all.getOrDefault(worldPoint, Collections.emptyList());
-	}
+    // Every marker at worldPoint, best first, hidden or not.
+    public List<RenderedTile> all(WorldView wv, WorldPoint worldPoint) {
+        return tiles(wv).all.getOrDefault(worldPoint, Collections.emptyList());
+    }
 
-	// Every marker in wv, hidden or not.
-	public List<RenderedTile> all(WorldView wv) {
-		List<RenderedTile> all = new ArrayList<>();
-		tiles(wv).all.values().forEach(all::addAll);
-		return all;
-	}
+    // Every marker in wv, hidden or not.
+    public List<RenderedTile> all(WorldView wv) {
+        List<RenderedTile> all = new ArrayList<>();
+        tiles(wv).all.values().forEach(all::addAll);
+        return all;
+    }
 
-	private Tiles tiles(WorldView wv) {
-		Tiles tiles = byWorldView.get(wv);
-		if (tiles != null) {
-			return tiles;
-		}
+    private Tiles tiles(WorldView wv) {
+        Tiles tiles = byWorldView.get(wv);
+        if (tiles != null) {
+            return tiles;
+        }
 
-		tiles = new Tiles();
-		int[] regions = wv.getMapRegions();
-		if (regions != null) {
-			for (int regionId : regions) {
-				for (TileSource source : sources) {
-					for (SourceMarker marker : source.markers(regionId)) {
-						GroundMarkerPointData point = marker.marker.source;
-						WorldPoint stored = point.worldPoint();
-						for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, stored)) {
-							tiles.all.computeIfAbsent(worldPoint, p -> new ArrayList<>()).add(new RenderedTile(worldPoint, stored, marker));
-						}
-					}
-				}
-			}
-			for (List<RenderedTile> here : tiles.all.values()) {
-				here.sort(BEST_FIRST);
-				for (RenderedTile tile : here) {
-					if (!tile.marker.source.hidden(tile)) {
-						tiles.winners.put(tile.worldPoint, tile);
-						break;
-					}
-				}
-			}
-		}
-		byWorldView.put(wv, tiles);
-		return tiles;
-	}
+        tiles = new Tiles();
+        int[] regions = wv.getMapRegions();
+        if (regions != null) {
+            for (int regionId : regions) {
+                for (TileSource source : sources) {
+                    for (SourceMarker marker : source.markers(regionId)) {
+                        GroundMarkerPointData point = marker.marker.source;
+                        WorldPoint stored = point.worldPoint();
+                        for (WorldPoint worldPoint : WorldPoint.toLocalInstance(wv, stored)) {
+                            tiles.all.computeIfAbsent(worldPoint, p -> new ArrayList<>()).add(new RenderedTile(worldPoint, stored, marker));
+                        }
+                    }
+                }
+            }
+            for (List<RenderedTile> here : tiles.all.values()) {
+                here.sort(BEST_FIRST);
+                for (RenderedTile tile : here) {
+                    if (!tile.marker.source.hidden(tile)) {
+                        tiles.winners.put(tile.worldPoint, tile);
+                        break;
+                    }
+                }
+            }
+        }
+        byWorldView.put(wv, tiles);
+        return tiles;
+    }
 }

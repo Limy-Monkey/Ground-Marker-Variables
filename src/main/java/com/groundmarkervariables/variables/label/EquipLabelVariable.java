@@ -29,141 +29,141 @@ import net.runelite.client.party.PartyMember;
 // {equip_<slot> icon} is the item's icon, or nothing if empty.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class EquipLabelVariable implements LabelVariable, PartyMemberVariable {
-	// Suggesting each slot, with its icon.
-	private static final Args ARGS = Args.of("equip_").joined()
-		.main(() -> List.of("helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver"),
-			slot -> "{equip_" + slot + " icon}")
-		.flag("icon");
-	private static final String EMPTY = "Empty";
-	private static final String QUIVER = "quiver";
-	// An unknown slot.
-	private static final int UNKNOWN = Integer.MIN_VALUE;
+    // Suggesting each slot, with its icon.
+    private static final Args ARGS = Args.of("equip_").joined()
+        .main(() -> List.of("helm", "cape", "amulet", "body", "shield", "legs", "gloves", "boots", "ring", "ammo", "quiver"),
+            slot -> "{equip_" + slot + " icon}")
+        .flag("icon");
+    private static final String EMPTY = "Empty";
+    private static final String QUIVER = "quiver";
+    // An unknown slot.
+    private static final int UNKNOWN = Integer.MIN_VALUE;
 
-	private static final Map<String, EquipmentInventorySlot> SLOTS = Map.ofEntries(
-		Map.entry("helm", EquipmentInventorySlot.HEAD),
-		Map.entry("cape", EquipmentInventorySlot.CAPE),
-		Map.entry("amulet", EquipmentInventorySlot.AMULET),
-		Map.entry("body", EquipmentInventorySlot.BODY),
-		Map.entry("shield", EquipmentInventorySlot.SHIELD),
-		Map.entry("legs", EquipmentInventorySlot.LEGS),
-		Map.entry("gloves", EquipmentInventorySlot.GLOVES),
-		Map.entry("boots", EquipmentInventorySlot.BOOTS),
-		Map.entry("ring", EquipmentInventorySlot.RING),
-		Map.entry("ammo", EquipmentInventorySlot.AMMO));
+    private static final Map<String, EquipmentInventorySlot> SLOTS = Map.ofEntries(
+        Map.entry("helm", EquipmentInventorySlot.HEAD),
+        Map.entry("cape", EquipmentInventorySlot.CAPE),
+        Map.entry("amulet", EquipmentInventorySlot.AMULET),
+        Map.entry("body", EquipmentInventorySlot.BODY),
+        Map.entry("shield", EquipmentInventorySlot.SHIELD),
+        Map.entry("legs", EquipmentInventorySlot.LEGS),
+        Map.entry("gloves", EquipmentInventorySlot.GLOVES),
+        Map.entry("boots", EquipmentInventorySlot.BOOTS),
+        Map.entry("ring", EquipmentInventorySlot.RING),
+        Map.entry("ammo", EquipmentInventorySlot.AMMO));
 
-	private static final Map<String, String> SLOT_LABELS = Map.ofEntries(
-		Map.entry("helm", "Helm"), Map.entry("cape", "Cape"), Map.entry("amulet", "Amulet"),
-		Map.entry("body", "Body"), Map.entry("shield", "Shield"), Map.entry("legs", "Legs"),
-		Map.entry("gloves", "Gloves"), Map.entry("boots", "Boots"), Map.entry("ring", "Ring"),
-		Map.entry("ammo", "Ammo"), Map.entry("quiver", "Quiver"));
+    private static final Map<String, String> SLOT_LABELS = Map.ofEntries(
+        Map.entry("helm", "Helm"), Map.entry("cape", "Cape"), Map.entry("amulet", "Amulet"),
+        Map.entry("body", "Body"), Map.entry("shield", "Shield"), Map.entry("legs", "Legs"),
+        Map.entry("gloves", "Gloves"), Map.entry("boots", "Boots"), Map.entry("ring", "Ring"),
+        Map.entry("ammo", "Ammo"), Map.entry("quiver", "Quiver"));
 
-	private final Client client;
-	private final ItemManager itemManager;
-	private final RichText richText;
+    private final Client client;
+    private final ItemManager itemManager;
+    private final RichText richText;
 
-	@Override
-	public Pattern pattern() {
-		return ARGS.pattern();
-	}
+    @Override
+    public Pattern pattern() {
+        return ARGS.pattern();
+    }
 
-	@Override
-	public Args args() {
-		return ARGS;
-	}
+    @Override
+    public Args args() {
+        return ARGS;
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher) {
-		return client.getLocalPlayer() == null ? null : name(localItemId(slot(matcher)));
-	}
+    @Override
+    public String resolvePlain(Matcher matcher) {
+        return client.getLocalPlayer() == null ? null : name(localItemId(slot(matcher)));
+    }
 
-	@Override
-	public String resolveRich(Matcher matcher) {
-		if (client.getLocalPlayer() == null) {
-			return null;
-		}
+    @Override
+    public String resolveRich(Matcher matcher) {
+        if (client.getLocalPlayer() == null) {
+            return null;
+        }
 
-		String slot = slot(matcher);
-		int itemId = localItemId(slot);
-		if (isIcon(matcher)) {
-			return icon(itemId);
-		}
+        String slot = slot(matcher);
+        int itemId = localItemId(slot);
+        if (isIcon(matcher)) {
+            return icon(itemId);
+        }
 
-		String itemName = name(itemId);
-		return itemName == null ? null : richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
-	}
+        String itemName = name(itemId);
+        return itemName == null ? null : richText.labeled(SLOT_LABELS.getOrDefault(slot, slot), itemName);
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher, PartyMember member) {
-		return name(memberItemId(slot(matcher), member));
-	}
+    @Override
+    public String resolvePlain(Matcher matcher, PartyMember member) {
+        return name(memberItemId(slot(matcher), member));
+    }
 
-	@Override
-	public String resolveRich(Matcher matcher, PartyMember member) {
-		int itemId = memberItemId(slot(matcher), member);
-		if (isIcon(matcher)) {
-			return icon(itemId);
-		}
+    @Override
+    public String resolveRich(Matcher matcher, PartyMember member) {
+        int itemId = memberItemId(slot(matcher), member);
+        if (isIcon(matcher)) {
+            return icon(itemId);
+        }
 
-		String itemName = name(itemId);
-		return itemName == null ? null : richText.highlightValue(itemName);
-	}
+        String itemName = name(itemId);
+        return itemName == null ? null : richText.highlightValue(itemName);
+    }
 
-	@Override
-	public String resolveRowRich(Matcher matcher, RichText richText) {
-		return isIcon(matcher) ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
-	}
+    @Override
+    public String resolveRowRich(Matcher matcher, RichText richText) {
+        return isIcon(matcher) ? resolveRich(matcher) : PartyMemberVariable.super.resolveRowRich(matcher, richText);
+    }
 
-	private static boolean isIcon(Matcher matcher) {
-		return ARGS.options(matcher).flag("icon");
-	}
+    private static boolean isIcon(Matcher matcher) {
+        return ARGS.options(matcher).flag("icon");
+    }
 
-	private static String slot(Matcher matcher) {
-		return ARGS.main(matcher).toLowerCase(Locale.ENGLISH);
-	}
+    private static String slot(Matcher matcher) {
+        return ARGS.main(matcher).toLowerCase(Locale.ENGLISH);
+    }
 
-	// Null for an unknown slot.
-	private String name(int itemId) {
-		if (itemId == UNKNOWN) {
-			return null;
-		}
-		return itemId <= 0 ? EMPTY : itemManager.getItemComposition(itemId).getName();
-	}
+    // Null for an unknown slot.
+    private String name(int itemId) {
+        if (itemId == UNKNOWN) {
+            return null;
+        }
+        return itemId <= 0 ? EMPTY : itemManager.getItemComposition(itemId).getName();
+    }
 
-	private static String icon(int itemId) {
-		if (itemId == UNKNOWN) {
-			return null;
-		}
-		return itemId <= 0 ? "" : Icons.item(itemId);
-	}
+    private static String icon(int itemId) {
+        if (itemId == UNKNOWN) {
+            return null;
+        }
+        return itemId <= 0 ? "" : Icons.item(itemId);
+    }
 
-	// <= 0 when empty, UNKNOWN for an unknown slot.
-	private int localItemId(String slot) {
-		if (QUIVER.equals(slot)) {
-			return QuiverAmmo.isAvailable(client, itemManager) ? client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO) : -1;
-		}
+    // <= 0 when empty, UNKNOWN for an unknown slot.
+    private int localItemId(String slot) {
+        if (QUIVER.equals(slot)) {
+            return QuiverAmmo.isAvailable(client, itemManager) ? client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO) : -1;
+        }
 
-		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null) {
-			return UNKNOWN;
-		}
+        EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
+        if (equipmentSlot == null) {
+            return UNKNOWN;
+        }
 
-		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
-		Item item = equipment == null ? null : equipment.getItem(equipmentSlot.getSlotIdx());
-		return item == null ? -1 : item.getId();
-	}
+        ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
+        Item item = equipment == null ? null : equipment.getItem(equipmentSlot.getSlotIdx());
+        return item == null ? -1 : item.getId();
+    }
 
-	private static int memberItemId(String slot, PartyMember member) {
-		if (QUIVER.equals(slot)) {
-			return member.getQuiver() == null ? -1 : member.getQuiver().getId();
-		}
+    private static int memberItemId(String slot, PartyMember member) {
+        if (QUIVER.equals(slot)) {
+            return member.getQuiver() == null ? -1 : member.getQuiver().getId();
+        }
 
-		EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
-		if (equipmentSlot == null) {
-			return UNKNOWN;
-		}
+        EquipmentInventorySlot equipmentSlot = SLOTS.get(slot);
+        if (equipmentSlot == null) {
+            return UNKNOWN;
+        }
 
-		Item[] worn = member.getWorn();
-		Item item = worn == null || equipmentSlot.getSlotIdx() >= worn.length ? null : worn[equipmentSlot.getSlotIdx()];
-		return item == null ? -1 : item.getId();
-	}
+        Item[] worn = member.getWorn();
+        Item item = worn == null || equipmentSlot.getSlotIdx() >= worn.length ? null : worn[equipmentSlot.getSlotIdx()];
+        return item == null ? -1 : item.getId();
+    }
 }

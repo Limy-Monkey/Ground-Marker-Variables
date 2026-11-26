@@ -17,39 +17,39 @@ import javax.inject.Inject;
 //
 // A new variable: a line in SimpleVariables if it takes no arguments, else its class here.
 public class VariableRegistry {
-	private final List<LabelVariable> variables;
+    private final List<LabelVariable> variables;
 
-	@Inject
-	private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args, SpellVariables spells) {
-		// The variables defined inline in SimpleVariables, ArgVariables and SpellVariables.
-		List<LabelVariable> variables = new ArrayList<>(simple.all());
-		variables.addAll(args.all());
-		variables.addAll(spells.all());
-		for (Class<? extends LabelVariable> type : List.of(
-			AttackStyleLabelVariable.class,
-			AttackTypeLabelVariable.class,
-			ShowItemsLabelVariable.class,
-			ShowItemsLabelVariable.ShowOneItem.class,
-			RunePouchLabelVariable.class,
-			EquipLabelVariable.class,
-			SixHourTimeRemainingLabelVariable.class,
-			LootLabelVariable.class,
-			LootLabelVariable.LootSession.class,
-			LogLabelVariable.class,
-			ChargesLabelVariable.class,
-			RankLabelVariable.class,
-			PartyLabelVariable.class,
-			ReadyCheckLabelVariable.class,
-			DivineLabelVariable.class,
-			WorldInfoLabelVariable.class,
-			ActiveLabelVariable.class,
-			QuickPrayersLabelVariable.class)) {
-			variables.add(injector.getInstance(type));
-		}
-		this.variables = List.copyOf(variables);
-	}
+    @Inject
+    private VariableRegistry(Injector injector, SimpleVariables simple, ArgVariables args, SpellVariables spells) {
+        // The variables defined inline in SimpleVariables, ArgVariables and SpellVariables.
+        List<LabelVariable> variables = new ArrayList<>(simple.all());
+        variables.addAll(args.all());
+        variables.addAll(spells.all());
+        for (Class<? extends LabelVariable> type : List.of(
+            AttackStyleLabelVariable.class,
+            AttackTypeLabelVariable.class,
+            ShowItemsLabelVariable.class,
+            ShowItemsLabelVariable.ShowOneItem.class,
+            RunePouchLabelVariable.class,
+            EquipLabelVariable.class,
+            SixHourTimeRemainingLabelVariable.class,
+            LootLabelVariable.class,
+            LootLabelVariable.LootSession.class,
+            LogLabelVariable.class,
+            ChargesLabelVariable.class,
+            RankLabelVariable.class,
+            PartyLabelVariable.class,
+            ReadyCheckLabelVariable.class,
+            DivineLabelVariable.class,
+            WorldInfoLabelVariable.class,
+            ActiveLabelVariable.class,
+            QuickPrayersLabelVariable.class)) {
+            variables.add(injector.getInstance(type));
+        }
+        this.variables = List.copyOf(variables);
+    }
 
-	public List<LabelVariable> all() {
-		return variables;
-	}
+    public List<LabelVariable> all() {
+        return variables;
+    }
 }

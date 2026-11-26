@@ -19,74 +19,74 @@ import net.runelite.api.Client;
 // last style seen on that weapon this session.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class AttackStyleLabelVariable implements LabelVariable {
-	private final Client client;
-	private final RichText richText;
-	private final WeaponStyleTracker tracker;
+    private final Client client;
+    private final RichText richText;
+    private final WeaponStyleTracker tracker;
 
-	private final Args args = weaponArgs("attackStyle", this::weaponNames);
+    private final Args args = weaponArgs("attackStyle", this::weaponNames);
 
-	@Override
-	public Pattern pattern() {
-		return args.pattern();
-	}
+    @Override
+    public Pattern pattern() {
+        return args.pattern();
+    }
 
-	@Override
-	public Args args() {
-		return args;
-	}
+    @Override
+    public Args args() {
+        return args;
+    }
 
-	@Override
-	public String resolvePlain(Matcher matcher) {
-		if (client.getLocalPlayer() == null) {
-			return null;
-		}
+    @Override
+    public String resolvePlain(Matcher matcher) {
+        if (client.getLocalPlayer() == null) {
+            return null;
+        }
 
-		String weapon = weapon(args, matcher);
-		WeaponStyleTracker.Style style = style(tracker, weapon);
-		return style == null ? notSeenText(weapon) : style.name;
-	}
+        String weapon = weapon(args, matcher);
+        WeaponStyleTracker.Style style = style(tracker, weapon);
+        return style == null ? notSeenText(weapon) : style.name;
+    }
 
-	// Appends the damage type, e.g. "Aggressive (Slash)".
-	@Override
-	public String resolveRich(Matcher matcher) {
-		if (client.getLocalPlayer() == null) {
-			return null;
-		}
+    // Appends the damage type, e.g. "Aggressive (Slash)".
+    @Override
+    public String resolveRich(Matcher matcher) {
+        if (client.getLocalPlayer() == null) {
+            return null;
+        }
 
-		String weapon = weapon(args, matcher);
-		WeaponStyleTracker.Style style = style(tracker, weapon);
-		if (style == null) {
-			return notSeenText(weapon);
-		}
+        String weapon = weapon(args, matcher);
+        WeaponStyleTracker.Style style = style(tracker, weapon);
+        if (style == null) {
+            return notSeenText(weapon);
+        }
 
-		String value = (style.type == null || style.type == WeaponAttackType.NONE) ? style.name : style.name + " (" + style.type.displayName() + ")";
-		return richText.labeled(label(tracker, weapon, "Style", "Attack Style"), value);
-	}
+        String value = (style.type == null || style.type == WeaponAttackType.NONE) ? style.name : style.name + " (" + style.type.displayName() + ")";
+        return richText.labeled(label(tracker, weapon, "Style", "Attack Style"), value);
+    }
 
-	private Collection<String> weaponNames() {
-		return tracker.weaponNames();
-	}
+    private Collection<String> weaponNames() {
+        return tracker.weaponNames();
+    }
 
-	// {<name>[, weapon=<name>]}, suggesting the weapons seen this session.
-	static Args weaponArgs(String name, Supplier<Collection<String>> weapons) {
-		return Args.of(name).value("weapon", weapons, Args.ITEM_ICON);
-	}
+    // {<name>[, weapon=<name>]}, suggesting the weapons seen this session.
+    static Args weaponArgs(String name, Supplier<Collection<String>> weapons) {
+        return Args.of(name).value("weapon", weapons, Args.ITEM_ICON);
+    }
 
-	@Nullable
-	static String weapon(Args args, Matcher matcher) {
-		return args.options(matcher).value("weapon");
-	}
+    @Nullable
+    static String weapon(Args args, Matcher matcher) {
+        return args.options(matcher).value("weapon");
+    }
 
-	static String label(WeaponStyleTracker tracker, @Nullable String weapon, String suffix, String defaultLabel) {
-		return weapon == null ? defaultLabel : tracker.weaponName(weapon) + " " + suffix;
-	}
+    static String label(WeaponStyleTracker tracker, @Nullable String weapon, String suffix, String defaultLabel) {
+        return weapon == null ? defaultLabel : tracker.weaponName(weapon) + " " + suffix;
+    }
 
-	@Nullable
-	static WeaponStyleTracker.Style style(WeaponStyleTracker tracker, @Nullable String weapon) {
-		return weapon == null ? tracker.current() : tracker.forWeapon(weapon);
-	}
+    @Nullable
+    static WeaponStyleTracker.Style style(WeaponStyleTracker tracker, @Nullable String weapon) {
+        return weapon == null ? tracker.current() : tracker.forWeapon(weapon);
+    }
 
-	static String notSeenText(String weapon) {
-		return "Equip " + weapon + " first";
-	}
+    static String notSeenText(String weapon) {
+        return "Equip " + weapon + " first";
+    }
 }

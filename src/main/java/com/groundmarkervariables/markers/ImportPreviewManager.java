@@ -18,38 +18,38 @@ import javax.inject.Singleton;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ImportPreviewManager implements TileSource {
-	private static final float OPACITY = 0.5f;
+    private static final float OPACITY = 0.5f;
 
-	private final RenderedTiles renderedTiles;
-	private final LabelResolver labelResolver;
-	private final MetaVariableResolver metaVariableResolver;
+    private final RenderedTiles renderedTiles;
+    private final LabelResolver labelResolver;
+    private final MetaVariableResolver metaVariableResolver;
 
-	// Replaced whole, so a concurrent read never sees a partly built map.
-	private volatile Map<Integer, List<SourceMarker>> byRegion = Collections.emptyMap();
+    // Replaced whole, so a concurrent read never sees a partly built map.
+    private volatile Map<Integer, List<SourceMarker>> byRegion = Collections.emptyMap();
 
-	public void show(Collection<GroundMarkerPointData> points) {
-		Map<Integer, List<SourceMarker>> markers = new HashMap<>();
-		for (GroundMarkerPointData point : points) {
-			CachedMarker marker = new CachedMarker(point, labelResolver, metaVariableResolver);
-			markers.computeIfAbsent(point.getRegionId(), r -> new ArrayList<>())
-				.add(new SourceMarker(marker, this, RenderedTiles.PREVIEW_PRIORITY, 0, null));
-		}
-		byRegion = markers;
-		renderedTiles.invalidate();
-	}
+    public void show(Collection<GroundMarkerPointData> points) {
+        Map<Integer, List<SourceMarker>> markers = new HashMap<>();
+        for (GroundMarkerPointData point : points) {
+            CachedMarker marker = new CachedMarker(point, labelResolver, metaVariableResolver);
+            markers.computeIfAbsent(point.getRegionId(), r -> new ArrayList<>())
+                .add(new SourceMarker(marker, this, RenderedTiles.PREVIEW_PRIORITY, 0, null));
+        }
+        byRegion = markers;
+        renderedTiles.invalidate();
+    }
 
-	public void clear() {
-		byRegion = Collections.emptyMap();
-		renderedTiles.invalidate();
-	}
+    public void clear() {
+        byRegion = Collections.emptyMap();
+        renderedTiles.invalidate();
+    }
 
-	@Override
-	public Collection<SourceMarker> markers(int regionId) {
-		return byRegion.getOrDefault(regionId, Collections.emptyList());
-	}
+    @Override
+    public Collection<SourceMarker> markers(int regionId) {
+        return byRegion.getOrDefault(regionId, Collections.emptyList());
+    }
 
-	@Override
-	public float opacity(SourceMarker marker, Instant now) {
-		return OPACITY;
-	}
+    @Override
+    public float opacity(SourceMarker marker, Instant now) {
+        return OPACITY;
+    }
 }

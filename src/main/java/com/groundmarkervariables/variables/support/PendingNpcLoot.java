@@ -9,8 +9,8 @@ import lombok.RequiredArgsConstructor;
 // yet -- already merged across however many kills, not a raw per-kill list. See RecentLootTracker.
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class PendingNpcLoot {
-	public final String displayName;
-	public int kills;
-	public long gpValue;
-	public final Map<Integer, Integer> itemQuantities = new LinkedHashMap<>();
+    public final String displayName;
+    public int kills;
+    public long gpValue;
+    public final Map<Integer, Integer> itemQuantities = new LinkedHashMap<>();
 }

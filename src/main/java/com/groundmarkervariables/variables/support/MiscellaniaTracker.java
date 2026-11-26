@@ -23,78 +23,78 @@ import net.runelite.client.eventbus.Subscribe;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MiscellaniaTracker {
-	public static final int MAX_APPROVAL = 127;
-	private static final Set<Integer> KINGDOM_REGIONS = Set.of(10044, 10300);
-	private static final float DAILY_DECAY = 0.025f;
-	private static final float DAILY_DECAY_ROYAL_TROUBLE = 0.010f;
-	private static final String APPROVAL_KEY = "miscellaniaApproval";
-	private static final String COFFER_KEY = "miscellaniaCoffer";
-	private static final String LAST_CHANGED_KEY = "miscellaniaLastChanged";
-	// Core Kingdom of Miscellania plugin's own snapshot.
-	private static final String CORE_GROUP = "kingdomofmiscellania";
-	private static final String CORE_APPROVAL_KEY = "approval";
-	private static final String CORE_LAST_CHANGED_KEY = "lastChanged";
+    public static final int MAX_APPROVAL = 127;
+    private static final Set<Integer> KINGDOM_REGIONS = Set.of(10044, 10300);
+    private static final float DAILY_DECAY = 0.025f;
+    private static final float DAILY_DECAY_ROYAL_TROUBLE = 0.010f;
+    private static final String APPROVAL_KEY = "miscellaniaApproval";
+    private static final String COFFER_KEY = "miscellaniaCoffer";
+    private static final String LAST_CHANGED_KEY = "miscellaniaLastChanged";
+    // Core Kingdom of Miscellania plugin's own snapshot.
+    private static final String CORE_GROUP = "kingdomofmiscellania";
+    private static final String CORE_APPROVAL_KEY = "approval";
+    private static final String CORE_LAST_CHANGED_KEY = "lastChanged";
 
-	private final Client client;
-	private final ConfigManager configManager;
-	private final EventBus eventBus;
+    private final Client client;
+    private final ConfigManager configManager;
+    private final EventBus eventBus;
 
-	public void startUp() {
-		eventBus.register(this);
-	}
+    public void startUp() {
+        eventBus.register(this);
+    }
 
-	public void shutDown() {
-		eventBus.unregister(this);
-	}
+    public void shutDown() {
+        eventBus.unregister(this);
+    }
 
-	@Subscribe
-	public void onVarbitChanged(VarbitChanged event) {
-		if (event.getVarbitId() != VarbitID.MISC_APPROVAL && event.getVarbitId() != VarbitID.MISC_COFFERS) {
-			return;
-		}
+    @Subscribe
+    public void onVarbitChanged(VarbitChanged event) {
+        if (event.getVarbitId() != VarbitID.MISC_APPROVAL && event.getVarbitId() != VarbitID.MISC_COFFERS) {
+            return;
+        }
 
-		int approval = client.getVarbitValue(VarbitID.MISC_APPROVAL);
-		int coffer = client.getVarbitValue(VarbitID.MISC_COFFERS);
-		if (client.getVarpValue(VarPlayerID.MISC_QUEST) > 0
-			&& (inKingdom() || coffer > 0 && approval > 0)
-			&& (stored(APPROVAL_KEY) != approval || stored(COFFER_KEY) != coffer)) {
-			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.now());
-			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY, approval);
-			configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, COFFER_KEY, coffer);
-		}
-	}
+        int approval = client.getVarbitValue(VarbitID.MISC_APPROVAL);
+        int coffer = client.getVarbitValue(VarbitID.MISC_COFFERS);
+        if (client.getVarpValue(VarPlayerID.MISC_QUEST) > 0
+            && (inKingdom() || coffer > 0 && approval > 0)
+            && (stored(APPROVAL_KEY) != approval || stored(COFFER_KEY) != coffer)) {
+            configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.now());
+            configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY, approval);
+            configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, COFFER_KEY, coffer);
+        }
+    }
 
-	// Client thread only (quest state check). Uses core's Kingdom plugin snapshot instead of ours
-	// when it's more recent.
-	public int approval() {
-		Instant lastChanged = configManager.getRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.class);
-		int approval = stored(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY);
+    // Client thread only (quest state check). Uses core's Kingdom plugin snapshot instead of ours
+    // when it's more recent.
+    public int approval() {
+        Instant lastChanged = configManager.getRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, LAST_CHANGED_KEY, Instant.class);
+        int approval = stored(GroundMarkerVariablesConfig.GROUP, APPROVAL_KEY);
 
-		Instant coreLastChanged = configManager.getRSProfileConfiguration(CORE_GROUP, CORE_LAST_CHANGED_KEY, Instant.class);
-		if (coreLastChanged != null && (lastChanged == null || coreLastChanged.isAfter(lastChanged))) {
-			lastChanged = coreLastChanged;
-			approval = stored(CORE_GROUP, CORE_APPROVAL_KEY);
-		}
+        Instant coreLastChanged = configManager.getRSProfileConfiguration(CORE_GROUP, CORE_LAST_CHANGED_KEY, Instant.class);
+        if (coreLastChanged != null && (lastChanged == null || coreLastChanged.isAfter(lastChanged))) {
+            lastChanged = coreLastChanged;
+            approval = stored(CORE_GROUP, CORE_APPROVAL_KEY);
+        }
 
-		if (inKingdom() || lastChanged == null) {
-			return client.getVarbitValue(VarbitID.MISC_APPROVAL);
-		}
+        if (inKingdom() || lastChanged == null) {
+            return client.getVarbitValue(VarbitID.MISC_APPROVAL);
+        }
 
-		long days = Duration.between(lastChanged.truncatedTo(ChronoUnit.DAYS), Instant.now().truncatedTo(ChronoUnit.DAYS)).toDays();
-		float decay = Quest.ROYAL_TROUBLE.getState(client) == QuestState.FINISHED ? DAILY_DECAY_ROYAL_TROUBLE : DAILY_DECAY;
-		return Math.max(0, approval - (int) (days * decay * MAX_APPROVAL));
-	}
+        long days = Duration.between(lastChanged.truncatedTo(ChronoUnit.DAYS), Instant.now().truncatedTo(ChronoUnit.DAYS)).toDays();
+        float decay = Quest.ROYAL_TROUBLE.getState(client) == QuestState.FINISHED ? DAILY_DECAY_ROYAL_TROUBLE : DAILY_DECAY;
+        return Math.max(0, approval - (int) (days * decay * MAX_APPROVAL));
+    }
 
-	private int stored(String key) {
-		return stored(GroundMarkerVariablesConfig.GROUP, key);
-	}
+    private int stored(String key) {
+        return stored(GroundMarkerVariablesConfig.GROUP, key);
+    }
 
-	private int stored(String group, String key) {
-		Integer value = configManager.getRSProfileConfiguration(group, key, int.class);
-		return value == null ? 0 : value;
-	}
+    private int stored(String group, String key) {
+        Integer value = configManager.getRSProfileConfiguration(group, key, int.class);
+        return value == null ? 0 : value;
+    }
 
-	private boolean inKingdom() {
-		return client.getLocalPlayer() != null && KINGDOM_REGIONS.contains(client.getLocalPlayer().getWorldLocation().getRegionID());
-	}
+    private boolean inKingdom() {
+        return client.getLocalPlayer() != null && KINGDOM_REGIONS.contains(client.getLocalPlayer().getWorldLocation().getRegionID());
+    }
 }

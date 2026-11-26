@@ -28,110 +28,110 @@ import net.runelite.client.hiscore.HiscoreSkillType;
 // does.
 @Slf4j
 public final class BossAliases {
-	// Trackable activities with no hiscores entry or short form here.
-	private static final List<String> EXTRA_NAMES = List.of(
-		"Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
+    // Trackable activities with no hiscores entry or short form here.
+    private static final List<String> EXTRA_NAMES = List.of(
+        "Jubbly Jive", "Tempor Tantrum", "Gwenith Glide", "Galvek", "Obor chests opened", "Agility Arena Total Ticket");
 
-	// Lowercase alias -> canonical name, in the file's order: the bundled file's, loaded on first use, until update()
-	// replaces them.
-	@Nullable
-	private static volatile Map<String, String> byAlias;
+    // Lowercase alias -> canonical name, in the file's order: the bundled file's, loaded on first use, until update()
+    // replaces them.
+    @Nullable
+    private static volatile Map<String, String> byAlias;
 
-	private BossAliases() {
-	}
+    private BossAliases() {
+    }
 
-	public static String resolve(String boss) {
-		String alias = byAlias().get(boss.toLowerCase(Locale.ENGLISH));
-		return alias != null ? alias : capitalize(boss);
-	}
+    public static String resolve(String boss) {
+        String alias = byAlias().get(boss.toLowerCase(Locale.ENGLISH));
+        return alias != null ? alias : capitalize(boss);
+    }
 
-	public static Set<String> aliases() {
-		return Collections.unmodifiableSet(byAlias().keySet());
-	}
+    public static Set<String> aliases() {
+        return Collections.unmodifiableSet(byAlias().keySet());
+    }
 
-	// The short forms of names (any case), e.g. "cox" for "Chambers of Xeric": not the names themselves, nor " - " variants.
-	public static Set<String> aliasesOf(Collection<String> names) {
-		Set<String> aliases = new LinkedHashSet<>();
-		for (String alias : aliases()) {
-			String boss = resolve(alias);
-			if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && names.stream().anyMatch(boss::equalsIgnoreCase)) {
-				aliases.add(alias);
-			}
-		}
-		return aliases;
-	}
+    // The short forms of names (any case), e.g. "cox" for "Chambers of Xeric": not the names themselves, nor " - " variants.
+    public static Set<String> aliasesOf(Collection<String> names) {
+        Set<String> aliases = new LinkedHashSet<>();
+        for (String alias : aliases()) {
+            String boss = resolve(alias);
+            if (!alias.contains(" - ") && !alias.equalsIgnoreCase(boss) && names.stream().anyMatch(boss::equalsIgnoreCase)) {
+                aliases.add(alias);
+            }
+        }
+        return aliases;
+    }
 
-	// Every distinct canonical name an alias resolves to, e.g. "Chambers of Xeric".
-	public static Set<String> canonicalNames() {
-		return new LinkedHashSet<>(byAlias().values());
-	}
+    // Every distinct canonical name an alias resolves to, e.g. "Chambers of Xeric".
+    public static Set<String> canonicalNames() {
+        return new LinkedHashSet<>(byAlias().values());
+    }
 
-	// A newer boss-aliases.json (see LatestData).
-	public static void update(String json) {
-		byAlias = parse(new StringReader(json));
-	}
+    // A newer boss-aliases.json (see LatestData).
+    public static void update(String json) {
+        byAlias = parse(new StringReader(json));
+    }
 
-	// Bosses to suggest: the hiscores' (no "The ", no colon, as BossKillCountTracker keys them), the short forms and
-	// names here, and EXTRA_NAMES. hiscoresOnly ({rank}): only bosses on the hiscores.
-	public static Set<String> suggestions(boolean hiscoresOnly) {
-		Set<String> names = new LinkedHashSet<>();
-		for (HiscoreSkill skill : HiscoreSkill.values()) {
-			if (skill.getType() == HiscoreSkillType.BOSS) {
-				String name = skill.getName();
-				names.add((name.regionMatches(true, 0, "The ", 0, 4) ? name.substring(4) : name).replace(":", ""));
-			}
-		}
-		for (String alias : aliases()) {
-			if (!alias.contains(" - ") && (!hiscoresOnly || BossHiscoreSkill.find(resolve(alias)) != null)) {
-				names.add(alias);
-			}
-		}
-		for (String name : canonicalNames()) {
-			if (!hiscoresOnly || BossHiscoreSkill.find(name) != null) {
-				names.add(name);
-			}
-		}
-		if (!hiscoresOnly) {
-			names.addAll(EXTRA_NAMES);
-		}
-		return names;
-	}
+    // Bosses to suggest: the hiscores' (no "The ", no colon, as BossKillCountTracker keys them), the short forms and
+    // names here, and EXTRA_NAMES. hiscoresOnly ({rank}): only bosses on the hiscores.
+    public static Set<String> suggestions(boolean hiscoresOnly) {
+        Set<String> names = new LinkedHashSet<>();
+        for (HiscoreSkill skill : HiscoreSkill.values()) {
+            if (skill.getType() == HiscoreSkillType.BOSS) {
+                String name = skill.getName();
+                names.add((name.regionMatches(true, 0, "The ", 0, 4) ? name.substring(4) : name).replace(":", ""));
+            }
+        }
+        for (String alias : aliases()) {
+            if (!alias.contains(" - ") && (!hiscoresOnly || BossHiscoreSkill.find(resolve(alias)) != null)) {
+                names.add(alias);
+            }
+        }
+        for (String name : canonicalNames()) {
+            if (!hiscoresOnly || BossHiscoreSkill.find(name) != null) {
+                names.add(name);
+            }
+        }
+        if (!hiscoresOnly) {
+            names.addAll(EXTRA_NAMES);
+        }
+        return names;
+    }
 
-	private static Map<String, String> byAlias() {
-		Map<String, String> loaded = byAlias;
-		if (loaded == null) {
-			try (Reader reader = new InputStreamReader(BossAliases.class.getResourceAsStream("boss-aliases.json"), StandardCharsets.UTF_8)) {
-				loaded = parse(reader);
-			} catch (Exception e) {
-				log.warn("Couldn't load boss aliases", e);
-				loaded = Map.of();
-			}
-			byAlias = loaded;
-		}
-		return loaded;
-	}
+    private static Map<String, String> byAlias() {
+        Map<String, String> loaded = byAlias;
+        if (loaded == null) {
+            try (Reader reader = new InputStreamReader(BossAliases.class.getResourceAsStream("boss-aliases.json"), StandardCharsets.UTF_8)) {
+                loaded = parse(reader);
+            } catch (Exception e) {
+                log.warn("Couldn't load boss aliases", e);
+                loaded = Map.of();
+            }
+            byAlias = loaded;
+        }
+        return loaded;
+    }
 
-	private static Map<String, String> parse(Reader reader) {
-		Map<String, String> aliases = new LinkedHashMap<>();
-		for (Map.Entry<String, JsonElement> alias : new JsonParser().parse(reader).getAsJsonObject().entrySet()) {
-			aliases.put(alias.getKey(), alias.getValue().getAsString());
-		}
-		return aliases;
-	}
+    private static Map<String, String> parse(Reader reader) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> alias : new JsonParser().parse(reader).getAsJsonObject().entrySet()) {
+            aliases.put(alias.getKey(), alias.getValue().getAsString());
+        }
+        return aliases;
+    }
 
-	// Capitalize bosses to their standard format in osrs
-	private static String capitalize(String value) {
-		char[] chars = value.toCharArray();
-		boolean capitalizeNext = true;
-		for (int i = 0; i < chars.length; i++) {
-			if (Character.isWhitespace(chars[i])) {
-				capitalizeNext = true;
-			} else if (capitalizeNext) {
-				chars[i] = Character.toTitleCase(chars[i]);
-				capitalizeNext = false;
-			}
-		}
+    // Capitalize bosses to their standard format in osrs
+    private static String capitalize(String value) {
+        char[] chars = value.toCharArray();
+        boolean capitalizeNext = true;
+        for (int i = 0; i < chars.length; i++) {
+            if (Character.isWhitespace(chars[i])) {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                chars[i] = Character.toTitleCase(chars[i]);
+                capitalizeNext = false;
+            }
+        }
 
-		return new String(chars);
-	}
+        return new String(chars);
+    }
 }

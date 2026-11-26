@@ -10,10 +10,10 @@ import lombok.RequiredArgsConstructor;
 // GroundMarkerPartySharingManager), not persisted or rendered until actually imported.
 @RequiredArgsConstructor
 class PendingPartyShare {
-	static final Duration TTL = Duration.ofSeconds(120);
+    static final Duration TTL = Duration.ofSeconds(120);
 
-	final long senderMemberId;
-	final String senderName;
-	final List<GroundMarkerPointData> markers;
-	final Instant receivedAt;
+    final long senderMemberId;
+    final String senderName;
+    final List<GroundMarkerPointData> markers;
+    final Instant receivedAt;
 }

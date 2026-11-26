@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 // than substituting into the visible label text -- e.g. {tileCol=red}. Always stripped from
 // the label before normal LabelVariable resolution runs (see MetaVariableResolver).
 public interface MetaVariable {
-	Pattern pattern();
+    Pattern pattern();
 
-	// Applies this token's effect onto state, using matcher's own capture groups.
-	void apply(Matcher matcher, MetaState state);
+    // Applies this token's effect onto state, using matcher's own capture groups.
+    void apply(Matcher matcher, MetaState state);
 }

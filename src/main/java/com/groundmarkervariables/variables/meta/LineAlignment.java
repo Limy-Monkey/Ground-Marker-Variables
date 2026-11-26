@@ -10,47 +10,47 @@ import lombok.RequiredArgsConstructor;
 // {align=left/right/center} / {/align} -- scoped from the line it's on through the next
 // {align}/{/align} (which resets to center), so it's handled separately from MetaVariable.
 final class LineAlignment {
-	private static final Pattern TOKEN = Pattern.compile("\\{align=(left|right|center)\\}|\\{/align\\}", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOKEN = Pattern.compile("\\{align=(left|right|center)\\}|\\{/align\\}", Pattern.CASE_INSENSITIVE);
 
-	private LineAlignment() {
-	}
+    private LineAlignment() {
+    }
 
-	@RequiredArgsConstructor
-	static final class Result {
-		final String label;
-		final List<TextAlign> lineAlignments;
-	}
+    @RequiredArgsConstructor
+    static final class Result {
+        final String label;
+        final List<TextAlign> lineAlignments;
+    }
 
-	static Result strip(String label) {
-		String[] rawLines = label.split("\\\\n", -1);
-		List<String> strippedLines = new ArrayList<>();
-		List<TextAlign> alignments = new ArrayList<>();
-		TextAlign current = TextAlign.CENTER;
+    static Result strip(String label) {
+        String[] rawLines = label.split("\\\\n", -1);
+        List<String> strippedLines = new ArrayList<>();
+        List<TextAlign> alignments = new ArrayList<>();
+        TextAlign current = TextAlign.CENTER;
 
-		for (String line : rawLines) {
-			Matcher matcher = TOKEN.matcher(line);
-			StringBuilder stripped = new StringBuilder();
-			int last = 0;
-			while (matcher.find()) {
-				stripped.append(line, last, matcher.start());
-				last = matcher.end();
-				current = matcher.group(1) == null ? TextAlign.CENTER : TextAlign.valueOf(matcher.group(1).toUpperCase(Locale.ROOT));
-			}
-			stripped.append(line.substring(last));
+        for (String line : rawLines) {
+            Matcher matcher = TOKEN.matcher(line);
+            StringBuilder stripped = new StringBuilder();
+            int last = 0;
+            while (matcher.find()) {
+                stripped.append(line, last, matcher.start());
+                last = matcher.end();
+                current = matcher.group(1) == null ? TextAlign.CENTER : TextAlign.valueOf(matcher.group(1).toUpperCase(Locale.ROOT));
+            }
+            stripped.append(line.substring(last));
 
-			strippedLines.add(stripped.toString());
-			alignments.add(current);
-		}
+            strippedLines.add(stripped.toString());
+            alignments.add(current);
+        }
 
-		// Trailing lines left empty by stripping (e.g. a final "{/align}" on its own line)
-		// would otherwise render as blank rows.
-		int lastIndex = strippedLines.size() - 1;
-		while (lastIndex >= 0 && strippedLines.get(lastIndex).isEmpty()) {
-			strippedLines.remove(lastIndex);
-			alignments.remove(lastIndex);
-			lastIndex--;
-		}
+        // Trailing lines left empty by stripping (e.g. a final "{/align}" on its own line)
+        // would otherwise render as blank rows.
+        int lastIndex = strippedLines.size() - 1;
+        while (lastIndex >= 0 && strippedLines.get(lastIndex).isEmpty()) {
+            strippedLines.remove(lastIndex);
+            alignments.remove(lastIndex);
+            lastIndex--;
+        }
 
-		return new Result(String.join("\\n", strippedLines), alignments);
-	}
+        return new Result(String.join("\\n", strippedLines), alignments);
+    }
 }

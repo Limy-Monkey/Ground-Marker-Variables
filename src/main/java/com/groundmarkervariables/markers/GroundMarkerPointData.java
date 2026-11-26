@@ -12,18 +12,18 @@ import net.runelite.api.coords.WorldPoint;
 // .GroundMarkerPoint is package-private.
 @Value
 public class GroundMarkerPointData {
-	int regionId;
-	int regionX;
-	int regionY;
-	int z;
-	@Nullable
-	@With
-	Color color;
-	@Nullable
-	@With
-	String label;
+    int regionId;
+    int regionX;
+    int regionY;
+    int z;
+    @Nullable
+    @With
+    Color color;
+    @Nullable
+    @With
+    String label;
 
-	public WorldPoint worldPoint() {
-		return WorldPoint.fromRegion(regionId, regionX, regionY, z);
-	}
+    public WorldPoint worldPoint() {
+        return WorldPoint.fromRegion(regionId, regionX, regionY, z);
+    }
 }

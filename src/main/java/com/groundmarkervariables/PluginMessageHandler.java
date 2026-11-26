@@ -128,162 +128,162 @@ import net.runelite.client.util.Text;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PluginMessageHandler {
-	static final String NAMESPACE = "ground-marker-variables";
-	static final String RESOLVE_EVENT = "Resolve";
-	static final String SET_MARKERS_EVENT = "SetMarkers";
-	static final String CLEAR_MARKERS_EVENT = "ClearMarkers";
-	static final String SEARCH_EVENT = "Search";
-	// Raised on breaking changes to the API above.
-	static final int API_VERSION = 1;
+    static final String NAMESPACE = "ground-marker-variables";
+    static final String RESOLVE_EVENT = "Resolve";
+    static final String SET_MARKERS_EVENT = "SetMarkers";
+    static final String CLEAR_MARKERS_EVENT = "ClearMarkers";
+    static final String SEARCH_EVENT = "Search";
+    // Raised on breaking changes to the API above.
+    static final int API_VERSION = 1;
 
-	private final EventBus eventBus;
-	private final LabelResolver labelResolver;
-	private final ClientThread clientThread;
-	private final MarkerMinifier markerMinifier;
-	private final ExternalMarkerManager externalMarkerManager;
-	private final ChatboxPanelManager chatboxPanelManager;
-	private final Provider<MarkerManager> markerManagerProvider;
+    private final EventBus eventBus;
+    private final LabelResolver labelResolver;
+    private final ClientThread clientThread;
+    private final MarkerMinifier markerMinifier;
+    private final ExternalMarkerManager externalMarkerManager;
+    private final ChatboxPanelManager chatboxPanelManager;
+    private final Provider<MarkerManager> markerManagerProvider;
 
-	public void startUp() {
-		eventBus.register(this);
-	}
+    public void startUp() {
+        eventBus.register(this);
+    }
 
-	public void shutDown() {
-		eventBus.unregister(this);
-	}
+    public void shutDown() {
+        eventBus.unregister(this);
+    }
 
-	@Subscribe
-	public void onPluginMessage(PluginMessage event) {
-		if (!NAMESPACE.equals(event.getNamespace())) {
-			return;
-		}
-		if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName())) {
-			onMarkers(event.getName(), event.getData());
-			return;
-		}
-		if (SEARCH_EVENT.equals(event.getName())) {
-			onSearch(event.getData());
-			return;
-		}
-		if (!RESOLVE_EVENT.equals(event.getName())) {
-			return;
-		}
+    @Subscribe
+    public void onPluginMessage(PluginMessage event) {
+        if (!NAMESPACE.equals(event.getNamespace())) {
+            return;
+        }
+        if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName())) {
+            onMarkers(event.getName(), event.getData());
+            return;
+        }
+        if (SEARCH_EVENT.equals(event.getName())) {
+            onSearch(event.getData());
+            return;
+        }
+        if (!RESOLVE_EVENT.equals(event.getName())) {
+            return;
+        }
 
-		Object text = event.getData().get("text");
-		Map<String, Object> reply = reply(event.getData());
-		if (!(text instanceof String) || reply == null) {
-			return;
-		}
+        Object text = event.getData().get("text");
+        Map<String, Object> reply = reply(event.getData());
+        if (!(text instanceof String) || reply == null) {
+            return;
+        }
 
-		fill(reply, Map.of("result", labelResolver.resolve((String) text)));
-	}
+        fill(reply, Map.of("result", labelResolver.resolve((String) text)));
+    }
 
-	// Parsed and answered here, on the sender's thread; applied on the client thread.
-	private void onMarkers(String name, Map<String, Object> data) {
-		Map<String, Object> reply = reply(data);
-		Object plugin = data.get("plugin");
-		Object group = data.get("group");
-		if (!(plugin instanceof String) || !(group instanceof String)) {
-			reject(reply, name, "\"plugin\" and \"group\" must be strings", null);
-			return;
-		}
+    // Parsed and answered here, on the sender's thread; applied on the client thread.
+    private void onMarkers(String name, Map<String, Object> data) {
+        Map<String, Object> reply = reply(data);
+        Object plugin = data.get("plugin");
+        Object group = data.get("group");
+        if (!(plugin instanceof String) || !(group instanceof String)) {
+            reject(reply, name, "\"plugin\" and \"group\" must be strings", null);
+            return;
+        }
 
-		if (CLEAR_MARKERS_EVENT.equals(name)) {
-			clientThread.invoke(() -> externalMarkerManager.clear((String) group));
-			fill(reply, Map.of("ok", true));
-			return;
-		}
+        if (CLEAR_MARKERS_EVENT.equals(name)) {
+            clientThread.invoke(() -> externalMarkerManager.clear((String) group));
+            fill(reply, Map.of("ok", true));
+            return;
+        }
 
-		Object priority = data.get("priority");
-		Object markers = data.get("markers");
-		if (!(markers instanceof String) || (priority != null && !(priority instanceof Number))) {
-			reject(reply, name, "\"markers\" must be a JSON string and \"priority\" a number", null);
-			return;
-		}
+        Object priority = data.get("priority");
+        Object markers = data.get("markers");
+        if (!(markers instanceof String) || (priority != null && !(priority instanceof Number))) {
+            reject(reply, name, "\"markers\" must be a JSON string and \"priority\" a number", null);
+            return;
+        }
 
-		List<GroundMarkerPointData> points;
-		try {
-			points = markerMinifier.parse((String) markers);
-		} catch (Exception e) {
-			reject(reply, name, "unreadable markers JSON", e);
-			return;
-		}
+        List<GroundMarkerPointData> points;
+        try {
+            points = markerMinifier.parse((String) markers);
+        } catch (Exception e) {
+            reject(reply, name, "unreadable markers JSON", e);
+            return;
+        }
 
-		String error = null;
-		if (points.size() > ExternalMarkerManager.MAX_MARKERS) {
-			error = "only the first " + ExternalMarkerManager.MAX_MARKERS + " of " + points.size() + " markers are used";
-			log.warn("SetMarkers from {}: {}", plugin, error);
-			points = points.subList(0, ExternalMarkerManager.MAX_MARKERS);
-		}
+        String error = null;
+        if (points.size() > ExternalMarkerManager.MAX_MARKERS) {
+            error = "only the first " + ExternalMarkerManager.MAX_MARKERS + " of " + points.size() + " markers are used";
+            log.warn("SetMarkers from {}: {}", plugin, error);
+            points = points.subList(0, ExternalMarkerManager.MAX_MARKERS);
+        }
 
-		float value = priority == null ? ExternalMarkerManager.DEFAULT_PRIORITY : ((Number) priority).floatValue();
-		List<GroundMarkerPointData> parsed = points;
-		clientThread.invoke(() -> externalMarkerManager.set((String) plugin, (String) group, value, parsed));
-		fill(reply, error == null ? Map.of("ok", true, "count", parsed.size()) : Map.of("ok", true, "count", parsed.size(), "error", error));
-	}
+        float value = priority == null ? ExternalMarkerManager.DEFAULT_PRIORITY : ((Number) priority).floatValue();
+        List<GroundMarkerPointData> parsed = points;
+        clientThread.invoke(() -> externalMarkerManager.set((String) plugin, (String) group, value, parsed));
+        fill(reply, error == null ? Map.of("ok", true, "count", parsed.size()) : Map.of("ok", true, "count", parsed.size(), "error", error));
+    }
 
-	// Only while the Marker Manager, Marker Sets or the label editor is open: asks to open the search (Marker Manager),
-	// else goes back to it as it was.
-	private void onSearch(Map<String, Object> data) {
-		Map<String, Object> reply = reply(data);
-		Object plugin = data.get("plugin");
-		Object query = data.get("query");
-		if (!(plugin instanceof String) || !(query instanceof String)) {
-			reject(reply, SEARCH_EVENT, "\"plugin\" and \"query\" must be strings", null);
-			return;
-		}
-		ChatboxInput open = chatboxPanelManager.getCurrentInput();
-		AdvancedLabelEditor editor = open instanceof AdvancedLabelEditor ? (AdvancedLabelEditor) open : null;
-		if (!(open instanceof SearchableChatbox) && editor == null) {
-			fill(reply, Map.of("ok", false, "error", "no Ground Marker Variables chatbox is open"));
-			return;
-		}
-		clientThread.invoke(() -> {
-			// The editor comes back as it was; leaving it for the search closes it as usual (e.g. its preview).
-			if (editor != null) {
-				editor.handOff();
-			}
-			new ConfirmChatbox(chatboxPanelManager, Text.escapeJagex((String) plugin) + " is requesting to link a marker")
-				.option("Open Link", () -> {
-					if (editor != null) {
-						chatboxPanelManager.openInput(editor);
-					}
-					markerManagerProvider.get().show(null, ((String) query).trim());
-				})
-				.option("Cancel", () -> { })
-				// Cancel or Esc: back to where they were.
-				.onClose(() -> clientThread.invokeLater(() -> {
-					if (chatboxPanelManager.getCurrentInput() == null) {
-						chatboxPanelManager.openInput(open);
-					}
-				}))
-				.build();
-		});
-		fill(reply, Map.of("ok", true));
-	}
+    // Only while the Marker Manager, Marker Sets or the label editor is open: asks to open the search (Marker Manager),
+    // else goes back to it as it was.
+    private void onSearch(Map<String, Object> data) {
+        Map<String, Object> reply = reply(data);
+        Object plugin = data.get("plugin");
+        Object query = data.get("query");
+        if (!(plugin instanceof String) || !(query instanceof String)) {
+            reject(reply, SEARCH_EVENT, "\"plugin\" and \"query\" must be strings", null);
+            return;
+        }
+        ChatboxInput open = chatboxPanelManager.getCurrentInput();
+        AdvancedLabelEditor editor = open instanceof AdvancedLabelEditor ? (AdvancedLabelEditor) open : null;
+        if (!(open instanceof SearchableChatbox) && editor == null) {
+            fill(reply, Map.of("ok", false, "error", "no Ground Marker Variables chatbox is open"));
+            return;
+        }
+        clientThread.invoke(() -> {
+            // The editor comes back as it was; leaving it for the search closes it as usual (e.g. its preview).
+            if (editor != null) {
+                editor.handOff();
+            }
+            new ConfirmChatbox(chatboxPanelManager, Text.escapeJagex((String) plugin) + " is requesting to link a marker")
+                .option("Open Link", () -> {
+                    if (editor != null) {
+                        chatboxPanelManager.openInput(editor);
+                    }
+                    markerManagerProvider.get().show(null, ((String) query).trim());
+                })
+                .option("Cancel", () -> { })
+                // Cancel or Esc: back to where they were.
+                .onClose(() -> clientThread.invokeLater(() -> {
+                    if (chatboxPanelManager.getCurrentInput() == null) {
+                        chatboxPanelManager.openInput(open);
+                    }
+                }))
+                .build();
+        });
+        fill(reply, Map.of("ok", true));
+    }
 
-	private static void reject(Map<String, Object> reply, String name, String error, Exception e) {
-		log.warn("Ignoring {}: {}", name, error, e);
-		fill(reply, Map.of("ok", false, "error", error));
-	}
+    private static void reject(Map<String, Object> reply, String name, String error, Exception e) {
+        log.warn("Ignoring {}: {}", name, error, e);
+        fill(reply, Map.of("ok", false, "error", error));
+    }
 
-	// The caller's mutable map under "reply", or null.
-	@SuppressWarnings("unchecked")
-	private static Map<String, Object> reply(Map<String, Object> data) {
-		Object reply = data.get("reply");
-		return reply instanceof Map ? (Map<String, Object>) reply : null;
-	}
+    // The caller's mutable map under "reply", or null.
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> reply(Map<String, Object> data) {
+        Object reply = data.get("reply");
+        return reply instanceof Map ? (Map<String, Object>) reply : null;
+    }
 
-	// Fills the caller's reply, if they passed one, with values and the API version.
-	private static void fill(Map<String, Object> reply, Map<String, Object> values) {
-		if (reply == null) {
-			return;
-		}
-		try {
-			reply.putAll(values);
-			reply.put("version", API_VERSION);
-		} catch (UnsupportedOperationException | ClassCastException e) {
-			log.warn("Couldn't fill a PluginMessage reply: it must be a mutable Map<String, Object>", e);
-		}
-	}
+    // Fills the caller's reply, if they passed one, with values and the API version.
+    private static void fill(Map<String, Object> reply, Map<String, Object> values) {
+        if (reply == null) {
+            return;
+        }
+        try {
+            reply.putAll(values);
+            reply.put("version", API_VERSION);
+        } catch (UnsupportedOperationException | ClassCastException e) {
+            log.warn("Couldn't fill a PluginMessage reply: it must be a mutable Map<String, Object>", e);
+        }
+    }
 }

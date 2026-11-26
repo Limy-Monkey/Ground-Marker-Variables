@@ -15,44 +15,44 @@ import net.runelite.client.util.ColorUtil;
 // {highlight<corner>} / {highlight<corner>=<col>} -- SW/NW/NE/SE, or Corners/All for all four.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HighlightMetaVariable implements MetaVariable {
-	static final Pattern PATTERN = Pattern.compile(
-		"\\{highlight(SW|NW|NE|SE|Corners|All)(?:=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet())
-			+ "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + "))?\\}",
-		Pattern.CASE_INSENSITIVE);
+    static final Pattern PATTERN = Pattern.compile(
+        "\\{highlight(SW|NW|NE|SE|Corners|All)(?:=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet())
+            + "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + "))?\\}",
+        Pattern.CASE_INSENSITIVE);
 
-	private final GroundMarkerVariablesConfig config;
+    private final GroundMarkerVariablesConfig config;
 
-	@Override
-	public Pattern pattern() {
-		return PATTERN;
-	}
+    @Override
+    public Pattern pattern() {
+        return PATTERN;
+    }
 
-	@Override
-	public void apply(Matcher matcher, MetaState state) {
-		Color color = resolveColor(matcher.group(2));
-		for (HighlightCorner corner : corners(matcher.group(1))) {
-			state.setHighlight(corner, color);
-		}
-	}
+    @Override
+    public void apply(Matcher matcher, MetaState state) {
+        Color color = resolveColor(matcher.group(2));
+        for (HighlightCorner corner : corners(matcher.group(1))) {
+            state.setHighlight(corner, color);
+        }
+    }
 
-	private Color resolveColor(String value) {
-		if (value == null) {
-			return config.highlightColor();
-		}
+    private Color resolveColor(String value) {
+        if (value == null) {
+            return config.highlightColor();
+        }
 
-		Integer opacity = NamedColors.OPACITY_BY_NAME.get(value.toLowerCase(Locale.ROOT));
-		if (opacity != null) {
-			return ColorUtil.colorWithAlpha(config.highlightColor(), Math.round(opacity / 100f * 255));
-		}
+        Integer opacity = NamedColors.OPACITY_BY_NAME.get(value.toLowerCase(Locale.ROOT));
+        if (opacity != null) {
+            return ColorUtil.colorWithAlpha(config.highlightColor(), Math.round(opacity / 100f * 255));
+        }
 
-		return new Color(Integer.parseInt(NamedColors.HEX_BY_NAME.get(value.toLowerCase(Locale.ROOT)), 16));
-	}
+        return new Color(Integer.parseInt(NamedColors.HEX_BY_NAME.get(value.toLowerCase(Locale.ROOT)), 16));
+    }
 
-	private static List<HighlightCorner> corners(String arg) {
-		if ("corners".equalsIgnoreCase(arg) || "all".equalsIgnoreCase(arg)) {
-			return List.of(HighlightCorner.values());
-		}
+    private static List<HighlightCorner> corners(String arg) {
+        if ("corners".equalsIgnoreCase(arg) || "all".equalsIgnoreCase(arg)) {
+            return List.of(HighlightCorner.values());
+        }
 
-		return List.of(HighlightCorner.valueOf(arg.toUpperCase(Locale.ROOT)));
-	}
+        return List.of(HighlightCorner.valueOf(arg.toUpperCase(Locale.ROOT)));
+    }
 }

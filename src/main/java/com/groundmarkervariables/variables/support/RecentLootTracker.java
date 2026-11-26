@@ -21,48 +21,48 @@ import net.runelite.client.util.Text;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class RecentLootTracker {
-	private final Map<String, PendingNpcLoot> pending = new ConcurrentHashMap<>();
+    private final Map<String, PendingNpcLoot> pending = new ConcurrentHashMap<>();
 
-	private final EventBus eventBus;
-	private final ItemManager itemManager;
+    private final EventBus eventBus;
+    private final ItemManager itemManager;
 
-	public void startUp() {
-		eventBus.register(this);
-	}
+    public void startUp() {
+        eventBus.register(this);
+    }
 
-	public void shutDown() {
-		eventBus.unregister(this);
-		pending.clear();
-	}
+    public void shutDown() {
+        eventBus.unregister(this);
+        pending.clear();
+    }
 
-	@Subscribe
-	public void onServerNpcLoot(ServerNpcLoot event) {
-		NPCComposition npc = event.getComposition();
-		String name = Text.removeTags(npc.getName());
-		if (name.isEmpty()) {
-			return;
-		}
+    @Subscribe
+    public void onServerNpcLoot(ServerNpcLoot event) {
+        NPCComposition npc = event.getComposition();
+        String name = Text.removeTags(npc.getName());
+        if (name.isEmpty()) {
+            return;
+        }
 
-		PendingNpcLoot loot = pending.computeIfAbsent(name.toLowerCase(Locale.ENGLISH), key -> new PendingNpcLoot(name));
-		loot.kills++;
-		for (ItemStack item : event.getItems()) {
-			loot.gpValue += (long) itemManager.getItemPrice(item.getId()) * item.getQuantity();
-			loot.itemQuantities.merge(item.getId(), item.getQuantity(), Integer::sum);
-		}
-	}
+        PendingNpcLoot loot = pending.computeIfAbsent(name.toLowerCase(Locale.ENGLISH), key -> new PendingNpcLoot(name));
+        loot.kills++;
+        for (ItemStack item : event.getItems()) {
+            loot.gpValue += (long) itemManager.getItemPrice(item.getId()) * item.getQuantity();
+            loot.itemQuantities.merge(item.getId(), item.getQuantity(), Integer::sum);
+        }
+    }
 
-	// Same trigger as Loot Tracker's ConfigSync flush
-	@Subscribe
-	public void onConfigSync(ConfigSync event) {
-		pending.clear();
-	}
+    // Same trigger as Loot Tracker's ConfigSync flush
+    @Subscribe
+    public void onConfigSync(ConfigSync event) {
+        pending.clear();
+    }
 
-	@Subscribe
-	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
-		pending.clear();
-	}
+    @Subscribe
+    public void onRuneScapeProfileChanged(RuneScapeProfileChanged event) {
+        pending.clear();
+    }
 
-	public PendingNpcLoot get(String monster) {
-		return pending.get(monster.toLowerCase(Locale.ENGLISH));
-	}
+    public PendingNpcLoot get(String monster) {
+        return pending.get(monster.toLowerCase(Locale.ENGLISH));
+    }
 }

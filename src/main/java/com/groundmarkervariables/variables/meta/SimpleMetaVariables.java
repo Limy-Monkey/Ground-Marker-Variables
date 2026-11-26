@@ -13,19 +13,19 @@ import lombok.experimental.UtilityClass;
 // The formatting and tile tokens' values ({col=red}, {align=left}, {ground@n}, ...), as Args for autocomplete.
 @UtilityClass
 public class SimpleMetaVariables {
-	// {col=} also offers recentColors. {highlight<corner>=} before {highlight}, which would take it.
-	public List<Args> args(Supplier<Collection<String>> recentColors) {
-		return List.of(
-			joined("col=", () -> Stream.concat(NamedColors.SUGGESTED.stream(), recentColors.get().stream()), Args.COLOR_ICON),
-			joined("tileCol=", () -> Stream.concat(NamedColors.OPACITY_BY_NAME.keySet().stream(), NamedColors.SUGGESTED.stream()), Args.COLOR_ICON),
-			joined("highlightSW=", NamedColors.SUGGESTED::stream, Args.COLOR_ICON)
-				.alias("highlightNW=", "highlightNE=", "highlightSE=", "highlightCorners=", "highlightAll=").describedAs("highlight"),
-			joined("highlight", () -> Stream.of("SW", "NW", "NE", "SE", "Corners", "All"), Args.NO_ICON),
-			joined("align=", () -> Stream.of("Left", "Right", "Center"), Args.NO_ICON),
-			joined("ground@", () -> Stream.of("n", "ne", "e", "se", "s", "sw", "w", "nw"), Args.NO_ICON).describedAs("ground"));
-	}
+    // {col=} also offers recentColors. {highlight<corner>=} before {highlight}, which would take it.
+    public List<Args> args(Supplier<Collection<String>> recentColors) {
+        return List.of(
+            joined("col=", () -> Stream.concat(NamedColors.SUGGESTED.stream(), recentColors.get().stream()), Args.COLOR_ICON),
+            joined("tileCol=", () -> Stream.concat(NamedColors.OPACITY_BY_NAME.keySet().stream(), NamedColors.SUGGESTED.stream()), Args.COLOR_ICON),
+            joined("highlightSW=", NamedColors.SUGGESTED::stream, Args.COLOR_ICON)
+                .alias("highlightNW=", "highlightNE=", "highlightSE=", "highlightCorners=", "highlightAll=").describedAs("highlight"),
+            joined("highlight", () -> Stream.of("SW", "NW", "NE", "SE", "Corners", "All"), Args.NO_ICON),
+            joined("align=", () -> Stream.of("Left", "Right", "Center"), Args.NO_ICON),
+            joined("ground@", () -> Stream.of("n", "ne", "e", "se", "s", "sw", "w", "nw"), Args.NO_ICON).describedAs("ground"));
+    }
 
-	private Args joined(String name, Supplier<Stream<String>> values, Function<String, String> icon) {
-		return Args.of(name).joined().main(() -> values.get().collect(Collectors.toList()), icon);
-	}
+    private Args joined(String name, Supplier<Stream<String>> values, Function<String, String> icon) {
+        return Args.of(name).joined().main(() -> values.get().collect(Collectors.toList()), icon);
+    }
 }

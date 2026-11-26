@@ -26,75 +26,75 @@ import net.runelite.client.util.ColorUtil;
 // Mirrors core's GroundMarkerMinimapOverlay — draws every drawn marker's outline (see RenderedTiles) on the minimap,
 // gated by the "Draw tiles on minimap" config item.
 public class GroundMarkerVariablesMinimapOverlay extends Overlay {
-	private final Client client;
-	private final GroundMarkerVariablesConfig config;
-	private final RenderedTiles renderedTiles;
+    private final Client client;
+    private final GroundMarkerVariablesConfig config;
+    private final RenderedTiles renderedTiles;
 
-	@Inject
-	private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesConfig config, RenderedTiles renderedTiles) {
-		this.client = client;
-		this.config = config;
-		this.renderedTiles = renderedTiles;
-		setPosition(OverlayPosition.DYNAMIC);
-		setPriority(PRIORITY_LOW);
-		setLayer(OverlayLayer.ABOVE_WIDGETS);
-	}
+    @Inject
+    private GroundMarkerVariablesMinimapOverlay(Client client, GroundMarkerVariablesConfig config, RenderedTiles renderedTiles) {
+        this.client = client;
+        this.config = config;
+        this.renderedTiles = renderedTiles;
+        setPosition(OverlayPosition.DYNAMIC);
+        setPriority(PRIORITY_LOW);
+        setLayer(OverlayLayer.ABOVE_WIDGETS);
+    }
 
-	@Override
-	public Dimension render(Graphics2D graphics) {
-		if (!config.drawTileOnMinimap()) {
-			return null;
-		}
+    @Override
+    public Dimension render(Graphics2D graphics) {
+        if (!config.drawTileOnMinimap()) {
+            return null;
+        }
 
-		// The same marker per tile as the main overlay.
-		renderedTiles.forEachShown(Instant.now(), (wv, worldPoint, marker, opacity) -> drawMarker(graphics, wv, worldPoint, marker, opacity));
+        // The same marker per tile as the main overlay.
+        renderedTiles.forEachShown(Instant.now(), (wv, worldPoint, marker, opacity) -> drawMarker(graphics, wv, worldPoint, marker, opacity));
 
-		return null;
-	}
+        return null;
+    }
 
-	private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity) {
-		if (worldPoint.getPlane() != wv.getPlane()) {
-			return;
-		}
+    private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity) {
+        if (worldPoint.getPlane() != wv.getPlane()) {
+            return;
+        }
 
-		MetaState metaState = marker.getMetaState();
-		Color color = marker.tileColor(config.markerColor());
-		if (metaState.getTileOpacity() != null) {
-			color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
-		}
-		if (opacity < 1f) {
-			color = ColorUtil.colorWithAlpha(color, Math.round(color.getAlpha() * opacity));
-		}
-		drawOnMinimap(graphics, wv, worldPoint, color);
-	}
+        MetaState metaState = marker.getMetaState();
+        Color color = marker.tileColor(config.markerColor());
+        if (metaState.getTileOpacity() != null) {
+            color = ColorUtil.colorWithAlpha(color, Math.round(metaState.getTileOpacity() * 255));
+        }
+        if (opacity < 1f) {
+            color = ColorUtil.colorWithAlpha(color, Math.round(color.getAlpha() * opacity));
+        }
+        drawOnMinimap(graphics, wv, worldPoint, color);
+    }
 
-	private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color) {
-		LocalPoint lp = LocalPoint.fromWorld(wv, point);
-		if (lp == null) {
-			return;
-		}
+    private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color) {
+        LocalPoint lp = LocalPoint.fromWorld(wv, point);
+        if (lp == null) {
+            return;
+        }
 
-		int x = lp.getX() & -Perspective.LOCAL_TILE_SIZE;
-		int y = lp.getY() & -Perspective.LOCAL_TILE_SIZE;
+        int x = lp.getX() & -Perspective.LOCAL_TILE_SIZE;
+        int y = lp.getY() & -Perspective.LOCAL_TILE_SIZE;
 
-		Point mp1 = Perspective.localToMinimap(client, new LocalPoint(x, y, wv.getId()));
-		Point mp2 = Perspective.localToMinimap(client, new LocalPoint(x, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
-		Point mp3 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
-		Point mp4 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y, wv.getId()));
+        Point mp1 = Perspective.localToMinimap(client, new LocalPoint(x, y, wv.getId()));
+        Point mp2 = Perspective.localToMinimap(client, new LocalPoint(x, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
+        Point mp3 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
+        Point mp4 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y, wv.getId()));
 
-		if (mp1 == null || mp2 == null || mp3 == null || mp4 == null) {
-			return;
-		}
+        if (mp1 == null || mp2 == null || mp3 == null || mp4 == null) {
+            return;
+        }
 
-		Polygon poly = new Polygon();
-		poly.addPoint(mp1.getX(), mp1.getY());
-		poly.addPoint(mp2.getX(), mp2.getY());
-		poly.addPoint(mp3.getX(), mp3.getY());
-		poly.addPoint(mp4.getX(), mp4.getY());
+        Polygon poly = new Polygon();
+        poly.addPoint(mp1.getX(), mp1.getY());
+        poly.addPoint(mp2.getX(), mp2.getY());
+        poly.addPoint(mp3.getX(), mp3.getY());
+        poly.addPoint(mp4.getX(), mp4.getY());
 
-		Stroke stroke = new BasicStroke(1f);
-		graphics.setStroke(stroke);
-		graphics.setColor(color);
-		graphics.drawPolygon(poly);
-	}
+        Stroke stroke = new BasicStroke(1f);
+        graphics.setStroke(stroke);
+        graphics.setColor(color);
+        graphics.drawPolygon(poly);
+    }
 }
