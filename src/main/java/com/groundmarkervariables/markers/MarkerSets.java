@@ -736,14 +736,15 @@ public class MarkerSets implements TileSource {
         gists.run(() -> {
             // To store, with their text (null: keep the stored history).
             Map<MarkerSet, String> changed = new LinkedHashMap<>();
+            // Subscriptions updated; your published ones only checked for being deleted on GitHub.
             for (MarkerSet set : stored) {
-                if (set.kind != MarkerSet.Kind.GIST || set.gist.gone) {
+                if (set.gist == null || set.gist.gone || set.kind != MarkerSet.Kind.GIST && set.kind != MarkerSet.Kind.OWN) {
                     continue;
                 }
                 String text = gists.text(set.gist);
                 if (text == null) {
                     changed.put(set.withGist(set.gist.withGone(true)), null);
-                } else if (text.hashCode() != set.gist.hash) {
+                } else if (set.kind == MarkerSet.Kind.GIST && text.hashCode() != set.gist.hash) {
                     put(changed, set.gist, text);
                 }
             }
@@ -773,16 +774,21 @@ public class MarkerSets implements TileSource {
         }
     }
 
-    // An own set as published (gist), or unpublished (null): as it is now, which may have changed since. Unpublished, your
-    // subscriptions to it are gone now, not at the next check.
-    public void setGist(MarkerSet set, @Nullable MarkerSet.Gist gist) {
+    // An own set as published at gist: as it is now, which may have changed since.
+    public void setGist(MarkerSet set, MarkerSet.Gist gist) {
         MarkerSet current = existing(set);
         if (current != null) {
-            sets.stream().filter(other -> gist == null && other.kind == MarkerSet.Kind.GIST && current.gist != null && other.id.equals(current.gist.id))
-                .forEach(other -> store(other.withGist(other.gist.withGone(true))));
             store(current.withGist(gist));
             load();
         }
+    }
+
+    // A gist you deleted: an own set published there is unpublished, and your subscriptions to it are gone now, not at the
+    // next check.
+    public void unpublished(String id) {
+        sets.stream().filter(set -> set.gist != null && set.gist.id.equals(id))
+            .forEach(set -> store(set.withGist(set.kind == MarkerSet.Kind.GIST ? set.gist.withGone(true) : null)));
+        load();
     }
 
     private void checkFailed() {

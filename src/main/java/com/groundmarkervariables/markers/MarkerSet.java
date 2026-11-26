@@ -76,7 +76,7 @@ public final class MarkerSet {
         public final String owner;
         public final String id;
         public final String file;
-        // GIST: the downloaded text's hash, and whether its author deleted it (it's kept, no longer updated).
+        // GIST: the downloaded text's hash. Whether its author deleted it: GIST, kept but no longer updated; own, on GitHub.
         public final int hash;
         public final boolean gone;
         // Own: published by link only, and the version and date last shared.

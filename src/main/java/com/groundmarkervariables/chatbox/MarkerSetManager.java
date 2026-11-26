@@ -61,21 +61,19 @@ public class MarkerSetManager extends SearchableChatbox {
             .flatMap(date -> Stream.of(RECENT.format(date), OLD.format(date)))
             .collect(Collectors.toList()), List.of());
     // Shared's heading, and a published set's icon there: changed since it was shared, else shared by link only (else
-    // MarkerManager.YES).
+    // MarkerManager.YES); or deleted on GitHub.
     private static final String SHARED_HEADING = "<sprite=People (Clan)>";
     private static final String DRIFTED = ":chains:";
     private static final String PRIVATE = ":detective:";
+    private static final String DELETED = ":wastebasket:";
     private static final int SHARED_ICON = 10;
-    // Each column's order: Title, Tiles, Source, Author, Updated (unknown dates first going up), and Shared (yours published
-    // first, shared longest ago first).
+    // Each column's order: Title, Tiles, Source, Author, Updated (unknown dates first going up); Shared's is in order().
     private static final List<Comparator<MarkerSet>> BY_COLUMN = List.of(
         Comparator.comparing(set -> set.title, String.CASE_INSENSITIVE_ORDER),
         Comparator.comparingInt(MarkerSet::tileCount),
         Comparator.comparing(set -> set.kind),
         Comparator.comparing(set -> set.author, String.CASE_INSENSITIVE_ORDER),
-        Comparator.comparing(set -> set.updated, Comparator.nullsFirst(Comparator.naturalOrder())),
-        Comparator.comparing(set -> set.kind == MarkerSet.Kind.OWN && set.gist != null ? set.gist.shared : null,
-            Comparator.nullsLast(Comparator.naturalOrder())));
+        Comparator.comparing(set -> set.updated, Comparator.nullsFirst(Comparator.naturalOrder())));
     // The row's entry for the status line (a check, a failure, or why the table is empty).
     private static final MarkerSet.Entry STATUS = new MarkerSet.Entry(null, null, List.of(), false, true, 0);
 
@@ -173,7 +171,8 @@ public class MarkerSetManager extends SearchableChatbox {
                 updateIfOpen();
             });
         }, () -> clientThread.invoke(() -> {
-            browseStatus = "You are being rate-limited by GitHub. Try again later or sign in to GitHub";
+            browseStatus = gists.getLogin() == null ? "You are being rate-limited by GitHub. Try again later or sign in to GitHub"
+                : "There is an issue with your GitHub auth. Please try again or relog.";
             updateIfOpen();
         }));
         updateIfOpen();
@@ -297,7 +296,7 @@ public class MarkerSetManager extends SearchableChatbox {
     protected void buildRows(Widget container) {
         clipboardHasMarkers = !recycleBin && !sharingManager.clipboardMarkers().isEmpty();
         List<Row> rows = rows();
-        showShared = rows.stream().anyMatch(row -> row.set.kind == MarkerSet.Kind.OWN && row.set.gist != null);
+        showShared = rows.stream().anyMatch(row -> mine(row.set));
         String status = browsing != null ? browseStatus : markerSets.status();
         boolean table = !rows.isEmpty();
         if (!table) {
@@ -329,9 +328,10 @@ public class MarkerSetManager extends SearchableChatbox {
         });
     }
 
-    // By sortColumn, reversed if descending, then title.
+    // By sortColumn, reversed if descending, then title. Shared: yours published first, shared longest ago first.
     private Comparator<MarkerSet> order() {
-        Comparator<MarkerSet> byColumn = BY_COLUMN.get(sortColumn);
+        Comparator<MarkerSet> byColumn = sortColumn < BY_COLUMN.size() ? BY_COLUMN.get(sortColumn)
+            : Comparator.comparing(set -> mine(set) ? set.gist.shared : null, Comparator.nullsLast(Comparator.naturalOrder()));
         return (descending ? byColumn.reversed() : byColumn).thenComparing(BY_COLUMN.get(0));
     }
 
@@ -364,15 +364,16 @@ public class MarkerSetManager extends SearchableChatbox {
             label = label == null ? cell : label;
         }
         describe(container, set.description, cellArea(0, y));
-        // Yours, published: shared as it is, or changed since.
+        // Yours, published: shared as it is, changed since, or deleted on GitHub.
         MarkerSet.Gist gist = set.gist;
-        boolean published = set.kind == MarkerSet.Kind.OWN && gist != null;
-        if (published) {
+        boolean published = published(set);
+        if (mine(set)) {
             boolean drifted = set.version > gist.sharedVersion;
             String shared = DATE.format(LocalDate.parse(gist.shared));
-            tips.add(new SuggestionIconOverlay.Tip(container, rowIcon(container, columnX(5), y, SHARED_ICON, () -> completer.icon(drifted ? DRIFTED
-                : gist.secret ? PRIVATE : MarkerManager.YES)), (gist.secret ? "Shared privately</br>" : "Shared publicly</br>")
-                + (drifted ? "Contains unpublished changes since " : "") + shared));
+            tips.add(new SuggestionIconOverlay.Tip(container, rowIcon(container, columnX(5), y, SHARED_ICON, () -> completer.icon(gist.gone
+                ? DELETED : drifted ? DRIFTED : gist.secret ? PRIVATE : MarkerManager.YES)), gist.gone
+                ? "Deleted from GitHub</br>Publish it again to share it"
+                : (gist.secret ? "Shared privately</br>" : "Shared publicly</br>") + (drifted ? "Contains unpublished changes since " : "") + shared));
         }
         if (cells[2].equals("Unsubscribed")) {
             tips.add(new SuggestionIconOverlay.Tip(container, cellArea(2, y),
@@ -401,6 +402,9 @@ public class MarkerSetManager extends SearchableChatbox {
         if (browsing != null) {
             addShowOnMap(label, actions, set, set.tiles(), cellArea(0, y));
             addAction(label, actions, "Copy link", copyLink);
+            if (gist.owner.equalsIgnoreCase(gists.getLogin())) {
+                addAction(label, actions, "Unpublish", () -> unpublish(set));
+            }
             ChatboxWidgets.hover(label, 0x000000);
             return;
         }
@@ -437,10 +441,10 @@ public class MarkerSetManager extends SearchableChatbox {
         if (set.kind == MarkerSet.Kind.GIST) {
             addAction(label, actions, "View author's other sets", () -> browse(gist.owner));
         }
-        // Yours: Publish to GitHub, or once published, Publish Updates, Copy Link and Unpublish.
+        // Yours: Publish to GitHub, or once published (see published()), Publish Updates, Copy Link and Unpublish.
         if (set.kind == MarkerSet.Kind.OWN && onPick == null) {
             Map<String, Runnable> publish = new LinkedHashMap<>();
-            publish.put(gist == null ? "Publish to GitHub" : "Publish Updates", () -> publish(set));
+            publish.put(published ? "Publish Updates" : "Publish to GitHub", () -> publish(set));
             if (published) {
                 publish.put("Copy Link", copyLink);
                 publish.put("Unpublish", () -> unpublish(set));
@@ -549,16 +553,29 @@ public class MarkerSetManager extends SearchableChatbox {
             name -> chatboxPanelManager.openInput(name.strip().matches("[\\w-]+") ? browse(name.strip()) : this));
     }
 
+    // Yours and published, on the GitHub account you're signed in to (or signed out). Published on another account, it's
+    // treated as unpublished: publishing it again moves it to this account, leaving the old copy (unpublish it from that
+    // account's Author page).
+    private boolean mine(MarkerSet set) {
+        String login = gists.getLogin();
+        return set.kind == MarkerSet.Kind.OWN && set.gist != null && (login == null || login.equalsIgnoreCase(set.gist.owner));
+    }
+
+    // mine, and not since deleted on GitHub (publishing it again makes a new one).
+    private boolean published(MarkerSet set) {
+        return mine(set) && !set.gist.gone;
+    }
+
     // Published, asking first whether it goes on your public list (else it's shared by its link only); updated if it is.
     // Signs in to GitHub first if needed.
     private void publish(MarkerSet set) {
         if (gists.getLogin() == null) {
             signIn();
-        } else if (set.gist != null) {
+        } else if (published(set)) {
             upload(set, set.gist.secret);
         } else {
-            new ConfirmChatbox(chatboxPanelManager, "Publish \"" + Text.escapeJagex(set.title) + "\" publicly?")
-                .option("Public (Link / Browse)", () -> upload(set, false))
+            new ConfirmChatbox(chatboxPanelManager, "Publish \"" + Text.escapeJagex(set.title) + "\" publicly via GitHub Gist<br>This will be public to anyone on the internet.")
+                .option("Public", () -> upload(set, false))
                 .option("Private (Link only)", () -> upload(set, true))
                 .option("Cancel", this::reopen)
                 .build();
@@ -568,7 +585,7 @@ public class MarkerSetManager extends SearchableChatbox {
     private void upload(MarkerSet set, boolean secret) {
         String text = markerSets.export(set);
         gists.run(() -> {
-            MarkerSet.Gist gist = gists.save(set.gist, set.title, text, secret);
+            MarkerSet.Gist gist = gists.save(published(set) ? set.gist : null, set.title, text, secret);
             clientThread.invoke(() -> {
                 markerSets.setGist(set, gist.withSharedVersion(set.version).withShared(LocalDate.now().toString()));
                 clip(gist.link(), "\"" + set.title + "\" was shared on GitHub, and its link copied to your clipboard.");
@@ -581,19 +598,25 @@ public class MarkerSetManager extends SearchableChatbox {
         new ConfirmChatbox(chatboxPanelManager, "Unpublish \"" + Text.escapeJagex(set.title) + "\"?"
                 + "<br>Subscribers keep the set, but no longer receive updates")
             .yes(() -> {
-                unpublish(set, () -> { });
+                unpublish(set, () -> {
+                    if (browsed != null) {
+                        browsed.remove(set);
+                    }
+                    updateIfOpen();
+                });
                 reopen();
             })
             .no(this::reopen)
             .build();
     }
 
-    // Its gist deleted (subscribers keep their copies, no longer updated), then then runs; not if that fails.
+    // Its gist deleted (subscribers keep their copies, no longer updated), then then runs; not if that fails. set may be
+    // yours, or one on your Author page.
     private void unpublish(MarkerSet set, Runnable then) {
         gists.run(() -> {
             gists.delete(set.gist);
             clientThread.invoke(() -> {
-                markerSets.setGist(set, null);
+                markerSets.unpublished(set.gist.id);
                 then.run();
             });
         }, () -> sendChatMessage("Couldn't unpublish \"" + set.title + "\" from GitHub."));
@@ -675,7 +698,7 @@ public class MarkerSetManager extends SearchableChatbox {
             sendChatMessage("The marker set \"" + set.title + "\" was moved to the recycling bin, where it can be restored until you close the client.");
             updateIfOpen();
         };
-        boolean published = set.kind == MarkerSet.Kind.OWN && set.gist != null;
+        boolean published = published(set);
         new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete the marker set \"" + Text.escapeJagex(set.title) + "\"?"
                 + (published ? "<br>It's published. Subscribers keep the set either way." : ""))
             .option("Delete and unpublish", published ? () -> {
