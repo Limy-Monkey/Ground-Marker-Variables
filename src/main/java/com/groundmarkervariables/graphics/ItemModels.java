@@ -45,14 +45,7 @@ public class ItemModels {
 
     @Nullable
     public Oriented model(int itemId) {
-        Optional<Oriented> cached = models.get(itemId);
-        if (cached != null) {
-            return cached.orElse(null);
-        }
-
-        Oriented model = build(itemId);
-        models.put(itemId, Optional.ofNullable(model));
-        return model;
+        return models.computeIfAbsent(itemId, id -> Optional.ofNullable(build(id))).orElse(null);
     }
 
     @Nullable

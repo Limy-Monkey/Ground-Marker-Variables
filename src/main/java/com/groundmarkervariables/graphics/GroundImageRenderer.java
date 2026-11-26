@@ -5,6 +5,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
@@ -46,11 +47,6 @@ public class GroundImageRenderer {
     // A black copy of buffer, for a shadow.
     private BufferedImage shadowBuffer;
 
-    // smooth: sampled straight from image (emoji); otherwise blown up into even pixel blocks first (items, sprites).
-    public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity) {
-        draw(graphics, center, plane, image, smooth, opacity, 0, 0, SIZE, SIZE);
-    }
-
     // center moved east and north local units in a frame turned facing degrees clockwise (its north toward facing).
     public static LocalPoint turned(LocalPoint center, double east, double north, int facing) {
         double angle = Math.toRadians(facing);
@@ -62,29 +58,30 @@ public class GroundImageRenderer {
     // Screen px per local unit across a width x height box centered offsetNorth north of the tile's center (in a frame
     // turned to facing), from its widest projected extent; 0 if a corner isn't on screen.
     public double pixelsPerUnit(LocalPoint center, int plane, int facing, double offsetNorth, double width, double height) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        Polygon area = new Polygon();
         for (int corner = 0; corner < 4; corner++) {
             Point p = Perspective.localToCanvas(client,
                 turned(center, (corner % 2 == 0 ? -width : width) / 2, offsetNorth + (corner < 2 ? -height : height) / 2, facing), plane);
             if (p == null) {
                 return 0;
             }
-            minX = Math.min(minX, p.getX());
-            minY = Math.min(minY, p.getY());
-            maxX = Math.max(maxX, p.getX());
-            maxY = Math.max(maxY, p.getY());
+            area.addPoint(p.getX(), p.getY());
         }
-        return Math.max(maxX - minX, maxY - minY) / Math.max(width, height);
+        Rectangle extent = area.getBounds();
+        return Math.max(extent.width, extent.height) / Math.max(width, height);
     }
 
-    // Fitted inside a width x height box (local units) centered offsetNorth north of the tile's center, aspect kept, in a
-    // frame turned facing degrees clockwise so the image's top faces that way.
-    public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
-        int facing, double offsetNorth, double width, double height) {
-        draw(graphics, center, plane, image, smooth, opacity, facing, offsetNorth, width, height, 0);
+    // area's bounds grown margin px and cut to the canvas; null if empty.
+    @Nullable
+    static Rectangle onCanvas(Client client, Polygon area, int margin) {
+        Rectangle bounds = area.getBounds();
+        bounds.grow(margin, margin);
+        bounds = bounds.intersection(new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight()));
+        return area.npoints == 0 || bounds.isEmpty() ? null : bounds;
     }
 
-    // As above, lift local units over the ground (under it if negative).
+    // Fitted in a width x height box offsetNorth north of center, top toward facing, lift over the ground. smooth: emoji;
+    // otherwise upscaled into even pixel blocks (items, sprites).
     public void draw(Graphics2D graphics, LocalPoint center, int plane, BufferedImage image, boolean smooth, float opacity,
         int facing, double offsetNorth, double width, double height, int lift) {
         Rectangle bounds = render(center, plane, image, smooth, facing, offsetNorth, width, height, lift);
@@ -162,30 +159,27 @@ public class GroundImageRenderer {
             image = padded(image);
         }
         Point[][] corners = new Point[CELLS + 1][CELLS + 1];
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        Polygon area = new Polygon();
         for (int row = 0; row <= CELLS; row++) {
             for (int col = 0; col <= CELLS; col++) {
                 LocalPoint point = turned(center, -halfW + halfW * 2 * col / CELLS, offsetNorth + halfH - halfH * 2 * row / CELLS, facing);
                 Point p = Perspective.localToCanvas(client, point, plane, lift);
                 corners[row][col] = p;
                 if (p != null) {
-                    minX = Math.min(minX, p.getX());
-                    minY = Math.min(minY, p.getY());
-                    maxX = Math.max(maxX, p.getX());
-                    maxY = Math.max(maxY, p.getY());
+                    area.addPoint(p.getX(), p.getY());
                 }
             }
         }
 
-        Rectangle bounds = new Rectangle(minX - 2, minY - 2, maxX - minX + 4, maxY - minY + 4)
-            .intersection(new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight()));
-        if (minX > maxX || bounds.isEmpty()) {
+        Rectangle bounds = onCanvas(client, area, 2);
+        if (bounds == null) {
             return null;
         }
 
         // Blown up so each source pixel spans a few screen pixels, then sampled smoothly: crisp, even pixels.
-        int onScreen = Math.max(maxX - minX, maxY - minY);
         if (!smooth) {
+            Rectangle extent = area.getBounds();
+            int onScreen = Math.max(extent.width, extent.height);
             int factor = Math.max(1, Math.min(MAX_UPSCALE, (int) Math.ceil(onScreen / (double) Math.max(image.getWidth(), image.getHeight()))));
             image = upscaled(image, factor);
         }

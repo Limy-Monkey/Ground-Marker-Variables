@@ -43,31 +43,17 @@ public class NpcImages {
 
     @Nullable
     public BufferedImage image(int npcId, boolean head) {
-        String key = npcId + (head ? ",head" : "");
-        Optional<BufferedImage> cached = images.get(key);
-        if (cached != null) {
-            return cached.orElse(null);
-        }
-
-        Model model = model(npcId, head);
-        float[][] turned = turned(npcId, head);
-        BufferedImage image = model == null || turned == null ? null : draw(model, turned);
-        images.put(key, Optional.ofNullable(image));
-        return image;
+        return images.computeIfAbsent(npcId + (head ? ",head" : ""), k -> {
+            Model model = model(npcId, head);
+            float[][] turned = turned(npcId, head);
+            return Optional.ofNullable(model == null || turned == null ? null : draw(model, turned));
+        }).orElse(null);
     }
 
     // Lit and recolored as the NPC is.
     @Nullable
     public Model model(int npcId, boolean head) {
-        String key = npcId + (head ? ",head" : "");
-        Optional<Model> cached = models.get(key);
-        if (cached != null) {
-            return cached.orElse(null);
-        }
-
-        Model model = build(npcId, head);
-        models.put(key, Optional.ofNullable(model));
-        return model;
+        return models.computeIfAbsent(npcId + (head ? ",head" : ""), k -> Optional.ofNullable(build(npcId, head))).orElse(null);
     }
 
     @Nullable

@@ -84,10 +84,6 @@ public class GroundModelRenderer {
         bufferPixels = null;
     }
 
-    void draw(Graphics2D graphics, LocalPoint center, int plane, Model model, float opacity) {
-        draw(graphics, center, plane, model, model.getVerticesX(), model.getVerticesY(), model.getVerticesZ(), opacity, 0, 1, 0, () -> {});
-    }
-
     // model's faces and colors, with its vertices turned to x, y, z (x right, y down, front toward -z). Shrunk by scale
     // and moved offsetNorth local units north, in a frame turned facing degrees clockwise so the model's top faces that
     // way. onGround runs once, between the faces under the ground and those over it.
@@ -103,6 +99,7 @@ public class GroundModelRenderer {
         int[] sx = new int[vertexCount];
         int[] sy = new int[vertexCount];
         boolean[] visible = new boolean[vertexCount];
+        Polygon area = new Polygon();
         double angle = Math.toRadians(facing);
         double sin = Math.sin(angle), cos = Math.cos(angle);
         for (int i = 0; i < vertexCount; i++) {
@@ -114,11 +111,12 @@ public class GroundModelRenderer {
                 visible[i] = true;
                 sx[i] = p.getX();
                 sy[i] = p.getY();
+                area.addPoint(p.getX(), p.getY());
             }
         }
 
         Polygon tile = Perspective.getCanvasTilePoly(client, center);
-        Rectangle bounds = tile == null ? null : bounds(sx, sy, visible);
+        Rectangle bounds = tile == null ? null : GroundImageRenderer.onCanvas(client, area, 1);
         if (bounds == null) {
             onGround.run();
             return;
@@ -127,23 +125,6 @@ public class GroundModelRenderer {
         drawPass(graphics, flat, sx, sy, visible, bounds, samples, true, tile, opacity);
         onGround.run();
         drawPass(graphics, flat, sx, sy, visible, bounds, samples, false, null, opacity);
-    }
-
-    // The visible vertices' screen area, on the canvas; null if none.
-    @Nullable
-    private Rectangle bounds(int[] sx, int[] sy, boolean[] visible) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-        for (int i = 0; i < sx.length; i++) {
-            if (visible[i]) {
-                minX = Math.min(minX, sx[i]);
-                minY = Math.min(minY, sy[i]);
-                maxX = Math.max(maxX, sx[i]);
-                maxY = Math.max(maxY, sy[i]);
-            }
-        }
-        Rectangle bounds = new Rectangle(minX - 1, minY - 1, maxX - minX + 2, maxY - minY + 2)
-            .intersection(new Rectangle(0, 0, client.getCanvasWidth(), client.getCanvasHeight()));
-        return minX > maxX || bounds.isEmpty() ? null : bounds;
     }
 
     // The faces with a corner under the ground, or the rest, shaded into the buffer at samples times the size, then drawn

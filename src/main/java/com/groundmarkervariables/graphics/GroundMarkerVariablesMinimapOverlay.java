@@ -9,7 +9,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
-import java.awt.Stroke;
 import java.time.Instant;
 import javax.inject.Inject;
 import net.runelite.api.Client;
@@ -53,8 +52,20 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay {
     }
 
     private void drawMarker(Graphics2D graphics, WorldView wv, WorldPoint worldPoint, CachedMarker marker, float opacity) {
-        if (worldPoint.getPlane() != wv.getPlane()) {
+        LocalPoint lp = worldPoint.getPlane() == wv.getPlane() ? LocalPoint.fromWorld(wv, worldPoint) : null;
+        if (lp == null) {
             return;
+        }
+
+        // The tile's corners: south-west, north-west, north-east, south-east.
+        int size = Perspective.LOCAL_TILE_SIZE, x = lp.getX() & -size, y = lp.getY() & -size;
+        Polygon poly = new Polygon();
+        for (int corner = 0; corner < 4; corner++) {
+            Point p = Perspective.localToMinimap(client, new LocalPoint(x + corner / 2 * size, y + (corner + 1) / 2 % 2 * size, wv.getId()));
+            if (p == null) {
+                return;
+            }
+            poly.addPoint(p.getX(), p.getY());
         }
 
         MetaState metaState = marker.getMetaState();
@@ -65,35 +76,7 @@ public class GroundMarkerVariablesMinimapOverlay extends Overlay {
         if (opacity < 1f) {
             color = ColorUtil.colorWithAlpha(color, Math.round(color.getAlpha() * opacity));
         }
-        drawOnMinimap(graphics, wv, worldPoint, color);
-    }
-
-    private void drawOnMinimap(Graphics2D graphics, WorldView wv, WorldPoint point, Color color) {
-        LocalPoint lp = LocalPoint.fromWorld(wv, point);
-        if (lp == null) {
-            return;
-        }
-
-        int x = lp.getX() & -Perspective.LOCAL_TILE_SIZE;
-        int y = lp.getY() & -Perspective.LOCAL_TILE_SIZE;
-
-        Point mp1 = Perspective.localToMinimap(client, new LocalPoint(x, y, wv.getId()));
-        Point mp2 = Perspective.localToMinimap(client, new LocalPoint(x, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
-        Point mp3 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y + Perspective.LOCAL_TILE_SIZE, wv.getId()));
-        Point mp4 = Perspective.localToMinimap(client, new LocalPoint(x + Perspective.LOCAL_TILE_SIZE, y, wv.getId()));
-
-        if (mp1 == null || mp2 == null || mp3 == null || mp4 == null) {
-            return;
-        }
-
-        Polygon poly = new Polygon();
-        poly.addPoint(mp1.getX(), mp1.getY());
-        poly.addPoint(mp2.getX(), mp2.getY());
-        poly.addPoint(mp3.getX(), mp3.getY());
-        poly.addPoint(mp4.getX(), mp4.getY());
-
-        Stroke stroke = new BasicStroke(1f);
-        graphics.setStroke(stroke);
+        graphics.setStroke(new BasicStroke(1f));
         graphics.setColor(color);
         graphics.drawPolygon(poly);
     }
