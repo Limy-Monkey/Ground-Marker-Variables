@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Player;
 import net.runelite.api.FontTypeFace;
@@ -53,6 +54,8 @@ public class MarkerSetManager extends SearchableChatbox {
 	private final MarkerMinifier markerMinifier;
 	// Show on map's pins: the last set shown, until closing.
 	private final WorldMapPins mapPins;
+	// Show tiles: a set's tiles in the Marker Manager.
+	private final Provider<MarkerManager> markerManagerProvider;
 
 	// Sets showing their entries, by key.
 	private final Set<String> expanded = new HashSet<>();
@@ -98,7 +101,7 @@ public class MarkerSetManager extends SearchableChatbox {
 
 	@Override
 	protected String title() {
-		return onPick != null ? "Add to which set?" : "Marker Sets (" + markerSets.listed().size() + ")";
+		return onPick != null ? "Add to which set?" : recycleBin ? "Sets" : "Marker Sets (" + markerSets.listed().size() + ")";
 	}
 
 	// None while picking a set.
@@ -255,6 +258,9 @@ public class MarkerSetManager extends SearchableChatbox {
 		manage.put("Copy", () -> copy(set));
 		manage.put("Export", () -> exportTiles(set));
 		manage.put("Clone", () -> cloneSet(set));
+		if (onPick == null) {
+			manage.put("Show tiles", () -> markerManagerProvider.get().show(set, null));
+		}
 		addSubmenu(label, actions, "Manage", manage);
 		if (set.kind == MarkerSet.Kind.OWN) {
 			// Yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.

@@ -32,6 +32,8 @@ public final class ChatboxWidgets {
 	public static final int SCROLLBAR_WIDTH = 14;
 	public static final int HOVER_COLOR = 0x444444;
 	public static final int DISABLED_COLOR = 0x666666;
+	// fit()'s longest cut text, so a long label isn't shortened a character at a time from its full length.
+	private static final int FIT_START = 50;
 	private static final int SCROLLBAR_ARROW_HEIGHT = 12;
 	private static final int SCROLLBAR_TRACK_WIDTH = 4;
 	private static final int SCROLLBAR_THUMB_MIN_HEIGHT = 6;
@@ -73,7 +75,7 @@ public final class ChatboxWidgets {
 	}
 
 	// The logo at the top-left, drawn by SuggestionIconOverlay once placements are shown: opens Marker Sets or the Marker
-	// Manager, except current's own. Opening one closes current, unsaved.
+	// Manager (its saved markers), except current's own. Opening one closes current, unsaved.
 	public void logo(Widget container, List<SuggestionIconOverlay.Placement> placements, ChatboxInput current) {
 		placements.add(new SuggestionIconOverlay.Placement(container, LOGO_AREA, LOGO));
 		Widget logo = child(container, WidgetType.GRAPHIC, LOGO_AREA.x, LOGO_AREA.y, LOGO_AREA.width, LOGO_AREA.height);
@@ -83,7 +85,7 @@ public final class ChatboxWidgets {
 			logo.setAction(opens.size(), "Marker Sets");
 			opens.add(() -> chatboxPanelManager.openInput(markerSetManagerProvider.get()));
 		}
-		if (!(current instanceof MarkerManager)) {
+		if (!(current instanceof MarkerManager) || ((MarkerManager) current).showingSet()) {
 			logo.setAction(opens.size(), "Marker Manager");
 			opens.add(() -> {
 				MarkerManager manager = markerManagerProvider.get();
@@ -192,12 +194,13 @@ public final class ChatboxWidgets {
 		return true;
 	}
 
-	// text cut short with ".." to fit width px in font, as drawn escaped.
+	// text cut short with ".." to fit width px in font, as drawn escaped: at most its first FIT_START characters, then fewer
+	// until it fits.
 	public static String fit(FontTypeFace font, String text, int width) {
 		if (font.getTextWidth(Text.escapeJagex(text)) <= width) {
 			return text;
 		}
-		String cut = text;
+		String cut = text.substring(0, Math.min(text.length(), FIT_START));
 		while (!cut.isEmpty() && font.getTextWidth(Text.escapeJagex(cut) + "..") > width) {
 			cut = cut.substring(0, cut.length() - 1);
 		}

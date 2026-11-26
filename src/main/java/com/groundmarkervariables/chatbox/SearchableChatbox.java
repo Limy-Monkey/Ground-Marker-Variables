@@ -15,6 +15,8 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import javax.inject.Inject;
 import java.util.function.UnaryOperator;
 import net.runelite.api.Client;
@@ -27,6 +29,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxInput;
@@ -58,6 +61,13 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	private static final int SORT_ARROW_SIZE = 8;
 	// A heading icon's size (see headingIcon).
 	private static final int HEADING_ICON = 14;
+	// The title row (see addTitle): its font, color and width, a crumb's most before the last, and the black ">" between.
+	private static final int TITLE_FONT = FontID.QUILL_8;
+	private static final int TITLE_COLOR = 0x800000;
+	private static final int TITLE_WIDTH = 260;
+	private static final int CRUMB_WIDTH = 110;
+	private static final String SEPARATOR = ">";
+	private static final int SEPARATOR_FONT = FontID.BOLD_12;
 	// longTip()'s width in pixels, and most lines.
 	private static final int TIP_WIDTH = 300;
 	private static final int TIP_LINES = 8;
@@ -92,8 +102,23 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	// This update's addSubmenu() choices, by widget and option.
 	private final Map<Widget, Map<String, Map<String, Runnable>>> submenus = new HashMap<>();
 
-	// The title row's text before the search, e.g. "Marker Sets (2)".
+	// The title row's text before the search, e.g. "Marker Sets (2)"; in the recycling bin, its short first crumb (e.g. "Sets").
 	protected abstract String title();
+
+	// One part of the title row: its text, and the option that opens what it names (null for where you are).
+	@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+	protected static final class Crumb {
+		private final String text;
+		@Nullable
+		private final String action;
+		@Nullable
+		private final Runnable open;
+	}
+
+	// The title row's crumbs, last where you are: just title() unless overridden. The recycling bin's are its own.
+	protected List<Crumb> crumbs() {
+		return List.of(new Crumb(title(), null, null));
+	}
 
 	// What's in the recycling bin (0 for none, or none to show), for its title, icon and closing once empty.
 	protected abstract int recycled();
@@ -112,8 +137,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		submenus.clear();
 
 		widgets.logo(container, iconPlacements, this);
-		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
-		ChatboxWidgets.text(container, (recycleBin ? "Recycling Bin (" + recycled() + ")" : title()) + search, FontID.QUILL_8, 0x800000, ChatboxWidgets.LOGO_RIGHT, 5, 260, LINE_HEIGHT);
+		addTitle(container);
 
 		FontTypeFace font = ChatboxWidgets.font(container, BUTTON_FONT);
 		buildTopBar(container, font, closeAndFontButtons(container, font, chatboxPanelManager, widgets, this::update));
@@ -121,6 +145,36 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		ChatboxWidgets.separator(container, RESULTS_Y - 4);
 		buildRows(container);
 		iconOverlay.show(iconPlacements, tips);
+	}
+
+	// The crumbs (see crumbs), those before the last cut to CRUMB_WIDTH and clickable ones highlighting while hovered, each
+	// followed by a black SEPARATOR in its own font; the search after the last.
+	private void addTitle(Widget container) {
+		String search = query.isEmpty() ? " <col=808080>type to search</col>" : ": <col=000000>" + Text.escapeJagex(query) + "</col>";
+		List<Crumb> crumbs = !recycleBin ? crumbs() : List.of(new Crumb(title(), "Back", () -> {
+			recycleBin = false;
+			scrollOffset = 0;
+			reopen();
+		}), new Crumb("Recycling Bin (" + recycled() + ")", null, null));
+		FontTypeFace titleFont = ChatboxWidgets.font(container, TITLE_FONT);
+		int separatorWidth = ChatboxWidgets.font(container, SEPARATOR_FONT).getTextWidth(SEPARATOR) + 6;
+		int x = ChatboxWidgets.LOGO_RIGHT;
+		for (int i = 0; i < crumbs.size(); i++) {
+			Crumb crumb = crumbs.get(i);
+			boolean last = i == crumbs.size() - 1;
+			String text = last ? crumb.text + search : ChatboxWidgets.fit(titleFont, crumb.text, CRUMB_WIDTH);
+			int width = last ? Math.max(0, ChatboxWidgets.LOGO_RIGHT + TITLE_WIDTH - x) : titleFont.getTextWidth(text);
+			Widget widget = ChatboxWidgets.text(container, text, TITLE_FONT, TITLE_COLOR, x, 5, width, LINE_HEIGHT);
+			if (crumb.open != null) {
+				addAction(widget, new ArrayList<>(), crumb.action, crumb.open);
+				ChatboxWidgets.hover(widget, TITLE_COLOR);
+			}
+			if (!last) {
+				ChatboxWidgets.text(container, SEPARATOR, SEPARATOR_FONT, 0x000000, x + width, 5, separatorWidth, LINE_HEIGHT)
+					.setXTextAlignment(WidgetTextAlignment.CENTER);
+			}
+			x += width + separatorWidth;
+		}
 	}
 
 	@Override
@@ -194,18 +248,18 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		recycleBin &= recycled() > 0;
 	}
 
-	// While the recycling bin has something: its :recycle@white: at rightX, opening it (recycleBin) or going back; then
-	// shown runs. Returns the x for the next button.
+	// While the recycling bin has something and isn't open (its crumb goes back, see addTitle): its :recycle@white: at
+	// rightX, opening it (recycleBin); then shown runs. Returns the x for the next button.
 	protected int recycleBinButton(Widget container, int rightX, Runnable shown) {
-		if (recycled() == 0) {
+		if (recycled() == 0 || recycleBin) {
 			return rightX;
 		}
 		Rectangle area = new Rectangle(container.getWidth() - rightX - RECYCLE_SIZE, 5 + (LINE_HEIGHT - RECYCLE_SIZE) / 2, RECYCLE_SIZE,
 			RECYCLE_SIZE);
 		iconPlacements.add(new SuggestionIconOverlay.Placement(container, area, Completion.Icon.emoji(RECYCLE)));
 		Widget bin = ChatboxWidgets.child(container, WidgetType.GRAPHIC, area.x, area.y, area.width, area.height);
-		addAction(bin, new ArrayList<>(), recycleBin ? "Back" : "Open recycling bin", () -> {
-			recycleBin = !recycleBin;
+		addAction(bin, new ArrayList<>(), "Open recycling bin", () -> {
+			recycleBin = true;
 			scrollOffset = 0;
 			shown.run();
 		});
@@ -306,15 +360,15 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 	}
 
 	// count rows, scrolling, under a fixed line if headed; addRow draws row i at y. The fixed line shows the headings,
-	// unless fixedRow draws something there for the first row shown (e.g. the set it's in) at that y.
+	// unless fixedRow draws something there for the first row shown (e.g. the set it's in) at that y: then just the icon ones.
 	protected void table(Widget container, boolean headed, int count, BiConsumer<Integer, Integer> addRow,
 		@Nullable BiPredicate<Integer, Integer> fixedRow) {
 		int top = headed ? RESULTS_Y + ROW_HEIGHT : RESULTS_Y;
 		int visibleRows = headed ? VISIBLE_ROWS - 1 : VISIBLE_ROWS;
 		scrollOffset = ChatboxWidgets.scrollList(container, top, ROW_HEIGHT, visibleRows, count, Math.max(0, count - visibleRows), scrollOffset,
 			this::scroll);
-		if (headed && (fixedRow == null || count == 0 || !fixedRow.test(scrollOffset, RESULTS_Y))) {
-			addHeadings(container, RESULTS_Y);
+		if (headed) {
+			addHeadings(container, RESULTS_Y, fixedRow != null && count > 0 && fixedRow.test(scrollOffset, RESULTS_Y));
 		}
 		for (int i = 0; i < Math.min(visibleRows, count - scrollOffset); i++) {
 			addRow.accept(scrollOffset + i, top + ROW_HEIGHT * i);
@@ -327,15 +381,15 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		return null;
 	}
 
-	// Each heading sorts by its column, or reverses the order if it's already sorted by it.
-	private void addHeadings(Widget container, int y) {
+	// Each heading sorts by its column, or reverses the order if it's already sorted by it. iconsOnly: just the icon ones.
+	private void addHeadings(Widget container, int y, boolean iconsOnly) {
 		FontTypeFace headingFont = ChatboxWidgets.font(container, FontID.QUILL_8);
 		for (int column = 0; column < headings.length; column++) {
-			if (headings[column].isEmpty()) {
+			Supplier<Completion.Icon> icon = headingIcon(column);
+			if (headings[column].isEmpty() || iconsOnly && icon == null) {
 				continue;
 			}
 			int sortBy = column;
-			Supplier<Completion.Icon> icon = headingIcon(column);
 			// The sorted column's arrow takes from its room.
 			String text = icon != null ? ""
 				: ChatboxWidgets.fit(headingFont, headings[column], columnWidth(column) - (column == sortColumn ? SORT_ARROW_SIZE + 3 : 0));
@@ -381,6 +435,7 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 		return area;
 	}
 
+	// Past the last column, the table's end (by the scrollbar).
 	protected int columnX(int column) {
 		int x = TABLE_X;
 		for (int before = 0; before < column; before++) {

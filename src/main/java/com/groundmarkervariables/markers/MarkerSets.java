@@ -26,8 +26,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -371,11 +373,17 @@ public class MarkerSets implements TileSource {
 
 	// A single-tile entry's label (blank for none).
 	public void setLabel(MarkerSet set, MarkerSet.Entry edited, String label) {
+		editTiles(set, tile -> edited.tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);
+	}
+
+	// An own set's tiles, each replaced by change's (null drops it; an entry left without any goes).
+	public void editTiles(MarkerSet set, UnaryOperator<GroundMarkerPointData> change) {
 		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
 		for (MarkerSet.Entry entry : set.entries) {
-			GroundMarkerPointData tile = entry.tiles.get(0);
-			moved.put(entry, entry != edited ? entry : new MarkerSet.Entry(entry.title, entry.description,
-				List.of(tile.withLabel(label.isEmpty() ? null : label)), false, entry.enabledByDefault, moved.size()));
+			List<GroundMarkerPointData> tiles = entry.tiles.stream().map(change).filter(Objects::nonNull).collect(Collectors.toList());
+			if (!tiles.isEmpty()) {
+				moved.put(entry, new MarkerSet.Entry(entry.title, entry.description, tiles, entry.group, entry.enabledByDefault, moved.size()));
+			}
 		}
 		edit(set, moved);
 	}
