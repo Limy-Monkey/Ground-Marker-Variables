@@ -10,7 +10,6 @@ import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.markers.minify.MarkerCompression;
 import com.groundmarkervariables.markers.minify.NewerFormatException;
 
-import java.awt.Color;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,13 +23,13 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.chat.ChatMessageManager;
@@ -49,6 +48,7 @@ import net.runelite.client.util.ColorUtil;
 // every currently loaded marker; recipients get "Import ... from <user>" for PendingPartyShare.TTL.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundMarkerPartySharingManager {
     private static final int WIDGET_FIXED = InterfaceID.Orbs.WORLDMAP;
     private static final int WIDGET_RESIZABLE = InterfaceID.OrbsNomap.WORLDMAP;
@@ -76,26 +76,9 @@ public class GroundMarkerPartySharingManager {
     private final WSClient wsClient;
     private final Gson gson;
 
-    @Inject
-    private GroundMarkerPartySharingManager(Client client, ChatboxPanelManager chatboxPanelManager, ChatMessageManager chatMessageManager,
-        EventBus eventBus, ScheduledExecutorService executor, ImportPreviewManager importPreviewManager,
-        GroundMarkerVariablesSharingManager sharingManager, PartyService partyService, WSClient wsClient, Gson gson) {
-        this.gson = gson;
-        this.client = client;
-        this.chatboxPanelManager = chatboxPanelManager;
-        this.chatMessageManager = chatMessageManager;
-        this.eventBus = eventBus;
-        this.executor = executor;
-        this.importPreviewManager = importPreviewManager;
-        this.sharingManager = sharingManager;
-        this.partyService = partyService;
-        this.wsClient = wsClient;
-    }
-
     public void startUp() {
         eventBus.register(this);
         registerMessage(GMVCompressedMarkerShare.class);
-        registerMessage(GMVGroundMarkerPartyShare.class);
     }
 
     private void registerMessage(Class<? extends PartyMemberMessage> message) {
@@ -121,7 +104,6 @@ public class GroundMarkerPartySharingManager {
         }
 
         unregisterMessage(GMVCompressedMarkerShare.class);
-        unregisterMessage(GMVGroundMarkerPartyShare.class);
 
         pendingShares.clear();
         lastReceivedAt = null;
@@ -207,20 +189,6 @@ public class GroundMarkerPartySharingManager {
         addPending(share, points);
     }
 
-    @Subscribe
-    public void onGMVGroundMarkerPartyShare(GMVGroundMarkerPartyShare share) {
-        if (isOwn(share)) {
-            return;
-        }
-
-        List<GroundMarkerPointData> points = new ArrayList<>();
-        for (GMVGroundMarkerPartyShare.SharedMarker marker : share.getMarkers()) {
-            WorldPoint point = marker.getPoint();
-            Color color = marker.getColorRgb() == null ? null : new Color(marker.getColorRgb(), true);
-            points.add(new GroundMarkerPointData(point.getRegionID(), point.getRegionX(), point.getRegionY(), point.getPlane(), color, marker.getLabel()));
-        }
-        addPending(share, points);
-    }
 
     private boolean isOwn(PartyMemberMessage message) {
         PartyMember local = partyService.getLocalMember();

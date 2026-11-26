@@ -22,6 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
@@ -41,6 +42,7 @@ import net.runelite.client.party.WSClient;
 // others as a temporary, fading marker (a TileSource) with its own "Save"/"Hide" right-click options.
 @Slf4j
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PingedTileManager implements TileSource {
     // By stored (region) point. Arrives on WSClient's own thread, not the client/AWT thread render()/menus run on.
     private final Map<WorldPoint, PingedTile> pingedTiles = new ConcurrentHashMap<>();
@@ -61,24 +63,6 @@ public class PingedTileManager implements TileSource {
     private final PartyService partyService;
     private final WSClient wsClient;
     private final RenderedTiles renderedTiles;
-
-    @Inject
-    private PingedTileManager(Client client, ClientThread clientThread, EventBus eventBus, ScheduledExecutorService executor,
-        GroundMarkerVariablesConfig config, GroundMarkerVariablesPlugin plugin, MarkerStorage markerStorage, LabelResolver labelResolver,
-        MetaVariableResolver metaVariableResolver, PartyService partyService, WSClient wsClient, RenderedTiles renderedTiles) {
-        this.renderedTiles = renderedTiles;
-        this.client = client;
-        this.clientThread = clientThread;
-        this.eventBus = eventBus;
-        this.executor = executor;
-        this.config = config;
-        this.plugin = plugin;
-        this.markerStorage = markerStorage;
-        this.labelResolver = labelResolver;
-        this.metaVariableResolver = metaVariableResolver;
-        this.partyService = partyService;
-        this.wsClient = wsClient;
-    }
 
     public void startUp() {
         eventBus.register(this);

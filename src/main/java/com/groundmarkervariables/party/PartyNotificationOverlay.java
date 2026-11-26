@@ -8,6 +8,7 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
@@ -18,6 +19,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 // Badge over the World Map orb's top-left corner, shown when GroundMarkerPartySharingManager
 // receives a party-shared marker set. Opacity comes from its badgeOpacity(now).
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class PartyNotificationOverlay extends Overlay {
     private static final int SPRITE_ID = 937;
     private static final int WIDTH = 5;
@@ -27,11 +29,7 @@ public class PartyNotificationOverlay extends Overlay {
     private final GroundMarkerPartySharingManager partySharingManager;
     private final SpriteManager spriteManager;
 
-    @Inject
-    private PartyNotificationOverlay(Client client, GroundMarkerPartySharingManager partySharingManager, SpriteManager spriteManager) {
-        this.client = client;
-        this.partySharingManager = partySharingManager;
-        this.spriteManager = spriteManager;
+    {
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
     }

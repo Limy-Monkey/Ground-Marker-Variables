@@ -20,11 +20,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
@@ -81,10 +82,7 @@ public class GroundMarkerVariablesSharingManager {
             return List.of();
         }
 
-        return Arrays.stream(regions)
-            .mapToObj(regionId -> markerStorage.getStoredPoints(regionId).stream())
-            .flatMap(Function.identity())
-            .collect(Collectors.toList());
+        return Arrays.stream(regions).mapToObj(markerStorage::getStoredPoints).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     // Also MarkerManager's "Copy"; plain ("Copy as plaintext") leaves labels uncompressed.
@@ -99,13 +97,7 @@ public class GroundMarkerVariablesSharingManager {
             return;
         }
 
-        final String exportDump = markerMinifier.export(activePoints);
-
-        log.debug("Exported ground markers: {}", exportDump);
-
-        Toolkit.getDefaultToolkit()
-            .getSystemClipboard()
-            .setContents(new StringSelection(exportDump), null);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.export(activePoints)), null);
         sendChatMessage(activePoints.size() + " ground markers were copied to your clipboard.");
     }
 
@@ -247,29 +239,15 @@ public class GroundMarkerVariablesSharingManager {
 
     // Candidates not already at an existing marker's location, per importGroundMarkers' own dedup.
     public List<GroundMarkerPointData> nonOverlapping(Collection<GroundMarkerPointData> candidates) {
-        Map<Integer, List<GroundMarkerPointData>> regionGroupedPoints = candidates.stream()
-            .collect(Collectors.groupingBy(GroundMarkerPointData::getRegionId));
-
-        List<GroundMarkerPointData> result = new ArrayList<>();
-        regionGroupedPoints.forEach((regionId, groupedPoints) -> {
-            List<GroundMarkerPointData> existing = new ArrayList<>(markerStorage.getStoredPoints(regionId));
-            for (GroundMarkerPointData point : groupedPoints) {
-                if (!containsLocation(existing, point)) {
-                    existing.add(point);
-                    result.add(point);
-                }
-            }
-        });
-
-        return result;
+        Set<WorldPoint> taken = new HashSet<>();
+        candidates.stream().map(GroundMarkerPointData::getRegionId).distinct()
+            .forEach(regionId -> markerStorage.getStoredPoints(regionId).forEach(point -> taken.add(point.worldPoint())));
+        return candidates.stream().filter(point -> taken.add(point.worldPoint())).collect(Collectors.toList());
     }
 
     // Also used by GroundMarkerPartySharingManager's own "Import ... from <user>".
     public void importGroundMarkers(Collection<GroundMarkerPointData> importPoints) {
-        log.debug("Importing {} points", importPoints.size());
         markerStorage.addPoints(importPoints);
-
-        log.debug("Reloading points after import");
         plugin.loadPoints();
     }
 
@@ -281,28 +259,8 @@ public class GroundMarkerVariablesSharingManager {
         plugin.loadPoints();
     }
 
-    private static boolean containsLocation(Collection<GroundMarkerPointData> points, GroundMarkerPointData point) {
-        for (GroundMarkerPointData existing : points) {
-            if (existing.getRegionX() == point.getRegionX() && existing.getRegionY() == point.getRegionY()
-                && existing.getZ() == point.getZ()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private void promptForClear(MenuEntry entry) {
-        int[] regions = client.getMapRegions();
-        if (regions == null) {
-            return;
-        }
-
-        List<GroundMarkerPointData> activePoints = Arrays.stream(regions)
-            .mapToObj(markerStorage::getStoredPoints)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
-
+        List<GroundMarkerPointData> activePoints = activePoints();
         if (activePoints.isEmpty()) {
             sendChatMessage("You have no ground markers to clear.");
             return;

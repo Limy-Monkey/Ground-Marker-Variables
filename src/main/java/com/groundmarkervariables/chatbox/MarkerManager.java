@@ -279,7 +279,7 @@ public class MarkerManager extends SearchableChatbox {
     @Override
     protected String title() {
         String name = set != null ? Text.escapeJagex(set.title) : recycleBin ? "Markers" : "Ground Markers";
-        return recycleBin ? name : name + " (" + markerCount(viewRows()) + ")";
+        return recycleBin ? name : name + " (" + viewRows().stream().mapToInt(entry -> entry.points.size()).sum() + ")";
     }
 
     // A set's tiles: Sets (opening Marker Sets), then the set.
@@ -324,7 +324,7 @@ public class MarkerManager extends SearchableChatbox {
             }
             rightX = nextX(copy);
             Widget makeSet = button(container, font, "Set", "Make a marker set from selected", selectedTarget, anySelected, rightX, this::makeSet);
-            if (anySelected && !ownSets().isEmpty()) {
+            if (anySelected && markerSets.sets().stream().anyMatch(MarkerManager::own)) {
                 makeSet.setAction(1, "Add to existing set");
                 makeSet.setOnOpListener((JavaScriptCallback) ev -> {
                     if (ev.getOp() == 2) {
@@ -939,23 +939,7 @@ public class MarkerManager extends SearchableChatbox {
     }
 
     private List<Entry> chosenEntries() {
-        List<Entry> chosen = new ArrayList<>();
-        for (Entry entry : visibleEntries()) {
-            if (selected.contains(entry)) {
-                chosen.add(entry);
-            }
-        }
-        return chosen;
-    }
-
-    private List<MarkerSet> ownSets() {
-        List<MarkerSet> own = new ArrayList<>();
-        for (MarkerSet set : markerSets.sets()) {
-            if (set.kind == MarkerSet.Kind.OWN) {
-                own.add(set);
-            }
-        }
-        return own;
+        return visibleEntries().stream().filter(selected::contains).collect(Collectors.toList());
     }
 
     // Saved markers to the recycling bin, or tiles out of inSet.
@@ -1000,21 +984,7 @@ public class MarkerManager extends SearchableChatbox {
 
     // The selected markers shown: hidden ones stay selected, but aren't copied or deleted.
     private List<GroundMarkerPointData> selectedPoints() {
-        List<GroundMarkerPointData> points = new ArrayList<>();
-        for (Entry entry : visibleEntries()) {
-            if (selected.contains(entry)) {
-                points.addAll(entry.points);
-            }
-        }
-        return points;
-    }
-
-    private static int markerCount(List<Entry> entries) {
-        int count = 0;
-        for (Entry entry : entries) {
-            count += entry.points.size();
-        }
-        return count;
+        return chosenEntries().stream().flatMap(entry -> entry.points.stream()).collect(Collectors.toList());
     }
 
 }
