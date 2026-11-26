@@ -14,6 +14,7 @@ import com.groundmarkervariables.graphics.GroundMarkerVariablesMinimapOverlay;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.DeletedMarkers;
 import com.groundmarkervariables.markers.ExternalMarkerManager;
+import com.groundmarkervariables.markers.Gists;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.ImportPreviewManager;
@@ -48,6 +49,7 @@ import com.groundmarkervariables.variables.support.GroupState;
 import com.groundmarkervariables.variables.support.ItemQuantityFinder;
 import com.groundmarkervariables.variables.support.RuneCounter;
 import java.awt.Color;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -109,6 +111,8 @@ import net.runelite.client.util.ColorUtil;
 @Slf4j
 @PluginDescriptor(
     name = "Ground Marker Variables",
+    // Its folder in .runelite/plugin-data (see getPluginDirectory).
+    internalName = "ground-marker-variables",
     description = "Ground Markers with variables support, e.g. {spellbook} and {metronome4}",
     tags = {"ground", "markers", "tile", "overlay", "labels", "variables", "metronome"},
     conflicts = {"Ground Markers"}
@@ -147,6 +151,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Inject
     private WorldMapPins mapPins;
+
+    @Inject
+    private Gists gists;
 
     @Inject
     private Client client;
@@ -298,7 +305,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
     }
 
     @Override
-    protected void startUp() {
+    protected void startUp() throws IOException {
         NamedColors.setHighlight(config.highlightColor());
         freshInstall = configManager.getConfiguration(GroundMarkerVariablesConfig.GROUP, CONFIG_MIGRATED_KEY) == null;
         if (freshInstall) {
@@ -320,6 +327,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         weaponStyleTracker.startUp();
         runeProfileCollectionLog.startUp();
         renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, importPreviewManager));
+        gists.startUp(getPluginDirectory().join("github-token"));
         markerSets.startUp();
         clientThread.invoke(this::sweepTileFacts);
         latestData.update();

@@ -4,9 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.groundmarkervariables.variables.support.LatestData;
-import java.io.File;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,7 +21,7 @@ import javax.inject.Singleton;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLite;
+import net.runelite.client.util.Filepath;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -32,7 +31,7 @@ import okhttp3.Response;
 
 // Marker sets on GitHub gists: one set per gist, in its first *.gmv.json file. Reading is anonymous: sets come from their raw
 // files, and only listing someone's gists uses the API (60 calls an hour per IP; 5,000 signed in). Signing in (device flow)
-// is for publishing; its token is kept in a file in the RuneLite folder, not in config, which may sync. Blocking calls go
+// is for publishing; its token is kept in a file in the plugin's own folder, not in config, which may sync. Blocking calls go
 // through run(), off the client thread.
 @Slf4j
 @Singleton
@@ -44,7 +43,6 @@ public class Gists {
     // A link alone: the gist's id (current ones hex, the oldest digits), anything after it ignored.
     private static final Pattern LINK = Pattern.compile(
         "(?i)(?:https?://)?(?:www\\.)?gist\\.github(?:usercontent)?\\.com/(?:[\\w-]+/)?([0-9a-f]{20,}|\\d+)(?:[/?#].*)?");
-    private static final File TOKEN = new File(RuneLite.RUNELITE_DIR, "ground-marker-variables/github-token");
     public interface Task {
         void run() throws IOException;
     }
@@ -58,12 +56,16 @@ public class Gists {
     private volatile String login;
     @Nullable
     private volatile String token;
+    // Where the sign-in is kept, inside the plugin's own folder (Plugin#getPluginDirectory, which Filepath keeps it in).
+    @Nullable
+    private Filepath tokenFile;
 
-    public void startUp() {
-        try {
-            String[] saved = TOKEN.exists() ? Files.readString(TOKEN.toPath()).split("\n") : new String[0];
-            login = saved.length == 2 ? saved[0] : null;
-            token = saved.length == 2 ? saved[1] : null;
+    public void startUp(Filepath tokenFile) {
+        this.tokenFile = tokenFile;
+        try (BufferedReader saved = tokenFile.exists() ? tokenFile.openBufferedReader() : null) {
+            login = saved == null ? null : saved.readLine();
+            token = saved == null ? null : saved.readLine();
+            login = token == null ? null : login;
         } catch (IOException e) {
             log.warn("Couldn't read the GitHub sign-in", e);
         }
@@ -159,8 +161,8 @@ public class Gists {
             } else if (error == null) {
                 token = reply.get("access_token").getAsString();
                 login = api("GET", "user", null).getAsJsonObject().get("login").getAsString();
-                TOKEN.getParentFile().mkdirs();
-                Files.writeString(TOKEN.toPath(), login + "\n" + token);
+                tokenFile.getParent().createDirectories();
+                tokenFile.write(login + "\n" + token);
                 signedIn.accept(login);
             }
         }, null), interval, TimeUnit.SECONDS);
@@ -169,7 +171,11 @@ public class Gists {
     public void signOut() {
         login = null;
         token = null;
-        TOKEN.delete();
+        try {
+            tokenFile.deleteIfExists();
+        } catch (IOException e) {
+            log.warn("Couldn't delete the GitHub sign-in", e);
+        }
     }
 
     // A gist's first set file, as a Gist; null if it has none.

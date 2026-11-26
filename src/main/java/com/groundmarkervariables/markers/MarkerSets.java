@@ -112,7 +112,6 @@ public class MarkerSets implements TileSource {
     private final RecyclingBin<String, Recycled> bin = new RecyclingBin<>();
 
     public void startUp() {
-        gists.startUp();
         clientThread.invoke(this::load);
     }
 
