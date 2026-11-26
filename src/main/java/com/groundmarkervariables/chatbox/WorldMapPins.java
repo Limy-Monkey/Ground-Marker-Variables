@@ -100,6 +100,13 @@ public class WorldMapPins {
         }));
     }
 
+    // All set's tiles, each named by its entry.
+    public void pin(MarkerSet set) {
+        Map<String, List<GroundMarkerPointData>> byEntry = new LinkedHashMap<>();
+        set.entries.forEach(entry -> byEntry.computeIfAbsent(entry.name(), name -> new ArrayList<>()).addAll(entry.tiles));
+        pin(set, byEntry);
+    }
+
     public void clear() {
         pins.forEach(worldMapPointManager::remove);
         pins.clear();

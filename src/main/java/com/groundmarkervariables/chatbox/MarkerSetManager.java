@@ -274,7 +274,7 @@ public class MarkerSetManager extends SearchableChatbox {
             Player player = client.getLocalPlayer();
             String name = player != null ? player.getName() : null;
             Map<String, Runnable> edit = new LinkedHashMap<>();
-            edit.put("Set title", () -> askTitle(set));
+            edit.put("Set title", () -> askTitle(set, this::reopen));
             edit.put("Set description", () -> askDescription(set.description, text -> markerSets.setDescription(set, text)));
             if (clipboardHasMarkers) {
                 edit.put("Paste", () -> paste(set));
@@ -297,11 +297,8 @@ public class MarkerSetManager extends SearchableChatbox {
     // Map (see WorldMapPins#mapChoices): all set's tiles pinned (each named by its entry) or on RuneLite.net, the open
     // world map moved to tiles.
     private void addShowOnMap(Widget widget, List<Runnable> actions, MarkerSet set, List<GroundMarkerPointData> tiles, Rectangle labelArea) {
-        addSubmenu(widget, actions, "Map", mapPins.mapChoices(tiles, titledTiles(set), () -> {
-            Map<String, List<GroundMarkerPointData>> byEntry = new LinkedHashMap<>();
-            set.entries.forEach(entry -> byEntry.computeIfAbsent(entry.name(), name -> new ArrayList<>()).addAll(entry.tiles));
-            mapPins.pin(set, byEntry);
-        }, text -> notice(labelArea, text), this::updateIfOpen));
+        addSubmenu(widget, actions, "Map", mapPins.mapChoices(tiles, titledTiles(set), () -> mapPins.pin(set), text -> notice(labelArea, text),
+            this::updateIfOpen));
     }
 
     private static List<GroundMarkerPointData> tiles(MarkerSet set) {
@@ -344,7 +341,7 @@ public class MarkerSetManager extends SearchableChatbox {
                     edit.put("Label", () -> editTile(set, entry));
                 }
                 edit.put("Copy", copy);
-                edit.put("Set Title", () -> askTitle(set, entry));
+                edit.put("Set Title", () -> askTitle(set, entry, this::reopen));
                 edit.put("Set Description", () -> askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
                 edit.put("Delete", () -> confirmDelete(set, entry));
                 addSubmenu(clickable, actions, "Edit", edit);
@@ -494,7 +491,8 @@ public class MarkerSetManager extends SearchableChatbox {
             .build();
     }
 
-    private void askTitle(MarkerSet set) {
+    // Then runs then, e.g. reopening the chatbox it came from.
+    void askTitle(MarkerSet set, Runnable then) {
         chatboxPanelManager.openTextInput("Marker set title")
             .value(set.title)
             .onDone((Predicate<String>) title -> {
@@ -502,24 +500,24 @@ public class MarkerSetManager extends SearchableChatbox {
                     if (!title.isBlank()) {
                         markerSets.setTitle(set, title);
                     }
-                    reopen();
+                    then.run();
                 });
                 return false;
             })
             .build();
     }
 
-    // Blank removes the title, so the entry shows its label again. onDone returns false: reopening this replaces the
+    // Blank removes the title, so the entry shows its label again; another entry's merges it into that one. onDone returns false: reopening this replaces the
     // prompt, which closing would close instead.
-    private void askTitle(MarkerSet set, MarkerSet.Entry entry) {
+    void askTitle(MarkerSet set, MarkerSet.Entry entry, Runnable then) {
         chatboxPanelManager.openTextInput("Title (blank for none)")
             .value(entry.title == null ? "" : entry.title)
             .onDone((Predicate<String>) title -> {
                 clientThread.invoke(() -> {
                     if (!markerSets.setTitle(set, entry, title)) {
-                        sendChatMessage("Another entry in \"" + set.title + "\" is already titled \"" + title.trim() + "\".");
+                        sendChatMessage("\"" + entry.name() + "\" was merged into \"" + title.trim() + "\" in the marker set \"" + set.title + "\".");
                     }
-                    reopen();
+                    then.run();
                 });
                 return false;
             })

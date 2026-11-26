@@ -346,24 +346,47 @@ public class MarkerSets implements TileSource {
         edit(set, title.trim(), set.description, set.author, set.entries);
     }
 
-    // An entry retitled (blank for none). False if another entry already has that title, as their states would be shared.
+    // An entry retitled (blank for none). Given another entry's title, merged into that one instead (its tiles added after
+    // the other's, whose state and description stay); false then.
     public boolean setTitle(MarkerSet set, MarkerSet.Entry retitled, String title) {
         String newTitle = title.isBlank() ? null : title.trim();
+        MarkerSet.Entry into = set.entries.stream().filter(entry -> entry != retitled && newTitle != null && newTitle.equals(entry.title))
+            .findFirst().orElse(null);
         Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
         for (MarkerSet.Entry entry : set.entries) {
-            if (entry != retitled && newTitle != null && newTitle.equals(entry.title)) {
-                return false;
+            if (entry == into) {
+                List<GroundMarkerPointData> tiles = new ArrayList<>(entry.tiles);
+                tiles.addAll(retitled.tiles);
+                moved.put(entry, new MarkerSet.Entry(entry.title, entry.description, tiles, true, entry.enabledByDefault, moved.size()));
+            } else if (entry != retitled) {
+                moved.put(entry, entry.at(moved.size()));
+            } else if (into == null) {
+                moved.put(entry, new MarkerSet.Entry(newTitle, entry.description, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
             }
-            moved.put(entry, entry != retitled ? entry
-                : new MarkerSet.Entry(newTitle, entry.description, entry.tiles, entry.group, entry.enabledByDefault, moved.size()));
         }
         edit(set, moved);
-        return true;
+        return into == null;
     }
 
     // An own set's tiles' label (blank for none).
     public void setLabel(MarkerSet set, Collection<GroundMarkerPointData> tiles, String label) {
         editTiles(set, tile -> tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);
+    }
+
+    // An own set's tiles moved to the end of its entry into (an entry left without any goes).
+    public void moveTiles(MarkerSet set, Collection<GroundMarkerPointData> tiles, MarkerSet.Entry into) {
+        Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+        for (MarkerSet.Entry entry : set.entries) {
+            List<GroundMarkerPointData> kept = entry.tiles.stream().filter(tile -> !tiles.contains(tile)).collect(Collectors.toList());
+            if (entry == into) {
+                kept.addAll(tiles);
+            }
+            if (!kept.isEmpty()) {
+                moved.put(entry, new MarkerSet.Entry(entry.title, entry.description, kept, entry.group || entry == into, entry.enabledByDefault,
+                    moved.size()));
+            }
+        }
+        edit(set, moved);
     }
 
     // An own set's tiles deleted into DeletedMarkers.

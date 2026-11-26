@@ -423,7 +423,7 @@ public class MarkerManager extends SearchableChatbox {
     }
 
     // A section's name (a set's opening it, or finding it in Marker Sets), or an entry's checkbox (switching it) and name
-    // after prefix (finding it in Marker Sets); cut before the tile info's heading icons (which stay on the fixed line), and
+    // after prefix (finding it in Marker Sets); your own sets' and entries' retitled from it too. Cut before the tile info's heading icons (which stay on the fixed line), and
     // grayed while off.
     private void addGroup(Widget container, Group group, String prefix, int y) {
         int x = 6;
@@ -447,6 +447,14 @@ public class MarkerManager extends SearchableChatbox {
                 addAction(text, actions, "Show set", () -> show(group.set, query));
             }
             addAction(text, actions, "Find in Marker Sets", () -> findInSets(group.set, group.entry));
+            if (own(group.set)) {
+                MarkerSetManager sets = markerSetManagerProvider.get();
+                if (group.entry == null) {
+                    addAction(text, actions, "Set title", () -> sets.askTitle(group.set, this::reopen));
+                } else {
+                    addSubmenu(text, actions, "Edit", Map.of("Set Title", () -> sets.askTitle(group.set, group.entry, this::reopen)));
+                }
+            }
             ChatboxWidgets.hover(text, color);
         }
     }
@@ -569,7 +577,8 @@ public class MarkerManager extends SearchableChatbox {
             addInfo(container, entry, y);
         }
 
-        // The row's options, made once: select (or restore), edit (Label for one marker; Color for all of the row's), map,
+        // The row's options, made once: select (or restore), edit (Label for one marker; Color for all of the row's; a set
+    // tile's entry's title), map,
         // delete for good.
         Rectangle labelArea = cellArea(LABEL, y);
         Map<String, Runnable> edit = new LinkedHashMap<>();
@@ -577,6 +586,15 @@ public class MarkerManager extends SearchableChatbox {
             edit.put("Label", () -> edit(entry));
         }
         edit.put("Color", () -> pickColor(entry));
+        // A set tile's entry retitled, or the tile moved into another titled entry of the set.
+        Map<String, Runnable> moveTo = new LinkedHashMap<>();
+        if (own(entry.inSet)) {
+            edit.put("Set Title", () -> markerSetManagerProvider.get().askTitle(entry.inSet, entry.setEntry, this::reopen));
+            entry.inSet.entries.stream().filter(other -> other != entry.setEntry && other.title != null).forEach(other -> moveTo.put(other.title, () -> {
+                markerSets.moveTiles(entry.inSet, entry.points, other);
+                reopen();
+            }));
+        }
         Map<String, Runnable> map = mapPins.mapChoices(entry.points, entry.points, () -> {
             shown = entry;
             updatePins();
@@ -588,6 +606,10 @@ public class MarkerManager extends SearchableChatbox {
             deletedMarkers.remove(binKey);
             sendChatMessage("The " + what + " was deleted permanently.");
         });
+
+        Map<String, Runnable> manage = new LinkedHashMap<>();
+        manage.put("Copy", () -> export(entry.points, false));
+        manage.put("Find in Marker Sets", () -> findInSets(entry.inSet, entry.setEntry));
 
         // Over the whole row (tile info too), on top of its cells: a part per column, each with those and Filter by its column.
         String[] columns = showInfo ? INFO_HEADINGS : HEADINGS;
@@ -603,17 +625,19 @@ public class MarkerManager extends SearchableChatbox {
             if (!recycleBin && (entry.inSet == null || own(entry.inSet))) {
                 addSubmenu(part, actions, "Edit", edit);
             }
-            if (entry.inSet != null && !recycleBin) {
-                addAction(part, actions, "Copy", () -> export(entry.points, false));
-                addAction(part, actions, "Find in Marker Sets", () -> findInSets(entry.inSet, entry.setEntry));
-                if (own(entry.inSet)) {
-                    addAction(part, actions, "Delete from set", () -> confirmDelete(entry.inSet, entry.points));
-                }
-            }
             if (filter != null) {
                 addAction(part, actions, "Filter by " + filter.getKey(), () -> addToSearch(filter.getValue()));
             }
+            if (!recycleBin && !moveTo.isEmpty()) {
+                addSubmenu(part, actions, "Move Marker", moveTo);
+            }
+            if (entry.inSet != null && !recycleBin) {
+                addSubmenu(part, actions, "Manage", manage);
+            }
             addSubmenu(part, actions, "Map", map);
+            if (own(entry.inSet) && !recycleBin) {
+                addAction(part, actions, "Delete from set", () -> confirmDelete(entry.inSet, entry.points));
+            }
             if (recycleBin) {
                 addAction(part, actions, "Delete", delete);
             }
@@ -621,7 +645,12 @@ public class MarkerManager extends SearchableChatbox {
         }
     }
 
+    // A set's view: the whole set, always. Else the selected rows and the one shown.
     private void updatePins() {
+        if (set != null && !recycleBin) {
+            mapPins.pin(set);
+            return;
+        }
         Set<Entry> rows = new HashSet<>(selected);
         if (shown != null) {
             rows.add(shown);
