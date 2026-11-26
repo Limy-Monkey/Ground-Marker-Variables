@@ -223,7 +223,7 @@ public final class ChatboxWidgets {
 	}
 
 	// At the right of top..top+height, showing visible of count rows from offset (up to maxOffset); the arrows call
-	// scroll(-1) / scroll(1).
+	// scroll(-1) / scroll(1), or right-clicked, scroll to the top / bottom.
 	public static void scrollbar(Widget container, int top, int height, int offset, int maxOffset, int visible, int count,
 		IntConsumer scroll) {
 		// Needs room for both arrows and a thumb; the wheel still scrolls without it.
@@ -231,8 +231,10 @@ public final class ChatboxWidgets {
 			return;
 		}
 
-		arrow(container, "^", "Scroll up", top, offset > 0, () -> scroll.accept(-1));
-		arrow(container, "v", "Scroll down", top + height - SCROLLBAR_ARROW_HEIGHT, offset < maxOffset, () -> scroll.accept(1));
+		int from = offset;
+		arrow(container, "^", "Scroll up", "Scroll to top", top, offset > 0, () -> scroll.accept(-1), () -> scroll.accept(-from));
+		arrow(container, "v", "Scroll down", "Scroll to bottom", top + height - SCROLLBAR_ARROW_HEIGHT, offset < maxOffset,
+			() -> scroll.accept(1), () -> scroll.accept(maxOffset - from));
 
 		int trackY = top + SCROLLBAR_ARROW_HEIGHT;
 		int trackHeight = height - SCROLLBAR_ARROW_HEIGHT * 2;
@@ -251,14 +253,16 @@ public final class ChatboxWidgets {
 		thumb.setTextColor(0x800000);
 	}
 
-	// Clickable even when grayed out at the end; scrolling clamps.
-	private static void arrow(Widget container, String text, String action, int y, boolean enabled, Runnable onClick) {
+	// Clickable even when grayed out at the end; scrolling clamps. jump is its right-click option, e.g. to the top.
+	private static void arrow(Widget container, String text, String action, String jumpAction, int y, boolean enabled, Runnable onClick,
+		Runnable jump) {
 		Widget arrow = place(container.createChild(-1, WidgetType.TEXT), WidgetPositionMode.ABSOLUTE_RIGHT, 0, y, SCROLLBAR_WIDTH,
 			SCROLLBAR_ARROW_HEIGHT);
 		styled(arrow, text, FontID.BOLD_12, enabled ? 0x000000 : DISABLED_COLOR, WidgetTextAlignment.CENTER);
 		arrow.setHasListener(true);
 		arrow.setAction(0, action);
-		arrow.setOnOpListener((JavaScriptCallback) ev -> onClick.run());
+		arrow.setAction(1, jumpAction);
+		arrow.setOnOpListener((JavaScriptCallback) ev -> (ev.getOp() == 2 ? jump : onClick).run());
 	}
 
 	private static Widget place(Widget widget, int xMode, int x, int y, int width, int height) {
