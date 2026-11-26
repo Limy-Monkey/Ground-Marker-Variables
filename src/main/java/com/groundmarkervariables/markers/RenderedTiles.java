@@ -21,7 +21,6 @@ import net.runelite.api.coords.WorldPoint;
 // not hidden (ties: the higher order). Built on demand on the client thread; invalidate() is safe from any thread.
 @Singleton
 public class RenderedTiles {
-    public static final float PINGED_PRIORITY = 0.55f;
     public static final float SAVED_PRIORITY = 0.6f;
     public static final float SET_PRIORITY = 0.7f;
     public static final float PREVIEW_PRIORITY = 2f;

@@ -204,7 +204,7 @@ public class GroundMarkerVariablesOverlay {
         hoveredLabel = null;
         tipItemId = -1;
         tipText = null;
-        // One marker per tile, across saved, group, pinged and preview markers (see RenderedTiles).
+        // One marker per tile, across saved, group, set and preview markers (see RenderedTiles).
         renderedTiles.forEachShown(now, (wv, worldPoint, marker, opacity) -> drawTileAt(graphics, wv, worldPoint, marker, borderStroke, opacity, labels));
 
         if (labels) {

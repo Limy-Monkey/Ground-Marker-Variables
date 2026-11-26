@@ -177,28 +177,6 @@ public interface GroundMarkerVariablesConfig extends Config {
         return "";
     }
 
-    @ConfigItem(
-            position = 3,
-            keyName = "showPingedTiles",
-            name = "Show Pinged Tiles",
-            description = "Show markers shared by party members.",
-            section = partySyncSection
-    )
-    default boolean showPingedTiles() {
-        return true;
-    }
-
-    @ConfigItem(
-            position = 4,
-            keyName = "sendPingedTiles",
-            name = "Share Marker Option",
-            description = "Add Share Marker to a marker's Shift right-click menu while in a party.",
-            section = partySyncSection
-    )
-    default boolean shareMarkerOption() {
-        return false;
-    }
-
     @ConfigSection(
             name = "Rich Text",
             description = "Controls text highlighting",

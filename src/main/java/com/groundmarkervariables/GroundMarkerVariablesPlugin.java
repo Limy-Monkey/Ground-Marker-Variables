@@ -94,7 +94,6 @@ import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.input.KeyManager;
-import net.runelite.client.party.PartyService;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -191,9 +190,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
     private OverlayManager overlayManager;
 
     @Inject
-    private PartyService partyService;
-
-    @Inject
     private GroundMarkerVariablesSharingManager sharingManager;
 
     @Inject
@@ -222,9 +218,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Inject
     private SixHourTimeRemainingLabelVariable sixHourTimeRemaining;
-
-    @Inject
-    private PingedTileManager pingedTileManager;
 
     @Inject
     private PartyDataSharing partyDataSharing;
@@ -314,7 +307,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         overlayManager.add(partyNotificationOverlay);
         overlayManager.add(suggestionIconOverlay);
         keyManager.registerKeyListener(metronomeResetHotkeyListener);
-        pingedTileManager.startUp();
         partyDataSharing.startUp(this);
         groundMarkerPartySharingManager.startUp();
         recentLootTracker.startUp();
@@ -323,7 +315,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         activeEffectTracker.startUp();
         weaponStyleTracker.startUp();
         runeProfileCollectionLog.startUp();
-        renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, pingedTileManager, importPreviewManager));
+        renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, importPreviewManager));
         markerSets.startUp();
         clientThread.invoke(this::sweepTileFacts);
         latestData.update();
@@ -354,7 +346,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Override
     protected void shutDown() {
-        pingedTileManager.shutDown();
         partyDataSharing.shutDown();
         groundMarkerPartySharingManager.shutDown();
         recentLootTracker.shutDown();
@@ -439,18 +430,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         }
 
         buildConfigureMenu(wv, selectedSceneTile.getWorldLocation());
-        if (existing != null) {
-            if (savedDrawn) {
-                buildColorMenu(worldPoint, existing);
-            }
-
-            if (config.shareMarkerOption() && partyService.isInParty()) {
-                client.createMenuEntry(-5)
-                    .setOption("Party Share")
-                    .setTarget("Marker")
-                    .setType(MenuAction.RUNELITE)
-                    .onClick(e -> pingedTileManager.share(worldPoint, existing));
-            }
+        if (existing != null && savedDrawn) {
+            buildColorMenu(worldPoint, existing);
         }
     }
 
