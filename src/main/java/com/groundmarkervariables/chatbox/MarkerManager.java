@@ -457,7 +457,7 @@ public class MarkerManager extends SearchableChatbox {
                 if (group.entry == null) {
                     addAction(text, actions, "Set title", () -> sets.askTitle(group.set, this::reopen));
                 } else {
-                    addSubmenu(text, actions, "Edit", Map.of("Set Title", () -> sets.askTitle(group.set, group.entry, this::reopen)));
+                    addSubmenu(text, actions, "Edit", Map.of("Set Title", () -> sets.askTitle(group.set, group.entry, group.entry.tiles, this::reopen)));
                 }
             }
             ChatboxWidgets.hover(text, color);
@@ -591,10 +591,10 @@ public class MarkerManager extends SearchableChatbox {
             edit.put("Label", () -> edit(entry));
         }
         edit.put("Color", () -> pickColor(entry));
-        // A set tile's entry retitled, or the tile moved into another titled entry of the set.
+        // A set row's tiles titled (split from their entry unless they're all of it), or moved into another titled entry.
         Map<String, Runnable> moveTo = new LinkedHashMap<>();
         if (own(entry.inSet)) {
-            edit.put("Set Title", () -> markerSetManagerProvider.get().askTitle(entry.inSet, entry.setEntry, this::reopen));
+            edit.put("Set Title", () -> markerSetManagerProvider.get().askTitle(entry.inSet, entry.setEntry, entry.points, this::reopen));
             entry.inSet.entries.stream().filter(other -> other != entry.setEntry && other.title != null).forEach(other -> moveTo.put(other.title, () -> {
                 markerSets.moveTiles(entry.inSet, entry.points, other);
                 reopen();

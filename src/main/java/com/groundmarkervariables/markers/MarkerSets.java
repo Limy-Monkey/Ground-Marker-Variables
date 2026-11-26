@@ -368,6 +368,29 @@ public class MarkerSets implements TileSource {
         return into == null;
     }
 
+    // Just tiles of entry titled (blank for none): all of it retitled as setTitle; else they move into the entry already
+    // titled so (false then), or out into a new one, last.
+    public boolean setTitle(MarkerSet set, MarkerSet.Entry entry, Collection<GroundMarkerPointData> tiles, String title) {
+        if (tiles.containsAll(entry.tiles)) {
+            return setTitle(set, entry, title);
+        }
+        String newTitle = title.isBlank() ? null : title.trim();
+        MarkerSet.Entry into = set.entries.stream().filter(other -> newTitle != null && newTitle.equals(other.title)).findFirst().orElse(null);
+        if (into != null) {
+            if (into != entry) {
+                moveTiles(set, tiles, into);
+            }
+            return into == entry;
+        }
+        Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+        for (MarkerSet.Entry other : set.entries) {
+            List<GroundMarkerPointData> kept = other.tiles.stream().filter(tile -> !tiles.contains(tile)).collect(Collectors.toList());
+            moved.put(other, new MarkerSet.Entry(other.title, other.description, kept, other.group, other.enabledByDefault, moved.size()));
+        }
+        edit(set, moved, List.of(new MarkerSet.Entry(newTitle, null, List.copyOf(tiles), tiles.size() > 1, entry.enabledByDefault, moved.size())));
+        return true;
+    }
+
     // An own set's tiles' label (blank for none).
     public void setLabel(MarkerSet set, Collection<GroundMarkerPointData> tiles, String label) {
         editTiles(set, tile -> tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);

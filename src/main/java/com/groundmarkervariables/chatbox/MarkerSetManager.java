@@ -350,7 +350,7 @@ public class MarkerSetManager extends SearchableChatbox {
                     edit.put("Label", () -> editTile(set, entry));
                 }
                 edit.put("Copy", copy);
-                edit.put("Set Title", () -> askTitle(set, entry, this::reopen));
+                edit.put("Set Title", () -> askTitle(set, entry, entry.tiles, this::reopen));
                 edit.put("Set Description", () -> askDescription(entry.description, text -> markerSets.setDescription(set, entry, text)));
                 edit.put("Delete", () -> confirmDelete(set, entry));
                 addSubmenu(clickable, actions, "Edit", edit);
@@ -518,13 +518,16 @@ public class MarkerSetManager extends SearchableChatbox {
 
     // Blank removes the title, so the entry shows its label again; another entry's merges it into that one. onDone returns false: reopening this replaces the
     // prompt, which closing would close instead.
-    void askTitle(MarkerSet set, MarkerSet.Entry entry, Runnable then) {
+    // Just tiles of it, if not all: those split off (see MarkerSets#setTitle).
+    void askTitle(MarkerSet set, MarkerSet.Entry entry, List<GroundMarkerPointData> tiles, Runnable then) {
         chatboxPanelManager.openTextInput("Title (blank for none)")
             .value(entry.title == null ? "" : entry.title)
             .onDone((Predicate<String>) title -> {
                 clientThread.invoke(() -> {
-                    if (!markerSets.setTitle(set, entry, title)) {
-                        sendChatMessage("\"" + entry.name() + "\" was merged into \"" + title.trim() + "\" in the marker set \"" + set.title + "\".");
+                    if (!markerSets.setTitle(set, entry, tiles, title)) {
+                        String what = tiles.containsAll(entry.tiles) ? "\"" + entry.name() + "\" was"
+                            : tiles.size() + (tiles.size() == 1 ? " tile" : " tiles") + " of \"" + entry.name() + (tiles.size() == 1 ? "\" was" : "\" were");
+                        sendChatMessage(what + " merged into \"" + title.trim() + "\" in the marker set \"" + set.title + "\".");
                     }
                     then.run();
                 });
