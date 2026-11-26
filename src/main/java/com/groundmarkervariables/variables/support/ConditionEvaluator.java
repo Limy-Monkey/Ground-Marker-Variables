@@ -82,7 +82,8 @@ public class ConditionEvaluator {
 			return evaluateSixHourWarning(comparator, expected);
 		}
 
-		String actual = comparator == null ? resolveExpression(expr) : resolveOperand(expr);
+		// Bare, a literal (e.g. a resolved {flag ? ...}'s true) still only counts as a boolean or number.
+		String actual = resolveOperand(expr);
 		return actual == null ? null : evaluate(actual, comparator, expected);
 	}
 
