@@ -13,6 +13,7 @@ import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
 import net.runelite.api.Model;
+import net.runelite.api.ModelData;
 import net.runelite.api.Texture;
 import net.runelite.api.TextureProvider;
 
@@ -159,14 +160,19 @@ class ModelColors {
 
     // The face's lit colors averaged (flat if c3 is -1).
     private static Color colored(int c1, int c2, int c3, int alpha) {
-        int rgb1 = hslToRgb(c1);
-        if (c3 == -1) {
-            return new Color(rgb1 >> 16 & 0xFF, rgb1 >> 8 & 0xFF, rgb1 & 0xFF, alpha);
+        int a = hslToRgb(c1), b = c3 == -1 ? a : hslToRgb(c2), c = c3 == -1 ? a : hslToRgb(c3);
+        return new Color(average(a, b, c, 16), average(a, b, c, 8), average(a, b, c, 0), alpha);
+    }
+
+    private static int average(int a, int b, int c, int shift) {
+        return ((a >> shift & 0xFF) + (b >> shift & 0xFF) + (c >> shift & 0xFF)) / 3;
+    }
+
+    // The definition's recolors (each from[i] to to[i]) applied to data.
+    static void recolor(ModelData data, @Nullable short[] from, @Nullable short[] to) {
+        for (int i = 0; from != null && to != null && i < Math.min(from.length, to.length); i++) {
+            data.recolor(from[i], to[i]);
         }
-        int rgb2 = hslToRgb(c2), rgb3 = hslToRgb(c3);
-        return new Color(((rgb1 >> 16 & 0xFF) + (rgb2 >> 16 & 0xFF) + (rgb3 >> 16 & 0xFF)) / 3,
-            ((rgb1 >> 8 & 0xFF) + (rgb2 >> 8 & 0xFF) + (rgb3 >> 8 & 0xFF)) / 3,
-            ((rgb1 & 0xFF) + (rgb2 & 0xFF) + (rgb3 & 0xFF)) / 3, alpha);
     }
 
     // The game's packed HSL (6 hue, 3 saturation, 7 lightness bits) to RGB, as its palette builds it.

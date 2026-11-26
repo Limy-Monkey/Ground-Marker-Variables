@@ -201,9 +201,9 @@ public class GroundModelRenderer {
 
     // The shared buffer's pixels, grown if needed and cleared over width x height.
     private int[] buffer(int width, int height) {
-        if (buffer == null || buffer.getWidth() < width || buffer.getHeight() < height) {
-            buffer = new BufferedImage(Math.max(width, buffer == null ? 0 : buffer.getWidth()),
-                Math.max(height, buffer == null ? 0 : buffer.getHeight()), BufferedImage.TYPE_INT_ARGB_PRE);
+        BufferedImage grown = GroundImageRenderer.grown(buffer, width, height, BufferedImage.TYPE_INT_ARGB_PRE);
+        if (grown != buffer) {
+            buffer = grown;
             bufferPixels = ((DataBufferInt) buffer.getRaster().getDataBuffer()).getData();
         }
         int stride = buffer.getWidth();

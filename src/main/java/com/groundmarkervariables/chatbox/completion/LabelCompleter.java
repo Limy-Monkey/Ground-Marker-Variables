@@ -28,11 +28,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.RequiredArgsConstructor;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.client.callback.ClientThread;
 
 // Autocomplete for the Advanced Label Editor: what can complete the token at the cursor (see Completion). One per
 // editor; labels() gives it that editor's recent/nearby labels.
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class LabelCompleter {
     // The variable names (VariableCatalog.NAMES) that fit after a math operator.
     private static final List<String> NUMERIC_VARIABLE_NAMES = VariableCatalog.NAMES.stream()
@@ -106,25 +108,15 @@ public class LabelCompleter {
     private final NpcImages npcImages;
     private final LabelResolver labelResolver;
     private final RecentUsage recent = new RecentUsage();
-    private final List<Rule> rules;
+    // Built on first use (see rules()), once the fields they read are set.
+    @Nullable
+    private List<Rule> rules;
     // Client thread. Each option's icon, by its icon syntax: worked out once per editor (this completer's lifetime),
     // in the background; those still to work out, in order asked.
     private final Map<String, Optional<Completion.Icon>> icons = new HashMap<>();
     private final Set<String> pending = new LinkedHashSet<>();
     // The editor's redraw, once names still loading have (see onNamesLoaded).
     private Runnable refresh = () -> {};
-
-    @Inject
-    private LabelCompleter(GroundMarkerVariablesConfig config, ClientThread clientThread, Emojis emojis, IconNames iconNames,
-        NpcImages npcImages, LabelResolver labelResolver) {
-        this.config = config;
-        this.clientThread = clientThread;
-        this.emojis = emojis;
-        this.iconNames = iconNames;
-        this.npcImages = npcImages;
-        this.labelResolver = labelResolver;
-        this.rules = rules();
-    }
 
     // Run when names a completion needed have loaded (they load in the background), so it can be shown again.
     public void onNamesLoaded(Runnable refresh) {
@@ -434,6 +426,9 @@ public class LabelCompleter {
     // The first applicable rule's completion for the text after "{" (and any operator), else variable names.
     @Nullable
     private Completion afterBrace(String partial, boolean numeric) {
+        if (rules == null) {
+            rules = rules();
+        }
         for (Rule rule : rules) {
             Completion completion = rule.apply(partial, numeric);
             if (completion != null) {
@@ -707,13 +702,9 @@ public class LabelCompleter {
     // 4; "}" once complete.
     @Nullable
     private Completion completeMetronomeParams(String partial) {
-        for (int i = 0; i < partial.length(); i++) {
-            char c = partial.charAt(i);
-            if (!Character.isDigit(c) && c != '_' && !(i == 0 && (c == '+' || c == '-'))) {
-                return null;
-            }
+        if (!partial.matches("[+-]?[\\d_]*")) {
+            return null;
         }
-
         String param = recent.firstValue(METRONOME_TOKEN, partial);
         if (param != null) {
             return Completion.single(param, param.substring(partial.length()), null);

@@ -873,7 +873,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         markerStorage.storedRegionIds().forEach(regionId -> kept.addAll(markerStorage.getStoredPoints(regionId)));
         List<MarkerSet> sets = new ArrayList<>(markerSets.sets());
         markerSets.bin().values().forEach(recycled -> sets.add(recycled.set));
-        sets.forEach(set -> set.entries.forEach(entry -> kept.addAll(entry.tiles)));
+        sets.forEach(set -> kept.addAll(set.tiles()));
         tileFacts.sweep(kept);
     }
 

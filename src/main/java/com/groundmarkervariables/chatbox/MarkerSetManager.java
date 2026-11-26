@@ -66,6 +66,16 @@ public class MarkerSetManager extends SearchableChatbox {
     private static final String DRIFTED = ":chains:";
     private static final String PRIVATE = ":detective:";
     private static final int SHARED_ICON = 10;
+    // Each column's order: Title, Tiles, Source, Author, Updated (unknown dates first going up), and Shared (yours published
+    // first, shared longest ago first).
+    private static final List<Comparator<MarkerSet>> BY_COLUMN = List.of(
+        Comparator.comparing(set -> set.title, String.CASE_INSENSITIVE_ORDER),
+        Comparator.comparingInt(MarkerSet::tileCount),
+        Comparator.comparing(set -> set.kind),
+        Comparator.comparing(set -> set.author, String.CASE_INSENSITIVE_ORDER),
+        Comparator.comparing(set -> set.updated, Comparator.nullsFirst(Comparator.naturalOrder())),
+        Comparator.comparing(set -> set.kind == MarkerSet.Kind.OWN && set.gist != null ? set.gist.shared : null,
+            Comparator.nullsLast(Comparator.naturalOrder())));
     // The row's entry for the status line (a check, a failure, or why the table is empty).
     private static final MarkerSet.Entry STATUS = new MarkerSet.Entry(null, null, List.of(), false, true, 0);
 
@@ -319,32 +329,10 @@ public class MarkerSetManager extends SearchableChatbox {
         });
     }
 
-    // By sortColumn, reversed if descending (unknown dates first going up), then title.
+    // By sortColumn, reversed if descending, then title.
     private Comparator<MarkerSet> order() {
-        Comparator<MarkerSet> byTitle = Comparator.comparing(set -> set.title, String.CASE_INSENSITIVE_ORDER);
-        Comparator<MarkerSet> byColumn;
-        switch (sortColumn) {
-            case 1:
-                byColumn = Comparator.comparingInt(MarkerSet::tileCount);
-                break;
-            case 2:
-                byColumn = Comparator.comparing(set -> set.kind);
-                break;
-            case 3:
-                byColumn = Comparator.comparing(set -> set.author, String.CASE_INSENSITIVE_ORDER);
-                break;
-            case 4:
-                byColumn = Comparator.comparing(set -> set.updated, Comparator.nullsFirst(Comparator.naturalOrder()));
-                break;
-            // Yours published first (shared longest ago first), then the rest.
-            case 5:
-                byColumn = Comparator.comparing(set -> set.kind == MarkerSet.Kind.OWN && set.gist != null ? set.gist.shared : null,
-                    Comparator.nullsLast(Comparator.naturalOrder()));
-                break;
-            default:
-                byColumn = byTitle;
-        }
-        return (descending ? byColumn.reversed() : byColumn).thenComparing(byTitle);
+        Comparator<MarkerSet> byColumn = BY_COLUMN.get(sortColumn);
+        return (descending ? byColumn.reversed() : byColumn).thenComparing(BY_COLUMN.get(0));
     }
 
     // Tiles in the set's switched-on entries, whether or not the set itself is on.
@@ -411,7 +399,7 @@ public class MarkerSetManager extends SearchableChatbox {
         }
         Runnable copyLink = () -> clip(gist.link(), "The link to \"" + set.title + "\" was copied to your clipboard.");
         if (browsing != null) {
-            addShowOnMap(label, actions, set, tiles(set), cellArea(0, y));
+            addShowOnMap(label, actions, set, set.tiles(), cellArea(0, y));
             addAction(label, actions, "Copy link", copyLink);
             ChatboxWidgets.hover(label, 0x000000);
             return;
@@ -445,7 +433,7 @@ public class MarkerSetManager extends SearchableChatbox {
             manage.put("Show tiles", () -> markerManagerProvider.get().show(set, ""));
         }
         addSubmenu(label, actions, "Manage", manage);
-        addShowOnMap(label, actions, set, tiles(set), cellArea(0, y));
+        addShowOnMap(label, actions, set, set.tiles(), cellArea(0, y));
         if (set.kind == MarkerSet.Kind.GIST) {
             addAction(label, actions, "View author's other sets", () -> browse(gist.owner));
         }
@@ -478,13 +466,7 @@ public class MarkerSetManager extends SearchableChatbox {
             this::updateIfOpen));
     }
 
-    private static List<GroundMarkerPointData> tiles(MarkerSet set) {
-        List<GroundMarkerPointData> tiles = new ArrayList<>();
-        set.entries.forEach(entry -> tiles.addAll(entry.tiles));
-        return tiles;
-    }
-
-    // tiles(set), each labeled by its entry's title if it has one, for RuneLite.net.
+    // set's tiles, each labeled by its entry's title if it has one, for RuneLite.net.
     private static List<GroundMarkerPointData> titledTiles(MarkerSet set) {
         List<GroundMarkerPointData> tiles = new ArrayList<>();
         set.entries.forEach(entry -> entry.tiles.forEach(tile -> tiles.add(entry.title == null ? tile : tile.withLabel(entry.title))));
@@ -640,7 +622,7 @@ public class MarkerSetManager extends SearchableChatbox {
 
     // Just its tiles, as ground markers: a label with variables goes in "gmv", as written.
     private void exportTiles(MarkerSet set) {
-        copyTiles(tiles(set), "the marker set \"" + set.title + "\"");
+        copyTiles(set.tiles(), "the marker set \"" + set.title + "\"");
     }
 
     // The clipboard's ground markers (read again, in case it changed) added to set, an entry per label as Marker Manager's Set.
@@ -728,7 +710,7 @@ public class MarkerSetManager extends SearchableChatbox {
     // removeMarkers: the saved markers at its tiles are removed again, fully undoing a dissolve.
     private void restore(MarkerSet set, boolean removeMarkers) {
         if (removeMarkers) {
-            markerStorage.deletePoints(tiles(set));
+            markerStorage.deletePoints(set.tiles());
             plugin.loadPoints();
         }
         markerSets.restore(set);
@@ -739,7 +721,7 @@ public class MarkerSetManager extends SearchableChatbox {
     // Every tile back into saved markers (previewed, keeping or overwriting markers already there, as on import), then
     // the set goes to the recycling bin, where restoring it can undo this (see restore()).
     private void confirmDissolve(MarkerSet set) {
-        sharingManager.confirmImport(tiles(set)," ground markers were restored from the marker set \"" + set.title + "\".", () -> {
+        sharingManager.confirmImport(set.tiles()," ground markers were restored from the marker set \"" + set.title + "\".", () -> {
             markerSets.delete(set, true);
             reopen();
         }, this::reopen);

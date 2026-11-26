@@ -18,7 +18,6 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -171,7 +170,7 @@ public class GroundMarkerVariablesSharingManager {
         try {
             String text = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
             MarkerSet set = Strings.isNullOrEmpty(text) ? null : markerSets.parse(text);
-            return set != null ? set.entries.stream().flatMap(entry -> entry.tiles.stream()).collect(Collectors.toList())
+            return set != null ? set.tiles()
                 : Strings.isNullOrEmpty(text) ? List.of() : markerMinifier.parse(text);
         } catch (Exception e) {
             return List.of();
@@ -181,8 +180,7 @@ public class GroundMarkerVariablesSharingManager {
     // Previews the set's tiles and asks before adding it; one with the same title and author is replaced. Then after, either
     // way (also Marker Sets' Import).
     public void confirmSetImport(MarkerSet set, String text, Runnable after) {
-        List<GroundMarkerPointData> tiles = new ArrayList<>();
-        set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+        List<GroundMarkerPointData> tiles = set.tiles();
         importPreviewManager.show(tiles);
         boolean replaces = markerSets.existing(set) != null;
         new ConfirmChatbox(chatboxPanelManager, "Import the marker set \"" + Text.escapeJagex(set.title) + "\" by "

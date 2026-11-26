@@ -78,14 +78,7 @@ public class NpcImages {
 
         // A fresh merged copy, so recoloring can't touch the game's cached model data.
         ModelData merged = client.mergeModels(parts.toArray(new ModelData[0])).cloneColors();
-        short[] from = npc.getColorToReplace();
-        short[] to = npc.getColorToReplaceWith();
-        if (from != null && to != null) {
-            for (int i = 0; i < Math.min(from.length, to.length); i++) {
-                merged.recolor(from[i], to[i]);
-            }
-        }
-
+        ModelColors.recolor(merged, npc.getColorToReplace(), npc.getColorToReplaceWith());
         return merged.light();
     }
 

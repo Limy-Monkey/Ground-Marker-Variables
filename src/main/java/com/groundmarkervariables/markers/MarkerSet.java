@@ -3,6 +3,7 @@ package com.groundmarkervariables.markers;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -127,6 +128,11 @@ public final class MarkerSet {
     // Where it's stored, and its key in the on/off state.
     public String key() {
         return kind.prefix + "_" + id;
+    }
+
+    // Every entry's tiles, in order.
+    public List<GroundMarkerPointData> tiles() {
+        return entries.stream().flatMap(entry -> entry.tiles.stream()).collect(Collectors.toList());
     }
 
     public int tileCount() {

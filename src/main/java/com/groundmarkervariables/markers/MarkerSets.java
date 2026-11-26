@@ -520,7 +520,7 @@ public class MarkerSets implements TileSource {
 
     // How many of markers are at a tile already in set.
     public static long duplicates(MarkerSet set, List<GroundMarkerPointData> markers) {
-        Set<WorldPoint> there = set.entries.stream().flatMap(entry -> entry.tiles.stream()).map(GroundMarkerPointData::worldPoint)
+        Set<WorldPoint> there = set.tiles().stream().map(GroundMarkerPointData::worldPoint)
             .collect(Collectors.toSet());
         return markers.stream().filter(marker -> there.contains(marker.worldPoint())).count();
     }
@@ -657,8 +657,7 @@ public class MarkerSets implements TileSource {
     // MarkerMinifier#lines), with "entry"/"entryTitle"/"entryDescription"/"enabled" per tile and the set's fields, indented,
     // starting the first tile as its "set" for parse(). Own sets use their current on/off; empty sets, the stored form.
     public String export(MarkerSet set) {
-        List<GroundMarkerPointData> tiles = new ArrayList<>();
-        set.entries.forEach(entry -> tiles.addAll(entry.tiles));
+        List<GroundMarkerPointData> tiles = set.tiles();
         if (tiles.isEmpty()) {
             return export(set, history(set), set.kind == MarkerSet.Kind.OWN);
         }

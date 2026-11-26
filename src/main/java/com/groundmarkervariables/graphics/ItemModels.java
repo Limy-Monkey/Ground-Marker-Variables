@@ -1,5 +1,6 @@
 package com.groundmarkervariables.graphics;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -62,13 +63,7 @@ public class ItemModels {
 
         // A copy, so recoloring can't touch the game's cached model data.
         data = client.mergeModels(data).cloneColors();
-        short[] from = item.getColorToReplace();
-        short[] to = item.getColorToReplaceWith();
-        if (from != null && to != null) {
-            for (int i = 0; i < Math.min(from.length, to.length); i++) {
-                data.recolor(from[i], to[i]);
-            }
-        }
+        ModelColors.recolor(data, item.getColorToReplace(), item.getColorToReplaceWith());
 
         Model model = data.light(AMBIENT + item.getAmbient(), CONTRAST + item.getContrast(), LIGHT_X, LIGHT_Y, LIGHT_Z);
         if (model == null) {
@@ -110,15 +105,7 @@ public class ItemModels {
 
     // Wear, Wield or Equip in its inventory menu.
     private static boolean equippable(ItemComposition item) {
-        String[] actions = item.getInventoryActions();
-        if (actions == null) {
-            return false;
-        }
-        for (String action : actions) {
-            if ("Wear".equalsIgnoreCase(action) || "Wield".equalsIgnoreCase(action) || "Equip".equalsIgnoreCase(action)) {
-                return true;
-            }
-        }
-        return false;
+        return item.getInventoryActions() != null && Arrays.stream(item.getInventoryActions())
+            .anyMatch(action -> "Wear".equalsIgnoreCase(action) || "Wield".equalsIgnoreCase(action) || "Equip".equalsIgnoreCase(action));
     }
 }

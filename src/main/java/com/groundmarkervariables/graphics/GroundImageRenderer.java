@@ -131,10 +131,7 @@ public class GroundImageRenderer {
 
     // A black copy (alpha kept) of buffer's bounds-sized area, in shadowBuffer.
     private BufferedImage blackened(Rectangle bounds) {
-        if (shadowBuffer == null || shadowBuffer.getWidth() < bounds.width || shadowBuffer.getHeight() < bounds.height) {
-            shadowBuffer = new BufferedImage(Math.max(bounds.width, buffer.getWidth()), Math.max(bounds.height, buffer.getHeight()),
-                BufferedImage.TYPE_INT_ARGB);
-        }
+        shadowBuffer = grown(shadowBuffer, bounds.width, bounds.height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = shadowBuffer.createGraphics();
         g.setComposite(AlphaComposite.Src);
         g.drawImage(buffer, 0, 0, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height, null);
@@ -203,16 +200,20 @@ public class GroundImageRenderer {
 
     // The shared buffer, grown if needed and cleared over the area used.
     private Graphics2D buffer(int width, int height) {
-        if (buffer == null || buffer.getWidth() < width || buffer.getHeight() < height) {
-            buffer = new BufferedImage(Math.max(width, buffer == null ? 0 : buffer.getWidth()),
-                Math.max(height, buffer == null ? 0 : buffer.getHeight()), BufferedImage.TYPE_INT_ARGB);
-        }
+        buffer = grown(buffer, width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D bg = buffer.createGraphics();
         bg.setComposite(AlphaComposite.Clear);
         bg.fillRect(0, 0, width, height);
         bg.setComposite(AlphaComposite.Src);
         bg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         return bg;
+    }
+
+    // image if it already holds width x height, else a new one (of type) that does, and is at least as large. Also
+    // GroundModelRenderer's.
+    static BufferedImage grown(@Nullable BufferedImage image, int width, int height, int type) {
+        return image != null && image.getWidth() >= width && image.getHeight() >= height ? image
+            : new BufferedImage(Math.max(width, image == null ? 0 : image.getWidth()), Math.max(height, image == null ? 0 : image.getHeight()), type);
     }
 
     // image with a 1px transparent border, cached per image.

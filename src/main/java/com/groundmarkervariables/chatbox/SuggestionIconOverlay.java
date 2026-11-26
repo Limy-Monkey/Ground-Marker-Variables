@@ -12,6 +12,8 @@ import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +42,7 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 // The Advanced Label Editor's suggestion icons, drawn over their (empty) placeholder widgets: widgets can only scale
 // an icon blockily, Java2D smoothly. Empty unless the editor has shown some.
 @Singleton
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public class SuggestionIconOverlay extends Overlay {
     // An icon and the area it fills (aspect kept, never enlarged), relative to container: the chatbox's container
     // outlives each update's widgets, which have no screen bounds until first drawn.
@@ -97,16 +100,7 @@ public class SuggestionIconOverlay extends Overlay {
     // Split icons, by the (per-editor cached) icon. Client thread only.
     private final Map<Completion.Icon, BufferedImage> composed = new IdentityHashMap<>();
 
-    @Inject
-    private SuggestionIconOverlay(Client client, TooltipManager tooltipManager, ItemManager itemManager, SpriteManager spriteManager,
-        NpcImages npcImages, Emojis emojis, GroundMarkerVariablesConfig config) {
-        this.config = config;
-        this.client = client;
-        this.tooltipManager = tooltipManager;
-        this.itemManager = itemManager;
-        this.spriteManager = spriteManager;
-        this.npcImages = npcImages;
-        this.emojis = emojis;
+    {
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
         setPriority(PRIORITY_HIGH);
@@ -260,28 +254,24 @@ public class SuggestionIconOverlay extends Overlay {
 
     // A small circle of color RRGGBB, outlined so light colors show on the chatbox.
     private static BufferedImage swatch(String hex) {
-        BufferedImage image = new BufferedImage(SWATCH_SIZE, SWATCH_SIZE, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(new Color(Integer.parseInt(hex, 16)));
-        g.fillOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
-        g.setColor(SWATCH_OUTLINE);
-        g.drawOval(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
-        g.dispose();
-        return image;
+        return shape(new Ellipse2D.Float(0, 0, SWATCH_SIZE - 1, SWATCH_SIZE - 1), new Color(Integer.parseInt(hex, 16)), SWATCH_OUTLINE);
     }
 
     // A diamond of color (as see-through as it), outlined in black; also the Marker Manager's map pins.
     static BufferedImage diamond(Color color) {
         int half = (SWATCH_SIZE - 1) / 2;
-        Polygon diamond = new Polygon(new int[]{half, 2 * half, half, 0}, new int[]{0, half, 2 * half, half}, 4);
+        return shape(new Polygon(new int[]{half, 2 * half, half, 0}, new int[]{0, half, 2 * half, half}, 4), color, Color.BLACK);
+    }
+
+    // shape filled with fill and outlined with outline, smoothly, on a SWATCH_SIZE square.
+    private static BufferedImage shape(Shape shape, Color fill, Color outline) {
         BufferedImage image = new BufferedImage(SWATCH_SIZE, SWATCH_SIZE, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(color);
-        g.fillPolygon(diamond);
-        g.setColor(Color.BLACK);
-        g.drawPolygon(diamond);
+        g.setColor(fill);
+        g.fill(shape);
+        g.setColor(outline);
+        g.draw(shape);
         g.dispose();
         return image;
     }
