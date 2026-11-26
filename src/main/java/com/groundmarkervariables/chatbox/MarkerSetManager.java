@@ -28,6 +28,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Player;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.util.Text;
@@ -91,6 +92,14 @@ public class MarkerSetManager extends SearchableChatbox {
         markerSets.setListener(null);
         mapPins.clear();
         super.close();
+    }
+
+    // The pinned set's tiles, searching for tile's.
+    @Override
+    public void pinClicked(WorldPoint tile) {
+        if (mapPins.getPinnedKey() instanceof MarkerSet) {
+            markerManagerProvider.get().show((MarkerSet) mapPins.getPinnedKey(), tileSearch(tile));
+        }
     }
 
     // Opened searching for query, e.g. a set's title and an entry's name (see MarkerManager#findInSets).

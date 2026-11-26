@@ -8,6 +8,7 @@ import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.chatbox.MarkerManager;
 import com.groundmarkervariables.chatbox.SearchableChatbox;
 import com.groundmarkervariables.chatbox.SuggestionIconOverlay;
+import com.groundmarkervariables.chatbox.WorldMapPins;
 import com.groundmarkervariables.graphics.GroundMarkerVariablesMinimapOverlay;
 import com.groundmarkervariables.markers.CachedMarker;
 import com.groundmarkervariables.markers.DeletedMarkers;
@@ -81,6 +82,7 @@ import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
@@ -142,6 +144,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Inject
     private ChatboxPanelManager chatboxPanelManager;
+
+    @Inject
+    private WorldMapPins mapPins;
 
     @Inject
     private Client client;
@@ -374,6 +379,15 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         sharingManager.removeMenuOptions();
         markersByRegion.clear();
         renderedTiles.clear();
+    }
+
+    // One of the Marker Manager's or Marker Sets' world map pins clicked: its tile searched for there.
+    @Subscribe
+    public void onMenuOptionClicked(MenuOptionClicked event) {
+        WorldPoint tile = chatboxPanelManager.getCurrentInput() instanceof SearchableChatbox ? mapPins.clicked(event.getMenuEntry()) : null;
+        if (tile != null) {
+            ((SearchableChatbox) chatboxPanelManager.getCurrentInput()).pinClicked(tile);
+        }
     }
 
     // Mirrors core's GroundMarkerPlugin#onMenuEntryAdded shift-click handling — builds our own

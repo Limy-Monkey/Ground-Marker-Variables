@@ -20,13 +20,17 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.runelite.api.Client;
+import net.runelite.api.MenuEntry;
+import net.runelite.api.Point;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.ui.overlay.worldmap.WorldMapOverlay;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import net.runelite.client.util.LinkBrowser;
@@ -45,6 +49,7 @@ public class WorldMapPins {
     private final Client client;
     private final ClientThread clientThread;
     private final WorldMapPointManager worldMapPointManager;
+    private final WorldMapOverlay worldMapOverlay;
     private final GroundMarkerVariablesConfig config;
     private final MarkerMinifier markerMinifier;
     private final List<WorldMapPoint> pins = new ArrayList<>();
@@ -57,6 +62,7 @@ public class WorldMapPins {
     }
     // What pinned them, so the same rows aren't pinned again.
     @Nullable
+    @Getter
     private Object pinnedKey;
     // The world maps drawing a region's plane (see mapsAt), by region << 2 | plane; the points still to check, and what runs once
     // they are.
@@ -95,9 +101,39 @@ public class WorldMapPins {
             int rgb = (tile.getColor() != null ? tile.getColor() : config.markerColor()).getRGB() | 0xFF000000;
             WorldMapPoint pin = new Pin(tile.worldPoint(), images.computeIfAbsent(rgb, c -> SuggestionIconOverlay.diamond(new Color(c))));
             pin.setTooltip(Text.escapeJagex(tooltip));
+            // Clickable: RuneLite's "Focus on <name>" for it (see clicked).
+            pin.setName(Text.escapeJagex(tooltip));
+            pin.setJumpOnClick(true);
             pins.add(pin);
             worldMapPointManager.add(pin);
         }));
+    }
+
+    // The tile of the pin a clicked menu entry is RuneLite's Focus on for (by its name; the one nearest the mouse if several
+    // share it), else null.
+    @Nullable
+    public WorldPoint clicked(MenuEntry entry) {
+        if (!"Focus on".equals(entry.getOption())) {
+            return null;
+        }
+        String name = Text.removeTags(entry.getTarget());
+        Point mouse = client.getMouseCanvasPosition();
+        WorldPoint nearest = null;
+        long nearestDistance = Long.MAX_VALUE;
+        for (WorldMapPoint pin : pins) {
+            Point at = name.equals(Text.removeTags(pin.getName())) ? worldMapOverlay.mapWorldPointToGraphicsPoint(pin.getWorldPoint()) : null;
+            long distance = at == null ? Long.MAX_VALUE : (long) (at.getX() - mouse.getX()) * (at.getX() - mouse.getX())
+                + (long) (at.getY() - mouse.getY()) * (at.getY() - mouse.getY());
+            if (distance < nearestDistance) {
+                nearest = pin.getWorldPoint();
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    public boolean isPinned(WorldPoint tile) {
+        return pins.stream().anyMatch(pin -> pin.getWorldPoint().equals(tile));
     }
 
     // All set's tiles, each named by its entry.

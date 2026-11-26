@@ -4,6 +4,7 @@ import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
 import com.groundmarkervariables.chatbox.ConfirmChatbox;
 import com.groundmarkervariables.chatbox.MarkerManager;
 import com.groundmarkervariables.chatbox.SearchableChatbox;
+import com.groundmarkervariables.chatbox.WorldMapPins;
 import com.groundmarkervariables.markers.ExternalMarkerManager;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
@@ -16,6 +17,7 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxInput;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
@@ -113,13 +115,15 @@ import net.runelite.client.util.Text;
 //   reply   Map     optional  Filled in with the outcome.
 //
 // Reply
-//   ok       Boolean          Whether the user was asked (the search runs only if they accept).
+//   ok       Boolean          Whether the user was asked (the search runs only if they accept), or it ran at once.
 //   error    String           Why not, if not.
 //   version  Integer          API version.
 //
 // Notes
 //   - Only while the user has the Marker Manager, Marker Sets or the label editor open; otherwise nothing happens.
-//     They're asked "<plugin> is requesting to link a marker" (Open Link / Cancel, back to where they were).
+//     They're asked "<plugin> is requesting to link a marker" (Open Link / Cancel, back to where they were), unless
+//     the query is a single "@x,y,plane" tile the open Marker Manager or Marker Sets has pinned on the world map: then
+//     it's searched at once, as clicking that pin does.
 //
 // Example
 //   eventBus.post(new PluginMessage("ground-marker-variables", "Search",
@@ -143,6 +147,7 @@ public class PluginMessageHandler {
     private final ExternalMarkerManager externalMarkerManager;
     private final ChatboxPanelManager chatboxPanelManager;
     private final Provider<MarkerManager> markerManagerProvider;
+    private final WorldMapPins mapPins;
 
     public void startUp() {
         eventBus.register(this);
@@ -239,6 +244,12 @@ public class PluginMessageHandler {
             return;
         }
         clientThread.invoke(() -> {
+            // A tile the open chatbox has pinned on the world map: searched there at once, as clicking its pin does.
+            WorldPoint tile = SearchableChatbox.tileWord(((String) query).trim());
+            if (tile != null && open instanceof SearchableChatbox && mapPins.isPinned(tile)) {
+                ((SearchableChatbox) open).pinClicked(tile);
+                return;
+            }
             // The editor comes back as it was; leaving it for the search closes it as usual (e.g. its preview).
             if (editor != null) {
                 editor.handOff();

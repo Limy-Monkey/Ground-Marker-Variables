@@ -27,6 +27,7 @@ import net.runelite.api.FontTypeFace;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetTextAlignment;
@@ -214,7 +215,27 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
     }
 
     // Keys arrive on the AWT thread; the search changes, and widgets are built, on the client thread.
-    private void search(UnaryOperator<String> change) {
+    // One of our world map pins clicked (see WorldMapPins#clicked).
+    public void pinClicked(WorldPoint tile) {
+    }
+
+    // The search for just tile's markers.
+    protected static String tileSearch(WorldPoint tile) {
+        return "@" + tile.getX() + "," + tile.getY() + "," + tile.getPlane();
+    }
+
+    // "@x,y,plane" (a search word) as a tile; null while it isn't one (e.g. still being typed).
+    @Nullable
+    public static WorldPoint tileWord(String word) {
+        String[] parts = word.startsWith("@") ? word.substring(1).split(",") : new String[0];
+        try {
+            return parts.length == 3 ? new WorldPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])) : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    protected void search(UnaryOperator<String> change) {
         clientThread.invoke(() -> {
             query = change.apply(query);
             scrollOffset = 0;

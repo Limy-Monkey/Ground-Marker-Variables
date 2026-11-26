@@ -101,6 +101,8 @@ public class MarkerManager extends SearchableChatbox {
     private final LabelCompleter completer;
     @Nullable
     private Entry shown;
+    // The search's @x,y,plane tiles as loaded, each a row of its own (to edit on its own).
+    private Set<WorldPoint> ownRowTiles = Set.of();
 
     private final List<Entry> entries = new ArrayList<>();
     private final Set<Entry> selected = new HashSet<>();
@@ -167,6 +169,7 @@ public class MarkerManager extends SearchableChatbox {
         shown = null;
 
         Map<String, Entry> byKey = new LinkedHashMap<>();
+        ownRowTiles = searchedTiles();
         leaveEmptyBin();
         if (recycleBin) {
             // Deleted saved markers, or the set's tiles (each in its entry as it was).
@@ -207,12 +210,14 @@ public class MarkerManager extends SearchableChatbox {
         return Objects.requireNonNullElse(areaName(point), "Dungeon " + point.getRegionID());
     }
 
-    // point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart.
+    // point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart,
+    // as does searching for its tile.
     private void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row, @Nullable MarkerSet inSet,
         @Nullable MarkerSet.Entry setEntry) {
         String area = areaOf(point.worldPoint());
         String label = point.getLabel() == null ? "" : point.getLabel();
-        byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor() + infoKey(point),
+        String own = ownRowTiles.contains(point.worldPoint()) ? "\0" + point.worldPoint() : "";
+        byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor() + infoKey(point) + own,
             key -> new Entry(inSet, setEntry, area, areaName(point.worldPoint()) != null, point.getRegionId(), label, point.getColor(),
                 mapNames(point.worldPoint()))).points.add(point);
     }
@@ -363,7 +368,7 @@ public class MarkerManager extends SearchableChatbox {
 
     @Override
     protected void buildRows(Widget container) {
-        if (namesStale) {
+        if (namesStale || !searchedTiles().equals(ownRowTiles)) {
             namesStale = false;
             load();
         }
@@ -698,6 +703,11 @@ public class MarkerManager extends SearchableChatbox {
         });
     }
 
+    @Override
+    public void pinClicked(WorldPoint tile) {
+        search(query -> tileSearch(tile));
+    }
+
     // Reloaded, e.g. to show an edited label.
     @Override
     protected void reopen() {
@@ -763,7 +773,7 @@ public class MarkerManager extends SearchableChatbox {
         StringBuilder words = new StringBuilder();
         for (String word : query.split(" ")) {
             if (word.startsWith("@")) {
-                WorldPoint tile = tileWord(word.substring(1));
+                WorldPoint tile = tileWord(word);
                 if (tile != null && entry.points.stream().noneMatch(point -> point.worldPoint().equals(tile))) {
                     return false;
                 }
@@ -824,15 +834,16 @@ public class MarkerManager extends SearchableChatbox {
         return Map.entry(INFO_HEADINGS[column], !map.isEmpty() ? map : (yes ? "*" : "!") + INFO_SEARCH[info]);
     }
 
-    // "x,y,plane" as a tile; null while it isn't one (e.g. still being typed).
-    @Nullable
-    private static WorldPoint tileWord(String word) {
-        String[] parts = word.split(",");
-        try {
-            return parts.length == 3 ? new WorldPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])) : null;
-        } catch (NumberFormatException e) {
-            return null;
+    // The search's @x,y,plane tiles.
+    private Set<WorldPoint> searchedTiles() {
+        Set<WorldPoint> tiles = new HashSet<>();
+        for (String word : query.split(" ")) {
+            WorldPoint tile = tileWord(word);
+            if (tile != null) {
+                tiles.add(tile);
+            }
         }
+        return tiles;
     }
 
     // The tile info column a search word names (all of an INFO_SEARCH name, or a start only one has), else -1.
