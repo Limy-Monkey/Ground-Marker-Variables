@@ -40,15 +40,9 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 
-// Marker sets, stored in config, drawn over saved markers while enabled. Built-in sets come from GitHub's
-// data/marker-sets: index.json lists [{"id", "version"}], and <id>.json is the set. Changes on the client thread.
+// Marker sets, stored in config, drawn over saved markers while enabled. GIST sets come from GitHub gists (see Gists): those
+// imported from a link or subscribed to while browsing. Changes on the client thread.
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -57,7 +51,6 @@ public class MarkerSets implements TileSource {
     private static final String PLUGIN_NAME = "Ground Marker Variables";
     private static final String SET_PREFIX = "set_";
     private static final String STATE_KEY = "setState";
-    private static final String BASE_URL = "https://raw.githubusercontent.com/Limy-Monkey/Ground-Marker-Variables/master/data/marker-sets/";
     private static final Duration CHECK_EVERY = Duration.ofHours(6);
     private static final Duration RETRY_AFTER = Duration.ofMinutes(15);
     // A set's stored JSON stays under this, half of a config value's ~200k limit, so later edits still fit. Sets that would
@@ -92,7 +85,7 @@ public class MarkerSets implements TileSource {
 
     private final ConfigManager configManager;
     private final Gson gson;
-    private final OkHttpClient okHttpClient;
+    private final Gists gists;
     private final ClientThread clientThread;
     private final RenderedTiles renderedTiles;
     private final LabelResolver labelResolver;
@@ -118,6 +111,7 @@ public class MarkerSets implements TileSource {
     private final RecyclingBin<String, Recycled> bin = new RecyclingBin<>();
 
     public void startUp() {
+        gists.startUp();
         clientThread.invoke(this::load);
     }
 
@@ -139,7 +133,7 @@ public class MarkerSets implements TileSource {
                 continue;
             }
             try {
-                MarkerSet set = parse(configManager.getConfiguration(GROUP, SET_PREFIX + key), kind, key.substring(split + 1));
+                MarkerSet set = parse(configManager.getConfiguration(GROUP, SET_PREFIX + key), kind, key.substring(split + 1), null);
                 if (set != null) {
                     loaded.add(set);
                 }
@@ -292,7 +286,7 @@ public class MarkerSets implements TileSource {
         for (int n = 2; taken.contains(MarkerSet.Kind.OWN.prefix + "_" + unique); n++) {
             unique = id + "_" + n;
         }
-        MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, description, author, 1, LocalDate.now(), entries);
+        MarkerSet set = new MarkerSet(MarkerSet.Kind.OWN, unique, title, description, author, 1, LocalDate.now(), entries, null);
         return addSet(set, history) ? set : null;
     }
 
@@ -337,7 +331,7 @@ public class MarkerSets implements TileSource {
         if (!MarkerSet.ANON.equals(set.author)) {
             history.add(MarkerSet.UNKNOWN.equals(set.author) ? "Imported" : set.author);
         }
-        store(new MarkerSet(set.kind, set.id, set.title, set.description, author, set.version + 1, LocalDate.now(), set.entries), history);
+        store(new MarkerSet(set.kind, set.id, set.title, set.description, author, set.version + 1, LocalDate.now(), set.entries, set.gist), history);
         load();
     }
 
@@ -394,6 +388,16 @@ public class MarkerSets implements TileSource {
     // An own set's tiles' label (blank for none).
     public void setLabel(MarkerSet set, Collection<GroundMarkerPointData> tiles, String label) {
         editTiles(set, tile -> tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);
+    }
+
+    // An own set's entry moved to index in its order (0 first).
+    public void moveEntry(MarkerSet set, MarkerSet.Entry moving, int index) {
+        List<MarkerSet.Entry> order = new ArrayList<>(set.entries);
+        order.remove(moving);
+        order.add(Math.max(0, Math.min(index, order.size())), moving);
+        Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+        order.forEach(entry -> moved.put(entry, entry.at(moved.size())));
+        edit(set, moved);
     }
 
     // An own set's tiles moved to the end of its entry into (an entry left without any goes).
@@ -524,7 +528,7 @@ public class MarkerSets implements TileSource {
     // null, changing nothing, if it would be too large to store.
     @Nullable
     private MarkerSet edit(MarkerSet set, String title, @Nullable String description, String author, List<MarkerSet.Entry> entries) {
-        MarkerSet edited = new MarkerSet(set.kind, set.id, title, description, author, set.version + 1, LocalDate.now(), entries);
+        MarkerSet edited = new MarkerSet(set.kind, set.id, title, description, author, set.version + 1, LocalDate.now(), entries, set.gist);
         if (!store(edited)) {
             return null;
         }
@@ -575,13 +579,14 @@ public class MarkerSets implements TileSource {
     // An imported set, or null if text isn't one. Throws JsonSyntaxException if it's damaged.
     @Nullable
     public MarkerSet parse(String text) {
-        return parse(text, MarkerSet.Kind.SHARED, null);
+        return parse(text, MarkerSet.Kind.SHARED, null, null);
     }
 
-    // Copy's array (see export(MarkerSet)), or the stored {"title", "author", "version", "updated": "yyyy-mm-dd", "tiles":
-    // [marker, or {"title", "tiles": [marker...]}]}, where a marker may have a "title", and either "enabled": false.
+    // Copy's array (see export(MarkerSet)), or the stored {"title", "author", "version", "updated": "yyyy-mm-dd", "gist",
+    // "tiles": [marker, or {"title", "tiles": [marker...]}]}, where a marker may have a "title", and either "enabled": false.
+    // A stored set (id given) keeps its "gist" unless gist is given.
     @Nullable
-    private MarkerSet parse(String text, MarkerSet.Kind kind, @Nullable String id) {
+    private MarkerSet parse(String text, MarkerSet.Kind kind, @Nullable String id, @Nullable MarkerSet.Gist gist) {
         try {
             // Labels may be laid out over lines, as clipboard imports (see MarkerMinifier#normalizeStrings).
             JsonElement element = gson.fromJson(MarkerMinifier.normalizeStrings(text), JsonElement.class);
@@ -598,7 +603,8 @@ public class MarkerSets implements TileSource {
             int version = json.has("version") ? json.get("version").getAsInt() : 0;
             String updated = string(json, "updated");
             return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, MarkerSet.description(string(json, "description")),author, version,
-                updated == null ? null : LocalDate.parse(updated), entries);
+                updated == null ? null : LocalDate.parse(updated), entries,
+                gist != null || id == null || !json.has("gist") ? gist : gson.fromJson(json.get("gist"), MarkerSet.Gist.class));
         } catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException | NewerFormatException e) {
             throw new JsonSyntaxException(e);
         }
@@ -646,9 +652,9 @@ public class MarkerSets implements TileSource {
         return entries;
     }
 
-    // Copy's text: core's marker array, so core and Tile Packs can import it, with "entry"/"entryTitle"/"entryDescription"/
-    // "enabled" per tile and the set's fields in the first tile's "set" for parse(). Own sets use their current on/off; empty
-    // sets, the stored form.
+    // Copy's and publishing's text: core's marker array, so core and Tile Packs can import it, a line per tile (see
+    // MarkerMinifier#lines), with "entry"/"entryTitle"/"entryDescription"/"enabled" per tile and the set's fields, indented,
+    // starting the first tile as its "set" for parse(). Own sets use their current on/off; empty sets, the stored form.
     public String export(MarkerSet set) {
         List<GroundMarkerPointData> tiles = new ArrayList<>();
         set.entries.forEach(entry -> tiles.addAll(entry.tiles));
@@ -674,8 +680,13 @@ public class MarkerSets implements TileSource {
         }
         JsonObject setJson = gson.fromJson(export(set, history(set), false), JsonObject.class);
         setJson.remove("tiles");
-        array.get(0).getAsJsonObject().add("set", setJson);
-        return gson.newBuilder().disableHtmlEscaping().create().toJson(array);
+        setJson.remove("gist");
+        Gson plain = gson.newBuilder().disableHtmlEscaping().create();
+        List<String> lines = new ArrayList<>();
+        array.forEach(tile -> lines.add(plain.toJson(tile)));
+        lines.set(0, "{\"set\": " + plain.newBuilder().setPrettyPrinting().create().toJson(setJson).replace("\n", "\n  ") + ",\n  "
+            + lines.get(0).substring(1));
+        return MarkerMinifier.lines(lines);
     }
 
     // history: earlier authors, oldest first, written only if any. Starts by naming the plugin it's for (not read back).
@@ -693,6 +704,7 @@ public class MarkerSets implements TileSource {
         if (set.updated != null) {
             json.addProperty("updated", set.updated.toString());
         }
+        json.add("gist", gson.toJsonTree(set.gist));
         JsonArray entries = new JsonArray();
         for (MarkerSet.Entry entry : set.entries) {
             JsonObject entryJson = new JsonObject();
@@ -712,7 +724,8 @@ public class MarkerSets implements TileSource {
         return gson.newBuilder().disableHtmlEscaping().create().toJson(json);
     }
 
-    // Fetches newer built-in sets from GitHub when forced, or 6+ hours since the last check. Never blocks the caller.
+    // Checks GitHub when forced, or 6+ hours since the last check, from gists' raw files (not the API): each GIST set's text
+    // for changes; one its author deleted is kept, gone. Never blocks the caller.
     public void checkForUpdates(boolean force) {
         if (!force && System.currentTimeMillis() - lastChecked < CHECK_EVERY.toMillis() || !checking.compareAndSet(false, true)) {
             return;
@@ -720,77 +733,60 @@ public class MarkerSets implements TileSource {
         status = "Checking GitHub...";
         failed = false;
         clientThread.invoke(this::changed);
-        okHttpClient.newCall(new Request.Builder().url(BASE_URL + "index.json").build()).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                failed(e);
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) {
-                try (response) {
-                    JsonArray index = gson.fromJson(body(response), JsonArray.class);
-                    Map<String, Integer> versions = new HashMap<>();
-                    Map<MarkerSet, JsonArray> downloaded = new LinkedHashMap<>();
-                    for (JsonElement listed : index) {
-                        String id = string(listed.getAsJsonObject(), "id");
-                        int version = listed.getAsJsonObject().get("version").getAsInt();
-                        if (id == null || !id.matches("[a-z0-9_]+")) {
-                            continue;
-                        }
-                        versions.put(id, version);
-                        MarkerSet cached = sets.stream().filter(set -> set.kind == MarkerSet.Kind.BUILT_IN && set.id.equals(id))
-                            .findFirst().orElse(null);
-                        if (cached == null || cached.version < version) {
-                            download(id, version, downloaded);
-                        }
-                    }
-                    clientThread.invoke(() -> updated(versions, downloaded));
-                } catch (IOException | RuntimeException e) {
-                    failed(e);
+        List<MarkerSet> stored = sets;
+        gists.run(() -> {
+            // To store, with their text (null: keep the stored history).
+            Map<MarkerSet, String> changed = new LinkedHashMap<>();
+            for (MarkerSet set : stored) {
+                if (set.kind != MarkerSet.Kind.GIST || set.gist.gone) {
+                    continue;
+                }
+                String text = gists.text(set.gist);
+                if (text == null) {
+                    changed.put(set.withGist(set.gist.withGone(true)), null);
+                } else if (text.hashCode() != set.gist.hash) {
+                    put(changed, set.gist, text);
                 }
             }
-        });
+            clientThread.invoke(() -> {
+                changed.forEach((set, text) -> store(set, text == null ? history(set) : history(text)));
+                lastChecked = System.currentTimeMillis();
+                status = null;
+                checking.set(false);
+                load();
+            });
+        }, this::checkFailed);
     }
 
-    // Off the client thread, into downloaded with its author history. Stored with the index's version, so an update is
-    // downloaded once.
-    private void download(String id, int version, Map<MarkerSet, JsonArray> downloaded) throws IOException {
-        try (Response response = okHttpClient.newCall(new Request.Builder().url(BASE_URL + id + ".json").build()).execute()) {
-            String text = body(response);
-            MarkerSet set = parse(text, MarkerSet.Kind.BUILT_IN, id);
-            if (set == null) {
-                throw new IOException("Not a marker set: " + id);
-            }
-            downloaded.put(new MarkerSet(set.kind, id, set.title, set.description, set.author, version, set.updated, set.entries),
-                history(text));
+    // Each gist's set with its text, skipping any gone or not a set. Off the client thread.
+    public Map<MarkerSet, String> download(List<MarkerSet.Gist> listed) throws IOException {
+        Map<MarkerSet, String> found = new LinkedHashMap<>();
+        for (MarkerSet.Gist gist : listed) {
+            put(found, gist, gists.text(gist));
+        }
+        return found;
+    }
+
+    private void put(Map<MarkerSet, String> found, MarkerSet.Gist gist, @Nullable String text) {
+        MarkerSet set = text == null ? null : parse(text, MarkerSet.Kind.GIST, gist.id, gist.withHash(text.hashCode()).withGone(false));
+        if (set != null) {
+            found.put(set, text);
         }
     }
 
-    private static String body(Response response) throws IOException {
-        ResponseBody body = response.body();
-        if (!response.isSuccessful() || body == null) {
-            throw new IOException("HTTP " + response.code());
+    // An own set as published (gist), or unpublished (null): as it is now, which may have changed since. Unpublished, your
+    // subscriptions to it are gone now, not at the next check.
+    public void setGist(MarkerSet set, @Nullable MarkerSet.Gist gist) {
+        MarkerSet current = existing(set);
+        if (current != null) {
+            sets.stream().filter(other -> gist == null && other.kind == MarkerSet.Kind.GIST && current.gist != null && other.id.equals(current.gist.id))
+                .forEach(other -> store(other.withGist(other.gist.withGone(true))));
+            store(current.withGist(gist));
+            load();
         }
-        return body.string();
     }
 
-    // Stores the downloads and drops built-in sets no longer listed.
-    private void updated(Map<String, Integer> versions, Map<MarkerSet, JsonArray> downloaded) {
-        downloaded.forEach(this::store);
-        for (MarkerSet set : sets) {
-            if (set.kind == MarkerSet.Kind.BUILT_IN && !versions.containsKey(set.id)) {
-                configManager.unsetConfiguration(GROUP, SET_PREFIX + set.key());
-            }
-        }
-        lastChecked = System.currentTimeMillis();
-        status = null;
-        checking.set(false);
-        load();
-    }
-
-    private void failed(Exception e) {
-        log.debug("Marker set update failed", e);
+    private void checkFailed() {
         status = null;
         failed = true;
         lastChecked = System.currentTimeMillis() - CHECK_EVERY.toMillis() + RETRY_AFTER.toMillis();
@@ -867,7 +863,7 @@ public class MarkerSets implements TileSource {
         }
     }
 
-    // Drawing a set's tiles is also when built-in sets are checked for updates.
+    // Drawing a set's tiles is also when subscribed sets are checked for updates.
     @Override
     public Collection<SourceMarker> markers(int regionId) {
         List<SourceMarker> markers = byRegion.getOrDefault(regionId, List.of());

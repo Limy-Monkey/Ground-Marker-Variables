@@ -3,9 +3,8 @@ package com.groundmarkervariables.markers.minify;
 import java.math.BigInteger;
 import java.util.Arrays;
 
-// Writes bytes as one big number in ~3200 Western-looking letters and symbols (~11.7 bits per char).
-// None are ASCII, emoji, accents, spaces or right-to-left, and normalizing can't change them. Never
-// change: exports must keep importing.
+// Reads bytes written as one big number in ~3200 Western-looking letters and symbols (~11.7 bits per char), as older
+// versions' compressed copies are. Never change: those must keep importing.
 final class GmvAlphabet {
     // First/last char pairs.
     private static final String RANGES = "¡§©©¬¬®®°±¶·¿¿ÆÆÐÐ"
@@ -51,23 +50,7 @@ final class GmvAlphabet {
         return chars.toString().toCharArray();
     }
 
-    static String encode(byte[] data) {
-        // A leading 1 keeps leading zero bytes.
-        byte[] marked = new byte[data.length + 1];
-        marked[0] = 1;
-        System.arraycopy(data, 0, marked, 1, data.length);
-
-        StringBuilder digits = new StringBuilder();
-        BigInteger value = new BigInteger(1, marked);
-        while (value.signum() > 0) {
-            BigInteger[] divided = value.divideAndRemainder(BASE);
-            digits.append(CHARS[divided[1].intValue()]);
-            value = divided[0];
-        }
-        return digits.reverse().toString();
-    }
-
-    // Throws IllegalArgumentException if text wasn't made by encode().
+    // Throws IllegalArgumentException if text isn't one of these numbers (whose leading byte, 1, kept leading zero bytes).
     static byte[] decode(String text) {
         BigInteger value = BigInteger.ZERO;
         for (int i = 0; i < text.length(); i++) {

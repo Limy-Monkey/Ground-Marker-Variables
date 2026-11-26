@@ -326,7 +326,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         renderedTiles.setSources(List.of(this, externalMarkerManager, markerSets, pingedTileManager, importPreviewManager));
         markerSets.startUp();
         clientThread.invoke(this::sweepTileFacts);
-        latestData.startUp();
+        latestData.update();
         pluginMessageHandler.startUp();
 
         if (config.showImportExport()) {

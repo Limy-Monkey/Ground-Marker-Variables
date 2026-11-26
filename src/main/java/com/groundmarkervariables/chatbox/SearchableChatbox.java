@@ -4,6 +4,8 @@ import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.chatbox.completion.Completion;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
@@ -489,8 +492,11 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
     }
 
     // widget's next right-click option, opening a submenu of choices (in order, e.g. Map > On World Map); itself does
-    // nothing. See menuEntryAdded().
+    // nothing, and with no choices isn't added. See menuEntryAdded().
     protected void addSubmenu(Widget widget, List<Runnable> actions, String name, Map<String, Runnable> choices) {
+        if (choices.isEmpty()) {
+            return;
+        }
         addAction(widget, actions, name, () -> { });
         submenus.computeIfAbsent(widget, key -> new HashMap<>()).put(name, choices);
     }
@@ -522,5 +528,23 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
 
     protected void sendChatMessage(String message) {
         plugin.sendChatMessage(message);
+    }
+
+    // text into the clipboard, then message in chat.
+    protected void clip(String text, String message) {
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+        sendChatMessage(message);
+    }
+
+    // A text prompt starting as value, what's typed given to onDone on the client thread. It returns false: what onDone
+    // opens replaces the prompt, which closing would close instead.
+    protected void askText(String prompt, String value, Consumer<String> onDone) {
+        chatboxPanelManager.openTextInput(prompt)
+            .value(value)
+            .onDone((Predicate<String>) text -> {
+                clientThread.invoke(() -> onDone.accept(text));
+                return false;
+            })
+            .build();
     }
 }

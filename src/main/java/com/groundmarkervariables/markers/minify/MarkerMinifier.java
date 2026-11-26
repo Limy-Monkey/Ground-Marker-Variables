@@ -1,7 +1,6 @@
 package com.groundmarkervariables.markers.minify;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
@@ -15,8 +14,8 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
-// Exports markers as core's JSON, but a label with variables becomes "gmv":"<version>~<compressed>".
-// Core ignores that field, so it still imports the tile, without the label.
+// Exports markers as core's JSON, but a label with variables goes in "gmv" (core ignores that field, so it still imports
+// the tile, without the label); reads those back, and older copies' compressed "gmv":"<version>~<compressed>" too.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerMinifier {
     private static final String FIELD = "gmv";
@@ -25,19 +24,6 @@ public class MarkerMinifier {
     private static final String JSON_ESCAPES = "\"\\/bfnrtu";
 
     private final Gson gson;
-
-    public String export(List<GroundMarkerPointData> points) {
-        JsonArray array = gson.toJsonTree(points).getAsJsonArray();
-        for (int i = 0; i < points.size(); i++) {
-            String label = points.get(i).getLabel();
-            if (label != null && label.contains("{")) {
-                JsonObject marker = array.get(i).getAsJsonObject();
-                marker.remove("label");
-                marker.addProperty(FIELD, MarkerCompression.VERSION + "~" + GmvAlphabet.encode(MarkerCompression.compress(label)));
-            }
-        }
-        return gson.toJson(array);
-    }
 
     // Core's JSON, every label as readable text: "=", "<", ">", "&" and "'" as themselves rather than Gson's unicode
     // escapes, which JSON doesn't need. A label's backslash-n still has to be written with its backslash doubled.
@@ -50,19 +36,26 @@ public class MarkerMinifier {
         return Base64.getEncoder().encodeToString(exportPlain(points).getBytes(StandardCharsets.UTF_8));
     }
 
-    // As exportPlain, but a label with variables goes in "gmv" as written, so core imports the tile unlabeled.
+    // Every copy's text: as exportPlain, but a label with variables goes in "gmv" as written, so core imports the tile
+    // unlabeled; a line per marker (see lines).
     public String exportGmvPlain(List<GroundMarkerPointData> points) {
         Gson plain = gson.newBuilder().disableHtmlEscaping().create();
-        JsonArray array = plain.toJsonTree(points).getAsJsonArray();
-        for (JsonElement element : array) {
+        List<String> lines = new ArrayList<>();
+        for (JsonElement element : plain.toJsonTree(points).getAsJsonArray()) {
             JsonObject marker = element.getAsJsonObject();
             JsonElement label = marker.get("label");
             if (label != null && label.getAsString().contains("{")) {
                 marker.remove("label");
                 marker.add(FIELD, label);
             }
+            lines.add(plain.toJson(marker));
         }
-        return plain.toJson(array);
+        return lines(lines);
+    }
+
+    // A JSON array of items, each starting a line.
+    public static String lines(List<String> items) {
+        return items.isEmpty() ? "[]" : "[\n  " + String.join(",\n  ", items) + "\n]\n";
     }
 
     // Throws JsonSyntaxException if text isn't an array of markers, IllegalArgumentException if a gmv

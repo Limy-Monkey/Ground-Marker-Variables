@@ -6,6 +6,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.With;
 
 // A titled set of markers by an author. Its entries are what can be switched on and off: one tile, or a group of tiles.
 @AllArgsConstructor
@@ -18,7 +19,8 @@ public final class MarkerSet {
 
     @RequiredArgsConstructor
     public enum Kind {
-        BUILT_IN("Built-in", "builtin"),
+        // From a GitHub gist (see Gist), kept up to date.
+        GIST("Subscribed", "gist"),
         SHARED("Imported", "shared"),
         OWN("Own", "own"),
         // Another plugin's markers, drawn through us and never saved (see ExternalMarkerManager#sets).
@@ -66,6 +68,28 @@ public final class MarkerSet {
         }
     }
 
+    // A set's GitHub gist (see Gists): a GIST set's source, or where an own set is published.
+    @AllArgsConstructor
+    @With
+    public static final class Gist {
+        public final String owner;
+        public final String id;
+        public final String file;
+        // GIST: the downloaded text's hash, and whether its author deleted it (it's kept, no longer updated).
+        public final int hash;
+        public final boolean gone;
+        // Own: published by link only, and the version and date last shared.
+        public final boolean secret;
+        public final int sharedVersion;
+        @Nullable
+        public final String shared;
+
+        // Its raw file's link (the set's text, which Import also takes).
+        public String link() {
+            return "https://gist.githubusercontent.com/" + owner + "/" + id + "/raw";
+        }
+    }
+
     // A label's first line (before a "\n", typed or real), trimmed; "" for none.
     public static String firstLine(@Nullable String label) {
         return label == null ? "" : label.split("\\\\n|\n", 2)[0].trim();
@@ -84,6 +108,9 @@ public final class MarkerSet {
     @Nullable
     public final LocalDate updated;
     public final List<Entry> entries;
+    @Nullable
+    @With
+    public final Gist gist;
 
     // A description as kept (given to the constructors as one): trimmed, at most MAX_DESCRIPTION_LINES lines (split at "\n", typed or real, kept as a typed
     // "\n") and MAX_DESCRIPTION_LENGTH characters; null if blank.

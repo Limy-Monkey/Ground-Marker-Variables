@@ -5,6 +5,7 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.gson.JsonParseException;
 import com.groundmarkervariables.GroundMarkerVariablesPlugin;
 import com.groundmarkervariables.markers.DeletedMarkers;
+import com.groundmarkervariables.markers.Gists;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.ImportPreviewManager;
 import com.groundmarkervariables.markers.MarkerStorage;
@@ -22,12 +23,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -59,6 +62,8 @@ public class GroundMarkerVariablesSharingManager {
     private final MarkerMinifier markerMinifier;
     private final MarkerSets markerSets;
     private final ClientThread clientThread;
+    private final Gists gists;
+    private final Provider<MarkerSetManager> markerSetManagerProvider;
 
     public void addImportExportMenuOptions() {
         menuManager.addManagedCustomMenu(EXPORT_MARKERS_OPTION, this::exportGroundMarkers);
@@ -85,11 +90,6 @@ public class GroundMarkerVariablesSharingManager {
         return Arrays.stream(regions).mapToObj(markerStorage::getStoredPoints).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
-    // Also MarkerManager's "Copy"; plain ("Copy as plaintext") leaves labels uncompressed.
-    public String exportText(List<GroundMarkerPointData> points, boolean plain) {
-        return plain ? markerMinifier.exportPlain(points) : markerMinifier.export(points);
-    }
-
     private void exportGroundMarkers(MenuEntry menuEntry) {
         List<GroundMarkerPointData> activePoints = activePoints();
         if (activePoints.isEmpty()) {
@@ -97,7 +97,7 @@ public class GroundMarkerVariablesSharingManager {
             return;
         }
 
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.export(activePoints)), null);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(markerMinifier.exportGmvPlain(activePoints)), null);
         sendChatMessage(activePoints.size() + " ground markers were copied to your clipboard.");
     }
 
@@ -122,6 +122,20 @@ public class GroundMarkerVariablesSharingManager {
 
         if (Strings.isNullOrEmpty(text)) {
             text = "[]";
+        }
+        // Just a gist link: its set, from GitHub.
+        String gistId = Gists.linkId(text);
+        if (gistId != null) {
+            gists.run(() -> {
+                Map<MarkerSet, String> linked = markerSets.download(gists.list("gists/" + gistId));
+                clientThread.invoke(() -> {
+                    if (linked.isEmpty()) {
+                        sendChatMessage("That link doesn't have a marker set.");
+                    }
+                    linked.forEach(onSet);
+                });
+            }, () -> sendChatMessage("Couldn't get that marker set from GitHub."));
+            return;
         }
         MarkerSet set = null;
         try {
@@ -174,9 +188,17 @@ public class GroundMarkerVariablesSharingManager {
         new ConfirmChatbox(chatboxPanelManager, "Import the marker set \"" + Text.escapeJagex(set.title) + "\" by "
                 + Text.escapeJagex(set.author) + " (" + tiles.size() + " tiles)?" + (replaces ? "<br>This replaces your copy of it." : ""))
             .yes(() -> {
-                sendChatMessage(!markerSets.addShared(set, text) ? MarkerSets.TOO_LARGE
-                    : "The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
-                after.run();
+                boolean added = markerSets.addShared(set, text);
+                sendChatMessage(!added ? MarkerSets.TOO_LARGE : "The marker set \"" + set.title + "\" was " + (replaces ? "updated." : "imported."));
+                if (!added || set.gist == null) {
+                    after.run();
+                    return;
+                }
+                // From a gist: its author's others.
+                new ConfirmChatbox(chatboxPanelManager, "Browse " + Text.escapeJagex(set.author) + "'s other published Marker Sets?")
+                    .yes(() -> chatboxPanelManager.openInput(markerSetManagerProvider.get().browse(set.gist.owner)))
+                    .no(after)
+                    .build();
             })
             .no(after)
             .onClose(importPreviewManager::clear)

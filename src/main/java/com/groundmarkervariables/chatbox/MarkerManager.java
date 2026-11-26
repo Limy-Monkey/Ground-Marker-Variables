@@ -9,11 +9,10 @@ import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.TileFacts;
+import com.groundmarkervariables.markers.minify.MarkerMinifier;
 import com.groundmarkervariables.variables.support.RegionNames;
 import java.awt.Color;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -25,7 +24,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
@@ -80,7 +78,7 @@ public class MarkerManager extends SearchableChatbox {
     private static final String NO_LABEL = "(no label)";
     // infoValue() until known (Map's is the map id, -1 for none).
     private static final int UNKNOWN = -2;
-    private static final String YES = ":check_mark@lightgreen:";
+    static final String YES = ":check_mark@lightgreen:";
     private static final String NO = ":ballot_x@lightpink:";
     // A value's icon size (headings' are larger).
     private static final int INFO_ICON = 10;
@@ -90,6 +88,7 @@ public class MarkerManager extends SearchableChatbox {
     private final MarkerStorage markerStorage;
     private final DeletedMarkers deletedMarkers;
     private final GroundMarkerVariablesSharingManager sharingManager;
+    private final MarkerMinifier markerMinifier;
     private final MarkerSets markerSets;
     private final Provider<MarkerSetManager> markerSetManagerProvider;
     // Pinned while this is open: the selected rows' markers and the last row Show on map moved to.
@@ -317,12 +316,7 @@ public class MarkerManager extends SearchableChatbox {
 
         if (set == null) {
             rightX = nextX(button(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, () -> confirmDelete(null, selectedPoints())));
-            Widget copy = button(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> export(selectedPoints(), false));
-            if (anySelected) {
-                copy.setAction(1, "Copy as plaintext");
-                copy.setOnOpListener((JavaScriptCallback) ev -> export(selectedPoints(), ev.getOp() == 2));
-            }
-            rightX = nextX(copy);
+            rightX = nextX(button(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> export(selectedPoints())));
             Widget makeSet = button(container, font, "Set", "Make a marker set from selected", selectedTarget, anySelected, rightX, this::makeSet);
             if (anySelected && markerSets.sets().stream().anyMatch(MarkerManager::own)) {
                 makeSet.setAction(1, "Add to existing set");
@@ -451,15 +445,16 @@ public class MarkerManager extends SearchableChatbox {
             if (group.entry == null) {
                 addAction(text, actions, "Show set", () -> show(group.set, query));
             }
-            addAction(text, actions, "Find in Marker Sets", () -> findInSets(group.set, group.entry));
             if (own(group.set)) {
                 MarkerSetManager sets = markerSetManagerProvider.get();
                 if (group.entry == null) {
                     addAction(text, actions, "Set title", () -> sets.askTitle(group.set, this::reopen));
                 } else {
                     addSubmenu(text, actions, "Edit", Map.of("Set Title", () -> sets.askTitle(group.set, group.entry, group.entry.tiles, this::reopen)));
+                    addSubmenu(text, actions, "Move", sets.moves(group.set, group.entry, this::reopen));
                 }
             }
+            addAction(text, actions, "Find in Marker Sets", () -> findInSets(group.set, group.entry));
             ChatboxWidgets.hover(text, color);
         }
     }
@@ -613,7 +608,7 @@ public class MarkerManager extends SearchableChatbox {
         });
 
         Map<String, Runnable> manage = new LinkedHashMap<>();
-        manage.put("Copy", () -> export(entry.points, false));
+        manage.put("Copy", () -> export(entry.points));
         manage.put("Find in Marker Sets", () -> findInSets(entry.inSet, entry.setEntry));
 
         // Over the whole row (tile info too), on top of its cells: a part per column, each with those and Filter by its column.
@@ -630,18 +625,18 @@ public class MarkerManager extends SearchableChatbox {
             if (!recycleBin && (entry.inSet == null || own(entry.inSet))) {
                 addSubmenu(part, actions, "Edit", edit);
             }
-            if (filter != null) {
-                addAction(part, actions, "Filter by " + filter.getKey(), () -> addToSearch(filter.getValue()));
-            }
-            if (!recycleBin && !moveTo.isEmpty()) {
+            if (!recycleBin) {
                 addSubmenu(part, actions, "Move Marker", moveTo);
             }
             if (entry.inSet != null && !recycleBin) {
                 addSubmenu(part, actions, "Manage", manage);
             }
             addSubmenu(part, actions, "Map", map);
+            if (filter != null) {
+                addAction(part, actions, "Filter By " + filter.getKey(), () -> addToSearch(filter.getValue()));
+            }
             if (own(entry.inSet) && !recycleBin) {
-                addAction(part, actions, "Delete from set", () -> confirmDelete(entry.inSet, entry.points));
+                addAction(part, actions, "Delete from Set", () -> confirmDelete(entry.inSet, entry.points));
             }
             if (recycleBin) {
                 addAction(part, actions, "Delete", delete);
@@ -871,28 +866,19 @@ public class MarkerManager extends SearchableChatbox {
         return answers.size() == 1 ? answers.iterator().next() : null;
     }
 
-    // plain: labels left readable rather than compressed (see GroundMarkerVariablesSharingManager#exportText).
-    private void export(List<GroundMarkerPointData> points, boolean plain) {
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sharingManager.exportText(points, plain)), null);
-        sendChatMessage(points.size() + " ground markers were copied to your clipboard.");
+    private void export(List<GroundMarkerPointData> points) {
+        clip(markerMinifier.exportGmvPlain(points), points.size() + " ground markers were copied to your clipboard.");
     }
 
     // Asks for a title, starting as (and blank is) MarkerSets#defaultTitle's, then whether to keep the markers or move them
-    // into the set. The author is the logged-in name, else anon. onDone returns false: the menu it opens replaces this
-    // prompt, which closing would close instead.
+    // into the set. The author is the logged-in name, else anon.
     private void makeSet() {
         List<Entry> chosen = chosenEntries();
         String defaultTitle = MarkerSets.defaultTitle(selectedPoints());
         Player player = client.getLocalPlayer();
         String author = player != null && player.getName() != null ? player.getName() : MarkerSet.ANON;
-        chatboxPanelManager.openTextInput("Marker set title")
-            .value(defaultTitle)
-            .onDone((Predicate<String>) title -> {
-                String setTitle = title.isBlank() ? defaultTitle : title.trim();
-                keepOrMove(chosen, move -> addToSet(chosen, move, entries -> markerSets.create(setTitle, author, entries)));
-                return false;
-            })
-            .build();
+        askText("Marker set title", defaultTitle, title -> keepOrMove(chosen,
+            move -> addToSet(chosen, move, entries -> markerSets.create(title.isBlank() ? defaultTitle : title.trim(), author, entries))));
     }
 
     // Picks one of the user's own sets in Marker Sets (searchable, however many there are), then asks whether to keep the
