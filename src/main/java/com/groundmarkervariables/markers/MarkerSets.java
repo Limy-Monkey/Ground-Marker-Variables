@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -873,14 +874,16 @@ public class MarkerSets implements TileSource {
         return markers;
     }
 
-    // Disable the drawn set tile's entry, or its whole set.
-    public List<ExternalMarkerManager.MenuOption> menuOptions(WorldView wv, WorldPoint worldPoint) {
+    // Manage the drawn set tile's entry (manage searches Marker Sets for it), or disable it or its whole set.
+    public List<ExternalMarkerManager.MenuOption> menuOptions(WorldView wv, WorldPoint worldPoint, Consumer<String> manage) {
         RenderedTile drawn = renderedTiles.winner(wv, worldPoint);
         if (drawn == null || drawn.marker.source != this) {
             return List.of();
         }
         Placed placed = (Placed) drawn.marker.owner;
         return List.of(
+            new ExternalMarkerManager.MenuOption("Manage", placed.set.title + ": " + placed.entry.name(),
+                () -> manage.accept(placed.set.title + " " + placed.entry.name())),
             new ExternalMarkerManager.MenuOption("Disable", placed.set.title + ": " + placed.entry.name(),
                 () -> setEnabled(placed.set, placed.entry, false)),
             new ExternalMarkerManager.MenuOption("Disable set", placed.set.title, () -> setEnabled(placed.set, false)));

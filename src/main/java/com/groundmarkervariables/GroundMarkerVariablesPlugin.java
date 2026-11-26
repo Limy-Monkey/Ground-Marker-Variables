@@ -6,6 +6,7 @@ import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
 import com.groundmarkervariables.chatbox.ConfirmChatbox;
 import com.groundmarkervariables.chatbox.GroundMarkerVariablesSharingManager;
 import com.groundmarkervariables.chatbox.MarkerManager;
+import com.groundmarkervariables.chatbox.MarkerSetManager;
 import com.groundmarkervariables.chatbox.SearchableChatbox;
 import com.groundmarkervariables.chatbox.SuggestionIconOverlay;
 import com.groundmarkervariables.chatbox.WorldMapPins;
@@ -176,6 +177,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Inject
     private Provider<MarkerManager> markerManagerProvider;
+
+    @Inject
+    private Provider<MarkerSetManager> markerSetManagerProvider;
 
     @Inject
     private DeletedMarkers deletedMarkers;
@@ -440,7 +444,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
     private void buildConfigureMenu(WorldView wv, WorldPoint tile) {
         Menu submenu = null;
         List<ExternalMarkerManager.MenuOption> sourceOptions = new ArrayList<>(externalMarkerManager.menuOptions(wv, tile));
-        sourceOptions.addAll(markerSets.menuOptions(wv, tile));
+        sourceOptions.addAll(markerSets.menuOptions(wv, tile, query -> chatboxPanelManager.openInput(markerSetManagerProvider.get().search(query))));
         for (ExternalMarkerManager.MenuOption option : sourceOptions) {
             submenu = addVariableOption(submenu, option.option, option.target, option.action);
         }
