@@ -245,6 +245,11 @@ public class AdvancedLabelEditor extends ChatboxTextInput {
 		super.close();
 	}
 
+	// Closing next for another chatbox that comes back here (see close()).
+	public void handOff() {
+		handingOff = true;
+	}
+
 	// Called by the plugin before build() — see GroundMarkerVariablesPlugin#openLabelEditor.
 	// onRemoveRecent handles right-click "Remove" on a Recent entry. tileColor is used to
 	// underline </col> — see buildColorTagUnderlines().
@@ -287,7 +292,7 @@ public class AdvancedLabelEditor extends ChatboxTextInput {
 			return true;
 		}
 		clientThread.invoke(() -> {
-			handingOff = true;
+			handOff();
 			sharingManager.importClipboard(() -> chatboxPanelManager.openInput(this));
 		});
 		return true;

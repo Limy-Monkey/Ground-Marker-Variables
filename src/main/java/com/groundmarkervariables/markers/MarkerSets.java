@@ -99,6 +99,7 @@ public class MarkerSets implements TileSource {
 	private final MetaVariableResolver metaVariableResolver;
 	private final MarkerMinifier markerMinifier;
 	private final ExternalMarkerManager externalMarkerManager;
+	private final DeletedMarkers deletedMarkers;
 
 	private volatile List<MarkerSet> sets = List.of();
 	private State state = new State();
@@ -345,17 +346,6 @@ public class MarkerSets implements TileSource {
 		edit(set, title.trim(), set.description, set.author, set.entries);
 	}
 
-	// set without removed: later untitled entries move up a position.
-	public void remove(MarkerSet set, MarkerSet.Entry removed) {
-		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
-		for (MarkerSet.Entry entry : set.entries) {
-			if (entry != removed) {
-				moved.put(entry, entry.at(moved.size()));
-			}
-		}
-		edit(set, moved);
-	}
-
 	// An entry retitled (blank for none). False if another entry already has that title, as their states would be shared.
 	public boolean setTitle(MarkerSet set, MarkerSet.Entry retitled, String title) {
 		String newTitle = title.isBlank() ? null : title.trim();
@@ -371,9 +361,38 @@ public class MarkerSets implements TileSource {
 		return true;
 	}
 
-	// A single-tile entry's label (blank for none).
-	public void setLabel(MarkerSet set, MarkerSet.Entry edited, String label) {
-		editTiles(set, tile -> edited.tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);
+	// An own set's tiles' label (blank for none).
+	public void setLabel(MarkerSet set, Collection<GroundMarkerPointData> tiles, String label) {
+		editTiles(set, tile -> tiles.contains(tile) ? tile.withLabel(label.isEmpty() ? null : label) : tile);
+	}
+
+	// An own set's tiles deleted into DeletedMarkers.
+	public void deleteTiles(MarkerSet set, Collection<GroundMarkerPointData> tiles) {
+		set.entries.forEach(entry -> entry.tiles.stream().filter(tiles::contains)
+			.forEach(tile -> deletedMarkers.add(new DeletedMarkers.Tile(set.key(), entry, tile))));
+		editTiles(set, tile -> tiles.contains(tile) ? null : tile);
+	}
+
+	// A deleted tile back into its set (if it's still there): into its titled entry if that's still there, else into its
+	// entry recreated last (an untitled one's key is only its old position).
+	public void restoreTile(DeletedMarkers.Tile deleted) {
+		MarkerSet set = sets.stream().filter(stored -> stored.key().equals(deleted.setKey)).findFirst().orElse(null);
+		if (set == null) {
+			return;
+		}
+		deletedMarkers.remove(DeletedMarkers.key(deleted.setKey, deleted.entry, deleted.tile));
+		MarkerSet.Entry was = deleted.entry;
+		boolean into = was.title != null && set.entries.stream().anyMatch(entry -> entry.key.equals(was.key));
+		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		for (MarkerSet.Entry entry : set.entries) {
+			List<GroundMarkerPointData> tiles = new ArrayList<>(entry.tiles);
+			if (into && entry.key.equals(was.key)) {
+				tiles.add(deleted.tile);
+			}
+			moved.put(entry, new MarkerSet.Entry(entry.title, entry.description, tiles, entry.group, entry.enabledByDefault, moved.size()));
+		}
+		edit(set, moved, into ? List.of()
+			: List.of(new MarkerSet.Entry(was.title, was.description, List.of(deleted.tile), was.group, was.enabledByDefault, moved.size())));
 	}
 
 	// An own set's tiles, each replaced by change's (null drops it; an entry left without any goes).
@@ -422,12 +441,16 @@ public class MarkerSets implements TileSource {
 		Set<WorldPoint> pasted = markers.stream().map(GroundMarkerPointData::worldPoint).collect(Collectors.toSet());
 		Set<WorldPoint> there = new HashSet<>();
 		Map<MarkerSet.Entry, MarkerSet.Entry> moved = new LinkedHashMap<>();
+		// Replaced tiles, for the recycling bin once saved.
+		List<DeletedMarkers.Tile> replaced = new ArrayList<>();
 		for (MarkerSet.Entry entry : set.entries) {
 			List<GroundMarkerPointData> kept = new ArrayList<>();
 			for (GroundMarkerPointData tile : entry.tiles) {
 				there.add(tile.worldPoint());
 				if (!replace || !pasted.contains(tile.worldPoint())) {
 					kept.add(tile);
+				} else {
+					replaced.add(new DeletedMarkers.Tile(set.key(), entry, tile));
 				}
 			}
 			if (!kept.isEmpty()) {
@@ -437,7 +460,11 @@ public class MarkerSets implements TileSource {
 		List<MarkerSet.Entry> added = new ArrayList<>();
 		entriesByLabel(replace ? markers : markers.stream().filter(marker -> !there.contains(marker.worldPoint())).collect(Collectors.toList()))
 			.forEach(entry -> added.add(entry.at(moved.size() + added.size())));
-		return edit(set, moved, added);
+		MarkerSet pastedInto = edit(set, moved, added);
+		if (pastedInto != null) {
+			replaced.forEach(deletedMarkers::add);
+		}
+		return pastedInto;
 	}
 
 	// How many of markers are at a tile already in set.

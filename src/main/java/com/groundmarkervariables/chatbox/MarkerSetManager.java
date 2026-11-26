@@ -93,6 +93,12 @@ public class MarkerSetManager extends SearchableChatbox {
 		super.close();
 	}
 
+	// Opened searching for query, e.g. a set's title and an entry's name (see MarkerManager#findInSets).
+	public MarkerSetManager search(String query) {
+		this.query = query;
+		return this;
+	}
+
 	// Lists only own sets, each clicked to pick it, e.g. to add markers to.
 	public MarkerSetManager pick(Consumer<MarkerSet> onPick) {
 		this.onPick = onPick;
@@ -139,7 +145,8 @@ public class MarkerSetManager extends SearchableChatbox {
 			boolean setMatches = matches(set.title) || matches(set.author) || matches(set.kind.title);
 			List<MarkerSet.Entry> entries = new ArrayList<>();
 			for (MarkerSet.Entry entry : set.entries) {
-				if (setMatches || matches(entry.name())) {
+				// Its words may be split between the set's title and the entry's, e.g. "tob lobby".
+				if (setMatches || matches(set.title + "\n" + entry.name())) {
 					entries.add(entry);
 				}
 			}
@@ -259,7 +266,7 @@ public class MarkerSetManager extends SearchableChatbox {
 		manage.put("Export", () -> exportTiles(set));
 		manage.put("Clone", () -> cloneSet(set));
 		if (onPick == null) {
-			manage.put("Show tiles", () -> markerManagerProvider.get().show(set, null));
+			manage.put("Show tiles", () -> markerManagerProvider.get().show(set, ""));
 		}
 		addSubmenu(label, actions, "Manage", manage);
 		if (set.kind == MarkerSet.Kind.OWN) {
@@ -463,7 +470,7 @@ public class MarkerSetManager extends SearchableChatbox {
 	}
 
 	private void editTile(MarkerSet set, MarkerSet.Entry entry) {
-		editLabel(entry.tiles.get(0), label -> markerSets.setLabel(set, entry, label));
+		editLabel(entry.tiles.get(0), label -> markerSets.setLabel(set, entry.tiles, label));
 	}
 
 	// description, if any, as a tooltip over area (see longTip).
@@ -524,8 +531,9 @@ public class MarkerSetManager extends SearchableChatbox {
 		new ConfirmChatbox(chatboxPanelManager, "Are you sure you want to delete \"" + Text.escapeJagex(entry.name()) + "\" ("
 				+ tiles + (tiles == 1 ? " tile" : " tiles") + ") from the marker set \"" + Text.escapeJagex(set.title) + "\"?")
 			.yes(() -> {
-				markerSets.remove(set, entry);
-				sendChatMessage("\"" + entry.name() + "\" was deleted from the marker set \"" + set.title + "\".");
+				markerSets.deleteTiles(set, entry.tiles);
+				sendChatMessage("\"" + entry.name() + "\" was deleted from the marker set \"" + set.title
+					+ "\" and moved to its recycling bin (Manage > Show tiles), where it can be restored until you close the client.");
 				reopen();
 			})
 			.no(this::reopen)

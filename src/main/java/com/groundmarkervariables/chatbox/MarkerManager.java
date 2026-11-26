@@ -15,7 +15,6 @@ import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,7 +28,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
-import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -114,16 +112,20 @@ public class MarkerManager extends SearchableChatbox {
 	private Set<String> nearbyAreas = Set.of();
 	// A world map lookup finished since load() (see areaName).
 	private boolean namesStale;
-	// The set whose tiles are listed (see show), as of load(), else saved markers.
+	// The set whose tiles are listed (see show), as of load(), else saved markers (and, while searching, every set's).
 	@Nullable
 	private MarkerSet set;
+	// The sets load() listed tiles from, in order.
+	private List<MarkerSet> loadedSets = List.of();
 	// What load() listed (the recycling bin, a set, or saved markers); the selection isn't kept into or out of it.
 	@Nullable
 	private String loadedView;
 
-	// Every marker in one area sharing a label ("" for none) and color; in a set, and its entry.
+	// Every marker in one area sharing a label ("" for none) and color; a set's tiles, its set and entry.
 	@RequiredArgsConstructor
 	private static final class Entry {
+		@Nullable
+		private final MarkerSet inSet;
 		@Nullable
 		private final MarkerSet.Entry setEntry;
 		// Its RegionNames name, else "Dungeon <id>".
@@ -154,7 +156,7 @@ public class MarkerManager extends SearchableChatbox {
 		// As now stored; one that's gone (e.g. deleted): back to saved markers.
 		String key = set == null ? null : set.key();
 		set = markerSets.listed().stream().filter(listed -> listed.key().equals(key)).findFirst().orElse(null);
-		String view = recycleBin ? "\0bin" : set == null ? null : key;
+		String view = (recycleBin ? "\0bin" : "") + (set == null ? "" : key);
 		Set<WorldPoint> wasSelected = new HashSet<>();
 		if (Objects.equals(view, loadedView)) {
 			selected.forEach(entry -> entry.points.forEach(point -> wasSelected.add(point.worldPoint())));
@@ -167,13 +169,19 @@ public class MarkerManager extends SearchableChatbox {
 		Map<String, Entry> byKey = new LinkedHashMap<>();
 		leaveEmptyBin();
 		if (recycleBin) {
-			deletedMarkers.values().forEach(point -> addPoint(byKey, point, String.valueOf(byKey.size()), null));
-		} else if (set != null) {
-			// A row never spans entries, which are switched on and off whole.
-			set.entries.forEach(entry -> entry.tiles.forEach(tile -> addPoint(byKey, tile, entry.key, entry)));
+			// Deleted saved markers, or the set's tiles (each in its entry as it was).
+			deletedMarkers.from(setKey()).forEach(deleted -> addPoint(byKey, deleted.tile, String.valueOf(byKey.size()), set, deleted.entry));
 		} else {
-			for (int regionId : markerStorage.storedRegionIds()) {
-				markerStorage.getStoredPoints(regionId).forEach(point -> addPoint(byKey, point, "", null));
+			if (set == null) {
+				for (int regionId : markerStorage.storedRegionIds()) {
+					markerStorage.getStoredPoints(regionId).forEach(point -> addPoint(byKey, point, "", null, null));
+				}
+			}
+			// The set's tiles, or every set's (shown while searching, see shown). A row never spans entries, which are
+			// switched on and off whole.
+			loadedSets = set != null ? List.of(set) : markerSets.listed();
+			for (MarkerSet listed : loadedSets) {
+				listed.entries.forEach(entry -> entry.tiles.forEach(tile -> addPoint(byKey, tile, listed.key() + '\0' + entry.key, listed, entry)));
 			}
 		}
 		entries.addAll(byKey.values());
@@ -200,19 +208,20 @@ public class MarkerManager extends SearchableChatbox {
 	}
 
 	// point into the row for its own area (one region can hold several), label and color; row ("" to share) keeps it apart.
-	private void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row, @Nullable MarkerSet.Entry setEntry) {
+	private void addPoint(Map<String, Entry> byKey, GroundMarkerPointData point, String row, @Nullable MarkerSet inSet,
+		@Nullable MarkerSet.Entry setEntry) {
 		String area = areaOf(point.worldPoint());
 		String label = point.getLabel() == null ? "" : point.getLabel();
 		byKey.computeIfAbsent(row + '\0' + area + '\0' + label + '\0' + point.getColor() + infoKey(point),
-			key -> new Entry(setEntry, area, areaName(point.worldPoint()) != null, point.getRegionId(), label, point.getColor(),
+			key -> new Entry(inSet, setEntry, area, areaName(point.worldPoint()) != null, point.getRegionId(), label, point.getColor(),
 				mapNames(point.worldPoint()))).points.add(point);
 	}
 
-	// Opens on set's tiles (null: saved markers), searching for tile (see shown) if given. Client thread.
-	public void show(@Nullable MarkerSet set, @Nullable WorldPoint tile) {
+	// Opens on set's tiles (null: saved markers), searching for search. Client thread.
+	public void show(@Nullable MarkerSet set, String search) {
 		this.set = set;
 		recycleBin = false;
-		query = tile == null ? "" : "@" + tile.getX() + "," + tile.getY() + "," + tile.getPlane();
+		query = search;
 		load();
 		chatboxPanelManager.openInput(this);
 	}
@@ -222,21 +231,14 @@ public class MarkerManager extends SearchableChatbox {
 		return set != null;
 	}
 
-	// Whether the listed set and its entry are both switched on.
-	private boolean entryOn(MarkerSet.Entry entry) {
+	// Whether set and its entry are both switched on.
+	private boolean entryOn(MarkerSet set, MarkerSet.Entry entry) {
 		return markerSets.enabled(set) && markerSets.enabled(set, entry);
 	}
 
-	// Whether the listed set is the user's own, so editable.
-	private boolean ownSet() {
+	// Whether set is the user's own, so editable.
+	private static boolean own(@Nullable MarkerSet set) {
 		return set != null && set.kind == MarkerSet.Kind.OWN;
-	}
-
-	// The listed own set's tiles that are among tiles changed (null removes one); callers reopen.
-	private void editSetTiles(Collection<GroundMarkerPointData> tiles, UnaryOperator<GroundMarkerPointData> change) {
-		if (ownSet()) {
-			markerSets.editTiles(set, tile -> tiles.contains(tile) ? change.apply(tile) : tile);
-		}
 	}
 
 	// By sortColumn, reversed if descending; then the current area first, nearby ones next, named areas alphabetically,
@@ -271,7 +273,8 @@ public class MarkerManager extends SearchableChatbox {
 
 	@Override
 	protected String title() {
-		return recycleBin ? "Markers" : (set != null ? Text.escapeJagex(set.title) : "Ground Markers") + " (" + markerCount(visibleEntries()) + ")";
+		String name = set != null ? Text.escapeJagex(set.title) : recycleBin ? "Markers" : "Ground Markers";
+		return recycleBin ? name : name + " (" + markerCount(viewRows()) + ")";
 	}
 
 	// A set's tiles: Sets (opening Marker Sets), then the set.
@@ -284,28 +287,31 @@ public class MarkerManager extends SearchableChatbox {
 
 	@Override
 	protected int recycled() {
-		return deletedMarkers.size();
+		return deletedMarkers.from(setKey()).size();
+	}
+
+	@Nullable
+	private String setKey() {
+		return set == null ? null : set.key();
 	}
 
 	// Right to left after x and _: :recycle:, Del, Copy, Set, { }, All (while filtered), (selected count). The bin shows
-	// none; a set just { } (its rows copy and remove).
+	// none; a set just :recycle: (its deleted tiles) and { } (its rows copy and delete).
 	@Override
 	protected void buildTopBar(Widget container, FontTypeFace font, int rightX) {
-		if (set == null) {
-			rightX = recycleBinButton(container, rightX, this::reopen);
-		}
+		rightX = recycleBinButton(container, rightX, this::reopen);
 		if (recycleBin) {
 			return;
 		}
 
-		List<Entry> visible = visibleEntries();
+		List<Entry> visible = viewRows();
 		boolean anySelected = visible.stream().anyMatch(selected::contains);
 		boolean allSelected = !visible.isEmpty() && selected.containsAll(visible);
 		int count = selectedPoints().size();
 		String selectedTarget = "<col=ff9040>" + count + (count == 1 ? " marker" : " markers") + "</col>";
 
 		if (set == null) {
-			rightX = nextX(button(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, () -> confirmDelete(selectedPoints())));
+			rightX = nextX(button(container, font, "Del", "Delete selected", selectedTarget, anySelected, rightX, () -> confirmDelete(null, selectedPoints())));
 			Widget copy = button(container, font, "Copy", "Export selected", selectedTarget, anySelected, rightX, () -> export(selectedPoints(), false));
 			if (anySelected) {
 				copy.setAction(1, "Copy as plaintext");
@@ -369,14 +375,23 @@ public class MarkerManager extends SearchableChatbox {
 			addText(container, none, widgets.fontId(), 0x000000, 6, RESULTS_Y);
 			return;
 		}
-		// A set's tiles: by entry (in the set's order), each under a row naming it, which stays on the fixed line while
-		// scrolled into its tiles (as Marker Sets' sets).
-		rows.sort(set == null ? order() : Comparator.comparingInt((Entry e) -> set.entries.indexOf(e.setEntry)).thenComparing(order()));
+		// By section (saved markers, then each set) while a search also finds other sets' rows, and a set's by entry (in its
+		// order); each under a row naming it, which stays on the fixed line while scrolled into its rows.
+		boolean sections = rows.stream().anyMatch(row -> row.inSet != set);
+		rows.sort(Comparator.comparingInt((Entry e) -> loadedSets.indexOf(e.inSet))
+			.thenComparingInt(e -> e.inSet == null ? 0 : e.inSet.entries.indexOf(e.setEntry)).thenComparing(order()));
 		List<Object> lines = new ArrayList<>();
+		// The last section's loadedSets index (-1 for saved markers').
+		int section = -2;
 		MarkerSet.Entry titled = null;
 		for (Entry row : rows) {
-			if (row.setEntry != null && row.setEntry != titled) {
-				lines.add(titled = row.setEntry);
+			if (sections && loadedSets.indexOf(row.inSet) != section) {
+				lines.add(new Group(row.inSet, null));
+				section = loadedSets.indexOf(row.inSet);
+			}
+			// None in a set's bin (its entries as they were, not to switch).
+			if (row.setEntry != null && row.setEntry != titled && !recycleBin) {
+				lines.add(new Group(row.inSet, titled = row.setEntry));
 			}
 			lines.add(row);
 		}
@@ -385,31 +400,60 @@ public class MarkerManager extends SearchableChatbox {
 			if (lines.get(i) instanceof Entry) {
 				addEntry(container, (Entry) lines.get(i), y);
 			} else {
-				addEntryTitle(container, (MarkerSet.Entry) lines.get(i), y);
+				addGroup(container, (Group) lines.get(i), "", y);
 			}
 		}, (i, y) -> {
-			MarkerSet.Entry entry = lines.get(i) instanceof Entry ? ((Entry) lines.get(i)).setEntry : null;
-			if (entry != null) {
-				addEntryTitle(container, entry, y);
+			Entry row = lines.get(i) instanceof Entry ? (Entry) lines.get(i) : null;
+			if (row == null || row.setEntry == null && !sections || recycleBin) {
+				return false;
 			}
-			return entry != null;
+			addGroup(container, new Group(row.inSet, row.setEntry), sections && row.inSet != null ? row.inSet.title + " > " : "", y);
+			return true;
 		});
 		infoToggle(container);
 	}
 
-	// A set entry's checkbox (switching it on and off) and name (cut before the tile info's heading icons, which stay when
-	// it's on the fixed line), grayed while it (or the set) is off.
-	private void addEntryTitle(Widget container, MarkerSet.Entry entry, int y) {
-		boolean on = markerSets.enabled(set, entry);
-		Widget checkbox = checkbox(container, on, 6, y);
-		addAction(checkbox, new ArrayList<>(), on ? "Disable" : "Enable", () -> {
-			markerSets.setEnabled(set, entry, !on);
-			update();
-		});
-		int x = 6 + checkbox.getOriginalWidth() + 4;
+	// A title row: a section (a set's, else saved markers'), or with entry, a set entry's.
+	@RequiredArgsConstructor
+	private static final class Group {
+		@Nullable
+		private final MarkerSet set;
+		@Nullable
+		private final MarkerSet.Entry entry;
+	}
+
+	// A section's name (a set's opening it, or finding it in Marker Sets), or an entry's checkbox (switching it) and name
+	// after prefix (finding it in Marker Sets); cut before the tile info's heading icons (which stay on the fixed line), and
+	// grayed while off.
+	private void addGroup(Widget container, Group group, String prefix, int y) {
+		int x = 6;
+		if (group.entry != null) {
+			boolean on = markerSets.enabled(group.set, group.entry);
+			Widget checkbox = checkbox(container, on, x, y);
+			addAction(checkbox, new ArrayList<>(), on ? "Disable" : "Enable", () -> {
+				markerSets.setEnabled(group.set, group.entry, !on);
+				update();
+			});
+			x += checkbox.getOriginalWidth() + 4;
+		}
+		boolean on = group.set == null || (group.entry == null ? markerSets.enabled(group.set) : entryOn(group.set, group.entry));
+		int color = on ? ACTIVE_COLOR : ChatboxWidgets.DISABLED_COLOR;
+		String name = group.entry != null ? prefix + group.entry.name() : group.set != null ? "Set: " + group.set.title : "Ground Markers";
 		int width = columnX(showInfo ? LABEL + 1 : HEADINGS.length) - x;
-		ChatboxWidgets.text(container, Text.escapeJagex(fit(entry.name(), width)), widgets.fontId(),
-			entryOn(entry) ? ACTIVE_COLOR : ChatboxWidgets.DISABLED_COLOR, x, y, width, ROW_HEIGHT);
+		Widget text = ChatboxWidgets.text(container, Text.escapeJagex(fit(name, width)), widgets.fontId(), color, x, y, width, ROW_HEIGHT);
+		if (group.set != null) {
+			List<Runnable> actions = new ArrayList<>();
+			if (group.entry == null) {
+				addAction(text, actions, "Show set", () -> show(group.set, query));
+			}
+			addAction(text, actions, "Find in Marker Sets", () -> findInSets(group.set, group.entry));
+			ChatboxWidgets.hover(text, color);
+		}
+	}
+
+	// Marker Sets searching for set, or just its entry (under it) if given.
+	private void findInSets(MarkerSet set, @Nullable MarkerSet.Entry entry) {
+		chatboxPanelManager.openInput(markerSetManagerProvider.get().search(entry == null ? set.title : set.title + " " + entry.name()));
 	}
 
 	// In the header: shown, each tile info column's icon (clicked, hides them); hidden, one at Label's end to show them.
@@ -508,8 +552,8 @@ public class MarkerManager extends SearchableChatbox {
 	private void addEntry(Widget container, Entry entry, int y) {
 		boolean checked = selected.contains(entry);
 		// A set's tile: grayed while its entry (or the set) is off.
-		int color = entry.setEntry == null || entryOn(entry.setEntry) ? 0x000000 : ChatboxWidgets.DISABLED_COLOR;
-		if (set == null) {
+		int color = entry.inSet == null || recycleBin || entryOn(entry.inSet, entry.setEntry) ? 0x000000 : ChatboxWidgets.DISABLED_COLOR;
+		if (entry.inSet == null || recycleBin) {
 			checkbox(container, checked, 6, y);
 		}
 		Widget area = cell(container, entry.area, color, 0, y);
@@ -530,16 +574,19 @@ public class MarkerManager extends SearchableChatbox {
 		Rectangle labelArea = cellArea(LABEL, y);
 		Map<String, Runnable> edit = new LinkedHashMap<>();
 		if (entry.points.size() == 1) {
-			edit.put("Label", () -> edit(entry.points.get(0)));
+			edit.put("Label", () -> edit(entry));
 		}
 		edit.put("Color", () -> pickColor(entry));
 		Map<String, Runnable> map = mapPins.mapChoices(entry.points, entry.points, () -> {
 			shown = entry;
 			updatePins();
 		}, text -> notice(labelArea, text), this::updateIfOpen);
-		Runnable delete = () -> confirmPurge(deletedMarkers.minutesLeft(entry.points.get(0)), labelArea, "this ground marker", () -> {
-			deletedMarkers.removeAll(entry.points);
-			sendChatMessage("The ground marker was deleted permanently.");
+		// In the bin, its one marker's key there.
+		String binKey = DeletedMarkers.key(setKey(), entry.setEntry, entry.points.get(0));
+		String what = set == null ? "ground marker" : "tile";
+		Runnable delete = () -> confirmPurge(deletedMarkers.minutesLeft(binKey), labelArea, "this " + what, () -> {
+			deletedMarkers.remove(binKey);
+			sendChatMessage("The " + what + " was deleted permanently.");
 		});
 
 		// Over the whole row (tile info too), on top of its cells: a part per column, each with those and Filter by its column.
@@ -548,19 +595,20 @@ public class MarkerManager extends SearchableChatbox {
 			int x = column == 0 ? 6 : columnX(column);
 			Widget part = ChatboxWidgets.child(container, WidgetType.TEXT, x, y, columnX(column + 1) - x, ROW_HEIGHT);
 			List<Runnable> actions = new ArrayList<>();
-			if (set == null) {
+			if (entry.inSet == null || recycleBin) {
 				addAction(part, actions, recycleBin ? "Restore" : checked ? "Deselect" : "Select",
-					recycleBin ? () -> restore(entry) : () -> toggle(entry, !checked));
+					recycleBin ? () -> restore(entry, binKey) : () -> toggle(entry, !checked));
 			}
 			Map.Entry<String, String> filter = recycleBin ? null : filter(entry, column);
-			if (!recycleBin && (set == null || ownSet())) {
+			if (!recycleBin && (entry.inSet == null || own(entry.inSet))) {
 				addSubmenu(part, actions, "Edit", edit);
 			}
-			if (set != null) {
+			if (entry.inSet != null && !recycleBin) {
 				addAction(part, actions, "Copy", () -> export(entry.points, false));
-			}
-			if (ownSet()) {
-				addAction(part, actions, "Remove from set", () -> confirmDelete(entry.points));
+				addAction(part, actions, "Find in Marker Sets", () -> findInSets(entry.inSet, entry.setEntry));
+				if (own(entry.inSet)) {
+					addAction(part, actions, "Delete from set", () -> confirmDelete(entry.inSet, entry.points));
+				}
 			}
 			if (filter != null) {
 				addAction(part, actions, "Filter by " + filter.getKey(), () -> addToSearch(filter.getValue()));
@@ -590,8 +638,11 @@ public class MarkerManager extends SearchableChatbox {
 		super.close();
 	}
 
-	private void edit(GroundMarkerPointData point) {
-		editLabel(point, set != null ? label -> editSetTiles(List.of(point), tile -> tile.withLabel(label.isEmpty() ? null : label))
+	// A single marker's row's label.
+	private void edit(Entry entry) {
+		GroundMarkerPointData point = entry.points.get(0);
+		editLabel(point, entry.inSet != null
+			? label -> markerSets.setLabel(entry.inSet, List.of(point), label)
 			: label -> plugin.saveExpandedLabel(point.worldPoint(), label));
 	}
 
@@ -602,8 +653,8 @@ public class MarkerManager extends SearchableChatbox {
 			RuneliteColorPicker picker = colorPickerManager.create(client, start, "Tile marker color", false);
 			picker.setOnClose(color -> clientThread.invoke(() -> {
 				if (!color.equals(entry.color)) {
-					if (set != null) {
-						editSetTiles(entry.points, tile -> tile.withColor(color));
+					if (entry.inSet != null) {
+						markerSets.editTiles(entry.inSet, tile -> entry.points.contains(tile) ? tile.withColor(color) : tile);
 					} else {
 						markerStorage.replacePoints(entry.points.stream().map(point -> point.withColor(color)).collect(Collectors.toList()));
 						plugin.loadPoints();
@@ -635,7 +686,7 @@ public class MarkerManager extends SearchableChatbox {
 	}
 
 	private void selectAll() {
-		selected.addAll(visibleEntries());
+		selected.addAll(viewRows());
 		update();
 	}
 
@@ -668,11 +719,16 @@ public class MarkerManager extends SearchableChatbox {
 		return visible;
 	}
 
-	// Passes the { } filter and the search: each @x,y,plane word is one of its tiles (world coordinates), each *<info> /
-	// !<info> word (INFO_SEARCH, or a unique start of one) is yes / no for all its tiles (unknown is neither), and its area
-	// name (or "Dungeon <id>"), label, map name and color hold the other words.
+	// The shown rows of what's listed itself, not other sets' a search found.
+	private List<Entry> viewRows() {
+		return visibleEntries().stream().filter(entry -> entry.inSet == set).collect(Collectors.toList());
+	}
+
+	// Passes the { } filter and the search (other sets' rows only while searching): each @x,y,plane word is one of its tiles,
+	// each *<info> / !<info> word (INFO_SEARCH, or a unique start) is yes / no for all its tiles, and its area, label, map,
+	// color, set and entry names hold the other words.
 	private boolean shown(Entry entry) {
-		if (variablesOnly && !hasVariable(entry)) {
+		if (variablesOnly && !hasVariable(entry) || entry.inSet != set && query.isBlank()) {
 			return false;
 		}
 		StringBuilder words = new StringBuilder();
@@ -694,8 +750,8 @@ public class MarkerManager extends SearchableChatbox {
 				return false;
 			}
 		}
-		return ChatboxWidgets.hasWords(entry.area + "\n" + entry.shownLabel() + "\n" + String.join("\n", entry.maps) + "\n" + colorHex(entry),
-			words.toString().trim());
+		return ChatboxWidgets.hasWords(entry.area + "\n" + entry.shownLabel() + "\n" + String.join("\n", entry.maps) + "\n" + colorHex(entry)
+			+ (entry.inSet == null ? "" : "\n" + entry.inSet.title + "\n" + entry.setEntry.name()), words.toString().trim());
 	}
 
 	// The names of every world map drawing point, preferred first ("Overworld" for the surface; unnamed ones left out).
@@ -862,17 +918,20 @@ public class MarkerManager extends SearchableChatbox {
 		return own;
 	}
 
-	// Saved markers to the recycling bin, or a set's tiles out of it.
-	private void confirmDelete(List<GroundMarkerPointData> points) {
+	// Saved markers to the recycling bin, or tiles out of inSet.
+	private void confirmDelete(@Nullable MarkerSet inSet, List<GroundMarkerPointData> points) {
 		int n = points.size();
-		String from = set == null ? null : "the marker set \"" + set.title + "\"";
-		new ConfirmChatbox(chatboxPanelManager, from != null ? "Are you sure you want to remove " + n + (n == 1 ? " tile" : " tiles") + " from "
+		String from = inSet == null ? null : "the marker set \"" + inSet.title + "\"";
+		new ConfirmChatbox(chatboxPanelManager, from != null ? "Are you sure you want to delete " + n + (n == 1 ? " tile" : " tiles") + " from "
 				+ Text.escapeJagex(from) + "?"
 				: "Are you sure you want to delete " + n + (n == 1 ? " ground marker?" : " ground markers?") + "<br>This deletes the Core RuneLite Ground Markers.")
 			.yes(() -> {
 				if (from != null) {
-					editSetTiles(points, tile -> null);
-					sendChatMessage(n + (n == 1 ? " tile was" : " tiles were") + " removed from " + from + ".");
+					if (own(inSet)) {
+						markerSets.deleteTiles(inSet, points);
+					}
+					sendChatMessage(n + (n == 1 ? " tile was" : " tiles were") + " deleted from " + from
+						+ " and moved to its recycling bin, where they can be restored until you close the client.");
 				} else {
 					deletedMarkers.addAll(points);
 					markerStorage.deletePoints(points);
@@ -884,10 +943,17 @@ public class MarkerManager extends SearchableChatbox {
 			.build();
 	}
 
-	// Back into saved markers, through the same confirmation as a clipboard import; back to them once the bin's empty.
-	private void restore(Entry entry) {
+	// Its one marker (binKey in the bin) back into saved markers, through the same confirmation as a clipboard import, or
+	// back into its set. Back to them once the bin's empty.
+	private void restore(Entry entry, String binKey) {
+		DeletedMarkers.Tile deleted = deletedMarkers.get(binKey);
+		if (set != null && deleted != null) {
+			markerSets.restoreTile(deleted);
+			reopen();
+			return;
+		}
 		sharingManager.confirmImport(entry.points, " ground markers were restored.", () -> {
-			deletedMarkers.removeAll(entry.points);
+			deletedMarkers.remove(binKey);
 			reopen();
 		}, () -> chatboxPanelManager.openInput(this));
 	}

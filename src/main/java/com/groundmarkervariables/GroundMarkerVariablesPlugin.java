@@ -626,6 +626,7 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 		GroundMarkerPointData existing = markerStorage.findStoredPoint(worldPoint);
 
 		if (existing != null) {
+			deletedMarkers.addAll(List.of(existing));
 			markerStorage.deletePoints(List.of(existing));
 		} else {
 			int regionId = worldPoint.getRegionID();
@@ -868,7 +869,8 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 	// Drops Tile Facts for tiles no longer marked: in no saved marker or marker set, recycling bins included. Once marker
 	// sets have loaded (see MarkerSets#startUp).
 	private void sweepTileFacts() {
-		List<GroundMarkerPointData> kept = new ArrayList<>(deletedMarkers.values());
+		List<GroundMarkerPointData> kept = new ArrayList<>();
+		deletedMarkers.values().forEach(deleted -> kept.add(deleted.tile));
 		markerStorage.storedRegionIds().forEach(regionId -> kept.addAll(markerStorage.getStoredPoints(regionId)));
 		List<MarkerSet> sets = new ArrayList<>(markerSets.sets());
 		markerSets.bin().values().forEach(recycled -> sets.add(recycled.set));

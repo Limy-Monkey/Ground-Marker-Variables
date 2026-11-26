@@ -1,5 +1,9 @@
 package com.groundmarkervariables;
 
+import com.groundmarkervariables.chatbox.AdvancedLabelEditor;
+import com.groundmarkervariables.chatbox.ConfirmChatbox;
+import com.groundmarkervariables.chatbox.MarkerManager;
+import com.groundmarkervariables.chatbox.SearchableChatbox;
 import com.groundmarkervariables.markers.ExternalMarkerManager;
 import com.groundmarkervariables.markers.GroundMarkerPointData;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
@@ -8,22 +12,27 @@ import com.groundmarkervariables.variables.LabelResolver;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.game.chatbox.ChatboxInput;
+import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginMessage;
+import net.runelite.client.util.Text;
 
 // Ground Marker Variables PluginMessage API.
 //
 // Other plugins talk to us through RuneLite's PluginMessage event: post one to the EventBus with
 // namespace "ground-marker-variables", a message name below, and its data. Unknown names and malformed data are
-// ignored (with a log warning for markers). There are two APIs:
+// ignored (with a log warning for markers). There are three APIs:
 //
 //   1. Resolve      -- resolve label text containing our variables, e.g. "{rsn} is {lvl_agility}".
 //   2. SetMarkers / ClearMarkers -- render tiles through our engine.
+//   3. Search       -- ask to search the Marker Manager, e.g. for a tile.
 //
 // Replies: put an empty, mutable Map<String, Object> (e.g. a HashMap) in the data under "reply". EventBus.post() is
 // synchronous, so we fill it in before post() returns. If it's still empty afterwards, Ground Marker Variables isn't
@@ -93,6 +102,28 @@ import net.runelite.client.events.PluginMessage;
 //
 //   eventBus.post(new PluginMessage("ground-marker-variables", "ClearMarkers",
 //       Map.of("plugin", "my-plugin", "group", "my-plugin-tiles")));
+//
+// ---------------------------------------------------------------------------------------------------------------
+// 3. Search
+// ---------------------------------------------------------------------------------------------------------------
+// Request   name "Search"
+//   plugin  String  required  Your plugin's name, shown to the user.
+//   query   String  required  The Marker Manager search, e.g. "@3029,3217,0" for a tile (world x, y, plane), which
+//                             finds it in saved markers and every marker set.
+//   reply   Map     optional  Filled in with the outcome.
+//
+// Reply
+//   ok       Boolean          Whether the user was asked (the search runs only if they accept).
+//   error    String           Why not, if not.
+//   version  Integer          API version.
+//
+// Notes
+//   - Only while the user has the Marker Manager, Marker Sets or the label editor open; otherwise nothing happens.
+//     They're asked "<plugin> is requesting to link a marker" (Open Link / Cancel, back to where they were).
+//
+// Example
+//   eventBus.post(new PluginMessage("ground-marker-variables", "Search",
+//       Map.of("plugin", "My Plugin", "query", "@3029,3217,0")));
 @Slf4j
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -101,6 +132,7 @@ public class PluginMessageHandler {
 	static final String RESOLVE_EVENT = "Resolve";
 	static final String SET_MARKERS_EVENT = "SetMarkers";
 	static final String CLEAR_MARKERS_EVENT = "ClearMarkers";
+	static final String SEARCH_EVENT = "Search";
 	// Raised on breaking changes to the API above.
 	static final int API_VERSION = 1;
 
@@ -109,6 +141,8 @@ public class PluginMessageHandler {
 	private final ClientThread clientThread;
 	private final MarkerMinifier markerMinifier;
 	private final ExternalMarkerManager externalMarkerManager;
+	private final ChatboxPanelManager chatboxPanelManager;
+	private final Provider<MarkerManager> markerManagerProvider;
 
 	public void startUp() {
 		eventBus.register(this);
@@ -125,6 +159,10 @@ public class PluginMessageHandler {
 		}
 		if (SET_MARKERS_EVENT.equals(event.getName()) || CLEAR_MARKERS_EVENT.equals(event.getName())) {
 			onMarkers(event.getName(), event.getData());
+			return;
+		}
+		if (SEARCH_EVENT.equals(event.getName())) {
+			onSearch(event.getData());
 			return;
 		}
 		if (!RESOLVE_EVENT.equals(event.getName())) {
@@ -182,6 +220,46 @@ public class PluginMessageHandler {
 		List<GroundMarkerPointData> parsed = points;
 		clientThread.invoke(() -> externalMarkerManager.set((String) plugin, (String) group, value, parsed));
 		fill(reply, error == null ? Map.of("ok", true, "count", parsed.size()) : Map.of("ok", true, "count", parsed.size(), "error", error));
+	}
+
+	// Only while the Marker Manager, Marker Sets or the label editor is open: asks to open the search (Marker Manager),
+	// else goes back to it as it was.
+	private void onSearch(Map<String, Object> data) {
+		Map<String, Object> reply = reply(data);
+		Object plugin = data.get("plugin");
+		Object query = data.get("query");
+		if (!(plugin instanceof String) || !(query instanceof String)) {
+			reject(reply, SEARCH_EVENT, "\"plugin\" and \"query\" must be strings", null);
+			return;
+		}
+		ChatboxInput open = chatboxPanelManager.getCurrentInput();
+		AdvancedLabelEditor editor = open instanceof AdvancedLabelEditor ? (AdvancedLabelEditor) open : null;
+		if (!(open instanceof SearchableChatbox) && editor == null) {
+			fill(reply, Map.of("ok", false, "error", "no Ground Marker Variables chatbox is open"));
+			return;
+		}
+		clientThread.invoke(() -> {
+			// The editor comes back as it was; leaving it for the search closes it as usual (e.g. its preview).
+			if (editor != null) {
+				editor.handOff();
+			}
+			new ConfirmChatbox(chatboxPanelManager, Text.escapeJagex((String) plugin) + " is requesting to link a marker")
+				.option("Open Link", () -> {
+					if (editor != null) {
+						chatboxPanelManager.openInput(editor);
+					}
+					markerManagerProvider.get().show(null, ((String) query).trim());
+				})
+				.option("Cancel", () -> { })
+				// Cancel or Esc: back to where they were.
+				.onClose(() -> clientThread.invokeLater(() -> {
+					if (chatboxPanelManager.getCurrentInput() == null) {
+						chatboxPanelManager.openInput(open);
+					}
+				}))
+				.build();
+		});
+		fill(reply, Map.of("ok", true));
 	}
 
 	private static void reject(Map<String, Object> reply, String name, String error, Exception e) {

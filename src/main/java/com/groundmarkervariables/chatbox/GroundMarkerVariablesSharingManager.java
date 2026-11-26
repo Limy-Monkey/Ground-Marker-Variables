@@ -273,8 +273,10 @@ public class GroundMarkerVariablesSharingManager {
 		plugin.loadPoints();
 	}
 
-	// Like importGroundMarkers, but replacing any existing marker at an imported one's location.
+	// Like importGroundMarkers, but replacing any existing marker at an imported one's location (into the recycling bin).
 	private void overwriteGroundMarkers(Collection<GroundMarkerPointData> importPoints) {
+		deletedMarkers.addAll(importPoints.stream().map(point -> markerStorage.findStoredPoint(point.worldPoint()))
+			.filter(existing -> existing != null).collect(Collectors.toList()));
 		markerStorage.replacePoints(importPoints);
 		plugin.loadPoints();
 	}
