@@ -33,8 +33,12 @@ public final class Completion {
     // number, for an emoji its hex codepoint, or for a color its RRGGBB.
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Icon {
+        // Each with its name in the Icon IDs tooltip.
+        @RequiredArgsConstructor
         public enum Kind {
-            SPRITE, ITEM, NPC, NPC_HEAD, EMOJI, COLOR, DIAMOND, SPLIT
+            SPRITE("Sprite"), ITEM("Item"), NPC("NPC"), NPC_HEAD("Head"), EMOJI("Unicode"), COLOR("Color"), DIAMOND("Tile Col"), SPLIT("");
+
+            public final String title;
         }
 
         public final Kind kind;

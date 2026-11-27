@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -85,6 +84,9 @@ public class SuggestionIconOverlay extends Overlay {
     private final NpcImages npcImages;
     private final Emojis emojis;
     private final GroundMarkerVariablesConfig config;
+    private final ChatboxWidgets widgets;
+    // The font size icons were last scaled for: with the larger, they're drawn 2px larger.
+    private boolean largeFont;
     private volatile List<Placement> placements = List.of();
     private volatile List<Tip> tips = List.of();
     private static final long NOTICE_MS = 3000;
@@ -132,6 +134,10 @@ public class SuggestionIconOverlay extends Overlay {
         Point mouse = client.getMouseCanvasPosition();
         // With showIconIds, the drawn icon under the mouse, for showTip().
         Completion.Icon hovered = null;
+        if (largeFont == widgets.smallFont()) {
+            largeFont = !largeFont;
+            scaled.clear();
+        }
         for (Placement placement : placements) {
             Rectangle container = placement.container.isHidden() ? null : placement.container.getBounds();
             Completion.Icon icon = container == null || container.isEmpty() || placement.icon == null ? null : placement.icon.get();
@@ -142,6 +148,9 @@ public class SuggestionIconOverlay extends Overlay {
             }
             Rectangle bounds = new Rectangle(placement.area);
             bounds.translate(container.x, container.y);
+            if (largeFont) {
+                bounds.grow(1, 1);
+            }
             if (icon != null && config.showIconIds() && container.contains(mouse.getX(), mouse.getY()) && bounds.contains(mouse.getX(), mouse.getY())) {
                 hovered = icon;
             }
@@ -169,8 +178,7 @@ public class SuggestionIconOverlay extends Overlay {
             icon.parts.forEach(part -> parts.add(iconId(part)));
             return String.join("</br>", parts);
         }
-        String kind = icon.kind.name().startsWith("NPC") ? "NPC" : icon.kind.name().charAt(0) + icon.kind.name().substring(1).toLowerCase(Locale.ROOT);
-        return kind + ": Id " + icon.id;
+        return icon.kind.title + ": Id " + icon.id;
     }
 
     private void showNotice(Graphics2D graphics) {
