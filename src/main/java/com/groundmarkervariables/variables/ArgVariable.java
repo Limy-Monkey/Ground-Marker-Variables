@@ -56,7 +56,7 @@ public class ArgVariable implements LabelVariable {
     // arg may be a comma-separated list, e.g. {hasItem salve, blowpipe}, each part suggested as arg is (after suggest()).
     public ArgVariable listed() {
         pattern = Pattern.compile("\\{" + name + "\\s+([^{}?:<>=!]+?)\\s*\\}", Pattern.CASE_INSENSITIVE);
-        args.extras(main -> args.mainNames(), args::mainIcon);
+        args.extras(args::mainNames, args::mainIcon);
         return this;
     }
 

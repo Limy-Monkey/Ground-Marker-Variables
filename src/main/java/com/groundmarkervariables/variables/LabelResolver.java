@@ -27,8 +27,8 @@ import javax.inject.Inject;
 // change. BooleanVariable and ConditionalVariable are listed separately since they depend on
 // that same registry via ConditionEvaluator (see VariableRegistry's comment for why).
 //
-// MetronomeLabelVariable is listed separately too, deliberately LAST (after conditional)
-// Per Plugin Hub review, metronomes inside of conditionals are too risky for abuse.
+// TileMetaGuard keeps meta variables and metronomes out of branches. Metronome is resolved only after it (resolveMarker),
+// never passed to conditionals or booleans, so it can't be in a condition.
 public class LabelResolver {
     private static final Pattern HAS_VARIABLE = Pattern.compile(".*\\{.*\\}.*", Pattern.DOTALL);
     private static final Pattern PARTY_START = Pattern.compile("\\{([\\^&*])?party(?=[\\s}])", Pattern.CASE_INSENSITIVE);
@@ -85,7 +85,18 @@ public class LabelResolver {
     }
 
     public String resolveMarker(PreparedLabel prepared) {
-        return prepared.getGuarded() == null ? null : TileMetaGuard.restore(resolve(prepared.getGuarded()), prepared.getTileMeta());
+        return prepared.getGuarded() == null ? null : metronomes(TileMetaGuard.restore(resolve(prepared.getGuarded()), prepared.getTileMeta()));
+    }
+
+    // The metronomes TileMetaGuard kept, by its own pattern (no ^/&/* prefix, which it wouldn't have kept).
+    private String metronomes(String text) {
+        Matcher matcher = metronome.pattern().matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            String value = metronome.resolvePlain(matcher);
+            matcher.appendReplacement(out, Matcher.quoteReplacement(value == null ? "" : value));
+        }
+        return matcher.appendTail(out).toString();
     }
 
     // The work before resolving that depends only on the label, so a marker can keep it.
@@ -133,9 +144,6 @@ public class LabelResolver {
         for (LabelVariable variable : baseVariables) {
             resolved = applyWithMode(variable, resolved);
         }
-
-        // Metronome stays last, same as today — see the class comment on why.
-        resolved = applyWithMode(metronome, resolved);
 
         return TileMetaGuard.putBack(resolved, parties, PLACEHOLDER_START, PLACEHOLDER_END);
     }

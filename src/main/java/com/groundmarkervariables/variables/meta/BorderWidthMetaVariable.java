@@ -1,13 +1,14 @@
 package com.groundmarkervariables.variables.meta;
 
+import com.groundmarkervariables.variables.Args;
+import java.util.List;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 // {borderWidth=<width>} -- this tile's own outline width, same units as the Border width config,
 // capped at MAX_WIDTH.
 public class BorderWidthMetaVariable implements MetaVariable {
-    static final Pattern PATTERN = Pattern.compile("\\{borderWidth=(\\d+(?:\\.\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
+    static final Args ARGS = Args.of("borderWidth=").joined(VALUE).main(List::of, Args.NO_ICON);
     private static final float MAX_WIDTH = 10f;
 
     @Inject
@@ -15,12 +16,12 @@ public class BorderWidthMetaVariable implements MetaVariable {
     }
 
     @Override
-    public Pattern pattern() {
-        return PATTERN;
+    public Args args() {
+        return ARGS;
     }
 
     @Override
     public void apply(Matcher matcher, MetaState state) {
-        state.setBorderWidth(Math.min(MAX_WIDTH, Float.parseFloat(matcher.group(1))));
+        state.setBorderWidth(Math.max(0, Math.min(MAX_WIDTH, Float.parseFloat(ARGS.main(matcher)))));
     }
 }

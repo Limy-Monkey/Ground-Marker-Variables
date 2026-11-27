@@ -9,12 +9,27 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.groundmarkervariables.variables.label.ConditionalVariable;
+import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 
-// {tileCol}, {highlight} and {borderWidth} only apply written literally, outside any token but a condition on
-// {group} alone. protect() hides those before resolving; restore() removes all others, then puts them back.
+// {tileCol}, {highlight}, {borderWidth}, {metronome}
+//
+// A marker's label goes through three steps:
+// 1. protect() (LabelResolver#prepareMarker)
+//     - Find all protected variables (listed above).
+//     - Loop outwards through all containing variables { }
+//     - Check if conditions are based on {group}, replace protected variable with placeholder
+// 2. LabelResolver#resolve:
+//     - Processes conditions and variables, using those placeholders
+// 3. restore() (LabelResolver#resolveMarker):
+//     - Look through resolved text
+//     - Find placeholders from step 1
+//     - Only run protected variable code on placeholders that made it through
+//
+// These steps of course block the basic "{cond ? {tileCol}}"
+// It also blocks more complex "{metronome{lvl_attack}}" obfuscation attempts
 public final class TileMetaGuard {
-    private static final List<Pattern> TILE_META = List.of(TileColMetaVariable.PATTERN, HighlightMetaVariable.PATTERN,
-        BorderWidthMetaVariable.PATTERN);
+    private static final List<Pattern> TILE_META = List.of(TileColMetaVariable.ARGS.pattern(), HighlightMetaVariable.ARGS.pattern(),
+        BorderWidthMetaVariable.ARGS.pattern(), MetronomeLabelVariable.ARGS.pattern());
     private static final char PLACEHOLDER_START = '';
     private static final char PLACEHOLDER_END = '';
     private static final Pattern COMPARISON = Pattern.compile("(.+?)\\s*(==|!=|<=|>=|<|>)\\s*(.*)");

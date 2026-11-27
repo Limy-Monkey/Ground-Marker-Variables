@@ -1,10 +1,11 @@
 package com.groundmarkervariables.variables.meta;
 
+import com.groundmarkervariables.variables.Args;
 import java.awt.Color;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
@@ -15,22 +16,24 @@ import net.runelite.client.util.ColorUtil;
 // {highlight<corner>} / {highlight<corner>=<col>} -- SW/NW/NE/SE, or Corners/All for all four.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class HighlightMetaVariable implements MetaVariable {
-    static final Pattern PATTERN = Pattern.compile(
-        "\\{highlight(SW|NW|NE|SE|Corners|All)(?:=(" + String.join("|", NamedColors.HEX_BY_NAME.keySet())
-            + "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + "))?\\}",
-        Pattern.CASE_INSENSITIVE);
+    // Its corner, then any =<col>: corners suggested, then colors once "<corner>=" is typed.
+    static final Args ARGS = Args.of("highlight").joined(VALUE).mainTyped(typed -> typed.contains("=")
+            ? NamedColors.SUGGESTED.stream().map(color -> typed.substring(0, typed.indexOf('=') + 1) + color).collect(Collectors.toList())
+            : List.of("SW", "NW", "NE", "SE", "Corners", "All"),
+        value -> value.contains("=") ? Args.COLOR_ICON.apply(value.substring(value.indexOf('=') + 1)) : null);
 
     private final GroundMarkerVariablesConfig config;
 
     @Override
-    public Pattern pattern() {
-        return PATTERN;
+    public Args args() {
+        return ARGS;
     }
 
     @Override
     public void apply(Matcher matcher, MetaState state) {
-        Color color = resolveColor(matcher.group(2));
-        for (HighlightCorner corner : corners(matcher.group(1))) {
+        String[] value = ARGS.main(matcher).split("=", 2);
+        Color color = resolveColor(value.length > 1 ? value[1] : null);
+        for (HighlightCorner corner : corners(value[0])) {
             state.setHighlight(corner, color);
         }
     }

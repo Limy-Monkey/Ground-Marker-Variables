@@ -15,12 +15,9 @@ import lombok.RequiredArgsConstructor;
 // leaves combined with && / ||, with parens overriding the usual && before || precedence.
 // Branches may contain {...} tokens nested to any depth, including conditionals, e.g.
 // {a ? {b ? X : Y} : Z}. Base variables in the winning branch resolve in LabelResolver's later
-// passes; metronome is neutralized here, a metavariable left for MetaVariableResolver.
+// passes; a metronome there is removed by TileMetaGuard.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class ConditionalVariable implements LabelVariable {
-    private static final String METRONOME_TOKEN =
-        "(?i:\\{(?:metronome|m)[+-]?\\d+(?:_\\d+)?\\})";
-    private static final Pattern METRONOME_TOKEN_PATTERN = Pattern.compile(METRONOME_TOKEN);
     private static final String NESTED_TOKEN = "\\{[^{}]*\\}";
 
     private static final Pattern LEAF = Pattern.compile("([^{}]+?)\\s*(?:(==|!=|<=|>=|<|>)\\s*([^{}]+?)\\s*)?");
@@ -93,8 +90,8 @@ public class ConditionalVariable implements LabelVariable {
         int colon = colon(inner, question + 1);
         String whenTrue = colon < 0 ? inner.substring(question + 1) : inner.substring(question + 1, colon);
         String whenFalse = colon < 0 ? "" : inner.substring(colon + 1);
-        String winner = METRONOME_TOKEN_PATTERN.matcher((result ? whenTrue : whenFalse).trim()).replaceAll("ILLEGAL");
-        return resolveAll(winner);
+        // A metronome in it stays a token, which TileMetaGuard removes.
+        return resolveAll((result ? whenTrue : whenFalse).trim());
     }
 
     public static int matchingBrace(String text, int open) {

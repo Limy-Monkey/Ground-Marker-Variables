@@ -1,9 +1,11 @@
 package com.groundmarkervariables.variables.meta;
 
 import java.awt.Color;
+import com.groundmarkervariables.variables.Args;
 import java.util.Locale;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import com.groundmarkervariables.variables.support.NamedColors;
@@ -12,23 +14,21 @@ import com.groundmarkervariables.variables.support.NamedColors;
 // with a leading alpha byte (AARRGGBB), "N%", or an opacity name (invis/opaque/solid) to keep
 // the tile's own color at that opacity.
 public class TileColMetaVariable implements MetaVariable {
-    static final Pattern PATTERN = Pattern.compile(
-        "\\{tileCol=(\\d{1,3}%|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}|"
-            + String.join("|", NamedColors.HEX_BY_NAME.keySet()) + "|" + String.join("|", NamedColors.OPACITY_BY_NAME.keySet()) + ")\\}",
-        Pattern.CASE_INSENSITIVE);
+    static final Args ARGS = Args.of("tileCol=").joined(VALUE)
+        .main(() -> Stream.concat(NamedColors.OPACITY_BY_NAME.keySet().stream(), NamedColors.SUGGESTED.stream()).collect(Collectors.toList()), Args.COLOR_ICON);
 
     @Inject
     private TileColMetaVariable() {
     }
 
     @Override
-    public Pattern pattern() {
-        return PATTERN;
+    public Args args() {
+        return ARGS;
     }
 
     @Override
     public void apply(Matcher matcher, MetaState state) {
-        String value = matcher.group(1);
+        String value = ARGS.main(matcher);
         Integer opacityName = NamedColors.OPACITY_BY_NAME.get(value.toLowerCase(Locale.ROOT));
         if (opacityName != null) {
             state.setTileOpacity(opacityName / 100f);

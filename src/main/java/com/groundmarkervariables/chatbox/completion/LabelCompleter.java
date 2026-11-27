@@ -8,6 +8,7 @@ import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.LabelVariable;
 import com.groundmarkervariables.variables.NumericVariableRegistry;
+import com.groundmarkervariables.variables.label.MetronomeLabelVariable;
 import com.groundmarkervariables.variables.meta.SimpleMetaVariables;
 import com.groundmarkervariables.variables.support.Emojis;
 import com.groundmarkervariables.variables.support.IconNames;
@@ -65,8 +66,6 @@ public class LabelCompleter {
     // {metronomeN[_M]} (or {mN}): the parameter, from recent/nearby usage. "m" only once a digit or +/- follows, so
     // "{mis..." still completes to miscellania.
     private static final Pattern METRONOME_NAME = Pattern.compile("(?i)(?:metronome|m(?=[\\d+-]))(.*)");
-    private static final Pattern METRONOME_TOKEN = Pattern.compile("\\{(?:metronome|m)([+-]?\\d+(?:_\\d+)?)\\}", Pattern.CASE_INSENSITIVE);
-    private static final Pattern METRONOME_PARAM = Pattern.compile("[+-]?\\d+(_\\d+)?");
     private static final String DEFAULT_METRONOME = "4";
 
     // {col=}'s hex values from recent/nearby <col=> usage.
@@ -584,7 +583,7 @@ public class LabelCompleter {
                 name -> args.valueIcon(word, name));
         }
 
-        Set<String> names = new LinkedHashSet<>(args.mainNames());
+        Set<String> names = new LinkedHashSet<>(args.mainNames(partial));
         int split = Math.max(partial.lastIndexOf(','), partial.lastIndexOf(' '));
         String before = partial.substring(0, split + 1);
         String head = args.hasMain() ? args.withoutTrailingOptions(before) : "";
@@ -705,14 +704,14 @@ public class LabelCompleter {
         if (!partial.matches("[+-]?[\\d_]*")) {
             return null;
         }
-        String param = recent.firstValue(METRONOME_TOKEN, partial);
+        String param = recent.firstValue(MetronomeLabelVariable.ARGS.pattern(), partial);
         if (param != null) {
             return Completion.single(param, param.substring(partial.length()), null);
         }
         if (partial.isEmpty() || partial.equals("+") || partial.equals("-")) {
             return Completion.single(partial + DEFAULT_METRONOME, DEFAULT_METRONOME, null);
         }
-        return METRONOME_PARAM.matcher(partial).matches() ? Completion.closer("}") : null;
+        return partial.matches(MetronomeLabelVariable.PARAM) ? Completion.closer("}") : null;
     }
 
     private static int lastMatchEnd(Pattern pattern, String text) {

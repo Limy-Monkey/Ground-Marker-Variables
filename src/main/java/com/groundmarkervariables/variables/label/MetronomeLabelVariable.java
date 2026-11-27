@@ -3,7 +3,9 @@ package com.groundmarkervariables.variables.label;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.party.PartyDataSharing;
 import com.groundmarkervariables.party.PartyValue;
+import com.groundmarkervariables.variables.Args;
 import com.groundmarkervariables.variables.LabelVariable;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -25,9 +27,10 @@ import net.runelite.client.util.ColorUtil;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MetronomeLabelVariable implements LabelVariable {
-    // Optional +/- before N forces counting up/down, over both config and party sync.
-    private static final Pattern PATTERN = Pattern.compile(
-        "\\{(?:metronome|m)([+-]?)(\\d+)(?:_(\\d+))?\\}", Pattern.CASE_INSENSITIVE);
+    // Its parameter, [+-]N[_M]: an optional +/- before N forces counting up/down, over both config and party sync.
+    public static final String PARAM = "[+-]?\\d+(?:_\\d+)?";
+    // Not its args(): LabelCompleter suggests the parameter from recent usage.
+    public static final Args ARGS = Args.of("metronome").alias("m").joined(PARAM).main(List::of, Args.NO_ICON);
 
     private final Client client;
     private final GroundMarkerVariablesConfig config;
@@ -72,22 +75,24 @@ public class MetronomeLabelVariable implements LabelVariable {
 
     @Override
     public Pattern pattern() {
-        return PATTERN;
+        return ARGS.pattern();
     }
 
     @Override
     public String resolvePlain(Matcher matcher) {
-        int max = parseGroup(matcher, 2, -1);
+        String param = ARGS.main(matcher);
+        String direction = param.startsWith("+") || param.startsWith("-") ? param.substring(0, 1) : "";
+        String[] parts = param.substring(direction.length()).split("_");
+        int max = parse(parts[0]);
         if (max <= 0) {
             return null;
         }
 
-        int ticksPerStep = matcher.group(3) == null ? 1 : parseGroup(matcher, 3, -1);
+        int ticksPerStep = parts.length > 1 ? parse(parts[1]) : 1;
         if (ticksPerStep <= 0) {
             return null;
         }
 
-        String direction = matcher.group(1);
         String syncedCountDown = synced(PartyValue.METRONOME_COUNT_DOWN);
         boolean countDown = !direction.isEmpty() ? direction.equals("-")
             : syncedCountDown != null ? Boolean.parseBoolean(syncedCountDown) : config.countDown();
@@ -110,12 +115,12 @@ public class MetronomeLabelVariable implements LabelVariable {
     }
 
     // \d+ has no upper bound on digit count, so a marker like {metronome99999999999} can
-    // overflow int; fall back to a value the caller treats as invalid rather than crashing.
-    private static int parseGroup(Matcher matcher, int group, int onOverflow) {
+    // overflow int; -1 then, which the caller treats as invalid rather than crashing.
+    private static int parse(String digits) {
         try {
-            return Integer.parseInt(matcher.group(group));
+            return Integer.parseInt(digits);
         } catch (NumberFormatException e) {
-            return onOverflow;
+            return -1;
         }
     }
 }

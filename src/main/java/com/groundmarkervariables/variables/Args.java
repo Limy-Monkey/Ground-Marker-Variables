@@ -55,12 +55,14 @@ public final class Args {
     private final List<String> aliases = new ArrayList<>();
     private String catalogName;
     @Nullable
-    private Supplier<Collection<String>> mainNames;
+    private Function<String, Collection<String>> mainNames;
     private Function<String, String> mainIcon = NO_ICON;
     // A main name's suggestion description; null for variables.json's.
     private Function<String, String> mainDescription = main -> null;
     private boolean mainOptional;
     private boolean joined;
+    // A joined main argument's regex.
+    private String joinedMain = "\\w+?";
     // By its word as typed, lowercase ("missing", "itemsperline=").
     private final Map<String, Option> options = new LinkedHashMap<>();
     // Groups of lowercase words of which only one is suggested.
@@ -140,6 +142,11 @@ public final class Args {
 
     // A required main argument, suggested from names, each with icon's syntax.
     public Args main(Supplier<Collection<String>> names, Function<String, String> icon) {
+        return mainTyped(typed -> names.get(), icon);
+    }
+
+    // As main, suggested by what's typed of it, e.g. {highlightSW=} then colors.
+    public Args mainTyped(Function<String, Collection<String>> names, Function<String, String> icon) {
         mainNames = names;
         mainIcon = icon;
         return build();
@@ -155,6 +162,12 @@ public final class Args {
     public Args joined() {
         joined = true;
         return build();
+    }
+
+    // Joined, as main matches, e.g. {tileCol=50%} with "[^{}\\s]+?"; a value it can't use is then the token's to drop.
+    public Args joined(String main) {
+        joinedMain = main;
+        return joined();
     }
 
     public boolean isJoined() {
@@ -256,8 +269,8 @@ public final class Args {
         return pattern;
     }
 
-    public Collection<String> mainNames() {
-        return mainNames == null ? List.of() : mainNames.get();
+    public Collection<String> mainNames(String typed) {
+        return mainNames == null ? List.of() : mainNames.apply(typed);
     }
 
     @Nullable
@@ -381,7 +394,7 @@ public final class Args {
         // One option: after a comma (or an extra), or a space.
         String item = "(?:\\s*,\\s*" + afterComma + "|\\s+" + option + ")";
         String rest = "((?:" + item + ")*)";
-        String main = mainNames == null ? rest : (joined ? "(\\w+?)" : "\\s+(" + TEXT + ")") + rest;
+        String main = mainNames == null ? rest : (joined ? "(" + joinedMain + ")" :"\\s+(" + TEXT + ")") + rest;
         String names = names().stream().map(Pattern::quote).collect(Collectors.joining("|"));
         pattern = Pattern.compile("\\{(?:" + names + ")" + (mainOptional ? "(?:" + main + ")?" : main) + "[\\s,]*\\}", Pattern.CASE_INSENSITIVE);
         trailingOptions = Pattern.compile("(?:" + item + ")*[\\s,]*$", Pattern.CASE_INSENSITIVE);
