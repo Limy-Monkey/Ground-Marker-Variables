@@ -38,6 +38,7 @@ public class VariableRegistry {
             LogLabelVariable.class,
             ChargesLabelVariable.class,
             RankLabelVariable.class,
+            FarmingLabelVariable.class,
             PartyLabelVariable.class,
             ReadyCheckLabelVariable.class,
             DivineLabelVariable.class,

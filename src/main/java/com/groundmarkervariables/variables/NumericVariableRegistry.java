@@ -15,7 +15,7 @@ public class NumericVariableRegistry {
     // LabelCompleter's autocomplete name/prefix for each variable above.
     public static final Set<String> NAMES = Set.of(
         "kc", "loot", "lootSession", "log", "lvl_", "boost_", "xpRate_", "runEnergy", "spec", "questPoints", "slayerPoints", "slayerStreak", "miscellania", "weekday",
-        "combatAchievement", "numItem", "numDoses", "charges", "partyNum", "party", "invSpace", "xp_", "price"
+        "combatAchievement", "numItem", "numDoses", "charges", "partyNum", "party", "invSpace", "xp_", "price", "farming"
     );
 
     private final List<LabelVariable> variables;
@@ -30,7 +30,8 @@ public class NumericVariableRegistry {
             LootLabelVariable.LootSession.class,
             LogLabelVariable.class,
             ChargesLabelVariable.class,
-            PartyLabelVariable.class)) {
+            PartyLabelVariable.class,
+            FarmingLabelVariable.class)) {
             variables.add(injector.getInstance(type));
         }
         this.variables = List.copyOf(variables);
