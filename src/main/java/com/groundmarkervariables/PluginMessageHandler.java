@@ -245,7 +245,7 @@ public class PluginMessageHandler {
         }
         clientThread.invoke(() -> {
             // A tile the open chatbox has pinned on the world map: searched there at once, as clicking its pin does.
-            WorldPoint tile = SearchableChatbox.tileWord(((String) query).trim());
+            WorldPoint tile = SearchableChatbox.tileWord(SearchableChatbox.normalized(((String) query).trim()));
             if (tile != null && open instanceof SearchableChatbox && mapPins.isPinned(tile)) {
                 ((SearchableChatbox) open).pinClicked(tile);
                 return;

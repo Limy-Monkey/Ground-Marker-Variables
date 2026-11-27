@@ -8,6 +8,7 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +58,11 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
     static final int TOP_BAR_GAP = 8;
     // The recycling bin's :recycle@white: (see recycleBinButton), and a deleted thing's crossed check box there.
     private static final String RECYCLE = "267b@ffffff";
+    // Other tile forms: x,y,plane; WorldPoint(x=.., y=.., plane=..) or x:..,y:..; plane_regionX_regionY_x_y (::tele).
+    private static final Pattern XYZ = Pattern.compile("(?<![\\w,@])@?\\(?(\\d{1,5})\\s*,\\s*(\\d{1,5})\\s*,\\s*([0-3])\\)?(?![\\w,])");
+    private static final Pattern NAMED = Pattern.compile(
+        "(?i)(?:WorldPoint)?\\(?x\\s*[=:]\\s*(\\d{1,5})\\s*[,|]\\s*y\\s*[=:]\\s*(\\d{1,5})(?:\\s*[,|]\\s*(?:plane|z)\\s*[=:]\\s*([0-3]))?\\)?");
+    private static final Pattern GRID = Pattern.compile("(?<![\\w,@])([0-3])[_,](\\d{1,3})[_,](\\d{1,3})[_,](\\d{1,2})[_,](\\d{1,2})(?![\\w,])");
     private static final int RECYCLE_SIZE = 14;
     private static final int RECYCLED_CHECKBOX = SpriteID.OptionsRadioButtons.CROSS_RED_HOVER;
     private static final int COLUMN_GAP = 6;
@@ -236,6 +243,39 @@ public abstract class SearchableChatbox extends ChatboxInput implements KeyListe
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    // query with the other ways a tile is written (see XYZ, NAMED, GRID) made @x,y,plane words.
+    public static String normalized(String query) {
+        String found = GRID.matcher(query).replaceAll(grid -> tileSearch(new WorldPoint(
+            Integer.parseInt(grid.group(2)) * 64 + Integer.parseInt(grid.group(4)),
+            Integer.parseInt(grid.group(3)) * 64 + Integer.parseInt(grid.group(5)), Integer.parseInt(grid.group(1)))));
+        found = NAMED.matcher(found).replaceAll(named -> "@" + named.group(1) + "," + named.group(2) + ","
+            + (named.group(3) == null ? "0" : named.group(3)));
+        return XYZ.matcher(found).replaceAll("@$1,$2,$3");
+    }
+
+    // How tiles answer a (normalized) search word: an @x,y,plane word, whether it's one of them (true while still being
+    // typed); a bare number, true if it's one of their region ids or one of them packed (see packed), else null, as for
+    // any other word: searched as text.
+    @Nullable
+    public static Boolean tileMatch(String word, Collection<WorldPoint> tiles) {
+        if (word.startsWith("@")) {
+            WorldPoint tile = tileWord(word);
+            return tile == null || tiles.contains(tile);
+        }
+        if (!word.matches("-?\\d{1,10}")) {
+            return null;
+        }
+        long number = Long.parseLong(word);
+        List<WorldPoint> packed = packed(number);
+        return tiles.stream().anyMatch(tile -> tile.getRegionID() == number || packed.contains(tile)) ? true : null;
+    }
+
+    // The tiles a number may be, packed either common way: the game's coord (WorldPoint#fromCoord) or x | y << 15 | plane << 30.
+    public static List<WorldPoint> packed(long number) {
+        int bits = (int) number;
+        return List.of(WorldPoint.fromCoord(bits), new WorldPoint(bits & 0x7FFF, bits >> 15 & 0x7FFF, bits >>> 30));
     }
 
     protected void search(UnaryOperator<String> change) {

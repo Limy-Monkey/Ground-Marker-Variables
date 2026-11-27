@@ -269,11 +269,13 @@ public class MarkerSetManager extends SearchableChatbox {
             if (onPick != null && set.kind != MarkerSet.Kind.OWN) {
                 continue;
             }
-            boolean setMatches = matches(set.title) || matches(set.author) || matches(set.kind.title);
+            // A tile word only matches entries (see matches).
+            boolean setMatches = matches(set.title, List.of()) || matches(set.author, List.of()) || matches(set.kind.title, List.of());
             List<MarkerSet.Entry> entries = new ArrayList<>();
             for (MarkerSet.Entry entry : set.entries) {
                 // Its words may be split between the set's title and the entry's, e.g. "tob lobby".
-                if (setMatches || matches(set.title + "\n" + entry.name())) {
+                if (setMatches || matches(set.title + "\n" + entry.name(),
+                    entry.tiles.stream().map(GroundMarkerPointData::worldPoint).collect(Collectors.toList()))) {
                     entries.add(entry);
                 }
             }
@@ -288,8 +290,18 @@ public class MarkerSetManager extends SearchableChatbox {
         return rows;
     }
 
-    private boolean matches(String text) {
-        return ChatboxWidgets.hasWords(text, query);
+    // text holds the search's words, but tile words, which tiles must match (see tileMatch).
+    private boolean matches(String text, List<WorldPoint> tiles) {
+        StringBuilder words = new StringBuilder();
+        for (String word : normalized(query).split(" ")) {
+            Boolean tile = tileMatch(word, tiles);
+            if (tile == null) {
+                words.append(word).append(' ');
+            } else if (!tile) {
+                return false;
+            }
+        }
+        return ChatboxWidgets.hasWords(text, words.toString().trim());
     }
 
     @Override

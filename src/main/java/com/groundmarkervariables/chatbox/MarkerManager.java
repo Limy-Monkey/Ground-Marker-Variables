@@ -758,18 +758,17 @@ public class MarkerManager extends SearchableChatbox {
         return visibleEntries().stream().filter(entry -> entry.inSet == set).collect(Collectors.toList());
     }
 
-    // Passes the { } filter and the search (other sets' rows only while searching): each @x,y,plane word is one of its tiles,
-    // each *<info> / !<info> word (INFO_SEARCH, or a unique start) is yes / no for all its tiles, and its area, label, map,
-    // color, set and entry names hold the other words.
+    // Passes the { } filter and the search: tile words (see tileMatch), *<info> / !<info> words, then its text.
     private boolean shown(Entry entry) {
         if (variablesOnly && !hasVariable(entry) || entry.inSet != set && query.isBlank()) {
             return false;
         }
+        List<WorldPoint> tiles = entry.points.stream().map(GroundMarkerPointData::worldPoint).collect(Collectors.toList());
         StringBuilder words = new StringBuilder();
-        for (String word : query.split(" ")) {
-            if (word.startsWith("@")) {
-                WorldPoint tile = tileWord(word);
-                if (tile != null && entry.points.stream().noneMatch(point -> point.worldPoint().equals(tile))) {
+        for (String word : normalized(query).split(" ")) {
+            Boolean tile = tileMatch(word, tiles);
+            if (tile != null) {
+                if (!tile) {
                     return false;
                 }
                 continue;
@@ -829,13 +828,15 @@ public class MarkerManager extends SearchableChatbox {
         return Map.entry(INFO_HEADINGS[column], !map.isEmpty() ? map : (yes ? "*" : "!") + INFO_SEARCH[info]);
     }
 
-    // The search's @x,y,plane tiles.
+    // The search's tiles, written as tiles or packed (see packed).
     private Set<WorldPoint> searchedTiles() {
         Set<WorldPoint> tiles = new HashSet<>();
-        for (String word : query.split(" ")) {
+        for (String word : normalized(query).split(" ")) {
             WorldPoint tile = tileWord(word);
             if (tile != null) {
                 tiles.add(tile);
+            } else if (word.matches("-?\\d{6,10}")) {
+                tiles.addAll(packed(Long.parseLong(word)));
             }
         }
         return tiles;
