@@ -662,12 +662,13 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
             label -> saveExpandedLabel(worldPoint, label), importPreviewManager::clear);
     }
 
-    // The Advanced Label Editor on label (recommending labels near worldPoint), its icon IDs shown by name as typed; save
-    // gets the new label with them turned back into IDs, on the client thread. Also Marker Sets' Edit.
+    // The Advanced Label Editor on label (recommending labels near worldPoint), its icon IDs shown by name as typed, as are
+    // the Recent and Nearby ones; save gets the new label with them turned back into IDs, on the client thread. Also Marker
+    // Sets' Edit.
     public void editLabel(WorldPoint worldPoint, @Nullable String label, @Nullable Color color, Consumer<String> save, Runnable onClose) {
         String currentLabel = iconNames.collapse(label != null ? label : "");
         advancedLabelEditorProvider.get()
-            .recommendations(currentLabel, getRecentLabels(), findNearbyLabels(worldPoint), this::removeRecentLabel,
+            .recommendations(currentLabel, collapsed(getRecentLabels()), collapsed(findNearbyLabels(worldPoint)), this::removeRecentLabel,
                 color != null ? color : config.markerColor())
             .prompt("Tile label")
             .value(currentLabel)
@@ -734,9 +735,15 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
     }
 
+    // labels with icon IDs shown by name, each once.
+    private List<String> collapsed(List<String> labels) {
+        return labels.stream().map(iconNames::collapse).distinct().collect(Collectors.toList());
+    }
+
+    // label as the editor shows it (see collapsed): every saved one shown that way.
     private void removeRecentLabel(String label) {
         List<String> recent = new ArrayList<>(getRecentLabels());
-        recent.remove(label);
+        recent.removeIf(saved -> iconNames.collapse(saved).equals(label));
         configManager.setConfiguration(GroundMarkerVariablesConfig.GROUP, RECENT_LABELS_KEY, gson.toJson(recent));
     }
 
