@@ -85,9 +85,9 @@ public final class MarkerSet {
         @Nullable
         public final String shared;
 
-        // Its raw file's link (the set's text, which Import also takes).
+        // Its gist's page, which Import also takes.
         public String link() {
-            return "https://gist.githubusercontent.com/" + owner + "/" + id + "/raw";
+            return "https://gist.github.com/" + owner + "/" + id;
         }
     }
 

@@ -1,6 +1,7 @@
 package com.groundmarkervariables.markers;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.groundmarkervariables.variables.support.LatestData;
@@ -40,6 +41,9 @@ public class Gists {
     // The OAuth app's, with device flow on (not a secret).
     private static final String CLIENT_ID = "Ov23liplHyPXKKvrbnDE";
     private static final String API = "https://api.github.com/";
+    // Someone's gists are listed newest first, PAGE_SIZE (the most) an API call, up to PAGES calls.
+    private static final int PAGE_SIZE = 100;
+    private static final int PAGES = 3;
     // A link alone: the gist's id (current ones hex, the oldest digits), anything after it ignored.
     private static final Pattern LINK = Pattern.compile(
         "(?i)(?:https?://)?(?:www\\.)?gist\\.github(?:usercontent)?\\.com/(?:[\\w-]+/)?([0-9a-f]{20,}|\\d+)(?:[/?#].*)?");
@@ -78,6 +82,23 @@ public class Gists {
         return link.matches() ? link.group(1) : null;
     }
 
+    // login as gmv-partners.json's "names" shows it ({"<login>": "<name>"}), else as it is.
+    public static String displayName(String login) {
+        return named("\"" + Pattern.quote(login) + "\"\\s*:\\s*\"([^\"]+)\"", login);
+    }
+
+    // The login shown as name (see displayName), else name, as typed into Browse.
+    public static String login(String name) {
+        return named("\"([^\"]+)\"\\s*:\\s*\"" + Pattern.quote(name) + "\"", name);
+    }
+
+    // The group a "names" entry matching entry has, any case; else fallback.
+    private static String named(String entry, String fallback) {
+        Matcher names = Pattern.compile("\"names\"\\s*:\\s*\\{([^}]*)}").matcher(LatestData.text("gmv-partners.json"));
+        Matcher found = names.find() ? Pattern.compile("(?i)" + entry).matcher(names.group(1)) : null;
+        return found != null && found.find() ? found.group(1) : fallback;
+    }
+
     // GMV partners' GitHub names in gmv-partners.json's list (partnersPage: the Partners page; othersMenu: Browse Others' Sets).
     public static List<String> partners(String list) {
         Matcher names = Pattern.compile("\"" + list + "\"\\s*:\\s*\\[([^\\]]*)]").matcher(LatestData.text("gmv-partners.json"));
@@ -99,14 +120,24 @@ public class Gists {
         });
     }
 
-    // The gists holding a set at an API path: someone's ("users/<name>/gists"), or one ("gists/<id>").
+    // The gists holding a set: someone's newest PAGES pages of PAGE_SIZE (owner), or one (gists/<id>).
     public List<MarkerSet.Gist> list(String path) throws IOException {
         List<MarkerSet.Gist> found = new ArrayList<>();
-        JsonElement listed = api("GET", path, null);
-        for (JsonElement gist : listed == null ? List.<JsonElement>of() : listed.isJsonArray() ? listed.getAsJsonArray() : List.of(listed)) {
-            MarkerSet.Gist set = gist(gist.getAsJsonObject());
-            if (set != null) {
-                found.add(set);
+        boolean owner = !path.startsWith("gists/");
+        for (int page = 1; page <= (owner ? PAGES : 1); page++) {
+            JsonElement listed = api("GET", owner ? "users/" + path + "/gists?per_page=" + PAGE_SIZE + "&page=" + page : path, null);
+            JsonArray gists = listed == null ? new JsonArray() : listed.isJsonArray() ? listed.getAsJsonArray() : new JsonArray();
+            if (listed != null && listed.isJsonObject()) {
+                gists.add(listed);
+            }
+            for (JsonElement gist : gists) {
+                MarkerSet.Gist set = gist(gist.getAsJsonObject());
+                if (set != null) {
+                    found.add(set);
+                }
+            }
+            if (gists.size() < PAGE_SIZE) {
+                break;
             }
         }
         return found;

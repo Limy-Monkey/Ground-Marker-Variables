@@ -759,18 +759,28 @@ public class MarkerSets implements TileSource {
     }
 
     // Each gist's set with its text, skipping any gone or not a set. Off the client thread.
-    public Map<MarkerSet, String> download(List<MarkerSet.Gist> listed) throws IOException {
+    // One that fails to load is skipped.
+    public Map<MarkerSet, String> download(List<MarkerSet.Gist> listed) {
         Map<MarkerSet, String> found = new LinkedHashMap<>();
         for (MarkerSet.Gist gist : listed) {
-            put(found, gist, gists.text(gist));
+            try {
+                put(found, gist, gists.text(gist));
+            } catch (IOException e) {
+                log.debug("Couldn't load {}", gist.id, e);
+            }
         }
         return found;
     }
 
+    // Skipping text that isn't a set, invalid JSON too.
     private void put(Map<MarkerSet, String> found, MarkerSet.Gist gist, @Nullable String text) {
-        MarkerSet set = text == null ? null : parse(text, MarkerSet.Kind.GIST, gist.id, gist.withHash(text.hashCode()).withGone(false));
-        if (set != null) {
-            found.put(set, text);
+        try {
+            MarkerSet set = text == null ? null : parse(text, MarkerSet.Kind.GIST, gist.id, gist.withHash(text.hashCode()).withGone(false));
+            if (set != null) {
+                found.put(set, text);
+            }
+        } catch (JsonParseException e) {
+            log.debug("{} isn't a marker set", gist.id, e);
         }
     }
 

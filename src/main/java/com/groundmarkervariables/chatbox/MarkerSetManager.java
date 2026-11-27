@@ -151,7 +151,7 @@ public class MarkerSetManager extends SearchableChatbox {
 
     // owner's (a GitHub name) published sets from GitHub; Sets in the crumbs goes back.
     public MarkerSetManager browse(String owner) {
-        return browse(owner, List.of(owner));
+        return browse(Gists.displayName(owner), List.of(owner));
     }
 
     // owners' published sets, titled title in the crumbs.
@@ -163,7 +163,7 @@ public class MarkerSetManager extends SearchableChatbox {
         gists.run(() -> {
             Map<MarkerSet, String> found = new LinkedHashMap<>();
             for (String owner : owners) {
-                found.putAll(markerSets.download(gists.list("users/" + owner + "/gists?per_page=100")));
+                found.putAll(markerSets.download(gists.list(owner)));
             }
             clientThread.invoke(() -> {
                 browsed = found;
@@ -235,7 +235,7 @@ public class MarkerSetManager extends SearchableChatbox {
         Map<String, Runnable> others = new LinkedHashMap<>();
         Set<String> authors = new LinkedHashSet<>(Gists.partners("othersMenu"));
         markerSets.sets().stream().filter(set -> set.kind == MarkerSet.Kind.GIST).forEach(set -> authors.add(set.gist.owner));
-        authors.forEach(name -> others.put(name, () -> browse(name)));
+        authors.forEach(name -> others.put(Gists.displayName(name), () -> browse(name)));
         others.put("Other...", this::askBrowse);
         addSubmenu(browseButton, browseActions, "Browse Others' Sets", others);
         addAction(browseButton, browseActions, login == null ? "Sign in to GitHub" : "Sign out of GitHub (" + login + ")", login == null ? this::signIn
@@ -410,10 +410,15 @@ public class MarkerSetManager extends SearchableChatbox {
             ChatboxWidgets.hover(label, 0x000000);
             return;
         }
-        Runnable copyLink = () -> clip(gist.link(), "The link to \"" + set.title + "\" was copied to your clipboard.");
+        // Link > Open / Copy: a browsed or subscribed set's, or yours once published.
+        Map<String, Runnable> link = new LinkedHashMap<>();
+        if (browsing != null || set.kind == MarkerSet.Kind.GIST || published) {
+            link.put("Open", () -> LinkBrowser.browse(gist.link()));
+            link.put("Copy", () -> clip(gist.link(), "The link to \"" + set.title + "\" was copied to your clipboard."));
+        }
         if (browsing != null) {
             addShowOnMap(label, actions, set, set.tiles(), cellArea(0, y));
-            addAction(label, actions, "Copy link", copyLink);
+            addSubmenu(label, actions, "Link", link);
             if (gist.owner.equalsIgnoreCase(gists.getLogin())) {
                 addAction(label, actions, "Unpublish", () -> unpublish(set));
             }
@@ -442,23 +447,20 @@ public class MarkerSetManager extends SearchableChatbox {
         manage.put("Copy", () -> copy(set));
         manage.put("Export", () -> exportTiles(set));
         manage.put("Clone", () -> cloneSet(set));
-        if (set.kind == MarkerSet.Kind.GIST) {
-            manage.put("Copy link", copyLink);
-        }
         if (onPick == null) {
             manage.put("Show tiles", () -> markerManagerProvider.get().show(set, ""));
         }
         addSubmenu(label, actions, "Manage", manage);
         addShowOnMap(label, actions, set, set.tiles(), cellArea(0, y));
+        addSubmenu(label, actions, "Link", link);
         if (set.kind == MarkerSet.Kind.GIST) {
             addAction(label, actions, "View author's other sets", () -> browse(gist.owner));
         }
-        // Yours: Publish to GitHub, or once published (see published()), Publish Updates, Copy Link and Unpublish.
+        // Yours: Publish to GitHub, or once published (see published()), Publish Updates and Unpublish.
         if (set.kind == MarkerSet.Kind.OWN && onPick == null) {
             Map<String, Runnable> publish = new LinkedHashMap<>();
             publish.put(published ? "Publish Updates" : "Publish to GitHub", () -> publish(set));
             if (published) {
-                publish.put("Copy Link", copyLink);
                 publish.put("Unpublish", () -> unpublish(set));
             }
             addSubmenu(label, actions, "Publish", publish);
@@ -562,7 +564,7 @@ public class MarkerSetManager extends SearchableChatbox {
 
     private void askBrowse() {
         askText("Whose Marker Sets? (their GitHub name)", "",
-            name -> chatboxPanelManager.openInput(name.strip().matches("[\\w-]+") ? browse(name.strip()) : this));
+            name -> chatboxPanelManager.openInput(name.strip().matches("[\\w-]+") ? browse(Gists.login(name.strip())) : this));
     }
 
     // Yours and published, on the GitHub account you're signed in to (or signed out). Published on another account, it's
