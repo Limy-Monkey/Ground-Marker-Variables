@@ -174,6 +174,10 @@ public final class Args {
         return joined;
     }
 
+    public boolean isMainOptional() {
+        return mainOptional;
+    }
+
     public Args flag(String... words) {
         for (String word : words) {
             flag(word, main -> true);
@@ -369,7 +373,12 @@ public final class Args {
     @Nullable
     public String main(Matcher matcher) {
         String main = mainNames == null ? null : matcher.group(1);
-        return main == null || main.trim().isEmpty() ? null : main.trim();
+        return main == null || main.trim().isEmpty() || optionMain(main) ? null : main.trim();
+    }
+
+    // An optional main argument that's one of its options, e.g. {farming countdown}: that option, not a main argument.
+    private boolean optionMain(String main) {
+        return mainOptional && optionOnly.matcher(main.trim()).matches();
     }
 
     // The skill the main argument names, e.g. {lvl_attack}; null if none.
@@ -380,7 +389,8 @@ public final class Args {
 
     public Options options(Matcher matcher) {
         String text = matcher.group(mainNames == null ? 1 : 2);
-        return new Options(text == null ? "" : text, token, optionOnly);
+        String main = mainNames == null ? null : matcher.group(1);
+        return new Options((main != null && optionMain(main) ? " " + main.trim() : "") + (text == null ? "" : text), token, optionOnly);
     }
 
     private void add(Option option) {

@@ -1,6 +1,7 @@
 package com.groundmarkervariables.variables.support;
 
 import com.google.gson.Gson;
+import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -20,6 +21,8 @@ import net.runelite.client.config.ConfigManager;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class FarmingPatches {
     private static final String GROUP = "timetracking";
+    // Our own key, per account, for when a patch finished (see predict).
+    private static final String FINISHED = "farmingDone.";
     // predict()'s for a patch with nothing growing.
     private static final long[] EMPTY = new long[0];
 
@@ -99,7 +102,7 @@ public class FarmingPatches {
     }
 
     // A patch as predicted now: when it's done (unix seconds; 0 if it already was when seen), its crop's item id, 2 if
-    // diseased or 3 if dead (else 0), and when it finished (or by when: when seen, if it already had); EMPTY if nothing
+    // diseased or 3 if dead (else 0), and when it finished (0 if unknown); EMPTY if nothing
     // grows; null if unknown.
     @Nullable
     private long[] predict(List<String> patch) {
@@ -114,8 +117,19 @@ public class FarmingPatches {
             }
             String[] tick = code.split("/");
             int rate = Integer.parseInt(tick[1]);
-            long at = rate == 0 ? 0 : tickTime(rate, Integer.parseInt(tick[0]), tickTime(rate, 0, seenAt));
-            return new long[]{at, Long.parseLong(tick[2]), tick.length < 4 ? 0 : tick[3].equals("D") ? 2 : 3, rate == 0 ? seenAt : at};
+            int left = Integer.parseInt(tick[0]);
+            // Seen done (no ticks left, whatever its tick rate): done now, when unknown.
+            boolean growing = rate > 0 && left > 0;
+            long at = growing ? tickTime(rate, left, tickTime(rate, 0, seenAt)) : 0;
+            // Growing, when it'll finish is saved, for once it's seen done: Time Tracking's time is then only when it was
+            // last seen (rewritten while loaded). Seen done without one, it's unknown (0: not recent).
+            String key = FINISHED + patch.get(3);
+            Long finished = configManager.getRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, key, long.class);
+            if (growing && !Long.valueOf(at).equals(finished)) {
+                configManager.setRSProfileConfiguration(GroundMarkerVariablesConfig.GROUP, key, at);
+            }
+            long finishedAt = growing ? at : finished != null && finished <= seenAt ? finished : 0;
+            return new long[]{at, Long.parseLong(tick[2]), tick.length < 4 ? 0 : tick[3].equals("D") ? 2 : 3, finishedAt};
         } catch (RuntimeException e) {
             return null;
         }

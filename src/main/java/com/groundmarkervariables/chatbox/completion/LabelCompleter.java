@@ -584,6 +584,10 @@ public class LabelCompleter {
         }
 
         Set<String> names = new LinkedHashSet<>(args.mainNames(partial));
+        // Without a main argument, its options are just as likely first.
+        if (args.isMainOptional()) {
+            names.addAll(args.unusedWords("", null));
+        }
         int split = Math.max(partial.lastIndexOf(','), partial.lastIndexOf(' '));
         String before = partial.substring(0, split + 1);
         String head = args.hasMain() ? args.withoutTrailingOptions(before) : "";
