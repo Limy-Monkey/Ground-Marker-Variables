@@ -52,13 +52,15 @@ public class FarmingPatches {
         return names;
     }
 
-    // When name's patches (a kind, or one farm's) are done, in unix seconds: the last of them, or with any the first, as
-    // Time Tracking's summary; -1 if none has anything growing; null if Time Tracking hasn't seen any. Then that patch's
-    // crop's item id, how many are diseased and dead, and (see patchName) one diseased and one dead.
+    // {when name's patches are done (any: the first; -1 none growing), crop (once done, the last to finish's), diseased,
+    // dead, a diseased one, a dead one (see patchName)}; null if Time Tracking hasn't seen any.
     @Nullable
     public long[] done(String name, boolean any) {
         long[] done = null;
         boolean growing = false;
+        long now = Instant.now().getEpochSecond();
+        long lastFinished = -1;
+        long lastCrop = 0;
         for (int index = 0; index < data().patches.size(); index++) {
             List<String> patch = data().patches.get(index);
             long[] predicted = name.equalsIgnoreCase(patch.get(2)) || name.equalsIgnoreCase(patch.get(0) + " " + patch.get(2)) ? predict(patch) : null;
@@ -75,8 +77,15 @@ public class FarmingPatches {
                     done[(int) predicted[2]]++;
                     done[(int) predicted[2] + 2] = index;
                 }
+                if (predicted[0] <= now && predicted[3] > lastFinished) {
+                    lastFinished = predicted[3];
+                    lastCrop = predicted[1];
+                }
                 growing = true;
             }
+        }
+        if (growing && done[0] <= now) {
+            done[1] = lastCrop;
         }
         return done;
     }
