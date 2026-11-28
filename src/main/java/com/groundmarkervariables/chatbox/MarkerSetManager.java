@@ -606,7 +606,7 @@ public class MarkerSetManager extends SearchableChatbox {
     private void upload(MarkerSet set, boolean secret) {
         String text = markerSets.export(set);
         gists.run(() -> {
-            MarkerSet.Gist gist = gists.save(published(set) ? set.gist : null, set.title, text, secret);
+            MarkerSet.Gist gist = gists.save(published(set) ? set.gist : null, set.title, set.description, text, secret);
             clientThread.invoke(() -> {
                 markerSets.setGist(set, gist.withSharedVersion(set.version).withShared(LocalDate.now().toString()));
                 clip(gist.link(), "\"" + set.title + "\" was shared on GitHub, and its link copied to your clipboard.");

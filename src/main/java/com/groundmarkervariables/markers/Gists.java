@@ -157,15 +157,19 @@ public class Gists {
             .addQueryParameter("t", String.valueOf(System.currentTimeMillis())).build()));
     }
 
-    // text as your gist: a new one (secret: by link only), or gist updated (GitHub can't change a gist's visibility). Returns
-    // where it is.
-    public MarkerSet.Gist save(@Nullable MarkerSet.Gist gist, String title, String text, boolean secret) throws IOException {
+    // text as your gist, "<title>.gmv.json" described as the set is: a new one (secret: by link only), or gist updated, its
+    // file renamed to a new title (GitHub can't change a gist's visibility). Returns where it is.
+    public MarkerSet.Gist save(@Nullable MarkerSet.Gist gist, String title, @Nullable String description, String text, boolean secret)
+        throws IOException {
         JsonObject content = new JsonObject();
         content.addProperty("content", text);
+        // Characters a file name can't have, as _.
+        String name = title.replaceAll("[\\\\/:*?\"<>|]", "_").strip();
+        content.addProperty("filename", (name.isEmpty() ? "marker-set" : name) + ".gmv.json");
         JsonObject files = new JsonObject();
-        files.add(gist == null ? "marker-set.gmv.json" : gist.file, content);
+        files.add(gist == null ? content.get("filename").getAsString() : gist.file, content);
         JsonObject body = new JsonObject();
-        body.addProperty("description", title + " - a Ground Marker Variables marker set");
+        body.addProperty("description", description == null ? "" : description);
         if (gist == null) {
             body.addProperty("public", !secret);
         }
