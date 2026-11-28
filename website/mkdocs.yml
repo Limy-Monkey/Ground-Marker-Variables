@@ -43,6 +43,7 @@ nav:
       - Variables: variables.md
       - Conditions & math: conditions.md
   - Symbols: symbols.md
+  - Convert old markers: convert.md
 
 markdown_extensions:
   - admonition
@@ -57,3 +58,4 @@ extra_css:
   - stylesheets/extra.css
 extra_javascript:
   - javascripts/symbols.js
+  - javascripts/convert.js

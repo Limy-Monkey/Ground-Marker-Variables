@@ -9,17 +9,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
 // Exports markers as core's JSON, but a label with variables goes in "gmv" (core ignores that field, so it still imports
-// the tile, without the label); reads those back, and older copies' compressed "gmv":"<version>~<compressed>" too.
+// the tile, without the label); reads those back.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class MarkerMinifier {
     private static final String FIELD = "gmv";
-    private static final Pattern GMV = Pattern.compile("(\\d+)~(.+)");
     // The characters JSON allows after a backslash.
     private static final String JSON_ESCAPES = "\"\\/bfnrtu";
 
@@ -59,8 +56,8 @@ public class MarkerMinifier {
     }
 
     // Throws JsonSyntaxException if text isn't an array of markers, IllegalArgumentException if a gmv
-    // label is damaged.
-    public List<GroundMarkerPointData> parse(String text) throws NewerFormatException {
+    // label is an older version's compressed one.
+    public List<GroundMarkerPointData> parse(String text) {
         JsonElement json = gson.fromJson(normalizeStrings(text), JsonElement.class);
         if (json == null || json.isJsonNull()) {
             return List.of();
@@ -114,15 +111,12 @@ public class MarkerMinifier {
         return out.toString();
     }
 
-    // A compressed label, or one written as itself (see exportGmvPlain), which a compressed one never is: it has a "{".
-    private static String label(String gmv) throws NewerFormatException {
-        if (gmv.contains("{")) {
-            return gmv;
+    // A label written as itself (see exportGmvPlain), which has a "{"; without one, it's an older version's compressed one,
+    // which the website's Convert old markers page turns back into text.
+    private static String label(String gmv) {
+        if (!gmv.contains("{")) {
+            throw new IllegalArgumentException("Compressed gmv label");
         }
-        Matcher matcher = GMV.matcher(gmv);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException("Damaged gmv label");
-        }
-        return MarkerCompression.decompress(GmvAlphabet.decode(matcher.group(2)), Integer.parseInt(matcher.group(1)));
+        return gmv;
     }
 }

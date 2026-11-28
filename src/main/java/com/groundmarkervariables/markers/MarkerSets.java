@@ -9,7 +9,6 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonSyntaxException;
 import com.groundmarkervariables.GroundMarkerVariablesConfig;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
-import com.groundmarkervariables.markers.minify.NewerFormatException;
 import com.groundmarkervariables.variables.LabelResolver;
 import com.groundmarkervariables.variables.meta.MetaVariableResolver;
 import com.groundmarkervariables.variables.support.RegionNames;
@@ -605,7 +604,7 @@ public class MarkerSets implements TileSource {
             return new MarkerSet(kind, id != null ? id : slug(author + " " + title), title, MarkerSet.description(string(json, "description")),author, version,
                 updated == null ? null : LocalDate.parse(updated), entries,
                 gist != null || id == null || !json.has("gist") ? gist : gson.fromJson(json.get("gist"), MarkerSet.Gist.class));
-        } catch (IllegalStateException | ClassCastException | NumberFormatException | DateTimeParseException | NewerFormatException e) {
+        } catch (IllegalStateException | ClassCastException | IllegalArgumentException | DateTimeParseException e) {
             throw new JsonSyntaxException(e);
         }
     }
@@ -618,7 +617,7 @@ public class MarkerSets implements TileSource {
     }
 
     // Its tiles by "entry", in order: a title, description and on/off from each entry's first tile, a group if it has several.
-    private List<MarkerSet.Entry> copiedEntries(String text, JsonArray array) throws NewerFormatException {
+    private List<MarkerSet.Entry> copiedEntries(String text, JsonArray array) {
         List<GroundMarkerPointData> tiles = markerMinifier.parse(text);
         Map<Integer, JsonObject> firsts = new LinkedHashMap<>();
         Map<Integer, List<GroundMarkerPointData>> byEntry = new HashMap<>();

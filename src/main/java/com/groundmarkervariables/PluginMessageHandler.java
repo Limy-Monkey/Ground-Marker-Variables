@@ -71,7 +71,7 @@ import net.runelite.client.util.Text;
 //   plugin    String  required  Your namespace, shown to users as the group's owner.
 //   group     String  required  Group name (case-sensitive). Any plugin may set or clear any group.
 //   priority  Number  optional  Default 0.5. See "Drawing" below.
-//   markers   String  required  JSON array, as our exports (gmv-compressed labels work too), at most 2000:
+//   markers   String  required  JSON array, as our exports, at most 2000:
 //                                [{"regionId":12850,"regionX":10,"regionY":20,"z":0,"color":"#FFFF0000","label":"{rsn}"}]
 //   reply     Map     optional  Filled in with the outcome.
 //

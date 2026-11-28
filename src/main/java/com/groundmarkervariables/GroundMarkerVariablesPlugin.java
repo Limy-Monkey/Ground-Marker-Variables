@@ -213,9 +213,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
     private GroundMarkerVariablesMinimapOverlay minimapOverlay;
 
     @Inject
-    private PartyNotificationOverlay partyNotificationOverlay;
-
-    @Inject
     private SuggestionIconOverlay suggestionIconOverlay;
 
     @Inject
@@ -232,9 +229,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
 
     @Inject
     private PartyDataSharing partyDataSharing;
-
-    @Inject
-    private GroundMarkerPartySharingManager groundMarkerPartySharingManager;
 
     @Inject
     private RecentLootTracker recentLootTracker;
@@ -315,11 +309,9 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         overlayManager.add(tileOverlay);
         overlayManager.add(labelOverlay);
         overlayManager.add(minimapOverlay);
-        overlayManager.add(partyNotificationOverlay);
         overlayManager.add(suggestionIconOverlay);
         keyManager.registerKeyListener(metronomeResetHotkeyListener);
         partyDataSharing.startUp(this);
-        groundMarkerPartySharingManager.startUp();
         recentLootTracker.startUp();
         miscellaniaTracker.startUp();
         readyCheckTracker.startUp();
@@ -359,7 +351,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
     @Override
     protected void shutDown() {
         partyDataSharing.shutDown();
-        groundMarkerPartySharingManager.shutDown();
         recentLootTracker.shutDown();
         miscellaniaTracker.shutDown();
         readyCheckTracker.shutDown();
@@ -376,7 +367,6 @@ public class GroundMarkerVariablesPlugin extends Plugin implements TileSource {
         overlayManager.remove(tileOverlay);
         overlayManager.remove(labelOverlay);
         overlayManager.remove(minimapOverlay);
-        overlayManager.remove(partyNotificationOverlay);
         overlayManager.remove(suggestionIconOverlay);
         suggestionIconOverlay.clear();
         sharingManager.removeMenuOptions();

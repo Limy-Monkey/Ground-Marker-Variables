@@ -12,7 +12,6 @@ import com.groundmarkervariables.markers.MarkerStorage;
 import com.groundmarkervariables.markers.MarkerSet;
 import com.groundmarkervariables.markers.MarkerSets;
 import com.groundmarkervariables.markers.minify.MarkerMinifier;
-import com.groundmarkervariables.markers.minify.NewerFormatException;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
@@ -47,6 +46,8 @@ import net.runelite.client.util.Text;
 @Slf4j
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public class GroundMarkerVariablesSharingManager {
+    // The website's page turning older versions' compressed copies back into text.
+    private static final String CONVERT_PAGE = "https://limy-monkey.github.io/Ground-Marker-Variables/convert/";
     private static final WidgetMenuOption EXPORT_MARKERS_OPTION = new WidgetMenuOption("Export", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
     private static final WidgetMenuOption IMPORT_MARKERS_OPTION = new WidgetMenuOption("Import", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
     private static final WidgetMenuOption CLEAR_MARKERS_OPTION = new WidgetMenuOption("Clear", "Ground Markers", InterfaceID.Orbs.WORLDMAP, InterfaceID.OrbsNomap.WORLDMAP);
@@ -79,7 +80,6 @@ public class GroundMarkerVariablesSharingManager {
         menuManager.removeManagedCustomMenu(CLEAR_MARKERS_OPTION);
     }
 
-    // Also used by GroundMarkerPartySharingManager's "Share to Party".
     public List<GroundMarkerPointData> activePoints() {
         int[] regions = client.getMapRegions();
         if (regions == null) {
@@ -147,12 +147,9 @@ public class GroundMarkerVariablesSharingManager {
             markers = set != null ? List.of() : markerMinifier.parse(text);
         } catch (JsonParseException e) {
             log.debug("Malformed JSON for clipboard import", e);
-        } catch (NewerFormatException e) {
-            sendChatMessage("These ground markers were exported by a newer version of Ground Marker Variables. Update the plugin to import them.");
-            return;
         } catch (IllegalArgumentException e) {
-            log.debug("Damaged gmv label in clipboard import", e);
-            sendChatMessage("The ground markers with variables in your clipboard are damaged and can't be imported.");
+            sendChatMessage("These ground markers were copied by an older version of Ground Marker Variables. Convert them at "
+                + CONVERT_PAGE + ", then import them.");
             return;
         }
 
@@ -265,7 +262,6 @@ public class GroundMarkerVariablesSharingManager {
         return candidates.stream().filter(point -> taken.add(point.worldPoint())).collect(Collectors.toList());
     }
 
-    // Also used by GroundMarkerPartySharingManager's own "Import ... from <user>".
     public void importGroundMarkers(Collection<GroundMarkerPointData> importPoints) {
         markerStorage.addPoints(importPoints);
         plugin.loadPoints();
