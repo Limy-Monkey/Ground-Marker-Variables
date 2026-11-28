@@ -1,5 +1,6 @@
 {
   "partnersPage": ["Limy-Monkey"],
   "othersMenu": ["Limy-Monkey"],
-  "names": {"Limy-Monkey": "LimyMonkey"}
+  "names": {"Limy-Monkey": "LimyMonkey"},
+  "blacklist": []
 }

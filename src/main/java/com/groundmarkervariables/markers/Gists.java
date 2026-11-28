@@ -99,6 +99,11 @@ public class Gists {
         return found != null && found.find() ? found.group(1) : fallback;
     }
 
+    // A login on gmv-partners.json's blacklist: as if it had nothing published (its subscriptions stop, as if deleted).
+    public static boolean blocked(String login) {
+        return partners("blacklist").stream().anyMatch(login::equalsIgnoreCase);
+    }
+
     // GMV partners' GitHub names in gmv-partners.json's list (partnersPage: the Partners page; othersMenu: Browse Others' Sets).
     public static List<String> partners(String list) {
         Matcher names = Pattern.compile("\"" + list + "\"\\s*:\\s*\\[([^\\]]*)]").matcher(LatestData.text("gmv-partners.json"));
@@ -132,7 +137,7 @@ public class Gists {
             }
             for (JsonElement gist : gists) {
                 MarkerSet.Gist set = gist(gist.getAsJsonObject());
-                if (set != null) {
+                if (set != null && !blocked(set.owner)) {
                     found.add(set);
                 }
             }
@@ -147,7 +152,7 @@ public class Gists {
     // which would serve a deleted or changed gist as it was.
     @Nullable
     public String text(MarkerSet.Gist gist) throws IOException {
-        return call(new Request.Builder().url(HttpUrl.get("https://gist.githubusercontent.com/").newBuilder()
+        return blocked(gist.owner) ? null : call(new Request.Builder().url(HttpUrl.get("https://gist.githubusercontent.com/").newBuilder()
             .addPathSegments(gist.owner + "/" + gist.id + "/raw").addPathSegment(gist.file)
             .addQueryParameter("t", String.valueOf(System.currentTimeMillis())).build()));
     }

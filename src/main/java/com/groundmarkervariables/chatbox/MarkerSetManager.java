@@ -235,7 +235,7 @@ public class MarkerSetManager extends SearchableChatbox {
         Map<String, Runnable> others = new LinkedHashMap<>();
         Set<String> authors = new LinkedHashSet<>(Gists.partners("othersMenu"));
         markerSets.sets().stream().filter(set -> set.kind == MarkerSet.Kind.GIST).forEach(set -> authors.add(set.gist.owner));
-        authors.forEach(name -> others.put(Gists.displayName(name), () -> browse(name)));
+        authors.stream().filter(name -> !Gists.blocked(name)).forEach(name -> others.put(Gists.displayName(name), () -> browse(name)));
         others.put("Other...", this::askBrowse);
         addSubmenu(browseButton, browseActions, "Browse Others' Sets", others);
         addAction(browseButton, browseActions, login == null ? "Sign in to GitHub" : "Sign out of GitHub (" + login + ")", login == null ? this::signIn
@@ -427,7 +427,7 @@ public class MarkerSetManager extends SearchableChatbox {
         }
         // Then Edit, Manage, Map, Publish and Delete (each only where it applies).
         if (set.kind == MarkerSet.Kind.OWN) {
-            // Yours can be made anon; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
+            // Yours can be given any author; anyone else's (a clone, anon, Unknown) claimed by the logged-in name.
             Player player = client.getLocalPlayer();
             String name = player != null ? player.getName() : null;
             Map<String, Runnable> edit = new LinkedHashMap<>();
@@ -436,9 +436,16 @@ public class MarkerSetManager extends SearchableChatbox {
             if (clipboardHasMarkers) {
                 edit.put("Paste", () -> paste(set));
             }
-            if (name != null && name.equalsIgnoreCase(set.author)) {
-                edit.put("Anonymize", () -> markerSets.setAuthor(set, MarkerSet.ANON));
-            } else if (name != null) {
+            // Blank for anonymous; a name keeps the old author in its history, as claiming does.
+            edit.put("Set author", () -> askText("Author (blank for anonymous)", MarkerSet.ANON.equals(set.author) ? "" : set.author, author -> {
+                if (author.isBlank()) {
+                    markerSets.setAuthor(set, MarkerSet.ANON);
+                } else {
+                    markerSets.claim(set, author.trim());
+                }
+                reopen();
+            }));
+            if (name != null && !name.equalsIgnoreCase(set.author)) {
                 edit.put("Claim Authorship", () -> markerSets.claim(set, name));
             }
             addSubmenu(label, actions, "Edit", edit);
